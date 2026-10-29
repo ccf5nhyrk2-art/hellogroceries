@@ -72,7 +72,7 @@ const shoppingDepartments=[
  ['Frozen','🧊',/\b(frozen|ice cream)\b/i],
  ['Pantry & Seasonings','🥫',/\b(rice|pasta|orzo|noodle|couscous|quinoa|flour|sugar|salt|peppercorn|spice|seasoning|paprika|cumin|chili flakes|oregano|thyme|rosemary|cinnamon|turmeric|oil|vinegar|soy sauce|sauce|dressing|stock|broth|bouillon|honey|mustard|mayonnaise|mayo|ketchup|sriracha|beans|lentils|chickpeas|tomato paste|breadcrumbs|panko|nuts|sesame|canned|jam|syrup)\b/i]
 ];
-const shoppingOpenDepartments=new Set(shoppingDepartments.map(x=>x[0]).concat(['Other / Uncategorized']));
+const shoppingOpenDepartments=new Set(shoppingDepartments.map(x=>x[0]).concat(['Other / Uncategorized','Needs Review']));
 
 // Prefer precise pantry matches before broad produce words; tolerate plural ingredient names.
 function shoppingDepartment(name){
@@ -137,19 +137,20 @@ function shoppingDisplay(item){
  // Preserve source units (and missing units) rather than inventing ounces or counts.
  return {name:pretty+' '+rest,note:missingGroceryMeasure(rest)?'Unit not specified':''};
 }
+function shoppingNeedsReview(item){const override=(state.ingredient_overrides||{})[item.name]||{};if(override.display)return false;const d=shoppingDisplay(item);return d.note==='Unit not specified'||/\b(?:pick|unit)\s+(?:chickpeas|croutons|beans|lentils|rice|pasta|seeds|nuts|dressing|hummus)\b/i.test(item.name);}
 function renderShoppingList(){
  const groups=new Map();
  for(const item of state.list||[]){
   const override=(state.ingredient_overrides||{})[item.name];
-  const group=override&&override.department&&override.department!=='Auto'?override.department:shoppingDepartment(item.name);
+  const group=shoppingNeedsReview(item)?'Needs Review':override&&override.department&&override.department!=='Auto'?override.department:shoppingDepartment(item.name);
   if(!groups.has(group))groups.set(group,[]);
   groups.get(group).push(item);
  }
- const order=shoppingDepartments.map(x=>x[0]).concat(['Other / Uncategorized']);
+ const order=['Needs Review',...shoppingDepartments.map(x=>x[0]),'Other / Uncategorized'];
  $('items').innerHTML=order.filter(group=>groups.has(group)).map(group=>{
   const entries=groups.get(group).slice().sort((a,b)=>Number(a.purchased)-Number(b.purchased)||String(a.name).localeCompare(String(b.name)));
   const done=entries.filter(x=>x.purchased).length;
-  const symbol=(shoppingDepartments.find(d=>d[0]===group)||[])[1]||'🛒';
+  const symbol=group==='Needs Review'?'⚠️':(shoppingDepartments.find(d=>d[0]===group)||[])[1]||'🛒';
   const rows=entries.map(x=>{const display=shoppingDisplay(x),override=(state.ingredient_overrides||{})[x.name]||{};return '<div class="row"><input type="checkbox" data-item="'+esc(x.name)+'" '+(x.purchased?'checked':'')+'><label class="'+(x.purchased?'done':'')+'">'+esc(override.display||display.name)+'</label>'+(display.note?'<span class="qty">'+esc(display.note)+'</span>':'')+'<button type="button" data-edit-item="'+esc(x.name)+'">Edit</button></div>'}).join('');
   return '<details class="shopping-department" data-department="'+esc(group)+'" '+(shoppingOpenDepartments.has(group)?'open':'')+'><summary><span>'+symbol+' '+esc(group)+'</span><span class="department-count">'+done+' of '+entries.length+' purchased</span></summary><div class="department-items">'+rows+'</div></details>';
  }).join('')||'<p class="muted">No generated list yet.</p>';
