@@ -132,7 +132,8 @@ function shoppingDisplay(item){
 function renderShoppingList(){
  const groups=new Map();
  for(const item of state.list||[]){
-  const group=shoppingDepartment(item.name);
+  const override=(state.ingredient_overrides||{})[item.name];
+  const group=override&&override.department&&override.department!=='Auto'?override.department:shoppingDepartment(item.name);
   if(!groups.has(group))groups.set(group,[]);
   groups.get(group).push(item);
  }
