@@ -215,52 +215,58 @@ function consolidatedShoppingRows(items){
 }
 // Display conservative shopping-package suggestions without changing recipe quantities.
 function purchaseSuggestion(row){
- if(!Number.isFinite(row.amount)||row.amount<=0||!row.ingredient)return null;
- const name=row.ingredient.toLowerCase().trim(),unit=row.baseUnit;
- const amount=row.amount;
- const count=(needed,size)=>Math.ceil((needed-1e-8)/size);
- if(unit==='teaspoon'){
-  if(/\bbutter\b/.test(name)&&!/\b(?:peanut|almond|cashew|sunflower) butter\b/.test(name)){
-   const sticks=count(amount,24);
-   return {label:sticks+' '+(sticks===1?'stick':'sticks')+' butter',note:groceryNumber(amount/3)+' tbsp needed · 8 tbsp per stick'};
-  }
-  if(/\b(?:olive oil|vegetable oil|canola oil|avocado oil|cooking oil)\b/.test(name)){
-   const bottles=count(amount,96); // 16 fl oz = 96 tsp
-   return {label:bottles+' × 16 fl oz '+row.ingredient+' '+(bottles===1?'bottle':'bottles'),note:groceryNumber(amount/3)+' tbsp needed · suggested bottle size'};
-  }
+ const name=String(row.ingredient||'').trim(),lower=name.toLowerCase(),unit=row.baseUnit,amount=row.amount;
+ const count=(capacity)=>Math.ceil((amount-1e-8)/capacity);
+ const item=(quantity,size,kind,description,note)=>({label:quantity+' × '+size+' '+description+' '+(quantity===1?kind:kind+'s'),note});
+ const measured=(unitLabel)=>groceryNumber(amount)+' '+unitLabel+' needed';
+ const has=(pattern)=>pattern.test(lower);
+ // "pick" is a HelloFresh source marker, not a unit of measurement.
+ if(/^\s*(?:\d+(?:\.\d+)?\s+)?pick\s+/i.test(row.label)){
+  return {label:name.replace(/^pick\s+/i,''),note:'⚠ Quantity needs review — source recipe says “pick”'};
  }
+ if(!Number.isFinite(amount)||amount<=0||!name)return null;
+ if(!unit&&has(/\bprosciutto\b/))return {label:name,note:'⚠ Quantity needs review ('+groceryNumber(amount)+'; unit unspecified)'};
  if(unit==='teaspoon'){
   const tbsp=amount/3;
-  // These are approximate volume-to-package suggestions, not exact weight conversions.
-  const packaged=[
-   [/\b(?:parmesan cheese|grated parmesan|parmesan)\b/,8,'tub','grated Parmesan',16],
-   [/\bsour cream\b/,8,'tub','sour cream',16],
-   [/\b(?:plain |greek |vanilla )?yogurt\b/,5.3,'cup','yogurt',10],
-   [/\bhummus\b/,8,'tub',row.ingredient,16],
-   [/\bfeta(?: cheese)?\b/,4,'package','feta cheese',8]
-  ];
-  for(const [pattern,oz,container,product,capacityTbsp] of packaged){
-   if(!pattern.test(name))continue;
-   const packages=count(tbsp,capacityTbsp);
-   return {label:packages+' × '+oz+' oz '+product+' '+(packages===1?container:container+'s'),note:groceryNumber(tbsp)+' tbsp needed · approximate package estimate'};
+  if(has(/\bbutter\b/)&&!has(/\b(?:peanut|almond|cashew|sunflower) butter\b/)){
+   const sticks=Math.ceil((amount-1e-8)/24);
+   return {label:sticks+' '+(sticks===1?'stick':'sticks')+' butter',note:groceryNumber(tbsp)+' tbsp needed · 8 tbsp per stick'};
   }
+  if(has(/\b(?:olive oil|vegetable oil|canola oil|avocado oil|cooking oil)\b/))
+   return item(count(96),'16 fl oz','bottle',name,measured('tsp')+' · 96 tsp per bottle');
+  // Volume measurements cannot be converted to weight ounces reliably.
+  const approximate=[
+   [/\b(?:parmesan cheese|grated parmesan|parmesan)\b/,'8 oz grated Parmesan tub'],
+   [/\bsour cream\b/,'8 oz sour cream tub'],
+   [/\b(?:plain |greek |vanilla )?yogurt\b/,'5.3 oz yogurt cup'],
+   [/\bhummus\b/,'8 oz '+name+' tub'],
+   [/\bfeta(?: cheese)?\b/,'4 oz feta cheese package'],
+   [/\b(?:black peppercorns?|peppercorns?)\b/,'small peppercorn spice jar'],
+   [/\b(?:ground cumin|paprika|chili powder|garlic powder|dried oregano|dried thyme|dried basil|cinnamon)\b/,'small spice jar of '+name]
+  ];
+  for(const [pattern,packageLabel] of approximate)if(pattern.test(lower))
+   return {label:'1 '+packageLabel,note:groceryNumber(tbsp)+' tbsp needed · package suggestion; check amount if buying multiple recipes'};
  }
- if(/^\d+(?:\.\d+)?\s+pick\s+/i.test(row.label)){
-  return {label:row.ingredient.replace(/^pick\\s+/i,'').trim(),note:'⚠ Quantity needs review (recipe says “pick”)'};
+ if(unit==='ounce'){
+  if(has(/\b(?:cream cheese|shredded (?:cheddar|mozzarella|cheese)|cheddar cheese|mozzarella cheese)\b/))
+   return item(count(8),'8 oz','package',name,measured('oz')+' · 8 oz per package');
+  if(has(/\b(?:greek vinaigrette|vinaigrette|salad dressing|ranch dressing)\b/))
+   return item(count(8),'8 fl oz','bottle',name,measured('fl oz, if liquid measure')+' · confirm source uses fluid ounces');
+  if(has(/\bsun.dried tomatoes\b/))
+   return {label:'1 jar sun-dried tomatoes (suggested 7 oz)',note:measured('oz')+' · check drained weight and package size'};
+  if(has(/\b(?:mixed greens|baby spinach|arugula|spring mix)\b/))
+   return item(count(5),'5 oz','clamshell',name,measured('oz')+' · 5 oz per package');
+  if(has(/\b(?:broccoli florets)\b/))
+   return item(count(12),'12 oz','bag',name,measured('oz')+' · 12 oz per bag');
+  if(has(/\b(?:rib.eye steak|ribeye steak|chicken breast|ground beef|ground turkey|salmon|pork chops?)\b/))
+   return {label:groceryNumber(amount/16)+' lb '+name,note:measured('oz')+' · buy at least this weight'};
  }
- if(!unit&&/\bprosciutto\b/.test(name)){
-  return {label:row.ingredient,note:'⚠ Quantity needs review ('+groceryNumber(amount)+'; unit unspecified)'};
- }
- if(unit==='ounce'&&/\b(?:cream cheese|shredded (?:cheddar|mozzarella|cheese)|cheddar cheese|mozzarella cheese)\b/.test(name)){
-  const packages=count(amount,8);
-  return {label:packages+' × 8 oz '+row.ingredient+' '+(packages===1?'package':'packages'),note:groceryNumber(amount)+' oz needed · suggested package size'};
- }
- if(unit==='milliliter'&&/^(?:whole |skim |2% |1% )?milk$/.test(name)){
-  const quarts=count(amount,946.353);
-  return {label:quarts+' × 1 quart milk '+(quarts===1?'carton':'cartons'),note:groceryNumber(amount)+' mL needed · suggested carton size'};
- }
- if(!unit&&/^(?:eggs?)$/.test(name)){
-  const dozens=count(amount,12);
+ if(unit==='milliliter'&&/^(?:whole |skim |2% |1% )?milk$/.test(lower))
+  return item(count(946.353),'1 quart','carton',name,measured('mL')+' · approximately 946 mL per carton');
+ if(unit==='ounce'&&has(/\b(?:milk)\b/))
+  return {label:name+' — verify fluid or weight ounces',note:measured('oz')+' · cannot safely convert without unit type'};
+ if(!unit&&/^(?:eggs?)$/.test(lower)){
+  const dozens=Math.ceil((amount-1e-8)/12);
   return {label:dozens+' '+(dozens===1?'dozen':'dozen')+' eggs',note:groceryNumber(amount)+' eggs needed'};
  }
  return null;
