@@ -442,10 +442,10 @@ class Handler(SimpleHTTPRequestHandler):
     elif action=='reset_ingredient':
      state.setdefault('ingredient_overrides',{}).pop(str(p.get('name','')),None)
     elif action=='set_preferences':
-     favorites=p.get('favorites',[]);collections=p.get('collections',{});weekly=p.get('weekly',{});pantry=p.get('pantry',[]);manual=p.get('manual',[])
-     if not isinstance(favorites,list) or len(favorites)>20000 or not isinstance(collections,dict) or not isinstance(weekly,dict) or not isinstance(pantry,list) or not isinstance(manual,list):raise ValueError('Invalid preferences')
+     favorites=p.get('favorites',[]);collections=p.get('collections',{});weekly=p.get('weekly',{});pantry=p.get('pantry',[]);manual=p.get('manual',[]);previous_week=p.get('previous_week',{})
+     if not isinstance(favorites,list) or len(favorites)>20000 or not isinstance(collections,dict) or not isinstance(weekly,dict) or not isinstance(pantry,list) or not isinstance(manual,list) or not isinstance(previous_week,dict) or len(previous_week)>7:raise ValueError('Invalid preferences')
      if len(collections)>100 or len(weekly)>7 or len(pantry)>500 or len(manual)>500:raise ValueError('Too many items')
-     state.update(favorites=favorites,collections=collections,weekly=weekly,pantry=pantry,manual=manual)
+     state.update(favorites=favorites,collections=collections,weekly=weekly,pantry=pantry,manual=manual,previous_week=previous_week)
     elif action=='generate':
      totals={}
      for recipe in allrecipes():
