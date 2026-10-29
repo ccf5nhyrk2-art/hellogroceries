@@ -48,17 +48,38 @@ def official_image(recipe):
  if not url or not allowed_url(url):return ''
  try:
   req=urllib.request.Request(url,headers={'User-Agent':'Mozilla/5.0 (compatible; PersonalRecipePhoto/1.0)'})
-  with urllib.request.urlopen(req,timeout=8) as response:
+  with urllib.request.urlopen(req,timeout=10) as response:
    if not allowed_url(response.geturl()):return ''
-   page=response.read(600000).decode('utf-8','replace')
-  # Handle meta tags regardless of attribute order, including Twitter image fallbacks.
+   page=response.read(1500000).decode('utf-8','replace')
+  candidates=[]
+  for block in re.findall(r'<script\b[^>]*type=["\x27]application/ld\+json["\x27][^>]*>(.*?)</script>',page,re.I|re.S):
+   try:data=json.loads(html.unescape(block))
+   except (ValueError,TypeError):continue
+   def walk(obj):
+    if isinstance(obj,list):
+     for item in obj:yield from walk(item)
+    elif isinstance(obj,dict):
+     if '@graph' in obj:yield from walk(obj['@graph'])
+     yield obj
+   for node in walk(data):
+    types=node.get('@type',[])
+    if isinstance(types,str):types=[types]
+    if 'Recipe' not in types:continue
+    images=node.get('image',[])
+    if not isinstance(images,list):images=[images]
+    for item in images:
+     if isinstance(item,dict):item=item.get('url') or item.get('contentUrl') or ''
+     candidates.append(item)
+   if candidates:break
   for tag in re.findall(r'<meta\b[^>]*>',page,re.I):
    attrs=dict((k.lower(),html.unescape(v)) for k,v in re.findall(r'([\w:-]+)\s*=\s*["\x27]([^"\x27]*)["\x27]',tag))
-   if attrs.get('property','').lower() not in ('og:image','og:image:secure_url') and attrs.get('name','').lower() not in ('twitter:image','twitter:image:src'):
-    continue
-   img=attrs.get('content','').strip()
-   u=urllib.parse.urlsplit(img)
-   if u.scheme=='https' and u.hostname and not u.username and not u.password:return img
+   if attrs.get('property','').lower() in ('og:image','og:image:secure_url') or attrs.get('name','').lower() in ('twitter:image','twitter:image:src'):
+    candidates.append(attrs.get('content',''))
+  for img in candidates:
+   if not isinstance(img,str):continue
+   img=html.unescape(img).strip()
+   parsed=urllib.parse.urlsplit(img)
+   if parsed.scheme=='https' and parsed.hostname and not parsed.username and not parsed.password and len(img)<2048:return img
  except Exception:pass
  return ''
 
@@ -170,13 +191,15 @@ class Handler(SimpleHTTPRequestHandler):
  def do_GET(self):
   if self.path.startswith('/api/photo/'):
    try:
-    rid=int(self.path.rsplit('/',1)[1]);recipe=next((r for r in allrecipes() if r['id']==rid),None)
-    if not recipe:return self.send_response(404)
-    photo=recipe.get('image') or official_image(recipe)
-    if not photo:return self.send_response(404)
-    if not recipe.get('image'):
+    path=urllib.parse.urlsplit(self.path)
+    rid=int(path.path.rsplit('/',1)[1]);recipe=next((r for r in allrecipes() if r['id']==rid),None)
+    if not recipe:return self.send_error(404)
+    refresh=urllib.parse.parse_qs(path.query).get('refresh',['0'])[0]=='1'
+    photo=official_image(recipe) if refresh else (recipe.get('image') or official_image(recipe))
+    if not photo:return self.send_error(404)
+    if not recipe.get('image') and not refresh:
      with db() as c:c.execute('INSERT OR REPLACE INTO photos(recipe_id,image_url) VALUES(?,?)',(rid,photo))
-    self.send_response(302);self.send_header('Location',photo);self.send_header('Cache-Control','public, max-age=86400');self.end_headers();return
+    self.send_response(302);self.send_header('Location',photo);self.send_header('Cache-Control','no-store' if refresh else 'public, max-age=3600');self.end_headers();return
    except (ValueError,TypeError):return self.send_response(404)
   if self.path=='/api/recipes':return self.sendjson(allrecipes())
   if self.path=='/api/state':return self.sendjson(read())
