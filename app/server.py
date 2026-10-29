@@ -532,14 +532,22 @@ class Handler(SimpleHTTPRequestHandler):
      else:reviews.pop(str(rid),None)
     elif action=='generate':
      totals={}
+     sources={}
      for recipe in allrecipes():
       scale=state['selected'].get(str(recipe['id']))
       if scale is None:continue
-      for name,qty in recipe['ingredients'].items():totals[name]=totals.get(name,0)+qty*scale
+      for name,qty in recipe['ingredients'].items():
+       amount=float(qty)*float(scale)
+       if not (0<amount<100000):continue
+       totals[name]=totals.get(name,0)+amount
+       sources.setdefault(name,[]).append({'recipe_id':recipe['id'],'recipe':recipe['name'],'source_quantity':qty,'multiplier':scale,'contribution':round(amount,3)})
      for item in state.get('manual',[]):
-      if isinstance(item,str) and item.strip():totals[item.strip()]=totals.get(item.strip(),0)+1
+      if isinstance(item,str) and item.strip():
+       name=item.strip()
+       totals[name]=totals.get(name,0)+1
+       sources.setdefault(name,[]).append({'recipe':'Manually added','contribution':1})
      pantry={str(x).strip().lower() for x in state.get('pantry',[])}
-     state['list']=[{'name':name,'quantity':round(qty,3),'purchased':False} for name,qty in sorted(totals.items()) if qty>0 and name.strip().lower() not in pantry]
+     state['list']=[{'name':name,'quantity':round(qty,3),'purchased':False,'sources':sources.get(name,[])} for name,qty in sorted(totals.items()) if qty>0 and name.strip().lower() not in pantry]
     elif action=='clear':state['list']=[]
     elif action=='purchase_many':
      names=p.get('names',[])
