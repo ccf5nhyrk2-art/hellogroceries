@@ -380,6 +380,12 @@ class Handler(SimpleHTTPRequestHandler):
         for name,ids in saved['collections'].items():
          if isinstance(name,str) and isinstance(ids,list) and len(name)<=60:
           collections[name]=list(dict.fromkeys(collections.get(name,[])+[idmap.get(str(x),x) for x in ids]))[:20000]
+       if isinstance(saved.get('recipe_reviews'),dict):
+        reviews=old.setdefault('recipe_reviews',{})
+        for rid,review in saved['recipe_reviews'].items():
+         mapped=str(idmap.get(str(rid),rid))
+         if mapped not in reviews and isinstance(review,dict) and type(review.get('rating'))==int and 0<=review['rating']<=5 and isinstance(review.get('note',''),str) and len(review.get('note',''))<=2000:
+          reviews[mapped]={'rating':review['rating'],'note':review.get('note','')}
        if not old.get('weekly') and isinstance(saved.get('weekly'),dict):old['weekly']={day:idmap.get(str(id),id) for day,id in saved['weekly'].items()}
        if not old.get('list') and isinstance(saved.get('list'),list):old['list']=saved['list']
        if not old.get('selected') and isinstance(saved.get('selected'),dict):old['selected']={str(idmap.get(str(k),k)):v for k,v in saved['selected'].items()}
@@ -447,6 +453,14 @@ class Handler(SimpleHTTPRequestHandler):
      if not isinstance(favorites,list) or len(favorites)>20000 or not isinstance(collections,dict) or not isinstance(weekly,dict) or not isinstance(pantry,list) or not isinstance(manual,list) or not isinstance(previous_week,dict) or len(previous_week)>7:raise ValueError('Invalid preferences')
      if len(collections)>100 or len(weekly)>7 or len(pantry)>500 or len(manual)>500:raise ValueError('Too many items')
      state.update(favorites=favorites,collections=collections,weekly=weekly,pantry=pantry,manual=manual,previous_week=previous_week)
+    elif action=='rate_recipe':
+     rid=p.get('id');rating=p.get('rating');note=p.get('note','')
+     if type(rid)!=int or rid<0 or rid not in {int(r['id']) for r in allrecipes()}:raise ValueError('Unknown recipe')
+     if type(rating)!=int or rating<0 or rating>5:raise ValueError('Rating must be 0–5')
+     if not isinstance(note,str) or len(note)>2000:raise ValueError('Note must be at most 2000 characters')
+     reviews=state.setdefault('recipe_reviews',{})
+     if rating or note.strip():reviews[str(rid)]={'rating':rating,'note':note.strip()}
+     else:reviews.pop(str(rid),None)
     elif action=='generate':
      totals={}
      for recipe in allrecipes():
