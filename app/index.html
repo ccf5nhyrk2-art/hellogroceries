@@ -233,11 +233,11 @@ function purchaseSuggestion(row){
   const tbsp=amount/3;
   // These are approximate volume-to-package suggestions, not exact weight conversions.
   const packaged=[
-   [/\\b(?:parmesan cheese|grated parmesan|parmesan)\\b/,8,'tub','grated Parmesan',16],
-   [/\\bsour cream\\b/,8,'tub','sour cream',16],
-   [/\\b(?:plain |greek |vanilla )?yogurt\\b/,5.3,'cup','yogurt',10],
-   [/\\bhummus\\b/,8,'tub',row.ingredient,16],
-   [/\\bfeta(?: cheese)?\\b/,4,'package','feta cheese',8]
+   [/\b(?:parmesan cheese|grated parmesan|parmesan)\b/,8,'tub','grated Parmesan',16],
+   [/\bsour cream\b/,8,'tub','sour cream',16],
+   [/\b(?:plain |greek |vanilla )?yogurt\b/,5.3,'cup','yogurt',10],
+   [/\bhummus\b/,8,'tub',row.ingredient,16],
+   [/\bfeta(?: cheese)?\b/,4,'package','feta cheese',8]
   ];
   for(const [pattern,oz,container,product,capacityTbsp] of packaged){
    if(!pattern.test(name))continue;
@@ -245,10 +245,10 @@ function purchaseSuggestion(row){
    return {label:packages+' × '+oz+' oz '+product+' '+(packages===1?container:container+'s'),note:groceryNumber(tbsp)+' tbsp needed · approximate package estimate'};
   }
  }
- if(/^\\d+(?:\\.\\d+)?\\s+pick\\s+/i.test(row.label)){
+ if(/^\d+(?:\.\d+)?\s+pick\s+/i.test(row.label)){
   return {label:row.ingredient+' — check package quantity',note:'Source recipe uses “pick”; quantity needs review'};
  }
- if(!unit&&/\\bprosciutto\\b/.test(name)){
+ if(!unit&&/\bprosciutto\b/.test(name)){
   return {label:row.ingredient+' — check package quantity',note:groceryNumber(amount)+' needed · source unit unspecified'};
  }
  if(unit==='ounce'&&/\b(?:cream cheese|shredded (?:cheddar|mozzarella|cheese)|cheddar cheese|mozzarella cheese)\b/.test(name)){
