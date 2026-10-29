@@ -1,18 +1,9 @@
 from http.server import ThreadingHTTPServer,SimpleHTTPRequestHandler
 from pathlib import Path
-import json,sqlite3,threading,re,html,io,zipfile,datetime,urllib.request,urllib.parse,urllib.robotparser,xml.etree.ElementTree as ET,time,subprocess,sys,fcntl,os,ipaddress,socket
+import json,sqlite3,threading,re,html,urllib.request,urllib.parse,urllib.robotparser,xml.etree.ElementTree as ET,time,subprocess,sys,fcntl,os,ipaddress,socket
 BASE=Path(__file__).parent;DB=Path('/data/shopping.db');DB.parent.mkdir(exist_ok=True,parents=True)
 RECIPES=json.loads((BASE/'recipes.json').read_text());lock=threading.Lock()
-job={"running":False,"discovered":0,"processed":0,"imported":0,"skipped":0,"errors":0,"message":"Idle","paused":False,"country":"US","limit":0}
-BULK_STATE=Path("/data/bulk_import_progress.json")
-BULK_PAUSE=threading.Event()
-def save_bulk():
- tmp=BULK_STATE.with_suffix(".tmp");tmp.write_text(json.dumps(job));tmp.replace(BULK_STATE)
-if BULK_STATE.exists():
- try:
-  job.update(json.loads(BULK_STATE.read_text()));job["running"]=False
-  if not job.get("paused") and job.get("message")!="Completed":job["message"]="Interrupted; press Resume to continue"
- except (OSError,ValueError):pass
+job={"running":False,"discovered":0,"processed":0,"imported":0,"skipped":0,"errors":0,"message":"Idle"}
 IMPORT_LOCK=Path('/data/us_import.lock')
 IMPORT_LOG=Path('/data/us_import.log')
 import_launch_lock=threading.Lock()
@@ -263,7 +254,6 @@ def bulk_worker(country,limit):
   urls,rp=discover_sitemap(country,limit)
   job['discovered']=len(urls)
   for url in urls:
-   if BULK_PAUSE.is_set():job['message']='Paused';job['paused']=True;save_bulk();return
    if not rp.can_fetch('PersonalRecipeImporter',url):job['skipped']+=1;continue
    try:
     with db() as c:
@@ -280,11 +270,10 @@ def bulk_worker(country,limit):
       else:job['skipped']+=1
    except Exception:job['errors']+=1
    job['processed']+=1
-   save_bulk()
    time.sleep(1.5)
   job['message']='Completed; some sites may not expose importable recipe data'
  except Exception as e:job['message']='Stopped: '+str(e)
- finally:job['running']=False;save_bulk()
+ finally:job['running']=False
 
 def default():return {'selected':{},'list':[],'revision':0}
 def read():
@@ -316,12 +305,6 @@ class Handler(SimpleHTTPRequestHandler):
    except (ValueError,TypeError,OSError):return self.send_error(404)
   if self.path=='/api/recipes':return self.sendjson(allrecipes())
   if self.path=='/api/state':return self.sendjson(read())
-  if self.path=='/api/backup':
-   with lock:
-    with db() as conn:
-     data={'version':1,'exported_at':datetime.datetime.now(datetime.timezone.utc).isoformat(),'state':read(),'imported':[dict(url=u,payload=json.loads(v)) for u,v in conn.execute('SELECT url,payload FROM imported')],'photos':[dict(recipe_id=i,image_url=u) for i,u in conn.execute('SELECT recipe_id,image_url FROM photos')]}
-   raw=json.dumps(data).encode()
-  self.send_response(200);self.send_header('Content-Type','application/json');self.send_header('Content-Disposition','attachment; filename="hellogroceries-backup.json"');self.send_header('Content-Length',str(len(raw)));self.end_headers();self.wfile.write(raw);return
   if self.path=='/api/bulk-status':return self.sendjson(dict(job))
   if self.path=='/api/us-import-control-status':return self.sendjson({'running':us_import_running() or (import_process is not None and import_process.poll() is None),'message':'Importer running' if us_import_running() or (import_process is not None and import_process.poll() is None) else 'Importer idle — ready to start / resume'})
   if self.path=='/api/us-import-status':
@@ -341,66 +324,17 @@ class Handler(SimpleHTTPRequestHandler):
   if self.path!='/api/action':return self.sendjson({'error':'Not found'},404)
   try:
    size=int(self.headers.get('Content-Length','0'))
-   if size<1 or size>25000000:return self.sendjson({'error':'Too large (25 MB maximum)'},413)
+   if size<1 or size>100000:return self.sendjson({'error':'Too large'},413)
    p=json.loads(self.rfile.read(size));action=p['action']
    if action=='start-us-import':return self.sendjson(start_us_import())
-   if action=='pause-bulk':
-    BULK_PAUSE.set();return self.sendjson({'ok':True,'message':'Pause requested; finishes current recipe first'})
-   if action=='restore-backup':
-    backup=p.get('backup');mode=p.get('mode','merge')
-    if not isinstance(backup,dict) or backup.get('version')!=1 or mode!='merge':raise ValueError('Invalid backup or restore mode')
-    imports=backup.get('imported',[]);photos=backup.get('photos',[])
-    if not isinstance(imports,list) or len(imports)>50000 or not isinstance(photos,list) or len(photos)>50000:raise ValueError('Backup too large')
-    with lock:
-     with db() as conn:
-      added=0;idmap={}
-      for row in imports:
-       if not isinstance(row,dict) or not isinstance(row.get('url'),str) or not isinstance(row.get('payload'),dict):raise ValueError('Invalid recipe entry')
-       if not allowed_url(row['url']):raise ValueError('Invalid recipe URL')
-       cur=conn.execute('INSERT OR IGNORE INTO imported(url,payload) VALUES(?,?)',(row['url'],'{}'))
-       if cur.rowcount:
-        rid=1000000+cur.lastrowid;recipe=dict(row['payload'],id=rid)
-        conn.execute('UPDATE imported SET payload=? WHERE url=?',(json.dumps(recipe),row['url']));added+=1
-       else:rid=1000000+conn.execute('SELECT id FROM imported WHERE url=?',(row['url'],)).fetchone()[0]
-       if 'id' in row['payload']:idmap[str(row['payload']['id'])]=rid
-      for photo in photos:
-       if not isinstance(photo,dict):continue
-       rid=idmap.get(str(photo.get('recipe_id')),photo.get('recipe_id'))
-       if isinstance(rid,int) and isinstance(photo.get('image_url'),str) and len(photo['image_url'])<2048:
-        conn.execute('INSERT OR IGNORE INTO photos(recipe_id,image_url) VALUES(?,?)',(rid,photo['image_url']))
-      old=read();saved=backup.get('state',{})
-      if isinstance(saved,dict):
-       for field in ('favorites','pantry','manual'):
-        if isinstance(saved.get(field),list):
-         values=[idmap.get(str(x),x) if field=='favorites' else x for x in saved[field]]
-         old[field]=list(dict.fromkeys(old.get(field,[])+values))[:20000]
-       if isinstance(saved.get('collections'),dict):
-        collections=old.setdefault('collections',{})
-        for name,ids in saved['collections'].items():
-         if isinstance(name,str) and isinstance(ids,list) and len(name)<=60:
-          collections[name]=list(dict.fromkeys(collections.get(name,[])+[idmap.get(str(x),x) for x in ids]))[:20000]
-       if not old.get('weekly') and isinstance(saved.get('weekly'),dict):old['weekly']={day:idmap.get(str(id),id) for day,id in saved['weekly'].items()}
-       if not old.get('list') and isinstance(saved.get('list'),list):old['list']=saved['list']
-       if not old.get('selected') and isinstance(saved.get('selected'),dict):old['selected']={str(idmap.get(str(k),k)):v for k,v in saved['selected'].items()}
-       old['revision']=old.get('revision',0)+1
-     # Commit recipe inserts before saving state through its own connection.
-     if isinstance(saved,dict):save(old)
-    return self.sendjson({'ok':True,'message':f'Restored {added} missing recipes and merged saved preferences; existing data retained'})
    if action=='bulk':
     country=str(p.get('country','US')).upper();limit=int(p.get('limit',50))
     if country not in ('US','UK','AU','CA','DE','NL') or not 0<=limit<=10000:raise ValueError('Choose a supported country and a limit of 0–10,000')
     with lock:
      if job['running']:raise ValueError('An import is already running')
-     BULK_PAUSE.clear()
-     job.update(running=True,paused=False,country=country,limit=limit,discovered=0,processed=0,imported=0,skipped=0,errors=0,message='Discovering public recipe pages');save_bulk()
+     job.update(running=True,discovered=0,processed=0,imported=0,skipped=0,errors=0,message='Discovering public recipe pages')
      threading.Thread(target=bulk_worker,args=(country,limit),daemon=True).start()
     return self.sendjson({'ok':True,'message':'Bulk import started'})
-   if action=='resume-bulk':
-    if job['running']:raise ValueError('Import already running')
-    BULK_PAUSE.clear();country=job.get('country','US');limit=int(job.get('limit',0))
-    job.update(running=True,paused=False,discovered=0,processed=0,imported=0,skipped=0,errors=0,message='Resuming (already imported recipes will be skipped)');save_bulk()
-    threading.Thread(target=bulk_worker,args=(country,limit),daemon=True).start()
-    return self.sendjson({'ok':True,'message':'Resuming bulk import'})
    if action=='photo':
     rid=int(p['id']);url=str(p.get('image','')).strip()
     if rid not in {r['id'] for r in allrecipes()}:raise ValueError('Unknown recipe')
@@ -441,21 +375,13 @@ class Handler(SimpleHTTPRequestHandler):
      state.setdefault('ingredient_overrides',{})[name]={'display':display,'department':department}
     elif action=='reset_ingredient':
      state.setdefault('ingredient_overrides',{}).pop(str(p.get('name','')),None)
-    elif action=='set_preferences':
-     favorites=p.get('favorites',[]);collections=p.get('collections',{});weekly=p.get('weekly',{});pantry=p.get('pantry',[]);manual=p.get('manual',[]);previous_week=p.get('previous_week',{})
-     if not isinstance(favorites,list) or len(favorites)>20000 or not isinstance(collections,dict) or not isinstance(weekly,dict) or not isinstance(pantry,list) or not isinstance(manual,list) or not isinstance(previous_week,dict) or len(previous_week)>7:raise ValueError('Invalid preferences')
-     if len(collections)>100 or len(weekly)>7 or len(pantry)>500 or len(manual)>500:raise ValueError('Too many items')
-     state.update(favorites=favorites,collections=collections,weekly=weekly,pantry=pantry,manual=manual,previous_week=previous_week)
     elif action=='generate':
      totals={}
      for recipe in allrecipes():
       scale=state['selected'].get(str(recipe['id']))
       if scale is None:continue
       for name,qty in recipe['ingredients'].items():totals[name]=totals.get(name,0)+qty*scale
-     for item in state.get('manual',[]):
-      if isinstance(item,str) and item.strip():totals[item.strip()]=totals.get(item.strip(),0)+1
-     pantry={str(x).strip().lower() for x in state.get('pantry',[])}
-     state['list']=[{'name':name,'quantity':round(qty,3),'purchased':False} for name,qty in sorted(totals.items()) if qty>0 and name.strip().lower() not in pantry]
+     state['list']=[{'name':name,'quantity':round(qty,3),'purchased':False} for name,qty in sorted(totals.items()) if qty>0]
     elif action=='clear':state['list']=[]
     elif action=='purchase_many':
      names=p.get('names',[])
