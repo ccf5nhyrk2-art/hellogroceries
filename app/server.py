@@ -1,6 +1,6 @@
 from http.server import ThreadingHTTPServer,SimpleHTTPRequestHandler
 from pathlib import Path
-import json,sqlite3,threading,re,html,urllib.request,urllib.parse,urllib.robotparser,xml.etree.ElementTree as ET,time,subprocess,sys,fcntl
+import json,sqlite3,threading,re,html,urllib.request,urllib.parse,urllib.robotparser,xml.etree.ElementTree as ET,time,subprocess,sys,fcntl,os,ipaddress,socket
 BASE=Path(__file__).parent;DB=Path('/data/shopping.db');DB.parent.mkdir(exist_ok=True,parents=True)
 RECIPES=json.loads((BASE/'recipes.json').read_text());lock=threading.Lock()
 job={"running":False,"discovered":0,"processed":0,"imported":0,"skipped":0,"errors":0,"message":"Idle"}
@@ -82,6 +82,77 @@ def official_image(recipe):
    if parsed.scheme=='https' and parsed.hostname and not parsed.username and not parsed.password and len(img)<2048:return img
  except Exception:pass
  return ''
+
+
+PHOTO_DIR=Path('/data/photos')
+PHOTO_DIR.mkdir(parents=True,exist_ok=True)
+photo_locks={}
+photo_locks_guard=threading.Lock()
+class SafePhotoRedirect(urllib.request.HTTPRedirectHandler):
+ def redirect_request(self,req,fp,code,msg,headers,newurl):
+  if not allowed_photo_url(newurl):raise ValueError('Untrusted image redirect')
+  return super().redirect_request(req,fp,code,msg,headers,newurl)
+def allowed_photo_url(url):
+ try:
+  u=urllib.parse.urlsplit(url)
+  host=(u.hostname or '').lower().rstrip('.')
+  if u.scheme!='https' or u.username or u.password or u.port not in (None,443):return False
+  # Only known image hosts; never fetch arbitrary URLs from the server.
+  return host in ('images.ctfassets.net','res.cloudinary.com','img.hellofresh.com','cdn.hellofresh.com') or host.endswith('.hellofresh.com') or host.endswith('.hellofresh.co.uk') or host.endswith('.hellofresh.com.au') or host.endswith('.hellofresh.co.nz')
+ except ValueError:return False
+def image_type(raw):
+ if raw.startswith(b'\xff\xd8\xff'):return 'image/jpeg','.jpg'
+ if raw.startswith(b'\x89PNG\r\n\x1a\n'):return 'image/png','.png'
+ if raw[:4]==b'RIFF' and raw[8:12]==b'WEBP':return 'image/webp','.webp'
+ if raw.startswith((b'GIF87a',b'GIF89a')):return 'image/gif','.gif'
+ return None
+def cached_photo(rid):
+ for ext,kind in (('.jpg','image/jpeg'),('.png','image/png'),('.webp','image/webp'),('.gif','image/gif')):
+  p=PHOTO_DIR/(str(rid)+ext)
+  if p.is_file():return p,kind
+ return None
+def download_photo(url,rid):
+ if not allowed_photo_url(url):return None
+ req=urllib.request.Request(url,headers={'User-Agent':'Mozilla/5.0 (compatible; HelloGroceries/1.0)','Accept':'image/avif,image/webp,image/png,image/jpeg,image/gif'})
+ opener=urllib.request.build_opener(SafePhotoRedirect)
+ with opener.open(req,timeout=12) as resp:
+  if not allowed_photo_url(resp.geturl()):return None
+  if int(resp.headers.get('Content-Length') or 0)>8_000_000:return None
+  raw=resp.read(8_000_001)
+ if len(raw)>8_000_000 or len(raw)<100:return None
+ kind=image_type(raw)
+ if not kind:return None
+ mime,ext=kind
+ dest=PHOTO_DIR/(str(rid)+ext)
+ tmp=PHOTO_DIR/(str(rid)+'.tmp-'+str(threading.get_ident()))
+ try:
+  tmp.write_bytes(raw)
+  os.replace(tmp,dest)
+ finally:
+  tmp.unlink(missing_ok=True)
+ return dest,mime
+def resolve_photo(recipe,refresh=False):
+ rid=int(recipe['id'])
+ with photo_locks_guard:
+  item_lock=photo_locks.setdefault(rid,threading.Lock())
+ with item_lock:
+  if not refresh:
+   cached=cached_photo(rid)
+   if cached:return cached
+  urls=[]
+  existing=recipe.get('image','')
+  if existing:urls.append(existing)
+  found=official_image(recipe)
+  if found and found not in urls:urls.append(found)
+  for url in urls:
+   try:
+    result=download_photo(url,rid)
+    if result:
+     if url!=existing:
+      with db() as c:c.execute('INSERT OR REPLACE INTO photos(recipe_id,image_url) VALUES(?,?)',(rid,url))
+     return result
+   except (OSError,ValueError,TimeoutError,urllib.error.URLError):continue
+  return cached_photo(rid)
 
 def allowed_url(url):
  u=urllib.parse.urlsplit(url)
@@ -191,16 +262,20 @@ class Handler(SimpleHTTPRequestHandler):
  def do_GET(self):
   if self.path.startswith('/api/photo/'):
    try:
-    path=urllib.parse.urlsplit(self.path)
-    rid=int(path.path.rsplit('/',1)[1]);recipe=next((r for r in allrecipes() if r['id']==rid),None)
+    parsed=urllib.parse.urlsplit(self.path)
+    rid=int(parsed.path.rsplit('/',1)[1])
+    recipe=next((r for r in allrecipes() if r['id']==rid),None)
     if not recipe:return self.send_error(404)
-    refresh=urllib.parse.parse_qs(path.query).get('refresh',['0'])[0]=='1'
-    photo=official_image(recipe) if refresh else (recipe.get('image') or official_image(recipe))
-    if not photo:return self.send_error(404)
-    if not recipe.get('image') and not refresh:
-     with db() as c:c.execute('INSERT OR REPLACE INTO photos(recipe_id,image_url) VALUES(?,?)',(rid,photo))
-    self.send_response(302);self.send_header('Location',photo);self.send_header('Cache-Control','no-store' if refresh else 'public, max-age=3600');self.end_headers();return
-   except (ValueError,TypeError):return self.send_response(404)
+    refresh=urllib.parse.parse_qs(parsed.query).get('refresh',['0'])[0]=='1'
+    result=resolve_photo(recipe,refresh)
+    if not result:return self.send_error(404)
+    file,mime=result
+    payload=file.read_bytes()
+    self.send_response(200);self.send_header('Content-Type',mime)
+    self.send_header('Cache-Control','private, max-age=3600')
+    self.send_header('Content-Length',str(len(payload)))
+    self.end_headers();self.wfile.write(payload);return
+   except (ValueError,TypeError,OSError):return self.send_error(404)
   if self.path=='/api/recipes':return self.sendjson(allrecipes())
   if self.path=='/api/state':return self.sendjson(read())
   if self.path=='/api/bulk-status':return self.sendjson(dict(job))
@@ -241,6 +316,7 @@ class Handler(SimpleHTTPRequestHandler):
      if u.scheme!='https' or not u.hostname or u.username or u.password or len(url)>2048:raise ValueError('Use a valid HTTPS image URL')
     with lock:
      with db() as c:c.execute('INSERT INTO photos(recipe_id,image_url) VALUES(?,?) ON CONFLICT(recipe_id) DO UPDATE SET image_url=excluded.image_url',(rid,url))
+     for oldfile in PHOTO_DIR.glob(str(rid)+'.*'):oldfile.unlink(missing_ok=True)
     return self.sendjson({'ok':True})
    if action=='import':
     url=str(p.get('url',''))
