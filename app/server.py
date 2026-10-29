@@ -1,6 +1,7 @@
 from http.server import ThreadingHTTPServer,SimpleHTTPRequestHandler
 from pathlib import Path
-import json,sqlite3,threading,re,html,urllib.request,urllib.parse,urllib.robotparser,xml.etree.ElementTree as ET,time,subprocess,sys,fcntl,os,ipaddress,socket
+import json,sqlite3,threading,re,html,urllib.request,urllib.parse,urllib.robotparser,xml.etree.ElementTree as ET,time,subprocess,sys,fcntl,os,ipaddress,socket,io
+from PIL import Image,UnidentifiedImageError
 BASE=Path(__file__).parent;DB=Path('/data/shopping.db');DB.parent.mkdir(exist_ok=True,parents=True)
 RECIPES=json.loads((BASE/'recipes.json').read_text());lock=threading.Lock()
 job={"running":False,"discovered":0,"processed":0,"imported":0,"skipped":0,"errors":0,"message":"Idle"}
@@ -122,10 +123,27 @@ def image_type(raw):
  if raw[:4]==b'RIFF' and raw[8:12]==b'WEBP':return 'image/webp','.webp'
  if raw.startswith((b'GIF87a',b'GIF89a')):return 'image/gif','.gif'
  return None
+def is_branding_photo(raw):
+ # Reject HelloFresh's neon-green logo placeholder, including previously cached copies.
+ try:
+  with Image.open(io.BytesIO(raw)) as image:
+   image.thumbnail((80,80))
+   pixels=list(image.convert('RGB').getdata())
+  if not pixels:return True
+  bright_green=sum(1 for r,g,b in pixels if g>125 and g>r*1.35 and g>b*1.35 and r>45)
+  return bright_green/len(pixels)>0.48
+ except (OSError,ValueError,UnidentifiedImageError):return True
+
 def cached_photo(rid):
  for ext,kind in (('.jpg','image/jpeg'),('.png','image/png'),('.webp','image/webp'),('.gif','image/gif')):
   p=PHOTO_DIR/(str(rid)+ext)
-  if p.is_file():return p,kind
+  if p.is_file():
+   try:
+    if is_branding_photo(p.read_bytes()):
+     p.unlink(missing_ok=True)
+     continue
+   except OSError:continue
+   return p,kind
  return None
 def download_photo(url,rid):
  if not allowed_photo_url(url):return None
@@ -137,7 +155,7 @@ def download_photo(url,rid):
   raw=resp.read(8_000_001)
  if len(raw)>8_000_000 or len(raw)<100:return None
  kind=image_type(raw)
- if not kind:return None
+ if not kind or is_branding_photo(raw):return None
  mime,ext=kind
  dest=PHOTO_DIR/(str(rid)+ext)
  tmp=PHOTO_DIR/(str(rid)+'.tmp-'+str(threading.get_ident()))
