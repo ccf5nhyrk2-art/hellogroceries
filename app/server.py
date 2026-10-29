@@ -75,11 +75,25 @@ def official_image(recipe):
    attrs=dict((k.lower(),html.unescape(v)) for k,v in re.findall(r'([\w:-]+)\s*=\s*["\x27]([^"\x27]*)["\x27]',tag))
    if attrs.get('property','').lower() in ('og:image','og:image:secure_url') or attrs.get('name','').lower() in ('twitter:image','twitter:image:src'):
     candidates.append(attrs.get('content',''))
+  # Some official pages omit structured image metadata but expose a recipe hero image.
+  for tag in re.findall(r'<img\\b[^>]*>',page,re.I):
+   attrs=dict((k.lower(),html.unescape(v)) for k,v in re.findall(r'([\\w:-]+)\\s*=\\s*["\\x27]([^"\\x27]*)["\\x27]',tag))
+   description=(attrs.get('alt','')+' '+attrs.get('class','')).lower()
+   title=str(recipe.get('name','')).lower()
+   words=[w for w in re.findall(r'[a-z]{5,}',title) if w not in ('recipe','hello','fresh','with')]
+   if not ('recipe' in description or 'hero' in description or (words and sum(w in description for w in words)>=min(2,len(words)))):continue
+   src=attrs.get('src') or attrs.get('data-src') or ''
+   if src:candidates.append(src)
+   srcset=attrs.get('srcset','')
+   if srcset:
+    for part in srcset.split(','):
+     candidate=part.strip().split(' ')[0]
+     if candidate:candidates.append(candidate)
   for img in candidates:
    if not isinstance(img,str):continue
    img=html.unescape(img).strip()
    parsed=urllib.parse.urlsplit(img)
-   if parsed.scheme=='https' and parsed.hostname and not parsed.username and not parsed.password and len(img)<2048:return img
+   if allowed_photo_url(img) and len(img)<2048:return img
  except Exception:pass
  return ''
 
@@ -142,8 +156,14 @@ def resolve_photo(recipe,refresh=False):
   urls=[]
   existing=recipe.get('image','')
   if existing:urls.append(existing)
+  # Attempt the known photo first; only fetch the recipe page when it fails.
+  for url in urls:
+   try:
+    result=download_photo(url,rid)
+    if result:return result
+   except (OSError,ValueError,TimeoutError,urllib.error.URLError):pass
   found=official_image(recipe)
-  if found and found not in urls:urls.append(found)
+  urls=[found] if found and found!=existing else []
   for url in urls:
    try:
     result=download_photo(url,rid)
