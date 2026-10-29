@@ -12,13 +12,27 @@ function renderStoreResults(data){
  root.innerHTML=stores.length?stores.map(x=>'<div class="row"><div><strong>'+esc(x.chain)+'</strong> — '+esc(x.name)+'<div class="muted">'+esc(x.address||'Address unavailable')+' · '+esc(x.distance_miles)+' miles</div></div></div>').join(''):'No matching stores found within 10 miles. Store directory coverage may be incomplete.';
  $('store-status').textContent=stores.length+' matching locations near '+data.zip;
 }
+let storeLookupSequence=0;
 async function lookupStores(zip){
+ const sequence=++storeLookupSequence;
  $('store-status').textContent='Looking up nearby stores…';$('store-results').textContent='';
+ const controller=new AbortController();
+ const timer=setTimeout(()=>controller.abort(),20000);
  try{
-  const response=await fetch('/api/stores?zip='+encodeURIComponent(zip));const data=await response.json();
-  if(!response.ok)throw Error(data.error||'Unable to find stores');
-  localStorage.setItem(STORE_ZIP_KEY,zip);renderStoreResults(data);
- }catch(e){$('store-status').textContent=e.message}
+  const response=await fetch('/api/stores?zip='+encodeURIComponent(zip),{signal:controller.signal});
+  if(!response.ok){
+   let message='Store lookup unavailable (HTTP '+response.status+').';
+   try{const error=await response.json();message=error.error||message}catch(e){}
+   throw Error(message);
+  }
+  const data=await response.json();
+  if(sequence!==storeLookupSequence)return;
+  try{localStorage.setItem(STORE_ZIP_KEY,zip)}catch(e){}
+  renderStoreResults(data);
+ }catch(e){
+  if(sequence!==storeLookupSequence)return;
+  $('store-status').textContent=e.name==='AbortError'?'Store lookup timed out after 20 seconds. Please try again later.':(e.message||'Store lookup failed.');
+ }finally{clearTimeout(timer)}
 }
 $('store-lookup-form').addEventListener('submit',e=>{
  e.preventDefault();const zip=$('store-zip').value.trim();
