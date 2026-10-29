@@ -204,7 +204,7 @@ function ingredientNumber(amount){
 function ingredientPluralUnit(unit,amount){
  if(!unit)return '';
  const n=ingredientNumber(amount);
- if(!Number.isFinite(n)||Math.abs(n-1)<.001)return unit;
+ if(!Number.isFinite(n)||n<=1)return unit;
  const irregular={bunch:'bunches',pinch:'pinches',slice:'slices',piece:'pieces',clove:'cloves',box:'boxes'};
  return irregular[unit]||(/s$/i.test(unit)?unit:unit+'s');
 }
