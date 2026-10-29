@@ -181,8 +181,8 @@ function renderShoppingList(){
   return '<details class="shopping-department" data-department="'+esc(group)+'" '+(shoppingOpenDepartments.has(group)?'open':'')+'><summary><span>'+symbol+' '+esc(group)+'</span><span class="department-count">'+done+' of '+entries.length+' purchased</span></summary><div class="department-items">'+rows+'</div></details>';
  }).join('')||'<p class="muted">No generated list yet.</p>';
 }
-const glutenIngredientPattern=/\\b(wheat|flour|breadcrumbs?|bread|buns?|panko|pasta|spaghetti|linguine|penne|noodles?|couscous|bulgur|semolina|farro|barley|rye|seitan|tortillas?|pita|naan|gnocchi|orzo|soy sauce|teriyaki|hoisin|malt|beer|croutons?|pretzels?|wonton|dumplings?)\\b/i;
-const dairyIngredientPattern=/\\b(milk|cheese|cheddar|mozzarella|parmesan|feta|ricotta|cream|creme fraiche|crème fraîche|butter|ghee|yogurt|yoghurt|sour cream|buttermilk|whey|casein|half.and.half|mascarpone|queso|paneer|halloumi|ranch dressing|alfredo)\\b/i;
+const glutenIngredientPattern=/\b(wheat|flour|breadcrumbs?|bread|buns?|panko|pasta|spaghetti|linguine|penne|noodles?|couscous|bulgur|semolina|farro|barley|rye|seitan|tortillas?|pita|naan|gnocchi|orzo|soy sauce|teriyaki|hoisin|malt|beer|croutons?|pretzels?|wonton|dumplings?)\b/i;
+const dairyIngredientPattern=/\b(milk|cheese|cheddar|mozzarella|parmesan|feta|ricotta|cream|creme fraiche|crème fraîche|butter|ghee|yogurt|yoghurt|sour cream|buttermilk|whey|casein|half.and.half|mascarpone|queso|paneer|halloumi|ranch dressing|alfredo)\b/i;
 function dietMatch(r,kind){
  const ingredients=Object.keys(r.ingredients||{});
  if(!ingredients.length)return false;
