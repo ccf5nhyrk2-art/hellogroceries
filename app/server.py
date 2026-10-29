@@ -6,11 +6,12 @@ RECIPES=json.loads((BASE/'recipes.json').read_text());lock=threading.Lock()
 job={"running":False,"discovered":0,"processed":0,"imported":0,"skipped":0,"errors":0,"message":"Idle","paused":False,"country":"US","limit":0}
 BULK_STATE=Path("/data/bulk_import_progress.json")
 BULK_PAUSE=threading.Event()
+BULK_RECOVER=False
 def save_bulk():
  tmp=BULK_STATE.with_suffix(".tmp");tmp.write_text(json.dumps(job));tmp.replace(BULK_STATE)
 if BULK_STATE.exists():
  try:
-  job.update(json.loads(BULK_STATE.read_text()));job["running"]=False
+  job.update(json.loads(BULK_STATE.read_text()));BULK_RECOVER=bool(job.get("running") and not job.get("paused"));job["running"]=False
   if not job.get("paused") and job.get("message")!="Completed":job["message"]="Interrupted; press Resume to continue"
  except (OSError,ValueError):pass
 IMPORT_LOCK=Path('/data/us_import.lock')
@@ -471,4 +472,8 @@ class Handler(SimpleHTTPRequestHandler):
     state['revision']+=1;save(state)
    return self.sendjson(state)
   except (ValueError,KeyError,TypeError,json.JSONDecodeError) as e:return self.sendjson({'error':str(e)},400)
-if __name__=='__main__':ThreadingHTTPServer(('0.0.0.0',8080),Handler).serve_forever()
+if __name__=='__main__':
+ if BULK_RECOVER:
+  job.update(running=True,paused=False,processed=0,discovered=0,imported=0,skipped=0,errors=0,message='Recovering interrupted import; saved recipes will be skipped')
+  threading.Thread(target=bulk_worker,args=(job.get('country','US'),int(job.get('limit',0))),daemon=True).start()
+ ThreadingHTTPServer(('0.0.0.0',8080),Handler).serve_forever()
