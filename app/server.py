@@ -356,6 +356,12 @@ class Handler(SimpleHTTPRequestHandler):
       for name,qty in recipe['ingredients'].items():totals[name]=totals.get(name,0)+qty*scale
      state['list']=[{'name':name,'quantity':round(qty,3),'purchased':False} for name,qty in sorted(totals.items()) if qty>0]
     elif action=='clear':state['list']=[]
+    elif action=='purchase_many':
+     names=p.get('names',[])
+     if not isinstance(names,list) or len(names)>250 or any(not isinstance(n,str) for n in names):raise ValueError('Invalid ingredient selection')
+     available={i['name']:i for i in state['list']}
+     if not names or any(n not in available for n in names):raise ValueError('Unknown grocery item')
+     for name in names:available[name]['purchased']=bool(p['purchased'])
     elif action=='purchase':
      name=p['name'];found=next((i for i in state['list'] if i['name']==name),None)
      if found is None:raise ValueError('Unknown item')
