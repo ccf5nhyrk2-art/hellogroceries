@@ -302,7 +302,7 @@ def nearby_stores(zipcode):
   if cached and time.time()-cached[0]<21600:return cached[1]
  headers={'User-Agent':'HelloGroceries/1.0 (self-hosted grocery planner)','Accept':'application/json'}
  def getjson(url):
-  with urllib.request.urlopen(urllib.request.Request(url,headers=headers),timeout=12) as resp:return json.load(resp)
+  with urllib.request.urlopen(urllib.request.Request(url,headers=headers),timeout=7) as resp:return json.load(resp)
  # OpenStreetMap services are best-effort and may rate limit requests.
  place=getjson('https://nominatim.openstreetmap.org/search?'+urllib.parse.urlencode({'postalcode':zipcode,'country':'USA','format':'json','limit':1}))
  if not place:raise ValueError('ZIP code not found')
@@ -311,10 +311,10 @@ def nearby_stores(zipcode):
  query='[out:json][timeout:20];(nwr["shop"="supermarket"]["name"~"Hy.Vee|Price Chopper|ALDI|Walmart",i](around:16093,'+str(lat)+','+str(lon)+');nwr["shop"="supermarket"]["brand"~"Hy.Vee|Price Chopper|ALDI|Walmart",i](around:16093,'+str(lat)+','+str(lon)+'););out center;'
  payload=urllib.parse.urlencode({'data':query}).encode()
  elements=None
- for endpoint in ('https://overpass.kumi.systems/api/interpreter','https://overpass-api.de/api/interpreter'):
+ for endpoint in ('https://overpass-api.de/api/interpreter','https://overpass.kumi.systems/api/interpreter'):
   try:
    request=urllib.request.Request(endpoint,data=payload,headers=headers,method='POST')
-   with urllib.request.urlopen(request,timeout=28) as resp:elements=json.load(resp).get('elements',[])
+   with urllib.request.urlopen(request,timeout=8) as resp:elements=json.load(resp).get('elements',[])
    break
   except (OSError,ValueError):continue
  if elements is None:raise RuntimeError('Store directory lookup unavailable')
