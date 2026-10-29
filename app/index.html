@@ -34,7 +34,7 @@ function setupSectionCollapse(){
   // Keep the section's original controls and event listeners intact.
   for(const child of [...element.children])if(child!==heading)content.appendChild(child);
   const toggle=document.createElement('button');
-  toggle.type='button';toggle.className='section-collapse-toggle clear';
+  toggle.type='button';toggle.className='section-collapse-toggle';
   toggle.setAttribute('aria-expanded',String(!saved[key]));
   const contentId='section-collapse-'+key;
   content.id=contentId;toggle.setAttribute('aria-controls',contentId);
