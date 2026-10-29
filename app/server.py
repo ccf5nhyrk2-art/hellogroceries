@@ -112,7 +112,7 @@ def allowed_photo_url(url):
   host=(u.hostname or '').lower().rstrip('.')
   if u.scheme!='https' or u.username or u.password or u.port not in (None,443):return False
   # Only known image hosts; never fetch arbitrary URLs from the server.
-  return host in ('images.ctfassets.net','res.cloudinary.com','img.hellofresh.com','cdn.hellofresh.com') or host.endswith('.hellofresh.com') or host.endswith('.hellofresh.co.uk') or host.endswith('.hellofresh.com.au') or host.endswith('.hellofresh.co.nz')
+  return host in ('images.ctfassets.net','res.cloudinary.com','img.hellofresh.com','cdn.hellofresh.com','media.hellofresh.com') or host.endswith('.hellofresh.com') or host.endswith('.hellofresh.co.uk') or host.endswith('.hellofresh.com.au') or host.endswith('.hellofresh.co.nz')
  except ValueError:return False
 def image_type(raw):
  if raw.startswith(b'\xff\xd8\xff'):return 'image/jpeg','.jpg'
