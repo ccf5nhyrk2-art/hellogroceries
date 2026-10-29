@@ -136,7 +136,12 @@ function shoppingDisplay(item){
   }
   return {name:pretty+' '+label,note:''};
  }
- // Preserve source units (and missing units) rather than inventing ounces or counts.
+ // Pluralize recognized units without changing the source ingredient or stored quantity.
+ const measured=rest.match(/^(teaspoons?|tablespoons?|cups?|ounces?|pounds?|grams?|kilograms?|milliliters?|liters?|cloves?|bunch(?:es)?|heads?|stalks?|slices?|pieces?|cans?|packages?|bags?)\s+(.+)$/i);
+ if(measured){
+  const normalized=ingredientUnitAliases[measured[1].toLowerCase()]||measured[1].toLowerCase();
+  return {name:pretty+' '+ingredientPluralUnit(normalized,pretty)+' '+measured[2],note:''};
+ }
  return {name:pretty+' '+rest,note:missingGroceryMeasure(rest)?'Unit not specified':''};
 }
 function shoppingNeedsReview(item){const override=(state.ingredient_overrides||{})[item.name]||{};if(override.display)return false;const d=shoppingDisplay(item);return d.note==='Unit not specified'||/\b(?:pick|unit)\s+(?:chickpeas|croutons|beans|lentils|rice|pasta|seeds|nuts|dressing|hummus)\b/i.test(item.name);}
