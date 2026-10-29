@@ -307,9 +307,17 @@ def nearby_stores(zipcode):
  place=getjson('https://nominatim.openstreetmap.org/search?'+urllib.parse.urlencode({'postalcode':zipcode,'country':'USA','format':'json','limit':1}))
  if not place:raise ValueError('ZIP code not found')
  lat=float(place[0]['lat']);lon=float(place[0]['lon'])
- query='[out:json][timeout:18];(nwr["shop"="supermarket"](around:16093,'+str(lat)+','+str(lon)+'););out center 120;'
- request=urllib.request.Request('https://overpass.kumi.systems/api/interpreter',data=urllib.parse.urlencode({'data':query}).encode(),headers=headers,method='POST')
- with urllib.request.urlopen(request,timeout=25) as resp:elements=json.load(resp).get('elements',[])
+ # Filter by chain in Overpass instead of truncating the first 120 supermarkets.
+ query='[out:json][timeout:20];(nwr["shop"="supermarket"]["name"~"Hy.Vee|Price Chopper|ALDI|Walmart",i](around:16093,'+str(lat)+','+str(lon)+');nwr["shop"="supermarket"]["brand"~"Hy.Vee|Price Chopper|ALDI|Walmart",i](around:16093,'+str(lat)+','+str(lon)+'););out center;'
+ payload=urllib.parse.urlencode({'data':query}).encode()
+ elements=None
+ for endpoint in ('https://overpass.kumi.systems/api/interpreter','https://overpass-api.de/api/interpreter'):
+  try:
+   request=urllib.request.Request(endpoint,data=payload,headers=headers,method='POST')
+   with urllib.request.urlopen(request,timeout=28) as resp:elements=json.load(resp).get('elements',[])
+   break
+  except (OSError,ValueError):continue
+ if elements is None:raise RuntimeError('Store directory lookup unavailable')
  import math
  matches=[]
  for item in elements:
