@@ -83,28 +83,38 @@ function shoppingDepartment(name){
  for(const [label,,pattern] of shoppingDepartments)if(pattern.test(value))return label;
  return 'Other / Uncategorized';
 }
+// Presentation only: never alter the ingredient key used for saved purchase state.
 function shoppingDisplay(item){
- const name=String(item.name||'');
- const qty=Number(item.quantity);
- if(!Number.isFinite(qty)||qty===1)return {name,note:''};
- // Only multiply a clearly stated leading ingredient measurement. Keep the stored key untouched.
+ const name=String(item.name||'').trim(), qty=Number(item.quantity);
+ if(!Number.isFinite(qty)||qty<=0)return {name,note:''};
  const fractions={'¼':0.25,'½':0.5,'¾':0.75,'⅓':1/3,'⅔':2/3,'⅛':0.125,'⅜':0.375,'⅝':0.625,'⅞':0.875};
- const match=name.match(/^(\d+(?:\.\d+)?(?:\s+\d+\/\d+)?|\d+\/\d+|[¼½¾⅓⅔⅛⅜⅝⅞])(\s+)(.+)$/);
- if(match){
-  const raw=match[1];
-  let amount;
-  if(Object.hasOwn(fractions,raw))amount=fractions[raw];
-  else if(raw.includes('/')){
-   const parts=raw.split(/\s+/),f=parts.pop().split('/');
-   amount=(parts.length?Number(parts[0]):0)+Number(f[0])/Number(f[1]);
-  }else amount=Number(raw);
-  if(Number.isFinite(amount)){
-   const total=Math.round(amount*qty*1000)/1000;
-   const pretty=total.toLocaleString(undefined,{maximumFractionDigits:3});
-   return {name:pretty+match[2]+match[3],note:''};
+ const match=name.match(/^(\d+(?:\.\d+)?(?:\s+\d+\/\d+)?|\d+\/\d+|[¼½¾⅓⅔⅛⅜⅝⅞])\s+(.+)$/);
+ if(!match)return {name,note:qty===1?'':qty.toLocaleString(undefined,{maximumFractionDigits:3})+'× recipe amount'};
+ const raw=match[1],rest=match[2];
+ let amount;
+ if(Object.hasOwn(fractions,raw))amount=fractions[raw];
+ else if(raw.includes('/')){const parts=raw.split(/\s+/),f=parts.pop().split('/');amount=(parts.length?Number(parts[0]):0)+Number(f[0])/Number(f[1])}
+ else amount=Number(raw);
+ if(!Number.isFinite(amount))return {name,note:''};
+ const total=Math.round(amount*qty*1000)/1000;
+ const pretty=total.toLocaleString(undefined,{maximumFractionDigits:3});
+ // "pick" and "unit" are source-data count markers, not real grocery units.
+ // Remove them only for clearly countable whole produce items.
+ const count=rest.match(/^(?:pick|unit)\s+(.+)$/i);
+ const countable=/^(?:baby lettuce|lemon|lime|shallot|onion|scallion|green onion|mini cucumber|cucumber|garlic bulb|apple|avocado|bell pepper|carrot|potato|sweet potato|tomato|zucchini|eggplant|orange|jalapeño|jalapeno|radish|mushroom)s?$/i;
+ if(count&&countable.test(count[1])&&Number.isInteger(total)){
+  const noun=count[1].trim();
+  const irregular={'baby lettuce':'Baby Lettuce'};
+  const lower=noun.toLowerCase();
+  let label=irregular[lower]||noun;
+  if(total!==1&&lower!=='baby lettuce'&&!/s$/i.test(label)){
+   label+=/[^aeiou]y$/i.test(label)?'ies':/^(?:potato|tomato)$/i.test(label)?'es':'s';
+   if(/ies$/.test(label))label=label.slice(0,-4)+'ies';
   }
+  return {name:pretty+' '+label,note:''};
  }
- return {name,note:qty.toLocaleString(undefined,{maximumFractionDigits:3})+'× recipe amount'};
+ // Preserve source units (and missing units) rather than inventing ounces or counts.
+ return {name:pretty+' '+rest,note:''};
 }
 function renderShoppingList(){
  const groups=new Map();
