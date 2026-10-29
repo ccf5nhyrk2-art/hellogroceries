@@ -338,6 +338,16 @@ class Handler(SimpleHTTPRequestHandler):
      if rid not in {str(r['id']) for r in allrecipes()}:raise ValueError('Unknown recipe')
      if p.get('checked'):state['selected'][rid]=servings
      else:state['selected'].pop(rid,None)
+    elif action=='edit_ingredient':
+     name=str(p.get('name',''))
+     if not any(i['name']==name for i in state['list']):raise ValueError('Unknown item')
+     display=str(p.get('display','')).strip()
+     department=str(p.get('department','Auto'))
+     if not display or len(display)>180:raise ValueError('Ingredient label required (max 180 characters)')
+     if department not in ('Auto','Produce','Meat & Seafood','Dairy & Refrigerated','Bakery & Bread','Frozen','Pantry & Seasonings','Other / Uncategorized'):raise ValueError('Invalid department')
+     state.setdefault('ingredient_overrides',{})[name]={'display':display,'department':department}
+    elif action=='reset_ingredient':
+     state.setdefault('ingredient_overrides',{}).pop(str(p.get('name','')),None)
     elif action=='generate':
      totals={}
      for recipe in allrecipes():
