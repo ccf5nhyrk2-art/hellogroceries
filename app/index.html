@@ -260,6 +260,27 @@ function purchaseSuggestion(row){
  if(/^\s*(?:\d+(?:\.\d+)?\s+)?pick\s+/i.test(row.label)){
   return {label:name.replace(/^pick\s+/i,''),note:'⚠ Quantity needs review — source recipe says “pick”'};
  }
+ // Source "unit" denotes a count, not a purchasable package.
+ const sourceUnit=row.label.match(/^([\d¼½¾⅓⅔⅛⅜⅝⅞.\/\s]+)\s+units?\s+(.+)$/i);
+ if(sourceUnit){
+  const quantity=ingredientNumber(sourceUnit[1].trim()),product=sourceUnit[2].trim(),p=product.toLowerCase();
+  if(Number.isFinite(quantity)&&quantity>0){
+   if(/\b(?:parmesan|cheese|stock concentrate|broth concentrate|sauce concentrate)\b/.test(p))
+    return {label:product,note:'⚠ '+groceryNumber(quantity)+' source unit(s) — package size needs review'};
+   if(/\b(?:chicken breasts?|chicken cutlets?|brioche buns?|burger buns?|hot dog buns?|ciabatta (?:bread|rolls?)|bread rolls?)\b/.test(p)){
+    if(/\b(?:brioche buns?|burger buns?|hot dog buns?)\b/.test(p)){
+     const packs=Math.ceil(quantity/6);
+     return {label:packs+' × 6-count '+product+' '+(packs===1?'package':'packages'),note:groceryNumber(quantity)+' buns needed · suggested pack size; verify store availability'};
+    }
+    if(/\bciabatta bread\b/.test(p))
+     return {label:groceryNumber(quantity)+' ciabatta '+(quantity===1?'loaf':'loaves'),note:'Verify loaf or roll size in recipe'};
+    return {label:groceryNumber(quantity)+' '+product,note:'Count from recipe · verify size/weight when purchasing'};
+   }
+   if(Number.isInteger(quantity)&&/\b(?:eggs?|lemons?|limes?|potatoes?|tomatoes?|onions?|shallots?|carrots?|apples?|cucumbers?)\b/.test(p))
+    return {label:groceryNumber(quantity)+' '+product,note:''};
+   return {label:product,note:'⚠ '+groceryNumber(quantity)+' source unit(s) — confirm package quantity'};
+  }
+ }
  if(!Number.isFinite(amount)||amount<=0||!name)return null;
  if(!unit&&has(/\bprosciutto\b/))return {label:name,note:'⚠ Quantity needs review ('+groceryNumber(amount)+'; unit unspecified)'};
  if(unit==='teaspoon'){
@@ -295,6 +316,8 @@ function purchaseSuggestion(row){
  if(!unit&&has(/\b(?:rice|sugar|mayonnaise|mayo|mustard seeds?|turmeric|garam masala|chili flakes|chilli flakes)\b/)){
   return {label:name,note:'⚠ Source unit unspecified — check quantity before buying'};
  }
+ if(unit==='teaspoon'&&has(/\b(?:mayonnaise|mayo)\b/))
+  return {label:'1 × small jar mayonnaise (suggested 15 fl oz)',note:groceryNumber(amount/3)+' tbsp needed · verify package capacity'};
  if(unit==='ounce'){
   if(has(/\b(?:cream cheese|shredded (?:cheddar|mozzarella|cheese)|cheddar cheese|mozzarella cheese)\b/))
    return item(count(8),'8 oz','package',name,measured('oz')+' · 8 oz per package');
