@@ -317,19 +317,28 @@ def nearby_stores(zipcode):
   except (OSError,ValueError,KeyError,IndexError,TypeError) as second_error:
    print('Store ZIP lookup failed:',repr(first_error),'fallback:',repr(second_error),flush=True)
    raise RuntimeError('ZIP lookup services unreachable; check container DNS and outbound HTTPS') from second_error
- # Filter by chain in Overpass instead of truncating the first 120 supermarkets.
- query='[out:json][timeout:20];(nwr["shop"="supermarket"]["name"~"Hy.Vee|Price Chopper|ALDI|Walmart",i](around:16093,'+str(lat)+','+str(lon)+');nwr["shop"="supermarket"]["brand"~"Hy.Vee|Price Chopper|ALDI|Walmart",i](around:16093,'+str(lat)+','+str(lon)+'););out center;'
+ # Query only the four requested chains; public OSM directory endpoints are best effort.
+ query='[out:json][timeout:12];(nwr["shop"="supermarket"]["name"~"Hy.Vee|Price Chopper|ALDI|Walmart",i](around:16093,'+str(lat)+','+str(lon)+');nwr["shop"="supermarket"]["brand"~"Hy.Vee|Price Chopper|ALDI|Walmart",i](around:16093,'+str(lat)+','+str(lon)+'););out center;'
  payload=urllib.parse.urlencode({'data':query}).encode()
  elements=None
- for endpoint in ('https://overpass-api.de/api/interpreter','https://overpass.kumi.systems/api/interpreter'):
+ # kumi.systems was retired in favor of private.coffee; use the current endpoint.
+ for endpoint in ('https://overpass.private.coffee/api/interpreter','https://maps.mail.ru/osm/tools/overpass/api/interpreter','https://overpass-api.de/api/interpreter'):
   try:
    request=urllib.request.Request(endpoint,data=payload,headers=headers,method='POST')
-   with urllib.request.urlopen(request,timeout=8) as resp:elements=json.load(resp).get('elements',[])
+   with urllib.request.urlopen(request,timeout=5) as resp:
+    candidate=json.load(resp)
+   if not isinstance(candidate,dict) or not isinstance(candidate.get('elements'),list):raise ValueError('Invalid directory response')
+   elements=candidate['elements']
    break
   except (OSError,ValueError) as error:
    print('Store directory endpoint failed:',endpoint,repr(error),flush=True)
-   continue
- if elements is None:raise RuntimeError('Store directory lookup unavailable')
+ if elements is None:
+  with STORE_CACHE_LOCK:
+   cached=STORE_CACHE.get(zipcode)
+  if cached:
+   stale=dict(cached[1]);stale['note']='Showing previously found stores; directory currently unavailable';stale['stale']=True
+   return stale
+  raise RuntimeError('Store directory lookup unavailable')
  import math
  matches=[]
  for item in elements:
