@@ -79,6 +79,7 @@ const shoppingOpenDepartments=new Set(shoppingDepartments.map(x=>x[0]).concat(['
 function shoppingDepartment(name){
  const value=String(name||'').toLowerCase();
  if(/\b(sun.dried tomatoes?|tomato paste|tomato sauce|canned tomatoes?|tinned tomatoes?|croutons?|vinaigrettes?|garam masala|peppercorns?|sunflower seeds?|dried herbs?|dried spices?|garlic powder|onion powder|ginger powder|chili powder|chilli powder|curry powder|ground (?:ginger|cumin|coriander|pepper|turmeric)|dried (?:garlic|onion|parsley|basil|oregano|thyme|rosemary)|seasoning blends?|spice blends?)\b/i.test(value))return 'Pantry & Seasonings';
+ if(/\b(?:chicken|beef|vegetable|veggie|mushroom|fish)?\s*(?:stock|broth|bouillon)\s*(?:concentrates?|cubes?|powders?)?\b/i.test(value))return 'Pantry & Seasonings';
  if(/\b(prosciutto|salami|pepperoni|ham)\b/i.test(value))return 'Meat & Seafood';
  if(/\b(chives?|mixed greens?|potatoes|yukon gold|peas|green beans?|sprouts?|brussels sprouts?|romaine|spring onions?|shallots?|scallions?|bell peppers?|sweet potatoes|cucumbers?|carrots?|tomatoes|lemons?|limes?|apples?|mushrooms?|zucchinis?|onions?)\b/i.test(value))return 'Produce';
  for(const [label,,pattern] of shoppingDepartments)if(pattern.test(value))return label;
