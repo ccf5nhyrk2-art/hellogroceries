@@ -84,12 +84,25 @@ function shoppingDepartment(name){
  return 'Other / Uncategorized';
 }
 // Presentation only: never alter the ingredient key used for saved purchase state.
+function groceryNumber(value){
+ const n=Math.round(Number(value)*1000)/1000;
+ if(!Number.isFinite(n))return String(value);
+ const whole=Math.floor(n),fraction=n-whole;
+ const choices=[[1/8,'⅛'],[1/4,'¼'],[1/3,'⅓'],[3/8,'⅜'],[1/2,'½'],[5/8,'⅝'],[2/3,'⅔'],[3/4,'¾'],[7/8,'⅞']];
+ const match=choices.find(([x])=>Math.abs(x-fraction)<0.002);
+ if(match)return (whole?whole+' ':'')+match[1];
+ return n.toLocaleString(undefined,{maximumFractionDigits:3});
+}
+function groceryMissingUnit(rest){
+ // Only flag ambiguous unmeasured ingredients, not recognizable whole-item counts.
+ return /^(?:kale|peas|cilantro|parsley|basil|spinach|arugula|lettuce|mixed greens|broccoli|chives|rice|flour|sugar|butter|olive oil|garlic powder|pepper|salt)$/i.test(rest.trim());
+}
 function shoppingDisplay(item){
  const name=String(item.name||'').trim(), qty=Number(item.quantity);
  if(!Number.isFinite(qty)||qty<=0)return {name,note:''};
  const fractions={'¼':0.25,'½':0.5,'¾':0.75,'⅓':1/3,'⅔':2/3,'⅛':0.125,'⅜':0.375,'⅝':0.625,'⅞':0.875};
  const match=name.match(/^(\d+(?:\.\d+)?(?:\s+\d+\/\d+)?|\d+\/\d+|[¼½¾⅓⅔⅛⅜⅝⅞])\s+(.+)$/);
- if(!match)return {name,note:qty===1?'':qty.toLocaleString(undefined,{maximumFractionDigits:3})+'× recipe amount'};
+ if(!match)return {name,note:qty===1?'':groceryNumber(qty)+'× recipe amount'};
  const raw=match[1],rest=match[2];
  let amount;
  if(Object.hasOwn(fractions,raw))amount=fractions[raw];
@@ -97,7 +110,7 @@ function shoppingDisplay(item){
  else amount=Number(raw);
  if(!Number.isFinite(amount))return {name,note:''};
  const total=Math.round(amount*qty*1000)/1000;
- const pretty=total.toLocaleString(undefined,{maximumFractionDigits:3});
+ const pretty=groceryNumber(total);
  // "pick" and "unit" are source-data count markers, not real grocery units.
  // Remove them only for clearly countable whole produce items.
  const count=rest.match(/^(?:pick|unit)\s+(.+)$/i);
@@ -114,7 +127,7 @@ function shoppingDisplay(item){
   return {name:pretty+' '+label,note:''};
  }
  // Preserve source units (and missing units) rather than inventing ounces or counts.
- return {name:pretty+' '+rest,note:''};
+ return {name:pretty+' '+rest,note:groceryMissingUnit(rest)?'Unit not specified':''};
 }
 function renderShoppingList(){
  const groups=new Map();
