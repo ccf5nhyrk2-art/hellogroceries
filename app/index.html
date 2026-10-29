@@ -251,7 +251,7 @@ function purchaseSuggestion(row){
   if(has(/\b(?:cream cheese|shredded (?:cheddar|mozzarella|cheese)|cheddar cheese|mozzarella cheese)\b/))
    return item(count(8),'8 oz','package',name,measured('oz')+' · 8 oz per package');
   if(has(/\b(?:greek vinaigrette|vinaigrette|salad dressing|ranch dressing)\b/))
-   return item(count(8),'8 fl oz','bottle',name,measured('fl oz, if liquid measure')+' · confirm source uses fluid ounces');
+   return {label:'1 bottle '+name+' (suggested 8 fl oz)',note:measured('oz')+' · check whether recipe means fluid ounces; verify bottle size'};
   if(has(/\bsun.dried tomatoes\b/))
    return {label:'1 jar sun-dried tomatoes (suggested 7 oz)',note:measured('oz')+' · check drained weight and package size'};
   if(has(/\b(?:mixed greens|baby spinach|arugula|spring mix)\b/))
