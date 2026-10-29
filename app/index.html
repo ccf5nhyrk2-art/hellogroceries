@@ -142,7 +142,7 @@ function renderShoppingList(){
   const entries=groups.get(group).slice().sort((a,b)=>Number(a.purchased)-Number(b.purchased)||String(a.name).localeCompare(String(b.name)));
   const done=entries.filter(x=>x.purchased).length;
   const symbol=(shoppingDepartments.find(d=>d[0]===group)||[])[1]||'🛒';
-  const rows=entries.map(x=>{const display=shoppingDisplay(x);return '<div class="row"><input type="checkbox" data-item="'+esc(x.name)+'" '+(x.purchased?'checked':'')+'><label class="'+(x.purchased?'done':'')+'">'+esc(display.name)+'</label>'+(display.note?'<span class="qty">'+esc(display.note)+'</span>':'')+'</div>'}).join('');
+  const rows=entries.map(x=>{const display=shoppingDisplay(x),override=(state.ingredient_overrides||{})[x.name]||{};return '<div class="row"><input type="checkbox" data-item="'+esc(x.name)+'" '+(x.purchased?'checked':'')+'><label class="'+(x.purchased?'done':'')+'">'+esc(override.display||display.name)+'</label>'+(display.note?'<span class="qty">'+esc(display.note)+'</span>':'')+'</div>'}).join('');
   return '<details class="shopping-department" data-department="'+esc(group)+'" '+(shoppingOpenDepartments.has(group)?'open':'')+'><summary><span>'+symbol+' '+esc(group)+'</span><span class="department-count">'+done+' of '+entries.length+' purchased</span></summary><div class="department-items">'+rows+'</div></details>';
  }).join('')||'<p class="muted">No generated list yet.</p>';
 }
