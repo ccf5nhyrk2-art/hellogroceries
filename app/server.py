@@ -227,7 +227,7 @@ def discover_sitemap(country,limit):
  try:rp.read()
  except Exception:raise ValueError('Could not check robots.txt; import aborted')
  queue=[root];seen=set();recipes=[];sitemaps=0
- while queue and len(recipes)<limit and sitemaps<30:
+ while queue and (limit==0 or len(recipes)<limit) and sitemaps<30:
   url=queue.pop(0)
   if url in seen or not allowed_url(url) or not rp.can_fetch('PersonalRecipeImporter',url):continue
   seen.add(url);sitemaps+=1
@@ -244,7 +244,7 @@ def discover_sitemap(country,limit):
     if loc.endswith('.xml'):
      if len(queue)<100:queue.append(loc)
     elif '/recipes/' in loc and loc not in recipes:recipes.append(loc)
-    if len(recipes)>=limit:break
+    if limit and len(recipes)>=limit:break
   except Exception:pass
   time.sleep(0.5)
  return recipes,rp
@@ -329,7 +329,7 @@ class Handler(SimpleHTTPRequestHandler):
    if action=='start-us-import':return self.sendjson(start_us_import())
    if action=='bulk':
     country=str(p.get('country','US')).upper();limit=int(p.get('limit',50))
-    if country not in ('US','UK','AU','CA','DE','NL') or not 1<=limit<=200:raise ValueError('Choose a supported country and a limit of 1–200')
+    if country not in ('US','UK','AU','CA','DE','NL') or not 0<=limit<=10000:raise ValueError('Choose a supported country and a limit of 0–10,000')
     with lock:
      if job['running']:raise ValueError('An import is already running')
      job.update(running=True,discovered=0,processed=0,imported=0,skipped=0,errors=0,message='Discovering public recipe pages')
