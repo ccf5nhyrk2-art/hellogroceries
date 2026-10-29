@@ -245,7 +245,7 @@ function purchaseSuggestion(row){
    [/\b(?:ground cumin|paprika|chili powder|garlic powder|dried oregano|dried thyme|dried basil|cinnamon)\b/,'small spice jar of '+name]
   ];
   for(const [pattern,packageLabel] of approximate)if(pattern.test(lower))
-   return {label:'1 '+packageLabel,note:groceryNumber(tbsp)+' tbsp needed · package suggestion; check amount if buying multiple recipes'};
+   return {label:'1 × '+packageLabel,note:groceryNumber(tbsp)+' tbsp needed · package suggestion; check amount if buying multiple recipes'};
  }
  if(unit==='ounce'){
   if(has(/\b(?:cream cheese|shredded (?:cheddar|mozzarella|cheese)|cheddar cheese|mozzarella cheese)\b/))
