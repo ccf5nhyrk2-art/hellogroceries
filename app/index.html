@@ -220,16 +220,16 @@ function purchaseSuggestion(row){
  const amount=row.amount;
  const count=(needed,size)=>Math.ceil((needed-1e-8)/size);
  if(unit==='teaspoon'){
-  if(/\\bbutter\\b/.test(name)&&!/\\b(?:peanut|almond|cashew|sunflower) butter\\b/.test(name)){
+  if(/\bbutter\b/.test(name)&&!/\b(?:peanut|almond|cashew|sunflower) butter\b/.test(name)){
    const sticks=count(amount,24);
    return {label:sticks+' '+(sticks===1?'stick':'sticks')+' butter',note:groceryNumber(amount/3)+' tbsp needed · 8 tbsp per stick'};
   }
-  if(/\\b(?:olive oil|vegetable oil|canola oil|avocado oil|cooking oil)\\b/.test(name)){
+  if(/\b(?:olive oil|vegetable oil|canola oil|avocado oil|cooking oil)\b/.test(name)){
    const bottles=count(amount,96); // 16 fl oz = 96 tsp
    return {label:bottles+' × 16 fl oz '+row.ingredient+' '+(bottles===1?'bottle':'bottles'),note:groceryNumber(amount/3)+' tbsp needed · suggested bottle size'};
   }
  }
- if(unit==='ounce'&&/\\b(?:cream cheese|shredded (?:cheddar|mozzarella|cheese)|cheddar cheese|mozzarella cheese)\\b/.test(name)){
+ if(unit==='ounce'&&/\b(?:cream cheese|shredded (?:cheddar|mozzarella|cheese)|cheddar cheese|mozzarella cheese)\b/.test(name)){
   const packages=count(amount,8);
   return {label:packages+' × 8 oz '+row.ingredient+' '+(packages===1?'package':'packages'),note:groceryNumber(amount)+' oz needed · suggested package size'};
  }
