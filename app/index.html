@@ -147,21 +147,36 @@ function shoppingDisplay(item){
 function shoppingNeedsReview(item){const override=(state.ingredient_overrides||{})[item.name]||{};if(override.display)return false;const d=shoppingDisplay(item);return d.note==='Unit not specified'||/\b(?:pick|unit)\s+(?:chickpeas|croutons|beans|lentils|rice|pasta|seeds|nuts|dressing|hummus)\b/i.test(item.name);}
 function consolidatedShoppingRows(items){
  const rows=[],seen=new Map();
+ const conversions={teaspoon:['teaspoon',1],tablespoon:['teaspoon',3],cup:['teaspoon',48],milliliter:['milliliter',1],liter:['milliliter',1000],gram:['gram',1],kilogram:['gram',1000],ounce:['ounce',1],pound:['ounce',16]};
+ const countable=/^(?:onions?|shallots?|lemons?|limes?|apples?|avocados?|carrots?|potatoes|tomatoes|cucumbers?|zucchinis?|bell peppers?|jalapeños?|jalapenos?|eggs?|garlic bulbs?)$/i;
+ const measured=/^(\d+(?:\.\d+)?(?:\s+[¼½¾⅓⅔⅛⅜⅝⅞])?|\d+\/\d+|[¼½¾⅓⅔⅛⅜⅝⅞])\s+(?:(teaspoons?|tablespoons?|cups?|ounces?|pounds?|grams?|kilograms?|milliliters?|liters?|cloves?|bunch(?:es)?|heads?|stalks?|slices?|pieces?|cans?|packages?|bags?)\s+)?(.+)$/i;
  for(const item of items){
   const override=(state.ingredient_overrides||{})[item.name]||{};
   const label=override.display||shoppingDisplay(item).name;
-  // Only consolidate explicitly measured ingredients, never ambiguous counts.
-  const match=label.match(/^(\d+(?:\.\d+)?(?:\s+[¼½¾⅓⅔⅛⅜⅝⅞])?|\d+\/\d+|[¼½¾⅓⅔⅛⅜⅝⅞])\s+(teaspoons?|tablespoons?|cups?|ounces?|pounds?|grams?|kilograms?|milliliters?|liters?|cloves?|bunch(?:es)?|heads?|stalks?|slices?|pieces?|cans?|packages?|bags?)\s+(.+)$/i);
-  const amount=match?ingredientNumber(match[1]):NaN;
-  const unit=match?(ingredientUnitAliases[match[2].toLowerCase()]||match[2].toLowerCase()):'';
-  const key=Number.isFinite(amount)&&amount>0?unit+'|'+match[3].trim().toLowerCase():null;
+  const match=label.match(measured),amount=match?ingredientNumber(match[1]):NaN;
+  const unit=match&&match[2]?(ingredientUnitAliases[match[2].toLowerCase()]||match[2].toLowerCase()):'';
+  const ingredient=match?match[3].trim():'';
+  const valid=Number.isFinite(amount)&&amount>0&&(unit||countable.test(ingredient));
+  const conversion=conversions[unit]||[unit,1];
+  const normalizedIngredient=ingredient.toLowerCase().replace(/\s+/g,' ').replace(/s$/,'');
+  const key=valid?conversion[0]+'|'+normalizedIngredient:null;
   if(key&&seen.has(key)){
-   const row=seen.get(key);row.amount+=amount;row.items.push(item);continue;
+   const row=seen.get(key);row.amount+=amount*conversion[1];row.items.push(item);continue;
   }
-  const row={items:[item],label,amount,unit,ingredient:match?match[3]:'',note:override.display?'':shoppingDisplay(item).note};
+  const row={items:[item],label,amount:amount*conversion[1],unit,ingredient,note:override.display?'':shoppingDisplay(item).note,baseUnit:conversion[0]};
   rows.push(row);if(key)seen.set(key,row);
  }
- for(const row of rows)if(row.items.length>1)row.label=groceryNumber(row.amount)+' '+ingredientPluralUnit(row.unit,row.amount)+' '+row.ingredient;
+ for(const row of rows){
+  if(row.items.length<2)continue;
+  let amount=row.amount,unit=row.baseUnit;
+  if(unit==='teaspoon'&&amount>=48&&Math.abs(amount/48-Math.round(amount/48*8)/8)<0.002){amount/=48;unit='cup'}
+  else if(unit==='teaspoon'&&amount>=3&&Math.abs(amount/3-Math.round(amount/3*8)/8)<0.002){amount/=3;unit='tablespoon'}
+  else if(unit==='ounce'&&amount>=16){amount/=16;unit='pound'}
+  else if(unit==='gram'&&amount>=1000){amount/=1000;unit='kilogram'}
+  else if(unit==='milliliter'&&amount>=1000){amount/=1000;unit='liter'}
+  row.label=groceryNumber(amount)+(unit?' '+ingredientPluralUnit(unit,amount):'')+' '+row.ingredient;
+  row.note='';
+ }
  return rows;
 }
 function renderShoppingList(){
