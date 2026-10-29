@@ -285,6 +285,11 @@ function hfImageLoaded(img,id){
    if(pixels[i+1]>125&&pixels[i+1]>pixels[i]*1.35&&pixels[i+1]>pixels[i+2]*1.35&&pixels[i]>45)green++;
   }
   if(opaque&&green/opaque>0.48){
+   if(!img.dataset.logoRefresh){
+    img.dataset.logoRefresh='1';
+    img.src='/api/photo/'+encodeURIComponent(String(id))+'?refresh=1';
+    return;
+   }
    hfBrokenPhotos.set(String(id),{id:String(id),name:(recipes.find(r=>String(r.id)===String(id))||{}).name||'',url:img.src,reason:'Generic HelloFresh logo'});
    img.style.display='none';
    if(img.nextElementSibling)img.nextElementSibling.style.display='grid';
