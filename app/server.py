@@ -341,7 +341,7 @@ class Handler(SimpleHTTPRequestHandler):
   if self.path!='/api/action':return self.sendjson({'error':'Not found'},404)
   try:
    size=int(self.headers.get('Content-Length','0'))
-   if size<1 or size>100000:return self.sendjson({'error':'Too large'},413)
+   if size<1 or size>25000000:return self.sendjson({'error':'Too large (25 MB maximum)'},413)
    p=json.loads(self.rfile.read(size));action=p['action']
    if action=='start-us-import':return self.sendjson(start_us_import())
    if action=='pause-bulk':
@@ -353,7 +353,7 @@ class Handler(SimpleHTTPRequestHandler):
     if not isinstance(imports,list) or len(imports)>50000 or not isinstance(photos,list) or len(photos)>50000:raise ValueError('Backup too large')
     with lock:
      with db() as conn:
-      added=0
+      added=0;idmap={}
       for row in imports:
        if not isinstance(row,dict) or not isinstance(row.get('url'),str) or not isinstance(row.get('payload'),dict):raise ValueError('Invalid recipe entry')
        if not allowed_url(row['url']):raise ValueError('Invalid recipe URL')
@@ -361,8 +361,29 @@ class Handler(SimpleHTTPRequestHandler):
        if cur.rowcount:
         rid=1000000+cur.lastrowid;recipe=dict(row['payload'],id=rid)
         conn.execute('UPDATE imported SET payload=? WHERE url=?',(json.dumps(recipe),row['url']));added+=1
-      # Merge only: never replace existing state, photos, or recipe entries.
-    return self.sendjson({'ok':True,'message':f'Restored {added} missing imported recipes; existing data retained'})
+       else:rid=1000000+conn.execute('SELECT id FROM imported WHERE url=?',(row['url'],)).fetchone()[0]
+       if 'id' in row['payload']:idmap[str(row['payload']['id'])]=rid
+      for photo in photos:
+       if not isinstance(photo,dict):continue
+       rid=idmap.get(str(photo.get('recipe_id')),photo.get('recipe_id'))
+       if isinstance(rid,int) and isinstance(photo.get('image_url'),str) and len(photo['image_url'])<2048:
+        conn.execute('INSERT OR IGNORE INTO photos(recipe_id,image_url) VALUES(?,?)',(rid,photo['image_url']))
+      old=read();saved=backup.get('state',{})
+      if isinstance(saved,dict):
+       for field in ('favorites','pantry','manual'):
+        if isinstance(saved.get(field),list):
+         values=[idmap.get(str(x),x) if field=='favorites' else x for x in saved[field]]
+         old[field]=list(dict.fromkeys(old.get(field,[])+values))[:20000]
+       if isinstance(saved.get('collections'),dict):
+        collections=old.setdefault('collections',{})
+        for name,ids in saved['collections'].items():
+         if isinstance(name,str) and isinstance(ids,list) and len(name)<=60:
+          collections[name]=list(dict.fromkeys(collections.get(name,[])+[idmap.get(str(x),x) for x in ids]))[:20000]
+       if not old.get('weekly') and isinstance(saved.get('weekly'),dict):old['weekly']={day:idmap.get(str(id),id) for day,id in saved['weekly'].items()}
+       if not old.get('list') and isinstance(saved.get('list'),list):old['list']=saved['list']
+       if not old.get('selected') and isinstance(saved.get('selected'),dict):old['selected']={str(idmap.get(str(k),k)):v for k,v in saved['selected'].items()}
+       old['revision']=old.get('revision',0)+1;save(old)
+    return self.sendjson({'ok':True,'message':f'Restored {added} missing recipes and merged saved preferences; existing data retained'})
    if action=='bulk':
     country=str(p.get('country','US')).upper();limit=int(p.get('limit',50))
     if country not in ('US','UK','AU','CA','DE','NL') or not 0<=limit<=10000:raise ValueError('Choose a supported country and a limit of 0–10,000')
