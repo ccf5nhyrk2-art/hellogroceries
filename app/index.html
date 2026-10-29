@@ -77,16 +77,34 @@ const shoppingOpenDepartments=new Set(shoppingDepartments.map(x=>x[0]).concat(['
 // Prefer precise pantry matches before broad produce words; tolerate plural ingredient names.
 function shoppingDepartment(name){
  const value=String(name||'').toLowerCase();
- if(/\b(sun.dried tomatoes?|tomato paste|tomato sauce|canned tomatoes?|tinned tomatoes?|croutons?|vinaigrettes?|garam masala|peppercorns?|sunflower seeds?|dried herbs?|dried spices?)\b/i.test(value))return 'Pantry & Seasonings';
+ if(/\b(sun.dried tomatoes?|tomato paste|tomato sauce|canned tomatoes?|tinned tomatoes?|croutons?|vinaigrettes?|garam masala|peppercorns?|sunflower seeds?|dried herbs?|dried spices?|garlic powder|onion powder|ginger powder|chili powder|chilli powder|curry powder|ground (?:ginger|cumin|coriander|pepper|turmeric)|dried (?:garlic|onion|parsley|basil|oregano|thyme|rosemary)|seasoning blends?|spice blends?)\b/i.test(value))return 'Pantry & Seasonings';
  if(/\b(prosciutto|salami|pepperoni|ham)\b/i.test(value))return 'Meat & Seafood';
  if(/\b(chives?|mixed greens?|potatoes|yukon gold|peas|green beans?|sprouts?|brussels sprouts?|romaine|spring onions?|shallots?|scallions?|bell peppers?|sweet potatoes|cucumbers?|carrots?|tomatoes|lemons?|limes?|apples?|mushrooms?|zucchinis?|onions?)\b/i.test(value))return 'Produce';
  for(const [label,,pattern] of shoppingDepartments)if(pattern.test(value))return label;
  return 'Other / Uncategorized';
 }
-function shoppingQuantityLabel(item){
+function shoppingDisplay(item){
+ const name=String(item.name||'');
  const qty=Number(item.quantity);
- if(!Number.isFinite(qty)||qty===1)return '';
- return 'Needed for '+qty.toLocaleString(undefined,{maximumFractionDigits:3})+' recipe portions';
+ if(!Number.isFinite(qty)||qty===1)return {name,note:''};
+ // Only multiply a clearly stated leading ingredient measurement. Keep the stored key untouched.
+ const fractions={'¼':0.25,'½':0.5,'¾':0.75,'⅓':1/3,'⅔':2/3,'⅛':0.125,'⅜':0.375,'⅝':0.625,'⅞':0.875};
+ const match=name.match(/^(\d+(?:\.\d+)?(?:\s+\d+\/\d+)?|\d+\/\d+|[¼½¾⅓⅔⅛⅜⅝⅞])(\s+)(.+)$/);
+ if(match){
+  const raw=match[1];
+  let amount;
+  if(Object.hasOwn(fractions,raw))amount=fractions[raw];
+  else if(raw.includes('/')){
+   const parts=raw.split(/\s+/),f=parts.pop().split('/');
+   amount=(parts.length?Number(parts[0]):0)+Number(f[0])/Number(f[1]);
+  }else amount=Number(raw);
+  if(Number.isFinite(amount)){
+   const total=Math.round(amount*qty*1000)/1000;
+   const pretty=total.toLocaleString(undefined,{maximumFractionDigits:3});
+   return {name:pretty+match[2]+match[3],note:''};
+  }
+ }
+ return {name,note:qty.toLocaleString(undefined,{maximumFractionDigits:3})+'× recipe amount'};
 }
 function renderShoppingList(){
  const groups=new Map();
@@ -100,7 +118,7 @@ function renderShoppingList(){
   const entries=groups.get(group).slice().sort((a,b)=>Number(a.purchased)-Number(b.purchased)||String(a.name).localeCompare(String(b.name)));
   const done=entries.filter(x=>x.purchased).length;
   const symbol=(shoppingDepartments.find(d=>d[0]===group)||[])[1]||'🛒';
-  const rows=entries.map(x=>'<div class="row"><input type="checkbox" data-item="'+esc(x.name)+'" '+(x.purchased?'checked':'')+'><label class="'+(x.purchased?'done':'')+'">'+esc(x.name)+'</label><span class="qty">'+esc(shoppingQuantityLabel(x))+'</span></div>').join('');
+  const rows=entries.map(x=>{const display=shoppingDisplay(x);return '<div class="row"><input type="checkbox" data-item="'+esc(x.name)+'" '+(x.purchased?'checked':'')+'><label class="'+(x.purchased?'done':'')+'">'+esc(display.name)+'</label>'+(display.note?'<span class="qty">'+esc(display.note)+'</span>':'')+'</div>'}).join('');
   return '<details class="shopping-department" data-department="'+esc(group)+'" '+(shoppingOpenDepartments.has(group)?'open':'')+'><summary><span>'+symbol+' '+esc(group)+'</span><span class="department-count">'+done+' of '+entries.length+' purchased</span></summary><div class="department-items">'+rows+'</div></details>';
  }).join('')||'<p class="muted">No generated list yet.</p>';
 }
