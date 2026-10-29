@@ -294,6 +294,38 @@ def read():
  return json.loads(row[0]) if row else default()
 def save(state):
  with db() as c:c.execute('INSERT INTO state(id,payload) VALUES(1,?) ON CONFLICT(id) DO UPDATE SET payload=excluded.payload',(json.dumps(state),))
+STORE_CACHE={};STORE_CACHE_LOCK=threading.Lock()
+def nearby_stores(zipcode):
+ if not re.fullmatch(r'[0-9]{5}',zipcode):raise ValueError('Enter a valid five-digit US ZIP code')
+ with STORE_CACHE_LOCK:
+  cached=STORE_CACHE.get(zipcode)
+  if cached and time.time()-cached[0]<21600:return cached[1]
+ headers={'User-Agent':'HelloGroceries/1.0 (self-hosted grocery planner)','Accept':'application/json'}
+ def getjson(url):
+  with urllib.request.urlopen(urllib.request.Request(url,headers=headers),timeout=12) as resp:return json.load(resp)
+ # OpenStreetMap services are best-effort and may rate limit requests.
+ place=getjson('https://nominatim.openstreetmap.org/search?'+urllib.parse.urlencode({'postalcode':zipcode,'country':'USA','format':'json','limit':1}))
+ if not place:raise ValueError('ZIP code not found')
+ lat=float(place[0]['lat']);lon=float(place[0]['lon'])
+ query='[out:json][timeout:18];(nwr["shop"="supermarket"](around:16093,'+str(lat)+','+str(lon)+'););out center 120;'
+ request=urllib.request.Request('https://overpass.kumi.systems/api/interpreter',data=urllib.parse.urlencode({'data':query}).encode(),headers=headers,method='POST')
+ with urllib.request.urlopen(request,timeout=25) as resp:elements=json.load(resp).get('elements',[])
+ import math
+ matches=[]
+ for item in elements:
+  tags=item.get('tags') or {};name=tags.get('name','');brand=(tags.get('brand','')+' '+name).lower()
+  chain=next((x for x in ('Hy-Vee','Price Chopper','ALDI','Walmart') if x.lower() in brand),None)
+  if not chain:continue
+  loc=item.get('center') or item
+  if 'lat' not in loc or 'lon' not in loc:continue
+  la=float(loc['lat']);lo=float(loc['lon'])
+  distance=3958.8*2*math.asin(min(1,math.sqrt(math.sin(math.radians(la-lat)/2)**2+math.cos(math.radians(lat))*math.cos(math.radians(la))*math.sin(math.radians(lo-lon)/2)**2)))
+  if distance>10:continue
+  matches.append({'id':str(item.get('type',''))+'-'+str(item.get('id','')),'chain':chain,'name':name,'address':', '.join(x for x in [tags.get('addr:housenumber','')+' '+tags.get('addr:street','') if tags.get('addr:street') else '',tags.get('addr:city','')] if x.strip()),'distance_miles':round(distance,1)})
+ result={'zip':zipcode,'stores':sorted(matches,key=lambda x:x['distance_miles'])[:40],'source':'OpenStreetMap','note':'Store listings may be incomplete. Weekly sale prices are not yet connected.'}
+ with STORE_CACHE_LOCK:STORE_CACHE[zipcode]=(time.time(),result)
+ return result
+
 class Handler(SimpleHTTPRequestHandler):
  def __init__(self,*a,**kw):super().__init__(*a,directory=str(BASE),**kw)
  def sendjson(self,obj,status=200):
@@ -315,6 +347,12 @@ class Handler(SimpleHTTPRequestHandler):
     self.send_header('Content-Length',str(len(payload)))
     self.end_headers();self.wfile.write(payload);return
    except (ValueError,TypeError,OSError):return self.send_error(404)
+  if self.path.startswith('/api/stores?'):
+   try:
+    zipcode=urllib.parse.parse_qs(urllib.parse.urlsplit(self.path).query).get('zip',[''])[0]
+    return self.sendjson(nearby_stores(zipcode))
+   except ValueError as e:return self.sendjson({'error':str(e)},400)
+   except Exception:return self.sendjson({'error':'Store directory is temporarily unavailable. Please try again later.'},503)
   if self.path=='/api/recipes':return self.sendjson(allrecipes())
   if self.path=='/api/state':return self.sendjson(read())
   if self.path=='/api/backup':
