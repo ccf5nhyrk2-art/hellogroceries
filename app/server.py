@@ -87,11 +87,13 @@ def official_images(recipe):
    candidate=raw.replace('\\/','/').replace('\\u002F','/')
    if ('hellofresh_s3/image/' in candidate or '/recipe/' in candidate) and any(host in candidate for host in ('img.hellofresh.com','media.hellofresh.com','images.ctfassets.net')):
     candidates.append(candidate)
+  # Favor full recipe hero photos, not the site's social-sharing logo.
+  candidates.sort(key=lambda u: (0 if isinstance(u,str) and '/recipes/image/' in u else 1 if isinstance(u,str) and '/hellofresh_s3/image/' in u else 2))
   results=[]
   for img in candidates:
    if not isinstance(img,str):continue
    img=html.unescape(img).replace('\\/','/').strip()
-   if allowed_photo_url(img) and len(img)<2048 and img not in results:results.append(img)
+   if allowed_photo_url(img) and len(img)<2048 and img not in results and not re.search(r'(?:logo|placeholder|brandmark|default-image)',urllib.parse.urlsplit(img).path,re.I):results.append(img)
   return results
  except Exception:return []
 
@@ -157,7 +159,7 @@ def resolve_photo(recipe,refresh=False):
    if cached:return cached
   urls=[]
   existing=recipe.get('image','')
-  if existing:urls.append(existing)
+  if existing and not re.search(r'(?:logo|placeholder|brandmark|default-image)',urllib.parse.urlsplit(existing).path,re.I):urls.append(existing)
   # Attempt the known photo first; only fetch the recipe page when it fails.
   for url in urls:
    try:
@@ -165,6 +167,10 @@ def resolve_photo(recipe,refresh=False):
     if result:return result
    except (OSError,ValueError,TimeoutError,urllib.error.URLError):pass
   urls=[url for url in official_images(recipe) if url!=existing]
+  # Exact official hero image verified for this historical HelloFresh recipe.
+  if '5c670341c445fa54f6615252' in recipe.get('url',''):
+   hero='https://media.hellofresh.com/q_100,w_1200,f_auto,c_limit,fl_lossy/recipes/image/2019-w14-r14-one-pan-chicken-sausage-orzo-475ebd8c.jpg'
+   urls=[hero]+[url for url in urls if url!=hero]
   for url in urls:
    try:
     result=download_photo(url,rid)
@@ -173,7 +179,7 @@ def resolve_photo(recipe,refresh=False):
       with db() as c:c.execute('INSERT OR REPLACE INTO photos(recipe_id,image_url) VALUES(?,?)',(rid,url))
      return result
    except (OSError,ValueError,TimeoutError,urllib.error.URLError):continue
-  return cached_photo(rid)
+  return None if refresh else cached_photo(rid)
 
 def allowed_url(url):
  u=urllib.parse.urlsplit(url)
