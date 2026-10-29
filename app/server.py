@@ -43,59 +43,61 @@ def allrecipes():
  with db() as c:photos=dict(c.execute('SELECT recipe_id,image_url FROM photos'))
  return [dict(r,image=photos.get(r['id'],r.get('image',''))) for r in recipes]
 
-def official_image(recipe):
+def official_images(recipe):
  url=recipe.get('url','')
- if not url or not allowed_url(url):return ''
+ if not url or not allowed_url(url):return []
  try:
-  req=urllib.request.Request(url,headers={'User-Agent':'Mozilla/5.0 (compatible; PersonalRecipePhoto/1.0)'})
-  with urllib.request.urlopen(req,timeout=10) as response:
-   if not allowed_url(response.geturl()):return ''
-   page=response.read(1500000).decode('utf-8','replace')
+  req=urllib.request.Request(url,headers={'User-Agent':'Mozilla/5.0','Accept':'text/html'})
+  with urllib.request.urlopen(req,timeout=12) as response:
+   if not allowed_url(response.geturl()):return []
+   page=response.read(3_000_000).decode('utf-8','replace')
   candidates=[]
+  def walk(obj):
+   if isinstance(obj,list):
+    for item in obj:yield from walk(item)
+   elif isinstance(obj,dict):
+    if '@graph' in obj:yield from walk(obj['@graph'])
+    yield obj
   for block in re.findall(r'<script\b[^>]*type=["\x27]application/ld\+json["\x27][^>]*>(.*?)</script>',page,re.I|re.S):
-   try:data=json.loads(html.unescape(block))
+   try:
+    for node in walk(json.loads(html.unescape(block))):
+     types=node.get('@type',[])
+     if isinstance(types,str):types=[types]
+     if 'Recipe' not in types:continue
+     images=node.get('image',[])
+     if not isinstance(images,list):images=[images]
+     for item in images:
+      if isinstance(item,dict):item=item.get('url') or item.get('contentUrl') or ''
+      candidates.append(item)
    except (ValueError,TypeError):continue
-   def walk(obj):
-    if isinstance(obj,list):
-     for item in obj:yield from walk(item)
-    elif isinstance(obj,dict):
-     if '@graph' in obj:yield from walk(obj['@graph'])
-     yield obj
-   for node in walk(data):
-    types=node.get('@type',[])
-    if isinstance(types,str):types=[types]
-    if 'Recipe' not in types:continue
-    images=node.get('image',[])
-    if not isinstance(images,list):images=[images]
-    for item in images:
-     if isinstance(item,dict):item=item.get('url') or item.get('contentUrl') or ''
-     candidates.append(item)
-   if candidates:break
   for tag in re.findall(r'<meta\b[^>]*>',page,re.I):
    attrs=dict((k.lower(),html.unescape(v)) for k,v in re.findall(r'([\w:-]+)\s*=\s*["\x27]([^"\x27]*)["\x27]',tag))
    if attrs.get('property','').lower() in ('og:image','og:image:secure_url') or attrs.get('name','').lower() in ('twitter:image','twitter:image:src'):
     candidates.append(attrs.get('content',''))
-  # Some official pages omit structured image metadata but expose a recipe hero image.
-  for tag in re.findall(r'<img\\b[^>]*>',page,re.I):
-   attrs=dict((k.lower(),html.unescape(v)) for k,v in re.findall(r'([\\w:-]+)\\s*=\\s*["\\x27]([^"\\x27]*)["\\x27]',tag))
+  title=str(recipe.get('name','')).lower()
+  words=[w for w in re.findall(r'[a-z]{5,}',title) if w not in ('recipe','hello','fresh','with')]
+  for tag in re.findall(r'<img\b[^>]*>',page,re.I):
+   attrs=dict((k.lower(),html.unescape(v)) for k,v in re.findall(r'([\w:-]+)\s*=\s*["\x27]([^"\x27]*)["\x27]',tag))
    description=(attrs.get('alt','')+' '+attrs.get('class','')).lower()
-   title=str(recipe.get('name','')).lower()
-   words=[w for w in re.findall(r'[a-z]{5,}',title) if w not in ('recipe','hello','fresh','with')]
    if not ('recipe' in description or 'hero' in description or (words and sum(w in description for w in words)>=min(2,len(words)))):continue
-   src=attrs.get('src') or attrs.get('data-src') or ''
-   if src:candidates.append(src)
-   srcset=attrs.get('srcset','')
-   if srcset:
-    for part in srcset.split(','):
-     candidate=part.strip().split(' ')[0]
-     if candidate:candidates.append(candidate)
+   candidates.extend([attrs.get('src',''),attrs.get('data-src','')])
+   candidates.extend(part.strip().split(' ')[0] for part in attrs.get('srcset','').split(','))
+  # Embedded application data often carries the actual CDN image URL.
+  for raw in re.findall(r'https?:\\?/\\?/[^"\'\s<>]{10,400}',page):
+   candidate=raw.replace('\\/','/').replace('\\u002F','/')
+   if ('hellofresh_s3/image/' in candidate or '/recipe/' in candidate) and any(host in candidate for host in ('img.hellofresh.com','media.hellofresh.com','images.ctfassets.net')):
+    candidates.append(candidate)
+  results=[]
   for img in candidates:
    if not isinstance(img,str):continue
-   img=html.unescape(img).strip()
-   parsed=urllib.parse.urlsplit(img)
-   if allowed_photo_url(img) and len(img)<2048:return img
- except Exception:pass
- return ''
+   img=html.unescape(img).replace('\\/','/').strip()
+   if allowed_photo_url(img) and len(img)<2048 and img not in results:results.append(img)
+  return results
+ except Exception:return []
+
+def official_image(recipe):
+ images=official_images(recipe)
+ return images[0] if images else ''
 
 
 PHOTO_DIR=Path('/data/photos')
@@ -162,8 +164,7 @@ def resolve_photo(recipe,refresh=False):
     result=download_photo(url,rid)
     if result:return result
    except (OSError,ValueError,TimeoutError,urllib.error.URLError):pass
-  found=official_image(recipe)
-  urls=[found] if found and found!=existing else []
+  urls=[url for url in official_images(recipe) if url!=existing]
   for url in urls:
    try:
     result=download_photo(url,rid)
