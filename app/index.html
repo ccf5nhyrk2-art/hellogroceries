@@ -116,43 +116,34 @@ for(const [key,label] of pageSpecs){
 }
 function showPage(key){
  if(!pageButtons.has(key))key='all';
- document.body.classList.remove('shopping-focus');
+ // Rebuild visibility from scratch; don't hide a parent of the selected page.
  document.querySelectorAll('.page-hidden').forEach(el=>el.classList.remove('page-hidden'));
+ document.body.classList.remove('shopping-focus');
  const main=document.querySelector('main');
  const target=pageSpecs.find(x=>x[0]===key)?.[2];
- if(key!=='all'){
-  // Hide unrelated content without removing nodes or their event listeners.
-  const keep=new Set();
+ if(key!=='all'&&target){
+  const selectedBranch=new Set();
+  let current=target;
+  while(current&&current!==main){selectedBranch.add(current);current=current.parentElement}
+  if(key==='recipes'){
+   for(const child of first.children)if(!['shop-sales','my-recipes','selected-plan'].includes(child.id))selectedBranch.add(child);
+  }
   if(key==='shopping'){
-   let found=false;
+   let inShopping=false;
    for(const child of second.children){
-    if(child===target)found=true;
-    if(found)keep.add(child);
-   }
-   keep.add(second);
-  }else if(target){
-   let current=target;
-   while(current&&current!==main){keep.add(current);current=current.parentElement}
-   if(key==='recipes'){
-    for(const child of first.children){
-     if(!['shop-sales','my-recipes','selected-plan'].includes(child.id))keep.add(child);
-    }
+    if(child===target)inShopping=true;
+    if(inShopping)selectedBranch.add(child);
    }
   }
-  for(const child of [...main.children])if(child!==toolbar&&!keep.has(child))child.classList.add('page-hidden');
-  for(const section of [first,second]){
-   if(!keep.has(section))continue;
-   for(const child of [...section.children])if(!keep.has(child))child.classList.add('page-hidden');
-  }
-  // Nested target sections can be wrapped in containers; retain their ancestors.
-  for(const element of [...keep]){
-   let parent=element.parentElement;
-   while(parent&&parent!==main){
-    parent.classList.remove('page-hidden');
-    for(const sibling of parent.children)if(sibling!==element&&!keep.has(sibling))sibling.classList.add('page-hidden');
-    parent=parent.parentElement;
+  // Traverse only from the main content root. Never hide the mobile nav.
+  function filterBranch(parent){
+   for(const child of parent.children){
+    if(child===toolbar)continue;
+    if(selectedBranch.has(child))filterBranch(child);
+    else child.classList.add('page-hidden');
    }
   }
+  filterBranch(main);
  }
  closeMobileMore();
  moreTab.setAttribute('aria-expanded','false');
@@ -172,6 +163,8 @@ function showPage(key){
   button.classList.toggle('page-nav-active',selected);
  }
  try{localStorage.setItem(PAGE_VIEW_KEY,key);localStorage.removeItem('hellogroceries-shopping-only')}catch(e){}
+ // Always land at the top of the selected page, even when switching mid-scroll.
+ window.scrollTo({top:0,left:0,behavior:'instant'});
 }
 let initialPage='all';
 try{initialPage=localStorage.getItem(PAGE_VIEW_KEY)||(localStorage.getItem('hellogroceries-shopping-only')==='1'?'shopping':'all')}catch(e){}
