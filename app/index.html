@@ -139,6 +139,25 @@ function shoppingDisplay(item){
  return {name:pretty+' '+rest,note:missingGroceryMeasure(rest)?'Unit not specified':''};
 }
 function shoppingNeedsReview(item){const override=(state.ingredient_overrides||{})[item.name]||{};if(override.display)return false;const d=shoppingDisplay(item);return d.note==='Unit not specified'||/\b(?:pick|unit)\s+(?:chickpeas|croutons|beans|lentils|rice|pasta|seeds|nuts|dressing|hummus)\b/i.test(item.name);}
+function consolidatedShoppingRows(items){
+ const rows=[],seen=new Map();
+ for(const item of items){
+  const override=(state.ingredient_overrides||{})[item.name]||{};
+  const label=override.display||shoppingDisplay(item).name;
+  // Only consolidate explicitly measured ingredients, never ambiguous counts.
+  const match=label.match(/^(\d+(?:\.\d+)?(?:\s+[¼½¾⅓⅔⅛⅜⅝⅞])?|\d+\/\d+|[¼½¾⅓⅔⅛⅜⅝⅞])\s+(teaspoons?|tablespoons?|cups?|ounces?|pounds?|grams?|kilograms?|milliliters?|liters?|cloves?|bunch(?:es)?|heads?|stalks?|slices?|pieces?|cans?|packages?|bags?)\s+(.+)$/i);
+  const amount=match?ingredientNumber(match[1]):NaN;
+  const unit=match?(ingredientUnitAliases[match[2].toLowerCase()]||match[2].toLowerCase()):'';
+  const key=Number.isFinite(amount)&&amount>0?unit+'|'+match[3].trim().toLowerCase():null;
+  if(key&&seen.has(key)){
+   const row=seen.get(key);row.amount+=amount;row.items.push(item);continue;
+  }
+  const row={items:[item],label,amount,unit,ingredient:match?match[3]:'',note:override.display?'':shoppingDisplay(item).note};
+  rows.push(row);if(key)seen.set(key,row);
+ }
+ for(const row of rows)if(row.items.length>1)row.label=groceryNumber(row.amount)+' '+ingredientPluralUnit(row.unit,row.amount)+' '+row.ingredient;
+ return rows;
+}
 function renderShoppingList(){
  const groups=new Map();
  for(const item of state.list||[]){
@@ -149,10 +168,10 @@ function renderShoppingList(){
  }
  const order=['Needs Review',...shoppingDepartments.map(x=>x[0]),'Other / Uncategorized'];
  $('items').innerHTML=order.filter(group=>groups.has(group)).map(group=>{
-  const entries=groups.get(group).slice().sort((a,b)=>Number(a.purchased)-Number(b.purchased)||String(a.name).localeCompare(String(b.name)));
-  const done=entries.filter(x=>x.purchased).length;
+  const entries=consolidatedShoppingRows(groups.get(group)).sort((a,b)=>Number(!a.items.every(x=>x.purchased))-Number(!b.items.every(x=>x.purchased))||a.label.localeCompare(b.label));
+  const done=entries.filter(x=>x.items.every(i=>i.purchased)).length;
   const symbol=group==='Needs Review'?'⚠️':(shoppingDepartments.find(d=>d[0]===group)||[])[1]||'🛒';
-  const rows=entries.map(x=>{const display=shoppingDisplay(x),override=(state.ingredient_overrides||{})[x.name]||{};return '<div class="row"><input type="checkbox" data-item="'+esc(x.name)+'" '+(x.purchased?'checked':'')+'><label class="'+(x.purchased?'done':'')+'">'+esc(override.display||display.name)+'</label>'+(display.note?'<span class="qty">'+esc(display.note)+'</span>':'')+'<button type="button" data-edit-item="'+esc(x.name)+'">Edit</button></div>'}).join('');
+  const rows=entries.map(x=>{const purchased=x.items.every(i=>i.purchased),names=x.items.map(i=>i.name),first=x.items[0];return '<div class="row"><input type="checkbox" data-items="'+esc(JSON.stringify(names))+'" '+(purchased?'checked':'')+'><label class="'+(purchased?'done':'')+'">'+esc(x.label)+'</label>'+(x.note?'<span class="qty">'+esc(x.note)+'</span>':'')+'<button type="button" data-edit-item="'+esc(first.name)+'">Edit</button></div>'}).join('');
   return '<details class="shopping-department" data-department="'+esc(group)+'" '+(shoppingOpenDepartments.has(group)?'open':'')+'><summary><span>'+symbol+' '+esc(group)+'</span><span class="department-count">'+done+' of '+entries.length+' purchased</span></summary><div class="department-items">'+rows+'</div></details>';
  }).join('')||'<p class="muted">No generated list yet.</p>';
 }
@@ -235,7 +254,7 @@ $('ingredient-form').addEventListener('submit',async e=>{
  $('ingredient-dialog').close();
  await action({action:'edit_ingredient',name:ingredientEditingKey,display:label,department:$('ingredient-department').value});
 });
-$('items').addEventListener('change',e=>{if(e.target.dataset.item)action({action:'purchase',name:e.target.dataset.item,purchased:e.target.checked})});$('search').addEventListener('input',()=>{recipePage=0;render()});$('generate').onclick=()=>action({action:'generate'});$('import').onclick=()=>action({action:'import',url:$('recipeurl').value.trim()});$('bulk').onclick=async()=>{try{const r=await fetch('/api/action',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'bulk',country:$('country').value,limit:50})});const j=await r.json();if(!r.ok)throw Error(j.error);$('bulkstatus').textContent=j.message}catch(e){$('error').textContent=e.message}};
+$('items').addEventListener('change',e=>{if(e.target.dataset.items)action({action:'purchase_many',names:JSON.parse(e.target.dataset.items),purchased:e.target.checked})});$('search').addEventListener('input',()=>{recipePage=0;render()});$('generate').onclick=()=>action({action:'generate'});$('import').onclick=()=>action({action:'import',url:$('recipeurl').value.trim()});$('bulk').onclick=async()=>{try{const r=await fetch('/api/action',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'bulk',country:$('country').value,limit:50})});const j=await r.json();if(!r.ok)throw Error(j.error);$('bulkstatus').textContent=j.message}catch(e){$('error').textContent=e.message}};
 async function checkBulk(){try{const j=await fetch('/api/bulk-status').then(r=>r.json());$('bulkstatus').textContent=`${j.message} — ${j.processed}/${j.discovered} checked, ${j.imported} added, ${j.skipped} skipped, ${j.errors} unavailable`;if(!j.running && j.imported>0){let fresh=await fetch('/api/recipes').then(r=>r.json());if(fresh.length!==recipes.length){recipes=fresh;render()}}}catch(e){}}setInterval(checkBulk,5000);checkBulk();
 async function checkUsImport(){try{const response=await fetch('/api/us-import-status',{cache:'no-store'});if(!response.ok)throw Error('HTTP '+response.status);const j=await response.json();if(!j.available){$('us-import-message').textContent=j.message||'No import data yet';return}const total=Number(j.discovered)||0,done=Number(j.processed)||0,pct=total?Math.min(100,Math.max(0,done/total*100)):0;$('us-import-bar').style.width=pct.toFixed(1)+'%';$('us-import-message').textContent=(total&&done>=total?'Last saved run reached the end':'Last saved checkpoint')+' — '+pct.toFixed(1)+'%';$('us-import-counts').textContent=`${done.toLocaleString()} / ${total.toLocaleString()} checked · ${(Number(j.imported_this_run)||0).toLocaleString()} new · ${(Number(j.skipped)||0).toLocaleString()} skipped · ${(Number(j.errors_this_run)||0).toLocaleString()} errors`;$('us-import-updated').textContent=j.updated_at?'Last updated: '+new Date(j.updated_at*1000).toLocaleString()+'':'';}catch(e){$('us-import-message').textContent='Cannot read importer progress: '+e.message}}
 $('start-us-import').onclick=async()=>{if(!confirm('Start a new US catalog import? Make sure the old standalone importer is not running.'))return;try{const r=await fetch('/api/action',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'start-us-import'})});const j=await r.json();if(!r.ok)throw Error(j.error||'Unable to start');$('us-import-control').textContent=j.message;$('error').textContent='';checkUsControl();checkUsImport();}catch(e){$('error').textContent=e.message}};
