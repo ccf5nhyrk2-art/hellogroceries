@@ -75,7 +75,7 @@ function hfImageFailed(img,id){
   const key=String(id), original=img.getAttribute('data-original-image')||img.src;
   if(!img.dataset.retried && !img.src.includes('/api/photo/')){
     img.dataset.retried='1';
-    img.src='/api/photo/'+encodeURIComponent(key);
+    img.src='/api/photo/'+encodeURIComponent(key)+'?refresh=1';
     return;
   }
   hfBrokenPhotos.set(key,{id:key,name:(recipes.find(r=>String(r.id)===key)||{}).name||'',url:original});
