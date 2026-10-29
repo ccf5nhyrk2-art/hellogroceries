@@ -304,9 +304,19 @@ def nearby_stores(zipcode):
  def getjson(url):
   with urllib.request.urlopen(urllib.request.Request(url,headers=headers),timeout=7) as resp:return json.load(resp)
  # OpenStreetMap services are best-effort and may rate limit requests.
- place=getjson('https://nominatim.openstreetmap.org/search?'+urllib.parse.urlencode({'postalcode':zipcode,'country':'USA','format':'json','limit':1}))
- if not place:raise ValueError('ZIP code not found')
- lat=float(place[0]['lat']);lon=float(place[0]['lon'])
+ try:
+  place=getjson('https://nominatim.openstreetmap.org/search?'+urllib.parse.urlencode({'postalcode':zipcode,'country':'USA','format':'json','limit':1}))
+  if not place:raise ValueError('ZIP code not found')
+  lat=float(place[0]['lat']);lon=float(place[0]['lon'])
+ except (OSError,ValueError,KeyError,TypeError) as first_error:
+  # Alternate ZIP geocoder avoids relying exclusively on Nominatim.
+  try:
+   location=getjson('https://api.zippopotam.us/us/'+zipcode)
+   candidate=location['places'][0]
+   lat=float(candidate['latitude']);lon=float(candidate['longitude'])
+  except (OSError,ValueError,KeyError,IndexError,TypeError) as second_error:
+   print('Store ZIP lookup failed:',repr(first_error),'fallback:',repr(second_error),flush=True)
+   raise RuntimeError('ZIP lookup services unreachable; check container DNS and outbound HTTPS') from second_error
  # Filter by chain in Overpass instead of truncating the first 120 supermarkets.
  query='[out:json][timeout:20];(nwr["shop"="supermarket"]["name"~"Hy.Vee|Price Chopper|ALDI|Walmart",i](around:16093,'+str(lat)+','+str(lon)+');nwr["shop"="supermarket"]["brand"~"Hy.Vee|Price Chopper|ALDI|Walmart",i](around:16093,'+str(lat)+','+str(lon)+'););out center;'
  payload=urllib.parse.urlencode({'data':query}).encode()
@@ -316,7 +326,9 @@ def nearby_stores(zipcode):
    request=urllib.request.Request(endpoint,data=payload,headers=headers,method='POST')
    with urllib.request.urlopen(request,timeout=8) as resp:elements=json.load(resp).get('elements',[])
    break
-  except (OSError,ValueError):continue
+  except (OSError,ValueError) as error:
+   print('Store directory endpoint failed:',endpoint,repr(error),flush=True)
+   continue
  if elements is None:raise RuntimeError('Store directory lookup unavailable')
  import math
  matches=[]
@@ -360,7 +372,9 @@ class Handler(SimpleHTTPRequestHandler):
     zipcode=urllib.parse.parse_qs(urllib.parse.urlsplit(self.path).query).get('zip',[''])[0]
     return self.sendjson(nearby_stores(zipcode))
    except ValueError as e:return self.sendjson({'error':str(e)},400)
-   except Exception:return self.sendjson({'error':'Store directory is temporarily unavailable. Please try again later.'},503)
+   except Exception as error:
+    print('Store lookup failed:',repr(error),flush=True)
+    return self.sendjson({'error':'Store lookup could not reach the directory services. Check the HelloGroceries container logs for DNS or network errors.'},503)
   if self.path=='/api/recipes':return self.sendjson(allrecipes())
   if self.path=='/api/state':return self.sendjson(read())
   if self.path=='/api/backup':
