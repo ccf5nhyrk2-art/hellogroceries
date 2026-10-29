@@ -496,6 +496,10 @@ function groceryRecipeBreakdown(items){
  return entries;
 }
 function groceryBreakdownMarkup(items){
+ const stored=items.flatMap(i=>Array.isArray(i.sources)?i.sources:[]);
+ if(stored.length){
+  return stored.map(x=>'<div class="grocery-source"><strong>'+esc(x.recipe||'Unknown source')+'</strong><div>'+esc(groceryNumber(Number(x.contribution)||0))+'× '+esc(x.recipe==='Manually added'?'manually added': 'recipe ingredient amount')+'</div>'+(x.recipe!=='Manually added'?'<small>Original: '+esc(groceryNumber(Number(x.source_quantity)||0))+' · selected multiplier: '+esc(groceryNumber(Number(x.multiplier)||1))+'×</small>':'')+'</div>').join('');
+ }
  const entries=groceryRecipeBreakdown(items);
  const manual=(state.manual||[]).filter(name=>items.some(i=>i.name===name));
  if(!entries.length&&!manual.length)return '<span class="muted">No matching selected recipe found. This may be a manually added item or an older shopping list; regenerate to sync.</span>';
@@ -572,7 +576,11 @@ function renderSmartPrefs(){
  $('smart-hide').checked=smartPrefs.hide;
  $('smart-progress').textContent=list.filter(x=>x.purchased).length+' of '+list.length+' purchased';
  $('smart-budget').value=smartPrefs.budget;
- const flags=list.filter(x=>Number(x.quantity)>=10&&/chicken breast|egg|bun|roll|fillet/i.test(x.name));
+ const flags=list.filter(x=>{
+  const d=shoppingDisplay(x);
+  const m=d.name.match(/^\s*(\d+(?:\.\d+)?)\s+(?:chicken breasts?|eggs?|buns?|rolls?|fillets?)\b/i);
+  return m&&Number(m[1])>=10;
+ });
  $('smart-flags').innerHTML=flags.length?flags.map(x=>'<p class="smart-flag">Verify quantity: '+esc(shoppingDisplay(x).name)+' — expand Used in these recipes below.</p>').join(''):'<p class="muted">Check ingredient breakdowns to verify recipe quantities.</p>';
  $('smart-pantry').innerHTML=(state.pantry||[]).map((x,i)=>'<label class="smart-pantry-row">'+esc(x)+' <input data-smart-pantry="'+i+'" value="'+esc(smartPrefs.pantry[x]||'')+'" placeholder="Amount on hand"></label>').join('')||'<p class="muted">Add pantry ingredients above first.</p>';
  const current=$('smart-cook-select').value;
