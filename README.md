@@ -1,64 +1,104 @@
-# Community Grocery Planner (unofficial HelloFresh companion)
+# HelloGroceries
 
-A small self-hosted grocery planner with recipe search, categories, meal-only filtering, shopping checklists, recipe URL imports and optional US sitemap importing. Built with Python standard library, SQLite and Docker Compose.
+A self-hosted grocery planner and unofficial HelloFresh companion. Browse recipes, select meals, and manage a shopping checklist, with optional US recipe metadata importing.
 
-> **Unofficial project.** Not affiliated with, endorsed by, or sponsored by HelloFresh. Recipe names and linked photos belong to their respective owners. This repository does not ship a copied recipe catalog or recipe photos.
+> **Unofficial project.** HelloGroceries is not affiliated with, endorsed by, or sponsored by HelloFresh. This repository does not include a copied recipe catalog or recipe photos.
 
-## Quick start
+## Quick start: prebuilt Docker image
 
-Requirements: Docker Engine with Compose v2.
+Requirements: Docker Engine and Docker Compose v2. The public image is published automatically to GitHub Container Registry when changes are pushed to `main`.
 
 ```bash
 git clone https://github.com/ccf5nhyrk2-art/hellogroceries.git
 cd hellogroceries
 cp .env.example .env
-docker compose up -d --build hellofresh
+docker compose pull hellogroceries
+docker compose up -d hellogroceries
 ```
 
-Visit `http://YOUR-SERVER-IP:8088` on your **trusted local network**. Change `HOST_PORT` in `.env` if needed. Data is persisted in `./data/shopping.db` and survives image rebuilds. The bundled starter recipe list is empty; import recipes through the web interface or optional importer.
+Open `http://YOUR-SERVER-IP:8088` on your **trusted local network**. To change the host port, edit `HOST_PORT` in `.env`. Your database and import progress persist in `./data`. The starter catalog is empty.
 
-## Optional US catalog importer
+### OpenMediaVault deployment
 
-This can run for hours and depends on public pages, robots.txt and source-site availability. It makes network requests and may fail or skip recipes.
+In **Services → Compose → Files**, create or edit a stack using the following YAML. This preserves the existing HelloGroceries database at `/opt/hellofresh-grocery/data` and uses port 8088:
 
-```bash
-docker compose --profile us-import run -d --name hf-us-importer us-importer
-docker logs -f hf-us-importer
+```yaml
+services:
+  hellogroceries:
+    image: ghcr.io/ccf5nhyrk2-art/hellogroceries:latest
+    container_name: hellogroceries
+    restart: unless-stopped
+    ports:
+      - "8088:8080"
+    volumes:
+      - /opt/hellofresh-grocery/data:/data
+
+  us-importer:
+    image: ghcr.io/ccf5nhyrk2-art/hellogroceries:latest
+    profiles: ["us-import"]
+    command: ["python", "-u", "import_us_all.py"]
+    volumes:
+      - /opt/hellofresh-grocery/data:/data
+    restart: "no"
 ```
 
-Before starting another import, check `docker ps -a --filter name=hf-us-importer`. If an old run has finished, remove only that stopped container (`docker rm hf-us-importer`) before rerunning. **Never run two importers against the same data folder.** The website displays saved progress from `data/us_import_progress.json`; a saved checkpoint does not prove a job is still running.
+If you are migrating from the older `hellofresh-grocery` container, stop and remove that **container only** before starting the renamed `hellogroceries` container, or retain the old container name in your existing OMV stack. Do not delete the data folder. Back it up before upgrading.
 
-**Start / Resume:** Use the button on the web page to launch the importer within the web container. It resumes by skipping previously imported and attempted URLs. Progress and status update automatically; logs are stored at `data/us_import.log`. The optional Compose importer uses the same shared lock, preventing overlapping runs when both use this updated code. A web-container restart interrupts an importer launched from the webpage; click Start / Resume again afterward. The smaller bulk importer in the web interface is separate. **Do not run this against an older standalone importer version that lacks the shared lock.**
+In OMV, use **Pull** to download the image, then **Up** to start/recreate the service.
 
 ## Updating
 
+With the prebuilt image, there is no need to run `git pull` or rebuild locally to update the application:
+
 ```bash
-git pull
-docker compose up -d --build --no-deps hellofresh
+docker compose pull hellogroceries
+docker compose up -d --no-deps hellogroceries
 ```
 
-Back up `./data` before upgrading. Never run `docker compose down -v` unless you intend to remove data.
+In OpenMediaVault, use **Pull → Up**. Back up `data/` before upgrading. Do not use `docker compose down -v` or delete the data directory.
 
-## Security
+## Optional US recipe importer
 
-- The application has **no authentication** or per-user accounts. Do not publish port 8088 to the internet or put it behind a public tunnel. Use a trusted LAN or authenticated private VPN.
-- Imported pages are fetched from public HTTPS HelloFresh URLs; do not assume all metadata or photo URLs are available or accurate.
-- Imported ingredient lines are **not normalized into accurate quantities/units**; review grocery lists before shopping.
-- The HTTP server is a lightweight personal project, **not production-hardened**. Review authentication, request validation, rate limiting, and outbound URL restrictions before public deployment.
+Importing may take hours and depends on public pages, robots.txt, and source-site availability. Start or resume importing from the web interface, or use the optional importer service:
+
+```bash
+docker compose --profile us-import run --rm us-importer
+```
+
+Do not run two importers against the same data directory. The importer uses a shared lock and saves progress to `data/us_import_progress.json`; logs are written to `data/us_import.log`. A saved checkpoint does not mean an import is currently running. Restarting the web container interrupts an importer started from the webpage; use **Start / Resume** afterward.
+
+## Building from source (optional)
+
+To develop or build locally instead of using the prebuilt image:
+
+```bash
+git clone https://github.com/ccf5nhyrk2-art/hellogroceries.git
+cd hellogroceries
+docker build -t hellogroceries:local .
+```
+
+## Security and data limitations
+
+- HelloGroceries has **no authentication**. Do not expose port 8088 to the public internet; use a trusted LAN or authenticated private VPN.
+- Imported recipe metadata and image URLs may be incomplete or unavailable.
+- Imported ingredient lines are **not normalized into reliable quantities and units**. Check your grocery list before shopping.
+- This is a lightweight personal project, not a production-hardened web service.
 
 ## Repository layout
 
 - `app/server.py` — HTTP API and SQLite storage
 - `app/index.html` — recipe browser and grocery-list UI
 - `app/import_us_all.py` — optional US sitemap importer
-- `app/recipes.json` — empty starter catalog (no proprietary data shipped)
-- `compose.yaml` — web and optional importer services
-- `data/` — local private runtime state (Git-ignored)
+- `app/recipes.json` — empty starter catalog
+- `Dockerfile` — application image build
+- `compose.yaml` — prebuilt-image deployment
+- `.github/workflows/publish-image.yml` — automated image publishing
+- `data/` — private runtime data (Git-ignored)
 
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md). Please do not submit scraped recipe catalogs, copyrighted photos, personal databases, or credentials.
+See [CONTRIBUTING.md](CONTRIBUTING.md). Do not commit scraped recipe catalogs, copyrighted photos, personal databases, or credentials.
 
 ## License
 
-The original application code is offered under the GPL-3.0 License in [LICENSE](LICENSE), subject to confirmation that you have rights to publish all contributed code. The license does not cover HelloFresh trademarks, recipes, photographs, or other third-party content.
+Original application code is offered under the [GPL-3.0 License](LICENSE), subject to the contributors' rights to publish their code. This license does not cover HelloFresh trademarks, recipes, photographs, or other third-party content.
