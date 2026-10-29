@@ -51,12 +51,14 @@ def official_image(recipe):
   with urllib.request.urlopen(req,timeout=8) as response:
    if not allowed_url(response.geturl()):return ''
    page=response.read(600000).decode('utf-8','replace')
-  for pattern in [r'<meta[^>]+property=["\']og:image["\'][^>]+content=["\']([^"\']+)',r'<meta[^>]+content=["\']([^"\']+)["\'][^>]+property=["\']og:image["\']']:
-   m=re.search(pattern,page,re.I)
-   if m:
-    img=html.unescape(m.group(1))
-    u=urllib.parse.urlsplit(img)
-    if u.scheme=='https' and u.hostname and not u.username:return img
+  # Handle meta tags regardless of attribute order, including Twitter image fallbacks.
+  for tag in re.findall(r'<meta\b[^>]*>',page,re.I):
+   attrs=dict((k.lower(),html.unescape(v)) for k,v in re.findall(r'([\w:-]+)\s*=\s*["\x27]([^"\x27]*)["\x27]',tag))
+   if attrs.get('property','').lower() not in ('og:image','og:image:secure_url') and attrs.get('name','').lower() not in ('twitter:image','twitter:image:src'):
+    continue
+   img=attrs.get('content','').strip()
+   u=urllib.parse.urlsplit(img)
+   if u.scheme=='https' and u.hostname and not u.username and not u.password:return img
  except Exception:pass
  return ''
 
