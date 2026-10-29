@@ -382,7 +382,9 @@ class Handler(SimpleHTTPRequestHandler):
        if not old.get('weekly') and isinstance(saved.get('weekly'),dict):old['weekly']={day:idmap.get(str(id),id) for day,id in saved['weekly'].items()}
        if not old.get('list') and isinstance(saved.get('list'),list):old['list']=saved['list']
        if not old.get('selected') and isinstance(saved.get('selected'),dict):old['selected']={str(idmap.get(str(k),k)):v for k,v in saved['selected'].items()}
-       old['revision']=old.get('revision',0)+1;save(old)
+       old['revision']=old.get('revision',0)+1
+     # Commit recipe inserts before saving state through its own connection.
+     if isinstance(saved,dict):save(old)
     return self.sendjson({'ok':True,'message':f'Restored {added} missing recipes and merged saved preferences; existing data retained'})
    if action=='bulk':
     country=str(p.get('country','US')).upper();limit=int(p.get('limit',50))
