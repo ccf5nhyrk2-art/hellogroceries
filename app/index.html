@@ -118,29 +118,32 @@ function showPage(key){
  if(!pageButtons.has(key))key='all';
  const target=pageSpecs.find(x=>x[0]===key)?.[2];
  const main=document.querySelector('main');
- // Hide only the page's content groups. Never move, remove, or hide navigation.
- document.querySelectorAll('.page-hidden').forEach(el=>el.classList.remove('page-hidden'));
+ // Restore previous view before calculating the next one.
+ main.querySelectorAll('[data-page-concealed="1"]').forEach(el=>{
+  el.style.removeProperty('display');
+  el.removeAttribute('data-page-concealed');
+ });
+ main.querySelectorAll('.page-hidden').forEach(el=>el.classList.remove('page-hidden'));
+ const conceal=el=>{
+  if(!el||el===toolbar)return;
+  el.style.setProperty('display','none','important');
+  el.dataset.pageConcealed='1';
+ };
  if(key!=='all'&&target){
-  const ancestors=new Set();
-  for(let el=target;el&&el!==main;el=el.parentElement)ancestors.add(el);
-  // Main's direct descendants: preserve toolbar and selected page's ancestors.
-  for(const child of main.children){
-   if(child!==toolbar&&!ancestors.has(child))child.classList.add('page-hidden');
-  }
-  // Hide unrelated sibling groups at every ancestor level.
+  // Keep the target and its ancestors visible, hide all other branches.
+  const path=new Set();
+  for(let el=target;el&&el!==main;el=el.parentElement)path.add(el);
   for(let el=target;el&&el!==main;el=el.parentElement){
    const parent=el.parentElement;
    if(!parent)break;
    for(const sibling of parent.children){
     if(sibling===el||sibling===toolbar)continue;
     if(key==='recipes'&&parent===first&&!['shop-sales','my-recipes','selected-plan'].includes(sibling.id))continue;
-    if(key==='shopping'&&parent===second){
-     const children=[...second.children];
-     if(children.indexOf(sibling)>children.indexOf(target))continue;
-    }
-    sibling.classList.add('page-hidden');
+    if(key==='shopping'&&parent===second&&[...second.children].indexOf(sibling)>[...second.children].indexOf(target))continue;
+    conceal(sibling);
    }
   }
+  for(const child of main.children)if(child!==toolbar&&!path.has(child))conceal(child);
  }
  closeMobileMore();
  moreTab.setAttribute('aria-expanded','false');
@@ -149,12 +152,10 @@ function showPage(key){
  for(const tab of mobileNav.querySelectorAll('.mobile-tab[data-page]')){
   const active=tab.dataset.page===key;
   tab.classList.toggle('mobile-tab-active',active);
-  if(active)tab.setAttribute('aria-current','page');
-  else tab.removeAttribute('aria-current');
+  if(active)tab.setAttribute('aria-current','page');else tab.removeAttribute('aria-current');
  }
  moreTab.classList.toggle('mobile-tab-active',!mobileTabs.some(x=>x[0]===key));
- for(const option of mobileMore.querySelectorAll('.mobile-more-option'))
-  option.classList.toggle('mobile-more-selected',option.dataset.page===key);
+ for(const option of mobileMore.querySelectorAll('.mobile-more-option'))option.classList.toggle('mobile-more-selected',option.dataset.page===key);
  for(const [id,button] of pageButtons){
   button.setAttribute('aria-pressed',String(id===key));
   button.classList.toggle('page-nav-active',id===key);
