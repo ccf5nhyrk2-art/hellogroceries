@@ -360,4 +360,4 @@ $('pause-bulk').onclick=()=>fetch('/api/action',{method:'POST',headers:{'Content
 $('resume-bulk').onclick=()=>fetch('/api/action',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'resume-bulk'})}).then(checkBulk);
 $('restore-backup').onclick=async()=>{const file=$('restore-file').files[0];if(!file)return;try{const backup=JSON.parse(await file.text());if(!confirm('Merge missing recipes from this backup? Existing recipes and lists will not be replaced.'))return;const r=await fetch('/api/action',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'restore-backup',backup,mode:'merge'})});const j=await r.json();if(!r.ok)throw Error(j.error);alert(j.message);await load()}catch(e){$('error').textContent=e.message}};
 
-</script></body></html>
+</script><script>if('serviceWorker' in navigator)navigator.serviceWorker.getRegistrations().then(rs=>rs.forEach(r=>{if(r.active&&r.active.scriptURL.endsWith('/sw.js'))r.unregister()})).catch(()=>{});</script></body></html>
