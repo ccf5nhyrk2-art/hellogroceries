@@ -97,8 +97,16 @@ function groceryMissingUnit(rest){
  // Only flag ambiguous unmeasured ingredients, not recognizable whole-item counts.
  return /^(?:kale|peas|cilantro|parsley|basil|spinach|arugula|lettuce|mixed greens|broccoli|chives|rice|flour|sugar|butter|olive oil|garlic powder|pepper|salt)$/i.test(rest.trim());
 }
+function cleanGroceryUnits(text){
+ return String(text).replace(/\b(teaspoons?|tablespoons?|ounces?|cups?|pounds?|grams?|milliliters?)\s*\((?:tsp|tbsp|oz|cup|lb|lbs|g|ml)\)/gi,'$1');
+}
+function missingGroceryMeasure(rest){
+ const value=String(rest).trim();
+ if(groceryMissingUnit(value))return true;
+ return /^(?:caesar dressing|honey dijon dressing|sunflower seeds?|sesame seeds?|pumpkin seeds?|greek vinaigrette|salad dressing|ranch dressing|hummus|croutons?|peas|kale|cilantro|parsley|basil|spinach|chives)$/i.test(value);
+}
 function shoppingDisplay(item){
- const name=String(item.name||'').trim(), qty=Number(item.quantity);
+ const name=cleanGroceryUnits(String(item.name||'').trim()), qty=Number(item.quantity);
  if(!Number.isFinite(qty)||qty<=0)return {name,note:''};
  const fractions={'¼':0.25,'½':0.5,'¾':0.75,'⅓':1/3,'⅔':2/3,'⅛':0.125,'⅜':0.375,'⅝':0.625,'⅞':0.875};
  const match=name.match(/^(\d+(?:\.\d+)?(?:\s+\d+\/\d+)?|\d+\/\d+|[¼½¾⅓⅔⅛⅜⅝⅞])\s+(.+)$/);
@@ -127,7 +135,7 @@ function shoppingDisplay(item){
   return {name:pretty+' '+label,note:''};
  }
  // Preserve source units (and missing units) rather than inventing ounces or counts.
- return {name:pretty+' '+rest,note:groceryMissingUnit(rest)?'Unit not specified':''};
+ return {name:pretty+' '+rest,note:missingGroceryMeasure(rest)?'Unit not specified':''};
 }
 function renderShoppingList(){
  const groups=new Map();
