@@ -87,7 +87,7 @@ for(const [key,glyph,label] of mobileTabs){
  const tab=document.createElement('button');
  tab.type='button';tab.className='mobile-tab';tab.dataset.page=key;
  tab.innerHTML='<span aria-hidden="true">'+glyph+'</span><small>'+label+'</small>';
- tab.addEventListener('click',()=>showPage(key));
+ tab.addEventListener('click',()=>{try{showPage(key)}catch(error){alert('Navigation error: '+error.message);console.error(error)}});
  mobileNav.appendChild(tab);
 }
 const moreTab=document.createElement('button');
@@ -103,7 +103,7 @@ for(const [key,label] of pageSpecs){
  const option=document.createElement('button');
  option.type='button';option.className='mobile-more-option';option.dataset.page=key;
  option.textContent=label;
- option.addEventListener('click',()=>showPage(key));
+ option.addEventListener('click',()=>{try{showPage(key)}catch(error){alert('Navigation error: '+error.message);console.error(error)}});
  mobileMore.querySelector('.mobile-more-options').appendChild(option);
 }
 const pageButtons=new Map();
@@ -111,60 +111,56 @@ for(const [key,label] of pageSpecs){
  const button=document.createElement('button');
  button.type='button';button.className='page-nav-button';
  button.textContent=label;
- button.addEventListener('click',()=>showPage(key));
+ button.addEventListener('click',()=>{try{showPage(key)}catch(error){alert('Navigation error: '+error.message);console.error(error)}});
  toolbar.appendChild(button);pageButtons.set(key,button);
 }
 function showPage(key){
  if(!pageButtons.has(key))key='all';
- // Rebuild visibility from scratch; don't hide a parent of the selected page.
- document.querySelectorAll('.page-hidden').forEach(el=>el.classList.remove('page-hidden'));
- document.body.classList.remove('shopping-focus');
- const main=document.querySelector('main');
  const target=pageSpecs.find(x=>x[0]===key)?.[2];
+ const main=document.querySelector('main');
+ // Hide only the page's content groups. Never move, remove, or hide navigation.
+ document.querySelectorAll('.page-hidden').forEach(el=>el.classList.remove('page-hidden'));
  if(key!=='all'&&target){
-  const selectedBranch=new Set();
-  let current=target;
-  while(current&&current!==main){selectedBranch.add(current);current=current.parentElement}
-  if(key==='recipes'){
-   for(const child of first.children)if(!['shop-sales','my-recipes','selected-plan'].includes(child.id))selectedBranch.add(child);
+  const ancestors=new Set();
+  for(let el=target;el&&el!==main;el=el.parentElement)ancestors.add(el);
+  // Main's direct descendants: preserve toolbar and selected page's ancestors.
+  for(const child of main.children){
+   if(child!==toolbar&&!ancestors.has(child))child.classList.add('page-hidden');
   }
-  if(key==='shopping'){
-   let inShopping=false;
-   for(const child of second.children){
-    if(child===target)inShopping=true;
-    if(inShopping)selectedBranch.add(child);
+  // Hide unrelated sibling groups at every ancestor level.
+  for(let el=target;el&&el!==main;el=el.parentElement){
+   const parent=el.parentElement;
+   if(!parent)break;
+   for(const sibling of parent.children){
+    if(sibling===el||sibling===toolbar)continue;
+    if(key==='recipes'&&parent===first&&!['shop-sales','my-recipes','selected-plan'].includes(sibling.id))continue;
+    if(key==='shopping'&&parent===second){
+     const children=[...second.children];
+     if(children.indexOf(sibling)>children.indexOf(target))continue;
+    }
+    sibling.classList.add('page-hidden');
    }
   }
-  // Traverse only from the main content root. Never hide the mobile nav.
-  function filterBranch(parent){
-   for(const child of parent.children){
-    if(child===toolbar)continue;
-    if(selectedBranch.has(child))filterBranch(child);
-    else child.classList.add('page-hidden');
-   }
-  }
-  filterBranch(main);
  }
  closeMobileMore();
  moreTab.setAttribute('aria-expanded','false');
+ document.body.classList.toggle('single-page',key!=='all');
+ document.body.dataset.activePage=key;
  for(const tab of mobileNav.querySelectorAll('.mobile-tab[data-page]')){
   const active=tab.dataset.page===key;
   tab.classList.toggle('mobile-tab-active',active);
-  tab.setAttribute('aria-current',active?'page':'false');
+  if(active)tab.setAttribute('aria-current','page');
+  else tab.removeAttribute('aria-current');
  }
  moreTab.classList.toggle('mobile-tab-active',!mobileTabs.some(x=>x[0]===key));
- for(const option of mobileMore.querySelectorAll('.mobile-more-option')){
+ for(const option of mobileMore.querySelectorAll('.mobile-more-option'))
   option.classList.toggle('mobile-more-selected',option.dataset.page===key);
- }
- document.body.classList.toggle('single-page',key!=='all');
  for(const [id,button] of pageButtons){
-  const selected=id===key;
-  button.setAttribute('aria-pressed',String(selected));
-  button.classList.toggle('page-nav-active',selected);
+  button.setAttribute('aria-pressed',String(id===key));
+  button.classList.toggle('page-nav-active',id===key);
  }
  try{localStorage.setItem(PAGE_VIEW_KEY,key);localStorage.removeItem('hellogroceries-shopping-only')}catch(e){}
- // Always land at the top of the selected page, even when switching mid-scroll.
- window.scrollTo({top:0,left:0,behavior:'instant'});
+ window.scrollTo(0,0);
 }
 let initialPage='all';
 try{initialPage=localStorage.getItem(PAGE_VIEW_KEY)||(localStorage.getItem('hellogroceries-shopping-only')==='1'?'shopping':'all')}catch(e){}
