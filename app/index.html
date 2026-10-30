@@ -1110,7 +1110,9 @@ function renderShoppingList(){
    const storePrice=shoppingPriceFor(names);
    itemCount++;
    if(storePrice){pricedCount++;priceTotal+=storePrice.price}
-   const reefOffers=names.flatMap(n=>reefShoppingOffers.get(reefSearchTerm(n).toLowerCase())||[]).sort((a,b)=>a.price-b.price);
+   const sourceNames=names.flatMap(n=>{const item=x.items.find(i=>i.name===n);return [n,...(Array.isArray(item?.sources)?item.sources.flatMap(src=>[src.original_name,src.name].filter(Boolean)):[])];});
+   const seenOffers=new Set();
+   const reefOffers=sourceNames.flatMap(n=>reefShoppingOffers.get(reefSearchTerm(n).toLowerCase())||[]).filter(p=>{const key=p.chain+'|'+p.product+'|'+p.price;if(seenOffers.has(key))return false;seenOffers.add(key);return true}).sort((a,b)=>a.price-b.price);
    const reefMarkup=reefOffers.length?'<span class="grocery-note">Online package prices: '+reefOffers.map(p=>esc(p.chain)+' 
    return '<div class="grocery-item-wrap"><div class="row grocery-row"><input type="checkbox" data-items="'+esc(JSON.stringify(names))+'" '+(purchased?'checked':'')+'><div class="grocery-description"><label class="'+(purchased?'done':'')+'">'+esc(label)+'</label>'+(review?'<span class="grocery-note">⚠ Quantity or unit needs confirmation</span>':'')+(note?'<span class="grocery-note">'+esc(note)+'</span>':'')+priceMarkup+'</div><button type="button" data-set-price="'+esc(first.name)+'">Set price</button><button type="button" data-edit-item="'+esc(first.name)+'">Edit</button></div><details class="grocery-breakdown"><summary>'+esc(sourceText)+'</summary><div class="grocery-breakdown-content">'+groceryBreakdownMarkup(x.items)+'</div></details></div>';
   }).join('');
