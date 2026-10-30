@@ -807,6 +807,87 @@ def reef_test_search(zipcode,query):
   result.append({'retailer':name[:100],'slug':str(retailer.get('slug',''))[:100],'products':products})
  return {'query':query,'postal_code':zipcode,'retailers':result,'credits_reported':(data.get('meta') or {}).get('charged_credits'),'note':'Instacart online prices; not in-store shelf prices. Retailers absent from the response are not verified as unsupported.'}
 
+REEF_CACHE_PATH=Path('/data/reef_price_cache.json')
+REEF_CACHE_LOCK=threading.Lock()
+REEF_CACHE_SECONDS=7*86400
+def reef_cache_read():
+ try:
+  if REEF_CACHE_PATH.stat().st_size>3000000:return {}
+  value=json.loads(REEF_CACHE_PATH.read_text())
+  return value if isinstance(value,dict) else {}
+ except (OSError,ValueError):return {}
+def reef_cache_write(data):
+ import tempfile
+ REEF_CACHE_PATH.parent.mkdir(parents=True,exist_ok=True)
+ fd,path=tempfile.mkstemp(prefix='.reef-cache-',dir=str(REEF_CACHE_PATH.parent))
+ try:
+  with os.fdopen(fd,'w') as out:json.dump(data,out)
+  os.replace(path,REEF_CACHE_PATH)
+ except BaseException:
+  try:os.unlink(path)
+  except OSError:pass
+  raise
+def reef_cache_key(zipcode,item):
+ return zipcode+'|'+item.casefold().strip()
+def reef_cached_comparison(zipcode,items):
+ if not re.fullmatch(r'\d{5}',str(zipcode)):raise ValueError('Enter a five-digit ZIP code')
+ if not isinstance(items,list) or not 1<=len(items)<=60 or any(not isinstance(x,str) or not x.strip() or len(x)>120 for x in items):raise ValueError('Provide 1–60 shopping items')
+ now=datetime.datetime.now(datetime.timezone.utc).timestamp()
+ with REEF_CACHE_LOCK:data=reef_cache_read()
+ chains=['Price Chopper','Walmart','Hy-Vee','ALDI']
+ stores={x:{'chain':x,'prices':[],'priced':0,'requested':len(items),'partial_total':0} for x in chains}
+ cached=0
+ for item in items:
+  record=data.get(reef_cache_key(zipcode,item))
+  if not isinstance(record,dict) or now-float(record.get('time',0))>REEF_CACHE_SECONDS:continue
+  cached+=1
+  for chain in chains:
+   match=next((x for x in record.get('matches',[]) if x.get('chain')==chain),None)
+   if match:
+    stores[chain]['prices'].append(dict(match,item=item))
+    stores[chain]['priced']+=1
+    stores[chain]['partial_total']+=match['price']
+ for store in stores.values():store['partial_total']=round(store['partial_total'],2)
+ return {'stores':list(stores.values()),'cached':cached,'requested':len(items),'missing':len(items)-cached,'cache_days':7,'message':'Instacart online prices. One matching product per ingredient; package sizes and quantities may differ. Partial totals are not directly comparable.'}
+def reef_refresh_batch(zipcode,items):
+ if not re.fullmatch(r'\d{5}',str(zipcode)):raise ValueError('Enter a five-digit ZIP code')
+ if not isinstance(items,list) or not 1<=len(items)<=10 or any(not isinstance(x,str) or not 2<=len(x.strip())<=90 for x in items):raise ValueError('Provide 1–10 grocery items')
+ unique=list(dict.fromkeys(x.strip() for x in items))
+ now=datetime.datetime.now(datetime.timezone.utc).timestamp()
+ searched=0;skipped=0;errors=[]
+ for item in unique:
+  key=reef_cache_key(zipcode,item)
+  with REEF_CACHE_LOCK:
+   cache=reef_cache_read()
+   old=cache.get(key)
+   if isinstance(old,dict) and now-float(old.get('time',0))<REEF_CACHE_SECONDS:
+    skipped+=1;continue
+  try:result=reef_test_search(zipcode,item)
+  except ValueError as exc:
+   errors.append({'item':item,'error':str(exc)})
+   break
+  matches=[]
+  for group in result['retailers']:
+   name=group['retailer'].casefold()
+   chain=next((x for x in ['Price Chopper','Walmart','Hy-Vee','ALDI'] if x.casefold() in name),None)
+   if not chain:continue
+   products=group['products']
+   if not products:continue
+   # Prefer a close name match; preserve actual package size rather than normalize unsupported units.
+   tokens=set(re.findall(r'[a-z0-9]+',item.casefold()))-{'and','of','the','fresh'}
+   def rank(p):
+    words=set(re.findall(r'[a-z0-9]+',p['name'].casefold()))
+    return (len(tokens&words)/max(1,len(tokens)), -len(words))
+   best=max(products,key=rank)
+   if tokens and rank(best)[0]<0.5:continue
+   matches.append({'chain':chain,'price':best['price'],'unit':best['size'],'product':best['name'],'checked_at':datetime.datetime.now(datetime.timezone.utc).isoformat()})
+  with REEF_CACHE_LOCK:
+   cache=reef_cache_read()
+   cache[key]={'time':datetime.datetime.now(datetime.timezone.utc).timestamp(),'matches':matches}
+   reef_cache_write(cache)
+  searched+=1
+ return {'searched':searched,'cached_skipped':skipped,'errors':errors,'credits_estimate':searched*2,'batch_limit':10}
+
 def retailer_catalog_prices(chain,store_name,address,items):
  if not isinstance(chain,str) or len(chain)>80 or not isinstance(store_name,str) or len(store_name)>180 or not isinstance(address,str) or len(address)>250:raise ValueError('Invalid store')
  if not isinstance(items,list) or not 1<=len(items)<=60 or any(not isinstance(x,str) or len(x)>120 for x in items):raise ValueError('Invalid ingredient list')
@@ -1165,6 +1246,11 @@ class Handler(SimpleHTTPRequestHandler):
   except (ValueError,TypeError,KeyError) as exc:return self.sendjson({'error':str(exc)},400)
  def do_GET(self):
   request_scope.household_id=None
+  if self.path.startswith('/api/reef-cached-prices?'):
+   if not self.gate():return
+   q=urllib.parse.parse_qs(urllib.parse.urlsplit(self.path).query)
+   try:return self.sendjson(reef_cached_comparison(q.get('zip',[''])[0],q.get('item',[])))
+   except ValueError as exc:return self.sendjson({'error':str(exc)},400)
   if self.path.startswith('/api/reef-test-search?'):
    if not self.gate():return
    if not getattr(request_scope,'admin',False):return self.sendjson({'error':'Administrator required'},403)
@@ -1290,6 +1376,15 @@ class Handler(SimpleHTTPRequestHandler):
  def do_POST(self):
   request_scope.household_id=None
   if self.path in ('/api/auth/setup','/api/auth/login','/api/auth/register'):return self.auth_post()
+  if self.path=='/api/reef-refresh':
+   if not self.gate(write=True):return
+   if not getattr(request_scope,'admin',False):return self.sendjson({'error':'Administrator required'},403)
+   try:
+    size=int(self.headers.get('Content-Length','0'))
+    if not 0<size<=4096:raise ValueError('Invalid request size')
+    data=json.loads(self.rfile.read(size))
+    return self.sendjson(reef_refresh_batch(data.get('zip',''),data.get('items',[])))
+   except (ValueError,TypeError,OSError) as exc:return self.sendjson({'error':str(exc)},400)
   if self.path=='/api/admin/reef-key':
    if not self.gate(write=True):return
    if not getattr(request_scope,'admin',False):return self.sendjson({'error':'Administrator required'},403)
