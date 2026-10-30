@@ -101,7 +101,7 @@ async function loadAccounts(){
 }
 $('account-search').addEventListener('input',renderAccounts);
 $('account-filter').addEventListener('change',renderAccounts);
-async $('price-test-button').onclick=async()=>{
+$('price-test-button').onclick=async()=>{
  const btn=$('price-test-button'),out=$('price-test-result');
  const zip=$('price-test-zip').value.trim(),item=$('price-test-item').value.trim();
  if(!/^\d{5}$/.test(zip)||item.length<2){out.textContent='Enter a ZIP code and grocery item.';return}
@@ -142,7 +142,7 @@ $('reef-remove').onclick=async()=>{
   $('reef-key').value='';await loadReefKeyStatus()
  }catch(e){$('reef-status').textContent='Error: '+e.message}
 };
-function loadSessionSettings(){
+async function loadSessionSettings(){
  try{
   const r=await fetch('/api/auth/session-settings',{cache:'no-store'}),j=await r.json();
   if(!r.ok)throw Error(j.error||'Unable to load session settings');
