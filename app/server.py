@@ -1388,6 +1388,24 @@ class Handler(SimpleHTTPRequestHandler):
  def do_POST(self):
   request_scope.household_id=None
   if self.path in ('/api/auth/setup','/api/auth/login','/api/auth/register'):return self.auth_post()
+  if self.path=='/api/nutrition-refresh':
+   if not self.gate(write=True):return
+   try:
+    size=int(self.headers.get('Content-Length','0'))
+    if not 0<size<=2048:raise ValueError('Invalid request size')
+    data=json.loads(self.rfile.read(size));rid=int(data.get('id'))
+    with db() as c:
+     row=c.execute('SELECT url,payload FROM imported WHERE id=?',(rid-1000000,)).fetchone()
+    if not row:return self.sendjson({'error':'Nutrition refresh is available for imported HelloFresh recipes only'},400)
+    updated=recipe_from_url(row[0])
+    original=json.loads(row[1])
+    original['nutrition']=updated.get('nutrition',{})
+    original['dietary_labels']=updated.get('dietary_labels',[])
+    with lock:
+     with db() as c:c.execute('UPDATE imported SET payload=? WHERE id=?',(json.dumps(original),rid-1000000))
+    return self.sendjson({'ok':True,'nutrition':original['nutrition'],'dietary_labels':original['dietary_labels']})
+   except (ValueError,TypeError,OSError,urllib.error.URLError,TimeoutError) as exc:
+    return self.sendjson({'error':str(exc)},400)
   if self.path=='/api/reef-refresh':
    if not self.gate(write=True):return
    if not getattr(request_scope,'admin',False):return self.sendjson({'error':'Administrator required'},403)
