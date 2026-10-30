@@ -4,6 +4,26 @@ A self-hosted grocery planner and unofficial HelloFresh companion. Browse recipe
 
 > **Unofficial project.** HelloGroceries is not affiliated with, endorsed by, or sponsored by HelloFresh. This repository does not include a copied recipe catalog or recipe photos.
 
+## Multi-household roadmap (not enabled yet)
+
+The `app/households.py` module defines an **additive** SQLite schema for per-installation
+users, households, household memberships, household state, invitation records and sessions.
+It is a foundation only: the current HTTP server still uses its original single-household
+state and **does not enforce authentication or household isolation**. Do not expose an
+unprotected installation to the public internet.
+
+Each independent installation will have its **own** first-run instance administrator.
+No developer email, domain, household name or Cloudflare account is hardcoded. The
+administrator should be created through a one-time setup flow secured by a locally
+generated bootstrap secret. Only an administrator can issue invitations; invitations
+will be single-use, expiring and stored as token hashes. Household ownership is
+separate from instance administration. Existing state must be migrated into the
+first household with a verified backup and rollback path.
+
+Cloudflare Tunnel and Cloudflare Access are optional deployment choices, not required
+dependencies. Until the account APIs, sessions, CSRF defenses, authorization checks
+and migration tests are complete, restrict access to trusted users.
+
 ## Quick start: prebuilt Docker image
 
 Requirements: Docker Engine and Docker Compose v2. The public image is published automatically to GitHub Container Registry when changes are pushed to `main`.
