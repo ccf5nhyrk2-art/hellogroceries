@@ -232,11 +232,10 @@ function selectMealAndRefresh(id,checked,servings){
   const response=await fetch('/api/action',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'select',id,checked,servings})});
   const result=await response.json();
   if(!response.ok)throw Error(result.error||'Unable to update selected meal');
-  // Always use the persisted household state returned by the server.
   state=result;
   $('grocery-preview').hidden=true;
   render();
- }).catch(error=>{$('error').textContent='Could not update grocery list: '+error.message;});
+ }).catch(error=>{$('error').textContent='Could not update selected meals: '+error.message;});
  return mealSelectionQueue;
 }
 async function action(payload){try{const r=await fetch('/api/action',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});const v=await r.json();if(!r.ok)throw Error(v.error);state=v;if(payload.action==='import'){recipes=await fetch('/api/recipes').then(r=>r.json());$('recipeurl').value=''}render()}catch(e){$('error').textContent=e.message}}
