@@ -927,19 +927,52 @@ async function showReefCachedPrices(){
   reefShoppingOffers=new Map();
   for(const [item,offers] of byItem)reefShoppingOffers.set(reefSearchTerm(item).toLowerCase(),offers);
   renderShoppingList();
+
   const chains=['Price Chopper','Walmart','Hy-Vee','ALDI'];
-  const money=p=>p?'$'+Number(p.price).toFixed(2):'—';
-  const rows=items.map(item=>{
-   const offers=byItem.get(item)||[];
-   const best=offers.length?[...offers].sort((a,b)=>Number(a.price)-Number(b.price))[0]:null;
-   const cells=chains.map(chain=>'<td style="padding:6px;white-space:nowrap">'+esc(money(offers.find(p=>p.chain===chain)))+'</td>').join('');
-   const detail=offers.length?'<details><summary>Products and sizes</summary>'+offers.map(p=>'<div>'+esc(p.chain)+': '+esc(p.product||'')+' · '+esc(p.unit||'size unknown')+'</div>').join('')+'</details>':'';
-   const status=best?esc(best.chain)+' '+esc(money(best)):(data.cached_items?.includes(item)?'No match':'Not searched');
-   return '<tr><td style="padding:6px;min-width:180px">'+esc(item)+detail+'</td>'+cells+'<td style="padding:6px;white-space:nowrap">'+status+'</td></tr>';
+  const money=v=>'$'+Number(v).toFixed(2);
+  const unitInfo=raw=>{
+   const m=String(raw||'').toLowerCase().replace(/,/g,'').match(/(\d+(?:\.\d+)?)\s*(fl\.?\s*oz|fluid ounces?|ounces?|oz|lbs?|pounds?|grams?|g|kilograms?|kg|milliliters?|ml|liters?|l)\b/);
+   if(!m)return null;
+   const n=Number(m[1]),u=m[2].replace(/\s|\./g,'');
+   const weight={oz:1,ounce:1,ounces:1,lb:16,lbs:16,pound:16,pounds:16,g:1/28.349523125,gram:1/28.349523125,grams:1/28.349523125,kg:35.27396195,kilogram:35.27396195,kilograms:35.27396195};
+   const volume={floz:1,fluidounce:1,fluidounces:1,ml:1/29.57352956,milliliter:1/29.57352956,milliliters:1/29.57352956,l:33.8140227,liter:33.8140227,liters:33.8140227};
+   if(weight[u])return {amount:n*weight[u],unit:'oz'};
+   if(volume[u])return {amount:n*volume[u],unit:'fl oz'};
+   return null;
+  };
+  const enriched=items.map(item=>{
+   const offers=(byItem.get(item)||[]).map(p=>{
+    const unit=unitInfo(p.unit||'');
+    return {...p,unitPrice:unit&&unit.amount>0?Number(p.price)/unit.amount:null,baseUnit:unit?.unit||null};
+   }).sort((a,b)=>Number(a.price)-Number(b.price));
+   const best=offers[0]||null;
+   return {item,offers,best};
+  }).sort((a,b)=>(a.best?0:1)-(b.best?0:1)||(a.best&&b.best?Number(a.best.price)-Number(b.best.price):a.item.localeCompare(b.item)));
+  const rows=enriched.map(({item,offers,best})=>{
+   const units=new Set(offers.filter(p=>p.baseUnit).map(p=>p.baseUnit));
+   const comparable=units.size===1&&offers.length>1&&offers.every(p=>p.unitPrice!==null);
+   const bestUnit=comparable?[...offers].sort((a,b)=>a.unitPrice-b.unitPrice)[0]:null;
+   const cells=chains.map(chain=>{
+    const p=offers.find(x=>x.chain===chain);
+    return '<td style="padding:7px;white-space:nowrap">'+(p?esc(money(p.price))+(p.unitPrice!==null?'<div class="muted">'+esc(money(p.unitPrice))+'/'+esc(p.baseUnit)+'</div>':''):'—')+'</td>';
+   }).join('');
+   const detail=offers.length?'<details><summary>Products and sizes</summary>'+offers.map(p=>'<div>'+esc(p.chain)+': '+esc(p.product||'')+' · '+esc(p.unit||'size unknown')+(p.unitPrice!==null?' · '+esc(money(p.unitPrice))+'/'+esc(p.baseUnit):'')+'</div>').join('')+'</details>':'';
+   const status=best?esc(best.chain)+' '+esc(money(best.price))+(bestUnit?'<div class="muted">Best comparable unit: '+esc(bestUnit.chain)+' '+esc(money(bestUnit.unitPrice))+'/'+esc(bestUnit.baseUnit)+'</div>':''):(data.cached_items?.includes(item)?'No match':'Not searched');
+   return '<tr><td style="padding:7px;min-width:180px">'+esc(item)+detail+'</td>'+cells+'<td style="padding:7px;white-space:nowrap">'+status+'</td></tr>';
   });
-  const header='<tr><th>Ingredient</th>'+chains.map(c=>'<th>'+esc(c)+'</th>').join('')+'<th>Lowest package</th></tr>';
-  const table='<div style="max-height:360px;overflow:auto"><table style="width:100%;font-size:12px;border-collapse:collapse">'+header+rows.join('')+'</table></div>';
-  target.innerHTML='<p><strong>ReefAPI:</strong> '+data.cached+' of '+data.requested+' searched in last 7 days; '+data.missing+' not cached; '+(data.unpriced_cached||0)+' searched without a matched price.</p><p class="muted">Prices reflect different package sizes. Lowest package price is not necessarily best unit value. Missing prices are shown as dashes, not $0.</p>'+data.stores.map(store=>'<details><summary><strong>'+esc(store.chain)+'</strong> — $'+Number(store.partial_total).toFixed(2)+' partial total · '+store.priced+' of '+store.requested+' priced</summary>'+store.prices.map(p=>'<p>'+esc(p.item)+': $'+Number(p.price).toFixed(2)+' / '+esc(p.unit||'unit unknown')+' — '+esc(p.product||'')+'</p>').join('')+'</details>').join('')+'<h4>Prices by ingredient</h4>'+table+'<p class="muted">'+esc(data.message)+'</p>';
+  const header='<tr><th>Ingredient</th>'+chains.map(c=>'<th>'+esc(c)+'</th>').join('')+'<th>Lowest package / comparable unit</th></tr>';
+  const totals=chains.map(chain=>{
+   const store=data.stores.find(x=>x.chain===chain);
+   return '<td style="padding:8px"><strong>'+esc(money(store?.partial_total||0))+'</strong><div class="muted">'+Number(store?.priced||0)+'/'+items.length+' priced</div></td>';
+  }).join('');
+  const bestBasket=enriched.filter(x=>x.best).reduce((sum,x)=>sum+Number(x.best.price),0);
+  const priced=enriched.filter(x=>x.best).length;
+  const footer='<tr><th style="padding:8px;text-align:left">Partial store totals</th>'+totals+'<td style="padding:8px"><strong>'+esc(money(bestBasket))+'</strong><div class="muted">Lowest package per priced item · '+priced+'/'+items.length+'</div></td></tr>';
+  const table='<div style="max-height:420px;overflow:auto"><table style="width:100%;font-size:12px;border-collapse:collapse">'+header+rows.join('')+'<tfoot>'+footer+'</tfoot></table></div>';
+  const storeSummary='<h4>Store totals (partial)</h4>'+data.stores.map(store=>'<div>'+esc(store.chain)+': <strong>'+esc(money(store.partial_total))+'</strong> · '+store.priced+'/'+store.requested+' priced</div>').join('');
+  const diagnostics=(data.retailer_diagnostics||[]).length?'<details><summary>Retailers returned by ReefAPI (diagnostics)</summary>'+(data.retailer_diagnostics||[]).map(d=>'<p>'+esc(d.item)+': '+esc((d.retailers_seen||[]).map(x=>x.name+' ('+x.slug+')').join(', ')||'No retailer names')+'</p>').join('')+'</details>':'<p class="muted">Retailer diagnostics will appear after a new search; older cached searches do not contain them.</p>';
+  target.innerHTML='<p><strong>ReefAPI:</strong> '+data.cached+' of '+data.requested+' searched in last 7 days; '+data.missing+' not cached; '+(data.unpriced_cached||0)+' searched without a matched price.</p><p class="muted">Sorted by lowest listed package price. Unit prices use package ounces or fluid ounces only where size is parseable; volume and weight are never compared. Different products may not be equivalent. Missing prices are not zero. Totals exclude missing items, quantities, taxes and delivery.</p>'+storeSummary+'<h4>Prices by ingredient — lowest first</h4>'+table+'<p><strong>Bottom line:</strong> '+esc(money(bestBasket))+' lowest-package partial basket across '+priced+' priced ingredients. Not a checkout estimate.</p>'+diagnostics+'<p class="muted">'+esc(data.message)+'</p>';
+
  }catch(e){target.textContent='Cached pricing unavailable: '+e.message}
 }
 function reefSearchTerm(raw){
