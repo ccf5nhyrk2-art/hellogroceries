@@ -507,6 +507,22 @@ class Handler(SimpleHTTPRequestHandler):
      if rid not in {str(r['id']) for r in allrecipes()}:raise ValueError('Unknown recipe')
      if p.get('checked'):state['selected'][rid]=servings
      else:state['selected'].pop(rid,None)
+    elif action=='correct_recipe_ingredient':
+     rid=p.get('recipe_id');original=p.get('original')
+     if type(rid)!=int or not isinstance(original,str) or not original or len(original)>250:raise ValueError('Invalid ingredient reference')
+     recipe=next((r for r in allrecipes() if r['id']==rid),None)
+     if recipe is None or original not in recipe.get('ingredients',{}):raise ValueError('Recipe ingredient not found')
+     corrections=state.setdefault('recipe_ingredient_corrections',{})
+     key=str(rid)+'|'+original
+     if p.get('remove') is True:corrections.pop(key,None)
+     else:
+      name=p.get('name');unit=p.get('unit');amount=p.get('amount')
+      allowed={'','count','teaspoon','tablespoon','cup','ounce','pound','gram','kilogram','milliliter','liter','clove','bunch','head','stalk','slice','piece','pinch','can','package','bag'}
+      if not isinstance(name,str) or not name.strip() or len(name)>140:raise ValueError('Ingredient name required')
+      if not isinstance(unit,str) or unit not in allowed:raise ValueError('Invalid measurement unit')
+      if type(amount) not in (int,float) or not (0<float(amount)<=10000):raise ValueError('Invalid ingredient amount')
+      if len(corrections)>=5000 and key not in corrections:raise ValueError('Too many corrections')
+      corrections[key]={'name':name.strip(),'unit':unit,'amount':float(amount)}
     elif action=='edit_ingredient':
      name=str(p.get('name',''))
      if not any(i['name']==name for i in state['list']):raise ValueError('Unknown item')
@@ -537,10 +553,19 @@ class Handler(SimpleHTTPRequestHandler):
       scale=state['selected'].get(str(recipe['id']))
       if scale is None:continue
       for name,qty in recipe['ingredients'].items():
-       amount=float(qty)*float(scale)
+       correction=state.get('recipe_ingredient_corrections',{}).get(str(recipe['id'])+'|'+name)
+       if isinstance(correction,dict):
+        ingredient_name=correction['name']
+        unit=correction.get('unit','')
+        corrected_amount=float(correction['amount'])
+        label=(str(corrected_amount).rstrip('0').rstrip('.') if corrected_amount%1 else str(int(corrected_amount)))+' '+(unit+' ' if unit and unit!='count' else '')+ingredient_name
+        amount=float(scale)
+       else:
+        label=name
+        amount=float(qty)*float(scale)
        if not (0<amount<100000):continue
-       totals[name]=totals.get(name,0)+amount
-       sources.setdefault(name,[]).append({'recipe_id':recipe['id'],'recipe':recipe['name'],'source_quantity':qty,'multiplier':scale,'contribution':round(amount,3)})
+       totals[label]=totals.get(label,0)+amount
+       sources.setdefault(label,[]).append({'recipe_id':recipe['id'],'recipe':recipe['name'],'original_name':name,'corrected':bool(correction),'source_quantity':qty,'multiplier':scale,'contribution':round(amount,3)})
      for item in state.get('manual',[]):
       if isinstance(item,str) and item.strip():
        name=item.strip()
