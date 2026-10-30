@@ -333,7 +333,7 @@ def save(state):
 STORE_CACHE={};STORE_CACHE_LOCK=threading.Lock()
 STORE_CACHE_FILE=Path('/data/store_lookup_cache.json')
 STORE_CACHE_TTL=21600
-STORE_CACHE_VERSION=9
+STORE_CACHE_VERSION=10
 STORE_CACHE_STALE_TTL=30*86400
 try:
  raw_cache=json.loads(STORE_CACHE_FILE.read_text())
@@ -503,6 +503,37 @@ RETAILER_PUBLISHED_STORES=[
 ]
 RETAILER_ZIP_CENTROIDS={}
 RETAILER_ZIP_LOCK=threading.Lock()
+RETAILER_GEOCODE_LOCK=threading.Lock()
+RETAILER_GEOCODE_RUNNING=False
+
+def geocode_retailer_addresses():
+ global RETAILER_GEOCODE_RUNNING
+ path=Path('/data/retailer_address_coordinates.json')
+ try:
+  try:
+   cached=json.loads(path.read_text())
+   if not isinstance(cached,dict):cached={}
+  except (OSError,ValueError,TypeError):cached={}
+  for chain,street,city,state,code in RETAILER_PUBLISHED_STORES:
+   key=(street+', '+city+', '+state+' '+code).lower()
+   if key in cached:continue
+   try:
+    url='https://geocoding.geo.census.gov/geocoder/geographies/onelineaddress?'+urllib.parse.urlencode({'address':street+', '+city+', '+state+' '+code,'benchmark':'Public_AR_Current','vintage':'Current_Current','format':'json'})
+    req=urllib.request.Request(url,headers={'User-Agent':'HelloGroceries/1.0'})
+    with urllib.request.urlopen(req,timeout=6) as response:geo=json.load(response)
+    candidates=geo.get('result',{}).get('addressMatches',[])
+    if candidates:
+     point=candidates[0]['coordinates']
+     glat,glon=float(point['y']),float(point['x'])
+     if -125<=glon<=-66 and 24<=glat<=50:
+      cached[key]=[glat,glon]
+      tmp=path.with_suffix('.tmp');tmp.write_text(json.dumps(cached));os.replace(tmp,path)
+   except (OSError,ValueError,TypeError,KeyError,IndexError) as error:
+    print('Background store geocoding failed:',repr(error),flush=True)
+   time.sleep(1)
+ finally:
+  with RETAILER_GEOCODE_LOCK:RETAILER_GEOCODE_RUNNING=False
+
 def published_retailer_nearby(lat,lon,radius):
  # Location list is independent of the searched ZIP, unlike a ZIP-specific patch.
  with RETAILER_ZIP_LOCK:
@@ -528,29 +559,12 @@ def published_retailer_nearby(lat,lon,radius):
   coord_cache=json.loads(coord_file.read_text())
   if not isinstance(coord_cache,dict):coord_cache={}
  except (OSError,ValueError,TypeError):coord_cache={}
- pending=[]
- for chain,street,city,state,code in RETAILER_PUBLISHED_STORES:
-  key=(street+', '+city+', '+state+' '+code).lower()
-  if key not in coord_cache and code in known and store_distance(lat,lon,*known[code])<=radius+3:
-   pending.append((key,street+', '+city+', '+state+' '+code))
- changed=False
- for key,address in pending[:3]:
-  try:
-   url='https://geocoding.geo.census.gov/geocoder/geographies/onelineaddress?'+urllib.parse.urlencode({'address':address,'benchmark':'Public_AR_Current','vintage':'Current_Current','format':'json'})
-   req=urllib.request.Request(url,headers={'User-Agent':'HelloGroceries/1.0'})
-   with urllib.request.urlopen(req,timeout=3) as response:geo=json.load(response)
-   candidates=geo.get('result',{}).get('addressMatches',[])
-   if candidates:
-    point=candidates[0]['coordinates']
-    glat,glon=float(point['y']),float(point['x'])
-    if -125<=glon<=-66 and 24<=glat<=50:
-     coord_cache[key]=[glat,glon];changed=True
-  except (OSError,ValueError,TypeError,KeyError,IndexError) as error:
-   print('Store address geocoding unavailable:',repr(error),flush=True)
- if changed:
-  try:
-   tmp=coord_file.with_suffix('.tmp');tmp.write_text(json.dumps(coord_cache));os.replace(tmp,coord_file)
-  except OSError as error:print('Store coordinate cache write failed:',repr(error),flush=True)
+ # Resolve remaining addresses asynchronously without blocking the store finder.
+ global RETAILER_GEOCODE_RUNNING
+ with RETAILER_GEOCODE_LOCK:
+  if not RETAILER_GEOCODE_RUNNING:
+   RETAILER_GEOCODE_RUNNING=True
+   threading.Thread(target=geocode_retailer_addresses,daemon=True).start()
  for chain,street,city,state,code in RETAILER_PUBLISHED_STORES:
   if code not in known:continue
   key=(street+', '+city+', '+state+' '+code).lower()
