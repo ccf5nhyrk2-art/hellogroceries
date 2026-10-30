@@ -334,6 +334,8 @@ $('collapse-departments').addEventListener('click',()=>setAllShoppingDepartments
 function shoppingDepartment(name){
  const value=String(name||'').toLowerCase();
  if(/\b(?:coleslaw\s+mix|slaw\s+mix|shredded\s+cabbage)\b/i.test(value))return 'Produce';
+ if(/^\s*(?:(?:\d+(?:\.\d+)?\s+)?(?:pick|unit)\s+)?garlic\s*$/i.test(value))return 'Produce';
+ if(/^\s*(?:(?:\d+(?:\.\d+)?\s+)?(?:pick|unit|teaspoons?)\s+)?(?:black\s+)?(?:salt|pepper)\s*$/i.test(value))return 'Pantry & Seasonings';
  if(/\b(?:cooking\s+spray|nonstick\s+(?:cooking\s+)?spray|non-stick\s+(?:cooking\s+)?spray)\b/i.test(value))return 'Pantry & Seasonings';
  if(/\b(sun.dried tomatoes?|tomato paste|tomato sauce|canned tomatoes?|tinned tomatoes?|croutons?|vinaigrettes?|garam masala|peppercorns?|sunflower seeds?|dried herbs?|dried spices?|garlic powder|onion powder|ginger powder|chili powder|chilli powder|curry powder|ground (?:ginger|cumin|coriander|pepper|turmeric)|dried (?:garlic|onion|parsley|basil|oregano|thyme|rosemary)|seasoning blends?|spice blends?)\b/i.test(value))return 'Pantry & Seasonings';
  if(/\b(?:chicken|beef|vegetable|veggie|mushroom|fish)?\s*(?:stock|broth|bouillon)\s*(?:concentrates?|cubes?|powders?)?\b/i.test(value))return 'Pantry & Seasonings';
@@ -566,7 +568,7 @@ function renderShoppingList(){
  const groups=new Map();
  for(const item of state.list||[]){
   const override=(state.ingredient_overrides||{})[item.name];
-  const group=shoppingNeedsReview(item)?'Needs Review':override&&override.department&&override.department!=='Auto'?override.department:shoppingDepartment(item.name);
+  const group=override&&override.department&&override.department!=='Auto'?override.department:shoppingDepartment(item.name);
   if(!groups.has(group))groups.set(group,[]);
   groups.get(group).push(item);
  }
@@ -581,7 +583,7 @@ function renderShoppingList(){
    const sourceCount=x.items.reduce((n,i)=>n+(Array.isArray(i.sources)?i.sources.length:0),0)||groceryRecipeBreakdown(x.items).length;
    const sourceText=sourceCount?'Used in '+sourceCount+' '+(sourceCount===1?'recipe':'recipes'):'View item sources';
    const review=x.items.some(shoppingNeedsReview);
-   return '<div class="grocery-item-wrap"><div class="row grocery-row"><input type="checkbox" data-items="'+esc(JSON.stringify(names))+'" '+(purchased?'checked':'')+'><div class="grocery-description"><label class="'+(purchased?'done':'')+'">'+esc(label)+'</label>'+(note?'<span class="grocery-note">'+esc(note)+'</span>':'')+'</div><button type="button" data-edit-item="'+esc(first.name)+'">Edit</button></div><details class="grocery-breakdown"><summary>'+esc(sourceText)+'</summary><div class="grocery-breakdown-content">'+groceryBreakdownMarkup(x.items)+'</div></details></div>';
+   return '<div class="grocery-item-wrap"><div class="row grocery-row"><input type="checkbox" data-items="'+esc(JSON.stringify(names))+'" '+(purchased?'checked':'')+'><div class="grocery-description"><label class="'+(purchased?'done':'')+'">'+esc(label)+'</label>'+(review?'<span class="grocery-note">⚠ Quantity or unit needs confirmation</span>':'')+(note?'<span class="grocery-note">'+esc(note)+'</span>':'')+'</div><button type="button" data-edit-item="'+esc(first.name)+'">Edit</button></div><details class="grocery-breakdown"><summary>'+esc(sourceText)+'</summary><div class="grocery-breakdown-content">'+groceryBreakdownMarkup(x.items)+'</div></details></div>';
   }).join('');
   return '<details class="shopping-department" data-department="'+esc(group)+'" '+(shoppingOpenDepartments.has(group)?'open':'')+'><summary><span>'+symbol+' '+esc(group)+'</span><span class="department-count">'+done+' of '+entries.length+' purchased</span></summary><div class="department-items">'+rows+'</div></details>';
  }).join('')||'<p class="muted">'+(Object.keys(state.selected||{}).length?'Your selected meals have not produced grocery items. Check that the recipes contain ingredients and that none are excluded by your pantry; try reselecting a meal.':'No meals selected yet. Add a meal to your plan to automatically populate Shop.')+'</p>';
