@@ -572,7 +572,12 @@ class Handler(SimpleHTTPRequestHandler):
        totals[name]=totals.get(name,0)+1
        sources.setdefault(name,[]).append({'recipe':'Manually added','contribution':1})
      pantry={str(x).strip().lower() for x in state.get('pantry',[])}
-     state['list']=[{'name':name,'quantity':round(qty,3),'purchased':False,'sources':sources.get(name,[])} for name,qty in sorted(totals.items()) if qty>0 and name.strip().lower() not in pantry]
+     old={item['name']:item for item in state.get('list',[])}
+     generated=[{'name':name,'quantity':round(qty,3),'purchased':False,'sources':sources.get(name,[])} for name,qty in sorted(totals.items()) if qty>0 and name.strip().lower() not in pantry]
+     for item in generated:
+      previous=old.get(item['name'])
+      if previous and previous.get('quantity')==item['quantity']:item['purchased']=bool(previous.get('purchased'))
+     state['list']=generated
     elif action=='clear':state['list']=[]
     elif action=='purchase_many':
      names=p.get('names',[])
