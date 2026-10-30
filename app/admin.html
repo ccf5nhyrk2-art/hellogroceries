@@ -104,7 +104,7 @@ $('account-filter').addEventListener('change',renderAccounts);
 async $('price-test-button').onclick=async()=>{
  const btn=$('price-test-button'),out=$('price-test-result');
  const zip=$('price-test-zip').value.trim(),item=$('price-test-item').value.trim();
- if(!/^\\d{5}$/.test(zip)||item.length<2){out.textContent='Enter a ZIP code and grocery item.';return}
+ if(!/^\d{5}$/.test(zip)||item.length<2){out.textContent='Enter a ZIP code and grocery item.';return}
  btn.disabled=true;out.textContent='Checking prices…';
  try{
   const q=new URLSearchParams({zip,item});
