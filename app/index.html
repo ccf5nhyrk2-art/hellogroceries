@@ -1072,12 +1072,13 @@ async function testFreeCommunityPrices(){
 // Delegate pricing actions: the shopping summary is recreated during rendering.
 document.addEventListener('click',event=>{
  const refresh=event.target.closest('#shopping-reef-refresh');
+ const batch=event.target.closest('#shopping-reef-batch');
  const view=event.target.closest('#shopping-reef-view');
- if(!refresh&&!view)return;
+ if(!refresh&&!batch&&!view)return;
  event.preventDefault();
  const status=$('retailer-catalog-status');
- if(status)status.textContent=refresh?'Preparing live pricing request…':'Opening cached price comparison…';
- Promise.resolve().then(()=>refresh?refreshReefPrices():showReefCachedPrices()).catch(error=>{
+ if(status)status.textContent=refresh||batch?'Preparing live pricing request…':'Opening cached price comparison…';
+ Promise.resolve().then(()=>batch?refreshReefBatch():refresh?refreshReefPrices():showReefCachedPrices()).catch(error=>{
   const output=$('retailer-catalog-status')||$('retailer-comparison-results');
   if(output)output.textContent='Pricing action failed: '+error.message;
  });
