@@ -150,6 +150,21 @@ button{max-width:100%;min-height:36px;line-height:1.25;white-space:normal;overfl
 .import-tools .actions input[type=url]{flex:1 1 190px;width:auto;min-width:0}
 @media(max-width:750px){.layout{grid-template-columns:minmax(0,1fr)}.actions>button{min-width:0}}
 @media(max-width:480px){.filters{grid-template-columns:minmax(0,1fr)}.actions>button{flex:1 1 auto}.filter-actions{align-items:flex-start}.filter-actions label{max-width:100%}}
+/* Store-first pricing dashboard */
+.reef-view-tabs{display:flex;gap:8px;flex-wrap:wrap;margin:14px 0}
+.reef-view-tabs button{padding:9px 13px}
+.reef-view-tabs button[aria-selected="true"]{background:#176b4a;color:#fff;border-color:#176b4a}
+.reef-store-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px;margin:14px 0}
+.reef-store-card{border:1px solid #5d766866;border-radius:12px;padding:14px;min-width:0;background:#6a977a12}
+.reef-store-card h5{margin:0 0 8px;font-size:15px}
+.reef-store-card strong{font-size:20px}
+.reef-store-card small{display:block;margin-top:6px;color:inherit;opacity:.8}
+.reef-coverage-track{height:7px;border-radius:12px;background:#6c807044;overflow:hidden;margin-top:10px}
+.reef-coverage-fill{height:100%;background:#279c68}
+.reef-ingredient-select{max-width:100%;padding:10px;margin:8px 0 14px}
+.reef-ingredient-offer{display:flex;justify-content:space-between;gap:16px;padding:11px 0;border-bottom:1px solid #80948744}
+.reef-ingredient-offer span:last-child{text-align:right}
+.reef-advanced{margin-top:16px}
 /* Scrollable eight-store comparison with a pinned ingredient column */
 .reef-table-scroll{width:100%;max-width:100%;max-height:none;overflow-x:auto;overflow-y:visible;overscroll-behavior-x:contain;border:1px solid #d5e1d9;border-radius:10px}
 .reef-table-scroll table{width:max-content;min-width:100%;border-collapse:separate;border-spacing:0;font-size:12px}
@@ -1020,9 +1035,32 @@ async function showReefCachedPrices(){
   const priced=enriched.filter(x=>x.best).length;
   const footer='<tr><th style="padding:8px;text-align:left">Partial store totals</th>'+totals+'<td style="padding:8px"><strong>'+esc(money(bestBasket))+'</strong><div class="muted">Lowest listed package (unit value shown separately) · '+priced+'/'+items.length+'</div></td></tr>';
   const table='<div class="reef-table-scroll" role="region" aria-label="Store price comparison — scroll horizontally for all retailers" tabindex="0"><table><thead>'+header+'</thead><tbody>'+rows.join('')+'</tbody><tfoot>'+footer+'</tfoot></table></div>';
-  const storeSummary='<h4>Store totals (partial)</h4>'+data.stores.map(store=>'<div>'+esc(store.chain)+': <strong>'+(store.priced>0?esc(money(store.partial_total)):'Not available')+'</strong> · '+store.priced+'/'+store.requested+' priced</div>').join('');
+  const storeSummary='<div class="reef-store-grid">'+data.stores.map(store=>{
+   const count=Number(store.priced||0),total=Number(store.requested||items.length)||items.length;
+   const pct=Math.min(100,Math.round(count/Math.max(1,total)*100));
+   return '<article class="reef-store-card"><h5>'+esc(store.chain)+'</h5><strong>'+(count?esc(money(store.partial_total)):'No prices yet')+'</strong><small>'+count+' of '+total+' ingredients priced ('+pct+'%)</small><div class="reef-coverage-track"><div class="reef-coverage-fill" style="width:'+pct+'%"></div></div><small>Partial prices only — not a checkout total</small></article>';
+  }).join('')+'</div>';
+  const ingredientOptions=enriched.map((row,i)=>'<option value="'+i+'">'+esc(row.item)+'</option>').join('');
+  const ingredientView='<label for="reef-ingredient-select"><strong>Choose an ingredient</strong></label><select id="reef-ingredient-select" class="reef-ingredient-select">'+ingredientOptions+'</select><div id="reef-ingredient-detail"></div>';
+  const viewTabs='<div class="reef-view-tabs" role="tablist" aria-label="Price comparison views"><button type="button" data-reef-view="stores" role="tab" aria-selected="true">Stores</button><button type="button" data-reef-view="ingredients" role="tab" aria-selected="false">Ingredients</button></div>';
   const diagnostics=(data.retailer_diagnostics||[]).length?'<details><summary>Retailers returned by ReefAPI (diagnostics)</summary>'+(data.retailer_diagnostics||[]).map(d=>'<p>'+esc(d.item)+': '+esc((d.retailers_seen||[]).map(x=>x.name+' ('+x.slug+')').join(', ')||'No retailer names')+'</p>').join('')+'</details>':'<p class="muted">Retailer diagnostics will appear after a new search; older cached searches do not contain them.</p>';
-  target.innerHTML='<p><strong>ReefAPI:</strong> '+data.cached+' of '+data.requested+' searched in last 365 days; '+data.missing+' not cached; '+(data.unpriced_cached||0)+' searched without a matched price.</p><p class="muted">Sorted by lowest listed package price; comparable unit prices are shown separately. Unit prices use package ounces or fluid ounces only where size is parseable; volume and weight are never compared. Different products may not be equivalent. Missing prices are not zero. Totals exclude missing items, quantities, taxes and delivery.</p>'+storeSummary+'<h4>Prices by ingredient — lowest first</h4>'+table+'<p><strong>Bottom line:</strong> '+esc(money(bestBasket))+' lowest-package mixed-store partial basket across '+priced+' priced ingredients. Not a checkout estimate.</p>'+diagnostics+'<p class="muted">'+esc(data.message)+'</p>';
+  target.innerHTML='<p><strong>ReefAPI:</strong> '+data.cached+' of '+data.requested+' ingredients searched in last 365 days; '+data.missing+' not cached.</p>'+viewTabs+'<div id="reef-stores-view">'+storeSummary+'</div><div id="reef-ingredients-view" hidden>'+ingredientView+'</div><p class="muted">Prices reflect different products and package sizes. Partial totals cannot be compared as full baskets. Missing prices are not zero.</p><details class="reef-advanced"><summary>Advanced eight-store price table</summary><h4>Prices by ingredient</h4>'+table+'<p>Lowest-package mixed-store partial total: '+esc(money(bestBasket))+' across '+priced+' matched ingredients. Not a checkout estimate.</p>'+diagnostics+'</details><p class="muted">'+esc(data.message)+'</p>';
+  const updateIngredient=()=>{
+   const index=Number(target.querySelector('#reef-ingredient-select')?.value||0),row=enriched[index],detail=target.querySelector('#reef-ingredient-detail');
+   if(!row||!detail)return;
+   const units=new Set(row.offers.filter(p=>p.baseUnit).map(p=>p.baseUnit));
+   const comparable=units.size===1&&row.offers.length>1&&row.offers.every(p=>p.unitPrice!==null);
+   detail.innerHTML=row.offers.length?row.offers.map(p=>'<div class="reef-ingredient-offer"><span><strong>'+esc(p.chain)+'</strong><small style="display:block">'+esc(p.product||'Product')+' · '+esc(p.unit||'Size unknown')+'</small></span><span><strong>'+esc(money(p.price))+'</strong>'+(comparable?'<small style="display:block">'+esc(money(p.unitPrice))+'/'+esc(p.baseUnit)+'</small>':'')+'</span></div>').join(''):'<p>No matching cached prices for this ingredient.</p>';
+  };
+  target.querySelector('#reef-ingredient-select')?.addEventListener('change',updateIngredient);
+  target.querySelectorAll('[data-reef-view]').forEach(button=>button.addEventListener('click',()=>{
+   const view=button.dataset.reefView;
+   target.querySelector('#reef-stores-view').hidden=view!=='stores';
+   target.querySelector('#reef-ingredients-view').hidden=view!=='ingredients';
+   target.querySelectorAll('[data-reef-view]').forEach(tab=>tab.setAttribute('aria-selected',String(tab===button)));
+   if(view==='ingredients')updateIngredient();
+  }));
+  updateIngredient();
 
  }catch(e){target.textContent='Cached pricing unavailable: '+e.message}
 }
