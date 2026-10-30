@@ -577,6 +577,10 @@ class Handler(SimpleHTTPRequestHandler):
       if not key.startswith('__corrected__|'):continue
       _,unit,ingredient=key.split('|',2)
       quantity=totals.pop(key)
+      available=state.get('pantry_inventory',{}).get(ingredient+'|'+unit,0)
+      if type(available) not in (int,float) or not 0<=available<=100000:available=0
+      quantity=max(0,quantity-available)
+      if quantity<=0:continue
       label=(str(round(quantity,3)).rstrip('0').rstrip('.') if quantity%1 else str(int(quantity)))+' '+(unit+' ' if unit and unit!='count' else '')+ingredient
       totals[label]=totals.get(label,0)+1
       sources.setdefault(label,[]).extend(sources.pop(key,[]))
@@ -586,6 +590,16 @@ class Handler(SimpleHTTPRequestHandler):
       previous=old.get(item['name'])
       if previous and previous.get('quantity')==item['quantity']:item['purchased']=bool(previous.get('purchased'))
      state['list']=generated
+    elif action=='set_pantry_inventory':
+     name=p.get('name');unit=p.get('unit','');amount=p.get('amount')
+     allowed={'','count','teaspoon','tablespoon','cup','ounce','pound','gram','kilogram','milliliter','liter','clove','bunch','head','stalk','slice','piece','pinch','can','package','bag'}
+     if not isinstance(name,str) or not name.strip() or len(name)>140 or '|' in name:raise ValueError('Invalid pantry ingredient')
+     if not isinstance(unit,str) or unit not in allowed:raise ValueError('Invalid pantry unit')
+     if type(amount) not in (int,float) or not 0<=amount<=100000:raise ValueError('Invalid pantry amount')
+     inventory=state.setdefault('pantry_inventory',{})
+     key=name.strip().casefold()+'|'+unit
+     if len(inventory)>=1000 and key not in inventory:raise ValueError('Inventory limit reached')
+     inventory[key]=float(amount)
     elif action=='clear':state['list']=[]
     elif action=='purchase_many':
      names=p.get('names',[])
