@@ -6,6 +6,24 @@ import secrets
 import json,sqlite3,threading,re,html,io,zipfile,datetime,urllib.request,urllib.parse,urllib.robotparser,xml.etree.ElementTree as ET,time,subprocess,sys,fcntl,os,ipaddress,socket
 BASE=Path(__file__).parent;DB=Path('/data/shopping.db');DB.parent.mkdir(exist_ok=True,parents=True)
 RECIPES=json.loads((BASE/'recipes.json').read_text());lock=threading.Lock()
+# Generate a persistent first-run secret when the operator has not configured one.
+# Keep it outside the image in the existing /data bind mount; never expose it via HTTP.
+def bootstrap_secret():
+ configured=os.environ.get('HG_BOOTSTRAP_TOKEN','')
+ if configured:
+  return configured
+ secret_file=DB.parent/'.hg-bootstrap-token'
+ try:
+  fd=os.open(str(secret_file),os.O_CREAT|os.O_EXCL|os.O_WRONLY,0o600)
+  secret=secrets.token_urlsafe(32)
+  with os.fdopen(fd,'w') as stream:stream.write(secret+'\n')
+ except FileExistsError:
+  secret=secret_file.read_text().strip()
+ if len(secret)<24:raise RuntimeError('Invalid persisted bootstrap token')
+ return secret
+
+BOOTSTRAP_SECRET=bootstrap_secret()
+
 job={"running":False,"discovered":0,"processed":0,"imported":0,"skipped":0,"errors":0,"message":"Idle","paused":False,"country":"US","limit":0}
 BULK_STATE=Path("/data/bulk_import_progress.json")
 BULK_PAUSE=threading.Event()
@@ -429,7 +447,7 @@ class Handler(SimpleHTTPRequestHandler):
    with db() as c:
     auth.ensure_schema(c)
     if path=='/api/auth/setup':
-     secret=os.environ.get('HG_BOOTSTRAP_TOKEN','')
+     secret=BOOTSTRAP_SECRET
      if len(secret)<24 or not secrets.compare_digest(str(data.get('bootstrap_token','')),secret):
       return self.sendjson({'error':'Valid HG_BOOTSTRAP_TOKEN required'},403)
      uid,hid=auth.create_first_admin(c,data.get('email'),data.get('password'),data.get('household','My Household'))
@@ -751,6 +769,9 @@ class Handler(SimpleHTTPRequestHandler):
    return self.sendjson(state)
   except (ValueError,KeyError,TypeError,json.JSONDecodeError) as e:return self.sendjson({'error':str(e)},400)
 if __name__=='__main__':
+ with db() as c:
+  if auth.instance_needs_setup(c):
+   print('HelloGroceries first-run administrator setup token: '+BOOTSTRAP_SECRET,flush=True)
  if BULK_RECOVER:
   job.update(running=True,paused=False,processed=0,discovered=0,imported=0,skipped=0,errors=0,message='Recovering interrupted import; saved recipes will be skipped')
   threading.Thread(target=bulk_worker,args=(job.get('country','US'),int(job.get('limit',0))),daemon=True).start()
