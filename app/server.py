@@ -406,7 +406,7 @@ class Handler(SimpleHTTPRequestHandler):
   if write:
    origin=self.headers.get('Origin','')
    host=self.headers.get('Host','')
-   scheme='https' if self.headers.get('X-Forwarded-Proto')=='https' else 'http'
+   scheme=urllib.parse.urlsplit(origin).scheme if origin else 'https'
    if origin not in (scheme+'://'+host,):
     self.sendjson({'error':'Invalid request origin'},403);return False
    cookie=SimpleCookie()
@@ -420,7 +420,7 @@ class Handler(SimpleHTTPRequestHandler):
   path=urllib.parse.urlsplit(self.path).path
   origin=self.headers.get('Origin','')
   host=self.headers.get('Host','')
-  scheme='https' if self.headers.get('X-Forwarded-Proto')=='https' else 'http'
+  scheme=urllib.parse.urlsplit(origin).scheme if origin else 'https'
   if origin != scheme+'://'+host:return self.sendjson({'error':'Invalid origin'},403)
   size=int(self.headers.get('Content-Length','0'))
   if size<1 or size>8192:return self.sendjson({'error':'Invalid request size'},400)
