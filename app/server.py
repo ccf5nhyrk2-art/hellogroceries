@@ -772,6 +772,41 @@ def save_reef_key(key):
   except OSError:pass
   raise
 
+def reef_test_search(zipcode,query):
+ if not re.fullmatch(r'\\d{5}',str(zipcode)):raise ValueError('Enter a five-digit US ZIP code')
+ query=str(query).strip()
+ if not 2<=len(query)<=90:raise ValueError('Enter a grocery item (2–90 characters)')
+ try:key=REEF_KEY_PATH.read_text().strip()
+ except OSError:key=os.environ.get('REEF_API_KEY','').strip()
+ if not key:raise ValueError('Save a ReefAPI key in Household admin first')
+ payload=json.dumps({'query':query,'postal_code':zipcode,'country':'us','max_retailers':20,'per_retailer':5}).encode()
+ req=urllib.request.Request('https://api.reefapi.com/instacart/v1/search',data=payload,headers={'x-api-key':key,'Content-Type':'application/json'},method='POST')
+ try:
+  with urllib.request.urlopen(req,timeout=35) as response:
+   raw=response.read(2000000)
+  data=json.loads(raw)
+ except urllib.error.HTTPError as exc:raise ValueError('ReefAPI HTTP '+str(exc.code)) from None
+ except (urllib.error.URLError,TimeoutError) as exc:raise ValueError('ReefAPI connection timed out or failed') from None
+ if not isinstance(data,dict) or not data.get('ok'):raise ValueError('ReefAPI did not return a successful search')
+ groups=data.get('data',{}).get('groups',[])
+ allowed=('price chopper','walmart','hy-vee','aldi')
+ result=[]
+ for group in groups if isinstance(groups,list) else []:
+  if not isinstance(group,dict):continue
+  retailer=group.get('retailer') or {}
+  if not isinstance(retailer,dict):continue
+  name=str(retailer.get('name',''))
+  if not any(x in name.casefold() for x in allowed):continue
+  products=[]
+  for product in (group.get('items') or [])[:5]:
+   if not isinstance(product,dict):continue
+   try:price=float(product.get('price'))
+   except (TypeError,ValueError):continue
+   if not 0<price<10000:continue
+   products.append({'name':str(product.get('name',''))[:180],'size':str(product.get('size',''))[:80],'price':round(price,2),'price_is_estimate':bool(product.get('price_is_estimate')),'url':str(product.get('url',''))[:500]})
+  result.append({'retailer':name[:100],'slug':str(retailer.get('slug',''))[:100],'products':products})
+ return {'query':query,'postal_code':zipcode,'retailers':result,'credits_reported':(data.get('meta') or {}).get('charged_credits'),'note':'Instacart online prices; not in-store shelf prices. Retailers absent from the response are not verified as unsupported.'}
+
 def retailer_catalog_prices(chain,store_name,address,items):
  if not isinstance(chain,str) or len(chain)>80 or not isinstance(store_name,str) or len(store_name)>180 or not isinstance(address,str) or len(address)>250:raise ValueError('Invalid store')
  if not isinstance(items,list) or not 1<=len(items)<=60 or any(not isinstance(x,str) or len(x)>120 for x in items):raise ValueError('Invalid ingredient list')
@@ -1130,6 +1165,12 @@ class Handler(SimpleHTTPRequestHandler):
   except (ValueError,TypeError,KeyError) as exc:return self.sendjson({'error':str(exc)},400)
  def do_GET(self):
   request_scope.household_id=None
+  if self.path.startswith('/api/reef-test-search?'):
+   if not self.gate():return
+   if not getattr(request_scope,'admin',False):return self.sendjson({'error':'Administrator required'},403)
+   q=urllib.parse.parse_qs(urllib.parse.urlsplit(self.path).query)
+   try:return self.sendjson(reef_test_search(q.get('zip',[''])[0],q.get('item',[''])[0]))
+   except ValueError as exc:return self.sendjson({'error':str(exc)},400)
   if self.path=='/api/admin/reef-key':
    if not self.gate():return
    if not getattr(request_scope,'admin',False):return self.sendjson({'error':'Administrator required'},403)
