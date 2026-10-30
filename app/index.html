@@ -125,7 +125,7 @@ for(const [key,label] of pageSpecs){
  const button=document.createElement('button');
  button.type='button';button.className='page-nav-button';
  button.textContent=label;
- button.addEventListener('click',()=>{try{showPage(key)}catch(error){alert('Navigation error: '+error.message);console.error(error)}});
+ button.addEventListener('click',()=>{try{showPage(key);if(key==='shopping')refreshShopFromServer()}catch(error){alert('Navigation error: '+error.message);console.error(error)}});
  if(key==='backup')button.dataset.adminOnly='';
  toolbar.appendChild(button);pageButtons.set(key,button);
 }
@@ -216,6 +216,15 @@ $('store-lookup-form').addEventListener('submit',e=>{
 });
 try{$('store-zip').value=localStorage.getItem(STORE_ZIP_KEY)||''}catch(e){}
 async function load(){[recipes,state]=await Promise.all([fetch('/api/recipes').then(r=>r.json()),fetch('/api/state').then(r=>r.json())]);render()}
+async function refreshShopFromServer(){
+ try{
+  const response=await fetch('/api/state',{cache:'no-store'});
+  const latest=await response.json();
+  if(!response.ok)throw Error(latest.error||'Unable to load grocery list');
+  state=latest;
+  render();
+ }catch(error){$('error').textContent='Unable to refresh Shop: '+error.message}
+}
 let mealSelectionQueue=Promise.resolve();
 function selectMealAndRefresh(id,checked,servings){
  mealSelectionQueue=mealSelectionQueue.catch(()=>{}).then(async()=>{
@@ -574,7 +583,7 @@ function renderShoppingList(){
    return '<div class="grocery-item-wrap"><div class="row grocery-row"><input type="checkbox" data-items="'+esc(JSON.stringify(names))+'" '+(purchased?'checked':'')+'><div class="grocery-description"><label class="'+(purchased?'done':'')+'">'+esc(label)+'</label>'+(note?'<span class="grocery-note">'+esc(note)+'</span>':'')+'</div><button type="button" data-edit-item="'+esc(first.name)+'">Edit</button></div><details class="grocery-breakdown"><summary>'+esc(sourceText)+'</summary><div class="grocery-breakdown-content">'+groceryBreakdownMarkup(x.items)+'</div></details></div>';
   }).join('');
   return '<details class="shopping-department" data-department="'+esc(group)+'" '+(shoppingOpenDepartments.has(group)?'open':'')+'><summary><span>'+symbol+' '+esc(group)+'</span><span class="department-count">'+done+' of '+entries.length+' purchased</span></summary><div class="department-items">'+rows+'</div></details>';
- }).join('')||'<p class="muted">No generated list yet.</p>';
+ }).join('')||'<p class="muted">'+(Object.keys(state.selected||{}).length?'Your selected meals have not produced grocery items. Check that the recipes contain ingredients and that none are excluded by your pantry; try reselecting a meal.':'No meals selected yet. Add a meal to your plan to automatically populate Shop.')+'</p>';
 }
 const glutenIngredientPattern=/\b(wheat|flour|breadcrumbs?|bread|buns?|panko|pasta|spaghetti|linguine|penne|noodles?|couscous|bulgur|semolina|farro|barley|rye|seitan|tortillas?|pita|naan|gnocchi|orzo|soy sauce|teriyaki|hoisin|malt|beer|croutons?|pretzels?|wonton|dumplings?)\b/i;
 const dairyIngredientPattern=/\b(milk|cheese|cheddar|mozzarella|parmesan|feta|ricotta|cream|creme fraiche|crème fraîche|butter|ghee|yogurt|yoghurt|sour cream|buttermilk|whey|casein|half.and.half|mascarpone|queso|paneer|halloumi|ranch dressing|alfredo)\b/i;
