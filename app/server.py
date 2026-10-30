@@ -4,7 +4,7 @@ from http.cookies import SimpleCookie
 import households as auth
 import secrets
 import cloudflare_auth
-import math,json,sqlite3,threading,re,html,io,zipfile,datetime,urllib.request,urllib.parse,urllib.robotparser,xml.etree.ElementTree as ET,time,subprocess,sys,fcntl,os,ipaddress,socket
+import os,math,json,sqlite3,threading,re,html,io,zipfile,datetime,urllib.request,urllib.parse,urllib.robotparser,xml.etree.ElementTree as ET,time,subprocess,sys,fcntl,os,ipaddress,socket
 BASE=Path(__file__).parent;DB=Path('/data/shopping.db');DB.parent.mkdir(exist_ok=True,parents=True)
 RECIPES=json.loads((BASE/'recipes.json').read_text());lock=threading.Lock()
 # Generate a persistent first-run secret when the operator has not configured one.
@@ -754,6 +754,24 @@ def free_community_prices(items):
 # Operator-supplied retailer catalog feed. No API key or subscription is required.
 # Each row must be a verifiable price from a specific retailer location.
 RETAIL_PRICE_PATH=Path('/data/retailer_prices.json')
+REEF_KEY_PATH=Path('/data/reef_api_key')
+def reef_key_configured():
+ try:return bool(REEF_KEY_PATH.read_text().strip())
+ except OSError:return bool(os.environ.get('REEF_API_KEY','').strip())
+def save_reef_key(key):
+ if not isinstance(key,str) or not 12<=len(key)<=512 or any(c.isspace() for c in key):raise ValueError('Enter a valid API key (12–512 characters, no whitespace)')
+ REEF_KEY_PATH.parent.mkdir(parents=True,exist_ok=True)
+ import tempfile
+ fd,path=tempfile.mkstemp(prefix='.reef-key-',dir=str(REEF_KEY_PATH.parent))
+ try:
+  os.fchmod(fd,0o600)
+  with os.fdopen(fd,'w') as out:out.write(key)
+  os.replace(path,REEF_KEY_PATH)
+ except BaseException:
+  try:os.unlink(path)
+  except OSError:pass
+  raise
+
 def retailer_catalog_prices(chain,store_name,address,items):
  if not isinstance(chain,str) or len(chain)>80 or not isinstance(store_name,str) or len(store_name)>180 or not isinstance(address,str) or len(address)>250:raise ValueError('Invalid store')
  if not isinstance(items,list) or not 1<=len(items)<=60 or any(not isinstance(x,str) or len(x)>120 for x in items):raise ValueError('Invalid ingredient list')
@@ -1112,6 +1130,23 @@ class Handler(SimpleHTTPRequestHandler):
   except (ValueError,TypeError,KeyError) as exc:return self.sendjson({'error':str(exc)},400)
  def do_GET(self):
   request_scope.household_id=None
+  if self.path=='/api/admin/reef-key':
+   if not self.gate():return
+   if not getattr(request_scope,'admin',False):return self.sendjson({'error':'Administrator required'},403)
+   return self.sendjson({'configured':reef_key_configured()})
+  if self.path=='/api/admin/reef-key':
+   if not self.gate(write=True):return
+   if not getattr(request_scope,'admin',False):return self.sendjson({'error':'Administrator required'},403)
+   try:
+    size=int(self.headers.get('Content-Length','0'))
+    if not 0<size<=2048:raise ValueError('Invalid request size')
+    data=json.loads(self.rfile.read(size))
+    if data.get('remove') is True:
+     REEF_KEY_PATH.unlink(missing_ok=True)
+     return self.sendjson({'ok':True,'configured':reef_key_configured()})
+    save_reef_key(data.get('key'))
+    return self.sendjson({'ok':True,'configured':True})
+   except (ValueError,TypeError,OSError) as exc:return self.sendjson({'error':str(exc)},400)
   if self.path=='/api/auth/session-settings':
    if not self.gate():return
    if not getattr(request_scope,'admin',False):return self.sendjson({'error':'Administrator required'},403)
