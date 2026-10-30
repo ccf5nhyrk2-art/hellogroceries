@@ -988,7 +988,7 @@ async function showReefCachedPrices(){
   const table='<div style="max-height:420px;overflow:auto"><table style="width:100%;font-size:12px;border-collapse:collapse">'+header+rows.join('')+'<tfoot>'+footer+'</tfoot></table></div>';
   const storeSummary='<h4>Store totals (partial)</h4>'+data.stores.map(store=>'<div>'+esc(store.chain)+': <strong>'+esc(money(store.partial_total))+'</strong> · '+store.priced+'/'+store.requested+' priced</div>').join('');
   const diagnostics=(data.retailer_diagnostics||[]).length?'<details><summary>Retailers returned by ReefAPI (diagnostics)</summary>'+(data.retailer_diagnostics||[]).map(d=>'<p>'+esc(d.item)+': '+esc((d.retailers_seen||[]).map(x=>x.name+' ('+x.slug+')').join(', ')||'No retailer names')+'</p>').join('')+'</details>':'<p class="muted">Retailer diagnostics will appear after a new search; older cached searches do not contain them.</p>';
-  target.innerHTML='<p><strong>ReefAPI:</strong> '+data.cached+' of '+data.requested+' searched in last 7 days; '+data.missing+' not cached; '+(data.unpriced_cached||0)+' searched without a matched price.</p><p class="muted">Sorted by lowest listed package price. Unit prices use package ounces or fluid ounces only where size is parseable; volume and weight are never compared. Different products may not be equivalent. Missing prices are not zero. Totals exclude missing items, quantities, taxes and delivery.</p>'+storeSummary+'<h4>Prices by ingredient — lowest first</h4>'+table+'<p><strong>Bottom line:</strong> '+esc(money(bestBasket))+' lowest-package partial basket across '+priced+' priced ingredients. Not a checkout estimate.</p>'+diagnostics+'<p class="muted">'+esc(data.message)+'</p>';
+  target.innerHTML='<p><strong>ReefAPI:</strong> '+data.cached+' of '+data.requested+' searched in last 365 days; '+data.missing+' not cached; '+(data.unpriced_cached||0)+' searched without a matched price.</p><p class="muted">Sorted by lowest listed package price. Unit prices use package ounces or fluid ounces only where size is parseable; volume and weight are never compared. Different products may not be equivalent. Missing prices are not zero. Totals exclude missing items, quantities, taxes and delivery.</p>'+storeSummary+'<h4>Prices by ingredient — lowest first</h4>'+table+'<p><strong>Bottom line:</strong> '+esc(money(bestBasket))+' lowest-package partial basket across '+priced+' priced ingredients. Not a checkout estimate.</p>'+diagnostics+'<p class="muted">'+esc(data.message)+'</p>';
 
  }catch(e){target.textContent='Cached pricing unavailable: '+e.message}
 }
@@ -1015,7 +1015,7 @@ async function refreshReefPrices(){
    const i=(reefBatchOffset+n)%items.length;
    if(!cached.has(reefSearchTerm(items[i]).toLowerCase())){selected=i;break}
   }
-  if(selected<0){if(status)status.textContent='All '+items.length+' ingredients have been searched within 7 days. No API credits used.';await showReefCachedPrices();return}
+  if(selected<0){if(status)status.textContent='All '+items.length+' ingredients have been searched within 365 days. No API credits used.';await showReefCachedPrices();return}
   const ingredient=reefSearchTerm(items[selected]);
   if(!confirm('Search ReefAPI for "'+ingredient+'"? '+(cache.missing||0)+' ingredients not cached. One uncached request normally costs 2 credits.')){if(status)status.textContent='Search cancelled; no new request sent.';return}
   if(status)status.textContent='Searching ReefAPI for '+ingredient+' (item '+(selected+1)+' of '+items.length+')…';
