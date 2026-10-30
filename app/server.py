@@ -1,5 +1,8 @@
 from http.server import ThreadingHTTPServer,SimpleHTTPRequestHandler
 from pathlib import Path
+from http.cookies import SimpleCookie
+import households as auth
+import secrets
 import json,sqlite3,threading,re,html,io,zipfile,datetime,urllib.request,urllib.parse,urllib.robotparser,xml.etree.ElementTree as ET,time,subprocess,sys,fcntl,os,ipaddress,socket
 BASE=Path(__file__).parent;DB=Path('/data/shopping.db');DB.parent.mkdir(exist_ok=True,parents=True)
 RECIPES=json.loads((BASE/'recipes.json').read_text());lock=threading.Lock()
@@ -288,12 +291,23 @@ def bulk_worker(country,limit):
  finally:job['running']=False;save_bulk()
 
 def default():return {'selected':{},'list':[],'revision':0}
+# Authenticated request household scope is thread-local for ThreadingHTTPServer.
+request_scope=threading.local()
 def read():
+ hid=getattr(request_scope,'household_id',None)
  with db() as c:
-  row=c.execute('SELECT payload FROM state WHERE id=1').fetchone()
+  if hid is not None:
+   row=c.execute('SELECT payload FROM hg_household_state WHERE household_id=?',(hid,)).fetchone()
+  else:
+   row=c.execute('SELECT payload FROM state WHERE id=1').fetchone()
  return json.loads(row[0]) if row else default()
 def save(state):
- with db() as c:c.execute('INSERT INTO state(id,payload) VALUES(1,?) ON CONFLICT(id) DO UPDATE SET payload=excluded.payload',(json.dumps(state),))
+ hid=getattr(request_scope,'household_id',None)
+ with db() as c:
+  if hid is not None:
+   c.execute('UPDATE hg_household_state SET payload=? WHERE household_id=?',(json.dumps(state),hid))
+  else:
+   c.execute('INSERT INTO state(id,payload) VALUES(1,?) ON CONFLICT(id) DO UPDATE SET payload=excluded.payload',(json.dumps(state),))
 STORE_CACHE={};STORE_CACHE_LOCK=threading.Lock()
 def nearby_stores(zipcode):
  if not re.fullmatch(r'[0-9]{5}',zipcode):raise ValueError('Enter a valid five-digit US ZIP code')
@@ -359,7 +373,84 @@ class Handler(SimpleHTTPRequestHandler):
  def __init__(self,*a,**kw):super().__init__(*a,directory=str(BASE),**kw)
  def sendjson(self,obj,status=200):
   b=json.dumps(obj).encode();self.send_response(status);self.send_header('Content-Type','application/json');self.send_header('Cache-Control','no-store');self.send_header('Content-Length',str(len(b)));self.end_headers();self.wfile.write(b)
+ def identity(self):
+  cookie=SimpleCookie()
+  try:cookie.load(self.headers.get('Cookie',''))
+  except Exception:return None,None
+  token=cookie.get('hg_session')
+  if not token:return None,None
+  with db() as c:
+   auth.ensure_schema(c)
+   user=auth.session_user(c,token.value)
+   if not user:return None,None
+   membership=c.execute('SELECT household_id FROM hg_memberships WHERE user_id=? ORDER BY household_id LIMIT 1',(user[0],)).fetchone()
+  return user,membership[0] if membership else None
+ def gate(self,write=False):
+  # Deny every resource until setup/login. No implicit trusted-network bypass.
+  with db() as c:
+   auth.ensure_schema(c)
+   setup=auth.instance_needs_setup(c)
+  path=urllib.parse.urlsplit(self.path).path
+  if path in ('/auth.html','/api/auth/status','/api/auth/login','/api/auth/setup'):
+   return True
+  user,hid=self.identity()
+  if user is None or hid is None:
+   if path.startswith('/api/'):
+    self.sendjson({'error':'Authentication required','setup_required':setup},401)
+   else:
+    self.send_response(302);self.send_header('Location','/auth.html');self.send_header('Content-Length','0');self.end_headers()
+   return False
+  request_scope.household_id=hid
+  request_scope.user_id=user[0]
+  request_scope.admin=bool(user[2])
+  if write:
+   origin=self.headers.get('Origin','')
+   host=self.headers.get('Host','')
+   scheme='https' if self.headers.get('X-Forwarded-Proto')=='https' else 'http'
+   if origin not in (scheme+'://'+host,):
+    self.sendjson({'error':'Invalid request origin'},403);return False
+   cookie=SimpleCookie()
+   try:cookie.load(self.headers.get('Cookie',''))
+   except Exception:pass
+   csrf=cookie.get('hg_csrf')
+   if not csrf or not secrets.compare_digest(csrf.value,self.headers.get('X-HG-CSRF','')):
+    self.sendjson({'error':'CSRF token required'},403);return False
+  return True
+ def auth_post(self):
+  path=urllib.parse.urlsplit(self.path).path
+  origin=self.headers.get('Origin','')
+  host=self.headers.get('Host','')
+  scheme='https' if self.headers.get('X-Forwarded-Proto')=='https' else 'http'
+  if origin != scheme+'://'+host:return self.sendjson({'error':'Invalid origin'},403)
+  size=int(self.headers.get('Content-Length','0'))
+  if size<1 or size>8192:return self.sendjson({'error':'Invalid request size'},400)
+  try:
+   data=json.loads(self.rfile.read(size))
+   with db() as c:
+    auth.ensure_schema(c)
+    if path=='/api/auth/setup':
+     secret=os.environ.get('HG_BOOTSTRAP_TOKEN','')
+     if len(secret)<24 or not secrets.compare_digest(str(data.get('bootstrap_token','')),secret):
+      return self.sendjson({'error':'Valid HG_BOOTSTRAP_TOKEN required'},403)
+     uid,hid=auth.create_first_admin(c,data.get('email'),data.get('password'),data.get('household','My Household'))
+    elif path=='/api/auth/login':
+     uid=auth.authenticate(c,data.get('email'),data.get('password'))
+    else:return self.sendjson({'error':'Not found'},404)
+    token=auth.create_session(c,uid)
+    c.commit()
+   csrf=secrets.token_urlsafe(32)
+   payload=json.dumps({'ok':True}).encode()
+   self.send_response(200);self.send_header('Content-Type','application/json');self.send_header('Cache-Control','no-store')
+   secure='; Secure' if scheme=='https' else ''
+   self.send_header('Set-Cookie','hg_session='+token+'; HttpOnly; SameSite=Lax; Path=/'+secure)
+   self.send_header('Set-Cookie','hg_csrf='+csrf+'; SameSite=Lax; Path=/'+secure)
+   self.send_header('Content-Length',str(len(payload)));self.end_headers();self.wfile.write(payload)
+  except (ValueError,TypeError,KeyError) as exc:self.sendjson({'error':str(exc)},400)
  def do_GET(self):
+  request_scope.household_id=None
+  if self.path=='/api/auth/status':
+   with db() as c:return self.sendjson({'setup_required':auth.instance_needs_setup(c),'authenticated':self.identity()[0] is not None})
+  if not self.gate():return
   if self.path.startswith('/api/photo/'):
    try:
     parsed=urllib.parse.urlsplit(self.path)
@@ -408,11 +499,16 @@ class Handler(SimpleHTTPRequestHandler):
   if self.path.startswith('/api/'):return self.sendjson({'error':'Not found'},404)
   return super().do_GET()
  def do_POST(self):
+  request_scope.household_id=None
+  if self.path in ('/api/auth/setup','/api/auth/login'):return self.auth_post()
+  if not self.gate(write=True):return
   if self.path!='/api/action':return self.sendjson({'error':'Not found'},404)
   try:
    size=int(self.headers.get('Content-Length','0'))
    if size<1 or size>25000000:return self.sendjson({'error':'Too large (25 MB maximum)'},413)
    p=json.loads(self.rfile.read(size));action=p['action']
+   if action in ('start-us-import','pause-bulk','resume-bulk','restore-backup','import','bulk-import','set-photo') and not getattr(request_scope,'admin',False):
+    return self.sendjson({'error':'Administrator required'},403)
    if action=='start-us-import':return self.sendjson(start_us_import())
    if action=='pause-bulk':
     BULK_PAUSE.set();return self.sendjson({'ok':True,'message':'Pause requested; finishes current recipe first'})
