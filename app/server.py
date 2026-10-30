@@ -517,6 +517,36 @@ def nearby_stores(zipcode):
  if stale:return stale
  raise RuntimeError('Store directory lookup unavailable; configure GOOGLE_PLACES_API_KEY for an independent fallback')
 
+# Read-only public retailer ad preview. A public page is not a location-specific price feed.
+PUBLIC_AD_PAGES={
+ 'ALDI':'https://www.aldi.us/store/aldi/pages/weekly-specials',
+ 'Hy-Vee':'https://www.hy-vee.com/deals/weekly-ads',
+ 'Walmart':'https://www.walmart.com/c/kp/weekly-ads-grocery',
+}
+AD_PREVIEW_CACHE={}
+AD_PREVIEW_LOCK=threading.Lock()
+def retailer_ad_preview(chain):
+ if chain not in PUBLIC_AD_PAGES:raise ValueError('No supported public ad page for this retailer')
+ with AD_PREVIEW_LOCK:
+  cached=AD_PREVIEW_CACHE.get(chain)
+  if cached and time.time()-cached[0]<3600:return cached[1]
+ url=PUBLIC_AD_PAGES[chain]
+ req=urllib.request.Request(url,headers={'User-Agent':'HelloGroceries/1.0 (self-hosted grocery planner)','Accept':'text/html'})
+ try:
+  with urllib.request.urlopen(req,timeout=9) as response:
+   if urllib.parse.urlsplit(response.geturl()).hostname not in ('www.aldi.us','www.hy-vee.com','www.walmart.com'):raise ValueError('Unexpected retailer redirect')
+   raw=response.read(2_000_001)
+  if len(raw)>2_000_000:raise ValueError('Ad page too large')
+  page=raw.decode('utf-8','replace')
+  title=re.search(r'<title[^>]*>(.*?)</title>',page,re.I|re.S)
+  label=html.unescape(re.sub('<[^>]+>','',title.group(1))).strip()[:180] if title else chain+' weekly ads'
+  # Never parse generic product prices as a local discount.
+  result={'chain':chain,'url':url,'title':label,'checked_at':datetime.datetime.now(datetime.timezone.utc).isoformat(),'verified_store_prices':False,'offers':[],'message':'Official public ad page reachable. Store-specific sale prices and expiration dates could not be verified automatically. Open the ad and select your local store to confirm.'}
+ except (OSError,ValueError) as error:
+  result={'chain':chain,'url':url,'verified_store_prices':False,'offers':[],'message':'Official ad page could not be checked automatically. Open the retailer ad directly to verify offers.'}
+ with AD_PREVIEW_LOCK:AD_PREVIEW_CACHE[chain]=(time.time(),result)
+ return result
+
 AUTH_RATE_LOCK=threading.Lock()
 AUTH_ATTEMPTS={}
 def auth_rate_allowed(ip, route, limit=8, window=900):
@@ -761,6 +791,10 @@ class Handler(SimpleHTTPRequestHandler):
     self.send_header('Content-Length',str(len(payload)))
     self.end_headers();self.wfile.write(payload);return
    except (ValueError,TypeError,OSError):return self.send_error(404)
+  if self.path.startswith('/api/retailer-ad?'):
+   chain=urllib.parse.parse_qs(urllib.parse.urlsplit(self.path).query).get('chain',[''])[0]
+   try:return self.sendjson(retailer_ad_preview(chain))
+   except ValueError as e:return self.sendjson({'error':str(e)},400)
   if self.path.startswith('/api/stores?'):
    try:
     zipcode=urllib.parse.parse_qs(urllib.parse.urlsplit(self.path).query).get('zip',[''])[0]
