@@ -333,15 +333,15 @@ def save(state):
 STORE_CACHE={};STORE_CACHE_LOCK=threading.Lock()
 STORE_CACHE_FILE=Path('/data/store_lookup_cache.json')
 STORE_CACHE_TTL=21600
-STORE_CACHE_VERSION=2
+STORE_CACHE_VERSION=3
 STORE_CACHE_STALE_TTL=30*86400
 try:
  raw_cache=json.loads(STORE_CACHE_FILE.read_text())
  if isinstance(raw_cache,dict):
-  STORE_CACHE={key:(float(value[0]),value[1]) for key,value in raw_cache.items() if re.fullmatch(r'[0-9]{5}',key) and isinstance(value,list) and len(value)==2 and isinstance(value[1],dict) and time.time()-float(value[0])<STORE_CACHE_STALE_TTL}
+  STORE_CACHE={key:(float(value[0]),value[1]) for key,value in raw_cache.items() if re.fullmatch(r'[0-9]{5}(?:-(?:10|15|20|25))?',key) and isinstance(value,list) and len(value)==2 and isinstance(value[1],dict) and time.time()-float(value[0])<STORE_CACHE_STALE_TTL}
 except (OSError,ValueError,TypeError,IndexError):pass
 
-def store_cache_save(zipcode,result):
+def store_cache_save(cache_key,result):
  result['cache_version']=STORE_CACHE_VERSION
  with STORE_CACHE_LOCK:
   STORE_CACHE[zipcode]=(time.time(),result)
@@ -446,14 +446,14 @@ def retailer_directory():
    return all_stores
   return stores
 
-def retailer_nearby(lat,lon):
+def retailer_nearby(lat,lon,radius=10):
  directory=retailer_directory()
  if not directory:return None
  matches=[]
  for item in directory:
   try:distance=store_distance(lat,lon,float(item['lat']),float(item['lon']))
   except (ValueError,KeyError,TypeError):continue
-  if distance>10:continue
+  if distance>radius:continue
   matches.append({key:item[key] for key in ('id','chain','name','address')})
   matches[-1]['distance_miles']=round(distance,1)
  return sorted(matches,key=lambda item:item['distance_miles'])[:40]
@@ -471,9 +471,11 @@ def merge_store_results(*groups):
    seen.add(normalized);result.append(item)
  return sorted(result,key=lambda x:float(x.get('distance_miles') or 999))[:60]
 
-def nearby_stores(zipcode):
+def nearby_stores(zipcode,radius=10):
+ if radius not in (10,15,20,25):raise ValueError('Choose a radius of 10, 15, 20, or 25 miles')
  if not re.fullmatch(r'[0-9]{5}',zipcode):raise ValueError('Enter a valid five-digit US ZIP code')
- with STORE_CACHE_LOCK:cached=STORE_CACHE.get(zipcode)
+ cache_key=zipcode+'-'+str(radius)
+ with STORE_CACHE_LOCK:cached=STORE_CACHE.get(cache_key)
  if cached and time.time()-cached[0]<STORE_CACHE_TTL and cached[1].get('cache_version')==STORE_CACHE_VERSION:return cached[1]
  headers={'User-Agent':'HelloGroceries/1.0 (self-hosted grocery planner)','Accept':'application/json'}
  def getjson(url):
@@ -489,15 +491,15 @@ def nearby_stores(zipcode):
    lat=float(candidate['latitude']);lon=float(candidate['longitude'])
   except (OSError,ValueError,KeyError,IndexError,TypeError) as second_error:
    print('Store ZIP lookup failed:',repr(first_error),'fallback:',repr(second_error),flush=True)
-   stale=store_cache_stale(zipcode)
+   stale=store_cache_stale(cache_key)
    if stale:return stale
    raise RuntimeError('ZIP lookup services unavailable') from second_error
  retailer_matches=[]
  try:
-  retailer_matches=retailer_nearby(lat,lon) or []
+  retailer_matches=retailer_nearby(lat,lon,radius) or []
  except (OSError,ValueError,TypeError) as error:
   print('Retailer directory lookup failed:',repr(error),flush=True)
- query='[out:json][timeout:10];(nwr["shop"="supermarket"]["name"~"Hy.Vee|Price Chopper|Hen House|ALDI|Walmart",i](around:16093,'+str(lat)+','+str(lon)+');nwr["shop"="supermarket"]["brand"~"Hy.Vee|Price Chopper|Hen House|ALDI|Walmart",i](around:16093,'+str(lat)+','+str(lon)+'););out center;'
+ query='[out:json][timeout:10];(nwr["shop"="supermarket"]["name"~"Hy.Vee|Price Chopper|Hen House|ALDI|Walmart",i](around:'+str(int(radius*1609.344))+','+str(lat)+','+str(lon)+');nwr["shop"="supermarket"]["brand"~"Hy.Vee|Price Chopper|Hen House|ALDI|Walmart",i](around:16093,'+str(lat)+','+str(lon)+'););out center;'
  payload=urllib.parse.urlencode({'data':query}).encode()
  elements=None
  for endpoint in ('https://overpass.private.coffee/api/interpreter','https://overpass.kumi.systems/api/interpreter','https://overpass-api.de/api/interpreter'):
@@ -515,10 +517,10 @@ def nearby_stores(zipcode):
    loc=item.get('center') or item
    if not chain or 'lat' not in loc or 'lon' not in loc:continue
    distance=store_distance(lat,lon,float(loc['lat']),float(loc['lon']))
-   if distance>10:continue
+   if distance>radius:continue
    matches.append({'id':str(item.get('type',''))+'-'+str(item.get('id','')),'chain':chain,'name':name,'address':', '.join(x for x in [tags.get('addr:housenumber','')+' '+tags.get('addr:street','') if tags.get('addr:street') else '',tags.get('addr:city','')] if x.strip()),'distance_miles':round(distance,1)})
   combined=merge_store_results(retailer_matches,matches)
-  result={'zip':zipcode,'stores':combined,'source':'All the Places + OpenStreetMap','note':'Merged free store directories; listings may still be incomplete. Prices are not store-specific.'}
+  result={'zip':zipcode,'radius_miles':radius,'directory_status':{'all_the_places':len(retailer_matches),'openstreetmap':len(matches)},'stores':combined,'source':'All the Places + OpenStreetMap','note':'Merged free store directories; listings may still be incomplete. Prices are not store-specific.'}
   store_cache_save(zipcode,result);return result
  try:
   matches=google_nearby_stores(lat,lon)
@@ -527,7 +529,7 @@ def nearby_stores(zipcode):
    store_cache_save(zipcode,result);return result
  except (OSError,ValueError,KeyError,TypeError) as error:print('Independent store directory failed:',repr(error),flush=True)
  if retailer_matches:
-  result={'zip':zipcode,'stores':merge_store_results(retailer_matches),'source':'All the Places','note':'Other directories unavailable; results may be incomplete.'}
+  result={'zip':zipcode,'radius_miles':radius,'directory_status':{'all_the_places':len(retailer_matches),'openstreetmap':'unavailable'},'stores':merge_store_results(retailer_matches),'source':'All the Places','note':'Other directories unavailable; results may be incomplete.'}
   store_cache_save(zipcode,result);return result
  stale=store_cache_stale(zipcode)
  if stale:return stale
@@ -879,8 +881,10 @@ class Handler(SimpleHTTPRequestHandler):
    except ValueError as e:return self.sendjson({'error':str(e)},400)
   if self.path.startswith('/api/stores?'):
    try:
-    zipcode=urllib.parse.parse_qs(urllib.parse.urlsplit(self.path).query).get('zip',[''])[0]
-    return self.sendjson(nearby_stores(zipcode))
+    params=urllib.parse.parse_qs(urllib.parse.urlsplit(self.path).query)
+    zipcode=params.get('zip',[''])[0]
+    radius=int(params.get('radius',['10'])[0])
+    return self.sendjson(nearby_stores(zipcode,radius))
    except ValueError as e:return self.sendjson({'error':str(e)},400)
    except Exception as error:
     print('Store lookup failed:',repr(error),flush=True)
