@@ -1,0 +1,15 @@
+name: Household security tests
+on:
+  pull_request:
+  push:
+    branches: [feature/cloudflare-households-production]
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install 'PyJWT[crypto]>=2.10,<3'
+      - run: python -m unittest discover -s tests -v
