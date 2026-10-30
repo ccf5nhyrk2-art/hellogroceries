@@ -919,6 +919,25 @@ def reef_cached_comparison(zipcode,items):
     stores[chain]['prices'].append(dict(match,item=item))
     stores[chain]['priced']+=1
     stores[chain]['partial_total']+=match['price']
+ # Diagnostics are derived from cached searches only; never trigger paid lookups here.
+ def retailer_seen(chain,retailers):
+  aliases={'Walmart':['walmart','wal-mart','wal mart'],'Hen House':['hen house','henhouse','hen-house'],"Sam's Club":["sam's club",'sams club','sams-club','sam’s club']}
+  terms=aliases.get(chain,[chain.casefold()])
+  return any(any(term in (str(entry.get('name',''))+' '+str(entry.get('slug',''))).casefold() for term in terms) for entry in retailers if isinstance(entry,dict))
+ for chain,store in stores.items():
+  counts={'not_searched':0,'retailer_not_returned':0,'no_matching_product':0,'price_found':0,'unknown_legacy':0}
+  for item in items:
+   record=data.get(reef_cache_key(zipcode,item))
+   if not isinstance(record,dict) or now-float(record.get('time',0))>REEF_CACHE_SECONDS:
+    counts['not_searched']+=1;continue
+   if any(m.get('chain')==chain for m in record.get('matches',[]) if isinstance(m,dict)):
+    counts['price_found']+=1;continue
+   seen=record.get('retailers_seen')
+   if not isinstance(seen,list) or not seen:
+    counts['unknown_legacy']+=1
+   elif retailer_seen(chain,seen):counts['no_matching_product']+=1
+   else:counts['retailer_not_returned']+=1
+  store['coverage_diagnostics']=counts
  for store in stores.values():store['partial_total']=round(store['partial_total'],2)
  return {'stores':list(stores.values()),'cached':cached,'requested':len(items),'missing':len(items)-cached,'cached_items':[item for item in items if isinstance(data.get(reef_cache_key(zipcode,item)),dict) and now-float(data[reef_cache_key(zipcode,item)].get('time',0))<=REEF_CACHE_SECONDS],'unpriced_cached':sum(1 for item in items if isinstance(data.get(reef_cache_key(zipcode,item)),dict) and now-float(data[reef_cache_key(zipcode,item)].get('time',0))<=REEF_CACHE_SECONDS and not data[reef_cache_key(zipcode,item)].get('matches')),'cache_days':365,'retailer_diagnostics':[{'item':item,'retailers_seen':data[reef_cache_key(zipcode,item)].get('retailers_seen',[])} for item in items if isinstance(data.get(reef_cache_key(zipcode,item)),dict) and data[reef_cache_key(zipcode,item)].get('retailers_seen')][:10],'message':'Instacart online prices. One matching product per ingredient; package sizes and quantities may differ. Partial totals are not directly comparable.'}
 def reef_refresh_batch(zipcode,items):
