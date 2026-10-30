@@ -331,65 +331,106 @@ def save(state):
   else:
    c.execute('INSERT INTO state(id,payload) VALUES(1,?) ON CONFLICT(id) DO UPDATE SET payload=excluded.payload',(json.dumps(state),))
 STORE_CACHE={};STORE_CACHE_LOCK=threading.Lock()
+STORE_CACHE_FILE=Path('/data/store_lookup_cache.json')
+STORE_CACHE_TTL=21600
+STORE_CACHE_STALE_TTL=30*86400
+try:
+ raw_cache=json.loads(STORE_CACHE_FILE.read_text())
+ if isinstance(raw_cache,dict):
+  STORE_CACHE={key:(float(value[0]),value[1]) for key,value in raw_cache.items() if re.fullmatch(r'[0-9]{5}',key) and isinstance(value,list) and len(value)==2 and isinstance(value[1],dict) and time.time()-float(value[0])<STORE_CACHE_STALE_TTL}
+except (OSError,ValueError,TypeError,IndexError):pass
+
+def store_cache_save(zipcode,result):
+ with STORE_CACHE_LOCK:
+  STORE_CACHE[zipcode]=(time.time(),result)
+  try:
+   tmp=STORE_CACHE_FILE.with_suffix('.tmp')
+   tmp.write_text(json.dumps({key:[ts,data] for key,(ts,data) in STORE_CACHE.items() if time.time()-ts<STORE_CACHE_STALE_TTL}))
+   os.replace(tmp,STORE_CACHE_FILE)
+  except OSError as error:print('Store cache write failed:',repr(error),flush=True)
+
+def store_cache_stale(zipcode):
+ with STORE_CACHE_LOCK:cached=STORE_CACHE.get(zipcode)
+ if cached and time.time()-cached[0]<STORE_CACHE_STALE_TTL:
+  result=dict(cached[1]);result['stale']=True
+  result['note']='Showing previously found stores (cached results); live store directories are unavailable.'
+  return result
+ return None
+
+def store_distance(lat,lon,la,lo):
+ return 3958.8*2*math.asin(min(1,math.sqrt(math.sin(math.radians(la-lat)/2)**2+math.cos(math.radians(lat))*math.cos(math.radians(la))*math.sin(math.radians(lo-lon)/2)**2)))
+
+def google_nearby_stores(lat,lon):
+ # Google Places is an optional, independent fallback. No credentials are sent to OSM.
+ key=os.environ.get('GOOGLE_PLACES_API_KEY','').strip()
+ if not key:return None
+ request_body=json.dumps({'includedTypes':['supermarket','grocery_store'],'maxResultCount':20,'locationRestriction':{'circle':{'center':{'latitude':lat,'longitude':lon},'radius':16093.0}}}).encode()
+ req=urllib.request.Request('https://places.googleapis.com/v1/places:searchNearby',data=request_body,headers={'Content-Type':'application/json','X-Goog-Api-Key':key,'X-Goog-FieldMask':'places.id,places.displayName,places.formattedAddress,places.location'},method='POST')
+ with urllib.request.urlopen(req,timeout=9) as response:body=json.load(response)
+ if not isinstance(body,dict) or not isinstance(body.get('places',[]),list):raise ValueError('Invalid Places response')
+ matches=[]
+ for item in body.get('places',[]):
+  name=(item.get('displayName') or {}).get('text','')
+  chain=next((x for x in ('Hy-Vee','Price Chopper','ALDI','Walmart') if x.lower() in name.lower()),None)
+  loc=item.get('location') or {}
+  if not chain or 'latitude' not in loc or 'longitude' not in loc:continue
+  distance=store_distance(lat,lon,float(loc['latitude']),float(loc['longitude']))
+  if distance>10:continue
+  matches.append({'id':'google-'+str(item.get('id','')),'chain':chain,'name':name,'address':item.get('formattedAddress',''),'distance_miles':round(distance,1)})
+ return sorted(matches,key=lambda item:item['distance_miles'])
+
 def nearby_stores(zipcode):
  if not re.fullmatch(r'[0-9]{5}',zipcode):raise ValueError('Enter a valid five-digit US ZIP code')
- with STORE_CACHE_LOCK:
-  cached=STORE_CACHE.get(zipcode)
-  if cached and time.time()-cached[0]<21600:return cached[1]
+ with STORE_CACHE_LOCK:cached=STORE_CACHE.get(zipcode)
+ if cached and time.time()-cached[0]<STORE_CACHE_TTL:return cached[1]
  headers={'User-Agent':'HelloGroceries/1.0 (self-hosted grocery planner)','Accept':'application/json'}
  def getjson(url):
-  with urllib.request.urlopen(urllib.request.Request(url,headers=headers),timeout=7) as resp:return json.load(resp)
- # OpenStreetMap services are best-effort and may rate limit requests.
+  with urllib.request.urlopen(urllib.request.Request(url,headers=headers),timeout=6) as resp:return json.load(resp)
  try:
   place=getjson('https://nominatim.openstreetmap.org/search?'+urllib.parse.urlencode({'postalcode':zipcode,'country':'USA','format':'json','limit':1}))
   if not place:raise ValueError('ZIP code not found')
   lat=float(place[0]['lat']);lon=float(place[0]['lon'])
- except (OSError,ValueError,KeyError,TypeError) as first_error:
-  # Alternate ZIP geocoder avoids relying exclusively on Nominatim.
+ except (OSError,ValueError,KeyError,TypeError,IndexError) as first_error:
   try:
    location=getjson('https://api.zippopotam.us/us/'+zipcode)
    candidate=location['places'][0]
    lat=float(candidate['latitude']);lon=float(candidate['longitude'])
   except (OSError,ValueError,KeyError,IndexError,TypeError) as second_error:
    print('Store ZIP lookup failed:',repr(first_error),'fallback:',repr(second_error),flush=True)
-   raise RuntimeError('ZIP lookup services unreachable; check container DNS and outbound HTTPS') from second_error
- # Query only the four requested chains; public OSM directory endpoints are best effort.
- query='[out:json][timeout:12];(nwr["shop"="supermarket"]["name"~"Hy.Vee|Price Chopper|ALDI|Walmart",i](around:16093,'+str(lat)+','+str(lon)+');nwr["shop"="supermarket"]["brand"~"Hy.Vee|Price Chopper|ALDI|Walmart",i](around:16093,'+str(lat)+','+str(lon)+'););out center;'
+   stale=store_cache_stale(zipcode)
+   if stale:return stale
+   raise RuntimeError('ZIP lookup services unavailable') from second_error
+ query='[out:json][timeout:10];(nwr["shop"="supermarket"]["name"~"Hy.Vee|Price Chopper|ALDI|Walmart",i](around:16093,'+str(lat)+','+str(lon)+');nwr["shop"="supermarket"]["brand"~"Hy.Vee|Price Chopper|ALDI|Walmart",i](around:16093,'+str(lat)+','+str(lon)+'););out center;'
  payload=urllib.parse.urlencode({'data':query}).encode()
  elements=None
- # kumi.systems was retired in favor of private.coffee; use the current endpoint.
- for endpoint in ('https://overpass.private.coffee/api/interpreter','https://maps.mail.ru/osm/tools/overpass/api/interpreter','https://overpass-api.de/api/interpreter'):
+ for endpoint in ('https://overpass.private.coffee/api/interpreter','https://overpass.kumi.systems/api/interpreter','https://overpass-api.de/api/interpreter'):
   try:
    request=urllib.request.Request(endpoint,data=payload,headers=headers,method='POST')
-   with urllib.request.urlopen(request,timeout=5) as resp:
-    candidate=json.load(resp)
+   with urllib.request.urlopen(request,timeout=5) as resp:candidate=json.load(resp)
    if not isinstance(candidate,dict) or not isinstance(candidate.get('elements'),list):raise ValueError('Invalid directory response')
-   elements=candidate['elements']
-   break
-  except (OSError,ValueError) as error:
-   print('Store directory endpoint failed:',endpoint,repr(error),flush=True)
- if elements is None:
-  with STORE_CACHE_LOCK:
-   cached=STORE_CACHE.get(zipcode)
-  if cached:
-   stale=dict(cached[1]);stale['note']='Showing previously found stores; directory currently unavailable';stale['stale']=True
-   return stale
-  raise RuntimeError('Store directory lookup unavailable')
- import math
- matches=[]
- for item in elements:
-  tags=item.get('tags') or {};name=tags.get('name','');brand=(tags.get('brand','')+' '+name).lower()
-  chain=next((x for x in ('Hy-Vee','Price Chopper','ALDI','Walmart') if x.lower() in brand),None)
-  if not chain:continue
-  loc=item.get('center') or item
-  if 'lat' not in loc or 'lon' not in loc:continue
-  la=float(loc['lat']);lo=float(loc['lon'])
-  distance=3958.8*2*math.asin(min(1,math.sqrt(math.sin(math.radians(la-lat)/2)**2+math.cos(math.radians(lat))*math.cos(math.radians(la))*math.sin(math.radians(lo-lon)/2)**2)))
-  if distance>10:continue
-  matches.append({'id':str(item.get('type',''))+'-'+str(item.get('id','')),'chain':chain,'name':name,'address':', '.join(x for x in [tags.get('addr:housenumber','')+' '+tags.get('addr:street','') if tags.get('addr:street') else '',tags.get('addr:city','')] if x.strip()),'distance_miles':round(distance,1)})
- result={'zip':zipcode,'stores':sorted(matches,key=lambda x:x['distance_miles'])[:40],'source':'OpenStreetMap','note':'Store listings may be incomplete. Weekly sale prices are not yet connected.'}
- with STORE_CACHE_LOCK:STORE_CACHE[zipcode]=(time.time(),result)
- return result
+   elements=candidate['elements'];break
+  except (OSError,ValueError) as error:print('Store directory endpoint failed:',endpoint,repr(error),flush=True)
+ if elements is not None:
+  matches=[]
+  for item in elements:
+   tags=item.get('tags') or {};name=tags.get('name','');brand=(tags.get('brand','')+' '+name).lower()
+   chain=next((x for x in ('Hy-Vee','Price Chopper','ALDI','Walmart') if x.lower() in brand),None)
+   loc=item.get('center') or item
+   if not chain or 'lat' not in loc or 'lon' not in loc:continue
+   distance=store_distance(lat,lon,float(loc['lat']),float(loc['lon']))
+   if distance>10:continue
+   matches.append({'id':str(item.get('type',''))+'-'+str(item.get('id','')),'chain':chain,'name':name,'address':', '.join(x for x in [tags.get('addr:housenumber','')+' '+tags.get('addr:street','') if tags.get('addr:street') else '',tags.get('addr:city','')] if x.strip()),'distance_miles':round(distance,1)})
+  result={'zip':zipcode,'stores':sorted(matches,key=lambda x:x['distance_miles'])[:40],'source':'OpenStreetMap','note':'Store listings may be incomplete. Weekly sale prices are not yet connected.'}
+  store_cache_save(zipcode,result);return result
+ try:
+  matches=google_nearby_stores(lat,lon)
+  if matches is not None:
+   result={'zip':zipcode,'stores':matches,'source':'Google Places','note':'Results from Google Places. Weekly sale prices are not connected.'}
+   store_cache_save(zipcode,result);return result
+ except (OSError,ValueError,KeyError,TypeError) as error:print('Independent store directory failed:',repr(error),flush=True)
+ stale=store_cache_stale(zipcode)
+ if stale:return stale
+ raise RuntimeError('Store directory lookup unavailable; configure GOOGLE_PLACES_API_KEY for an independent fallback')
 
 AUTH_RATE_LOCK=threading.Lock()
 AUTH_ATTEMPTS={}
