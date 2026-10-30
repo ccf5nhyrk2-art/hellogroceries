@@ -957,7 +957,7 @@ async function showReefCachedPrices(){
   if(!currentTarget)throw Error('Shopping price comparison container missing');
   target=currentTarget;
 
-  const chains=['Price Chopper','Walmart','Hy-Vee','ALDI',"Sam's Club",'Costco','Target'];
+  const chains=['Price Chopper','Walmart','Hy-Vee','ALDI',"Sam's Club",'Costco','Target','Hen House'];
   const money=v=>'$'+Number(v).toFixed(2);
   const unitInfo=raw=>{
    const m=String(raw||'').toLowerCase().replace(/,/g,'').match(/(\d+(?:\.\d+)?)\s*(fl\.?\s*oz|fluid ounces?|ounces?|oz|lbs?|pounds?|grams?|g|kilograms?|kg|milliliters?|ml|liters?|l)\b/);
@@ -994,13 +994,13 @@ async function showReefCachedPrices(){
   const header='<tr><th>Ingredient</th>'+chains.map(c=>'<th>'+esc(c)+'</th>').join('')+'<th>Lowest package / comparable unit</th></tr>';
   const totals=chains.map(chain=>{
    const store=data.stores.find(x=>x.chain===chain);
-   return '<td style="padding:8px"><strong>'+esc(money(store?.partial_total||0))+'</strong><div class="muted">'+Number(store?.priced||0)+'/'+items.length+' priced</div></td>';
+   return '<td style="padding:8px"><strong>'+(Number(store?.priced||0)>0?esc(money(store.partial_total)):'Not available')+'</strong><div class="muted">'+Number(store?.priced||0)+'/'+items.length+' priced</div></td>';
   }).join('');
   const bestBasket=enriched.filter(x=>x.best).reduce((sum,x)=>sum+Number(x.best.price),0);
   const priced=enriched.filter(x=>x.best).length;
   const footer='<tr><th style="padding:8px;text-align:left">Partial store totals</th>'+totals+'<td style="padding:8px"><strong>'+esc(money(bestBasket))+'</strong><div class="muted">Lowest listed package (unit value shown separately) · '+priced+'/'+items.length+'</div></td></tr>';
   const table='<div style="max-height:420px;overflow:auto"><table style="width:100%;font-size:12px;border-collapse:collapse">'+header+rows.join('')+'<tfoot>'+footer+'</tfoot></table></div>';
-  const storeSummary='<h4>Store totals (partial)</h4>'+data.stores.map(store=>'<div>'+esc(store.chain)+': <strong>'+esc(money(store.partial_total))+'</strong> · '+store.priced+'/'+store.requested+' priced</div>').join('');
+  const storeSummary='<h4>Store totals (partial)</h4>'+data.stores.map(store=>'<div>'+esc(store.chain)+': <strong>'+(store.priced>0?esc(money(store.partial_total)):'Not available')+'</strong> · '+store.priced+'/'+store.requested+' priced</div>').join('');
   const diagnostics=(data.retailer_diagnostics||[]).length?'<details><summary>Retailers returned by ReefAPI (diagnostics)</summary>'+(data.retailer_diagnostics||[]).map(d=>'<p>'+esc(d.item)+': '+esc((d.retailers_seen||[]).map(x=>x.name+' ('+x.slug+')').join(', ')||'No retailer names')+'</p>').join('')+'</details>':'<p class="muted">Retailer diagnostics will appear after a new search; older cached searches do not contain them.</p>';
   target.innerHTML='<p><strong>ReefAPI:</strong> '+data.cached+' of '+data.requested+' searched in last 365 days; '+data.missing+' not cached; '+(data.unpriced_cached||0)+' searched without a matched price.</p><p class="muted">Sorted by lowest listed package price; comparable unit prices are shown separately. Unit prices use package ounces or fluid ounces only where size is parseable; volume and weight are never compared. Different products may not be equivalent. Missing prices are not zero. Totals exclude missing items, quantities, taxes and delivery.</p>'+storeSummary+'<h4>Prices by ingredient — lowest first</h4>'+table+'<p><strong>Bottom line:</strong> '+esc(money(bestBasket))+' lowest-package mixed-store partial basket across '+priced+' priced ingredients. Not a checkout estimate.</p>'+diagnostics+'<p class="muted">'+esc(data.message)+'</p>';
 
@@ -1075,12 +1075,12 @@ async function compareRetailerPrices(){
  if(!target)return;
  const items=[...new Set((state.list||[]).filter(x=>!x.checked).map(x=>String(x.name||'').trim()).filter(Boolean))].slice(0,60);
  if(!items.length){target.textContent='No unpurchased ingredients to compare.';return}
- target.textContent='Checking available prices for seven stores…';
+ target.textContent='Checking available prices for eight stores…';
  try{
   const params=new URLSearchParams();items.forEach(x=>params.append('item',x));
   const response=await fetch('/api/compare-retailer-prices?'+params.toString());
   const data=await response.json();if(!response.ok)throw Error(data.error||'Comparison unavailable');
-  const chains=['Price Chopper','Walmart','Hy-Vee','ALDI',"Sam's Club",'Costco','Target'];
+  const chains=['Price Chopper','Walmart','Hy-Vee','ALDI',"Sam's Club",'Costco','Target','Hen House'];
   target.innerHTML='<p class="muted">'+esc(data.message||'')+'</p>'+chains.map(chain=>{
    const stores=(data.stores||[]).filter(x=>x.chain===chain).sort((a,b)=>b.priced-a.priced);
    if(!stores.length)return '<p><strong>'+esc(chain)+'</strong> — no verified prices available</p>';
@@ -1108,7 +1108,7 @@ function updateShoppingPriceSummary(priced,total,count){
  if(!summary){summary=document.createElement('div');summary.id='shopping-price-summary';summary.className='enhance-panel';summary.style.marginBottom='12px';items.parentElement.insertBefore(summary,items)}
  const store=getPreferredStore();
  if(!store){summary.innerHTML='<strong>Store pricing</strong><p class="muted">Choose a preferred store in Nearby stores to see ingredient prices here.</p>';return}
- summary.innerHTML='<strong>'+esc(store.chain)+' shopping prices</strong> <button type="button" id="shopping-refresh-prices">Refresh weekly-ad prices</button> <button type="button" id="shopping-free-prices">Test free community prices</button> <button type="button" id="shopping-retailer-prices">Check retailer catalog</button> <button type="button" id="shopping-compare-stores">Compare 7 stores</button> <button type="button" id="shopping-reef-refresh">Refresh next ingredient</button> <button type="button" id="shopping-reef-batch">Refresh next 10 ingredients</button> <button type="button" id="shopping-reef-view">View cached 7-store prices</button><p><strong>Partial subtotal: $'+total.toFixed(2)+'</strong> · '+priced+' of '+count+' items priced</p><p class="muted">One listed unit per item; quantities, package differences, taxes and missing prices are excluded. Not a checkout estimate.</p><div id="shopping-free-results" class="muted">Historical community observations only; not verified store prices. Test 10 ingredients at a time.</div><div id="retailer-catalog-status" class="muted">Retailer catalog feed is optional and not configured by default.</div><div id="retailer-comparison-results" class="muted" aria-live="polite"></div>';
+ summary.innerHTML='<strong>'+esc(store.chain)+' shopping prices</strong> <button type="button" id="shopping-refresh-prices">Refresh weekly-ad prices</button> <button type="button" id="shopping-free-prices">Test free community prices</button> <button type="button" id="shopping-retailer-prices">Check retailer catalog</button> <button type="button" id="shopping-compare-stores">Compare 8 stores</button> <button type="button" id="shopping-reef-refresh">Refresh next ingredient</button> <button type="button" id="shopping-reef-batch">Refresh next 10 ingredients</button> <button type="button" id="shopping-reef-view">View cached 8-store prices</button><p><strong>Partial subtotal: $'+total.toFixed(2)+'</strong> · '+priced+' of '+count+' items priced</p><p class="muted">One listed unit per item; quantities, package differences, taxes and missing prices are excluded. Not a checkout estimate.</p><div id="shopping-free-results" class="muted">Historical community observations only; not verified store prices. Test 10 ingredients at a time.</div><div id="retailer-catalog-status" class="muted">Retailer catalog feed is optional and not configured by default.</div><div id="retailer-comparison-results" class="muted" aria-live="polite"></div>';
 }
 function setShoppingItemPrice(name){
  const store=getPreferredStore();if(!store){alert('Choose a preferred store first.');return}
