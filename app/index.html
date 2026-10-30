@@ -1169,7 +1169,10 @@ async function showReefCoverage(){
   const r=await fetch('/api/reef-cached-prices?'+params,{cache:'no-store'});
   const data=await r.json();if(!r.ok)throw Error(data.error||'Coverage unavailable');
   if(status)status.textContent=data.cached+' of '+data.requested+' ingredients searched in the last '+data.cache_days+' days; '+data.missing+' not yet searched. No credits used.';
-  if(target)target.innerHTML='<h4>ReefAPI pricing coverage</h4>'+(data.stores||[]).map(store=>'<p><strong>'+esc(store.chain)+'</strong>: '+store.priced+' of '+store.requested+' ingredients with a matching cached price'+(store.priced?' · partial total 
+  if(target)target.innerHTML='<h4>ReefAPI pricing coverage</h4>'+(data.stores||[]).map(store=>'<p><strong>'+esc(store.chain)+'</strong>: '+store.priced+' of '+store.requested+' ingredients with a matching cached price</p>').join('')+'<p class="muted">Missing coverage does not mean the retailer is unsupported. Live refresh may use credits.</p>';
+ }catch(e){if(status)status.textContent='Coverage check failed: '+e.message}
+}
+document.addEventListener('click',event=>{if(event.target.closest('#shopping-reef-coverage')){event.preventDefault();showReefCoverage()}});
 document.addEventListener('click',event=>{
  const refresh=event.target.closest('#shopping-reef-refresh');
  const batch=event.target.closest('#shopping-reef-batch');
