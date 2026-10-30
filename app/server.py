@@ -829,8 +829,9 @@ def reef_cache_write(data):
   raise
 def reef_normalize_item(item):
  value=str(item).strip()
- value=re.sub(r'^\d+(?:\.\d+)?\s*(?:(?:oz|lb|lbs|g|kg|ml|l|cups?|tbsp|tsp|tablespoons?|teaspoons?|cloves?|cans?|pieces?|x)\b\s*)?', '', value, flags=re.I)
- value=re.sub(r'^(?:tablespoons?|teaspoons?|tbsp|tsp)\s+', '', value, flags=re.I)
+ value=re.sub(r'^\d+(?:\.\d+)?(?:\s*[-–]\s*\d+(?:\.\d+)?)?\s*', '', value)
+ value=re.sub(r'^(?:ounces?|oz|pounds?|lbs?|grams?|g|kg|ml|liters?|l|cups?|tablespoons?|tbsp|teaspoons?|tsp|cloves?|cans?|pieces?|units?|each|packets?|packages?)\b(?:\s*\((?:tsp|tbsp|oz|lb|g|ml)\))?\s*', '', value, flags=re.I)
+ value=re.sub(r'^of\s+', '', value, flags=re.I)
  return ' '.join(value.casefold().split()) or str(item).casefold().strip()
 def reef_cache_key(zipcode,item):
  return zipcode+'|'+reef_normalize_item(item)
