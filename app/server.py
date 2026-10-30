@@ -1175,19 +1175,6 @@ class Handler(SimpleHTTPRequestHandler):
    if not self.gate():return
    if not getattr(request_scope,'admin',False):return self.sendjson({'error':'Administrator required'},403)
    return self.sendjson({'configured':reef_key_configured()})
-  if self.path=='/api/admin/reef-key':
-   if not self.gate(write=True):return
-   if not getattr(request_scope,'admin',False):return self.sendjson({'error':'Administrator required'},403)
-   try:
-    size=int(self.headers.get('Content-Length','0'))
-    if not 0<size<=2048:raise ValueError('Invalid request size')
-    data=json.loads(self.rfile.read(size))
-    if data.get('remove') is True:
-     REEF_KEY_PATH.unlink(missing_ok=True)
-     return self.sendjson({'ok':True,'configured':reef_key_configured()})
-    save_reef_key(data.get('key'))
-    return self.sendjson({'ok':True,'configured':True})
-   except (ValueError,TypeError,OSError) as exc:return self.sendjson({'error':str(exc)},400)
   if self.path=='/api/auth/session-settings':
    if not self.gate():return
    if not getattr(request_scope,'admin',False):return self.sendjson({'error':'Administrator required'},403)
@@ -1303,6 +1290,19 @@ class Handler(SimpleHTTPRequestHandler):
  def do_POST(self):
   request_scope.household_id=None
   if self.path in ('/api/auth/setup','/api/auth/login','/api/auth/register'):return self.auth_post()
+  if self.path=='/api/admin/reef-key':
+   if not self.gate(write=True):return
+   if not getattr(request_scope,'admin',False):return self.sendjson({'error':'Administrator required'},403)
+   try:
+    size=int(self.headers.get('Content-Length','0'))
+    if not 0<size<=2048:raise ValueError('Invalid request size')
+    data=json.loads(self.rfile.read(size))
+    if data.get('remove') is True:
+     REEF_KEY_PATH.unlink(missing_ok=True)
+     return self.sendjson({'ok':True,'configured':reef_key_configured()})
+    save_reef_key(data.get('key'))
+    return self.sendjson({'ok':True,'configured':True})
+   except (ValueError,TypeError,OSError) as exc:return self.sendjson({'error':str(exc)},400)
   if self.path=='/api/auth/session-settings':
    if not self.gate(write=True):return
    if not getattr(request_scope,'admin',False):return self.sendjson({'error':'Administrator required'},403)
