@@ -692,35 +692,50 @@ AUTO_AD_LOCK=threading.Lock()
 # Free community price observations; never present these as current store shelf prices.
 FREE_PRICE_CACHE={}
 FREE_PRICE_LOCK=threading.Lock()
+def clean_price_ingredient(item):
+ name=str(item).strip()
+ name=re.sub(r'^\s*(?:\d+(?:[./]\d+)?|\d+\s+\d+/\d+)\s*(?:(?:tablespoons?|tbsp|teaspoons?|tsp|cups?|ounces?|oz|pounds?|lbs?|grams?|g|kg|ml|liters?|litres?|units?|pieces?|pcs?|cloves?|cans?|packages?|packs?|bunches?|heads?|slices?)\b\.?\s*)?', '',name,flags=re.I)
+ name=re.sub(r'^(?:of\s+)', '',name,flags=re.I)
+ name=re.sub(r'\s*\([^)]{0,60}\)\s*',' ',name)
+ return re.sub(r'\s+',' ',name).strip(' ,.-')[:90] or str(item).strip()[:90]
+
 def free_community_prices(items):
- if not isinstance(items,list) or len(items)>10 or any(not isinstance(x,str) or not 2<=len(x.strip())<=90 for x in items):raise ValueError('Provide 1–10 ingredient names')
+ if not isinstance(items,list) or not 1<=len(items)<=10 or any(not isinstance(x,str) or not 2<=len(x.strip())<=120 for x in items):raise ValueError('Provide 1–10 ingredient names')
  def read_json(url):
   req=urllib.request.Request(url,headers={'User-Agent':'HelloGroceries/1.0 (community pricing research)','Accept':'application/json'})
-  with urllib.request.urlopen(req,timeout=8) as response:
+  with urllib.request.urlopen(req,timeout=10) as response:
    if urllib.parse.urlsplit(response.geturl()).hostname not in ('world.openfoodfacts.org','prices.openfoodfacts.org'):raise ValueError('Unexpected provider redirect')
    raw=response.read(1_000_001)
   if len(raw)>1_000_000:raise ValueError('Response too large')
   return json.loads(raw)
  output=[]
  for item in items:
-  key=item.strip().casefold()
+  cleaned=clean_price_ingredient(item)
+  key=cleaned.casefold()
   with FREE_PRICE_LOCK:cached=FREE_PRICE_CACHE.get(key)
   if cached and time.time()-cached[0]<86400:
-   output.append(cached[1]);continue
-  result={'item':item,'observations':[],'status':'No matching USD observations'}
+   output.append(dict(cached[1],item=item));continue
+  result={'item':item,'search_term':cleaned,'observations':[],'status':'No matching USD observations'}
+  errors=[]
   try:
-   url='https://world.openfoodfacts.org/cgi/search.pl?'+urllib.parse.urlencode({'search_terms':item,'search_simple':'1','action':'process','json':'1','page_size':'2','fields':'code,product_name,quantity'})
-   for product in read_json(url).get('products',[])[:2]:
+   url='https://world.openfoodfacts.org/cgi/search.pl?'+urllib.parse.urlencode({'search_terms':cleaned,'search_simple':'1','action':'process','json':'1','page_size':'5','fields':'code,product_name,quantity'})
+   products=read_json(url).get('products',[])
+   for product in products[:5]:
     code=str(product.get('code',''))
-    if not re.fullmatch(r'\\d{8,14}',code):continue
-    prices=read_json('https://prices.openfoodfacts.org/api/v1/prices?'+urllib.parse.urlencode({'product_code':code,'page_size':5}))
-    for entry in prices.get('items',[])[:5]:
-     amount=entry.get('price')
-     if not isinstance(amount,(int,float)) or not 0<amount<10000 or entry.get('currency')!='USD':continue
-     location=entry.get('location') or {}
-     result['observations'].append({'product':str(product.get('product_name') or item)[:120],'quantity':str(product.get('quantity') or '')[:60],'price':round(amount,2),'date':str(entry.get('date') or '')[:10],'location':str(location.get('osm_name') or '')[:120] if isinstance(location,dict) else '', 'code':code})
+    if not re.fullmatch(r'\d{8,14}',code):continue
+    try:
+     prices=read_json('https://prices.openfoodfacts.org/api/v1/prices?'+urllib.parse.urlencode({'product_code':code,'page_size':10}))
+     for entry in prices.get('items',[])[:10]:
+      amount=entry.get('price')
+      if not isinstance(amount,(int,float)) or not 0<amount<10000 or entry.get('currency')!='USD':continue
+      location=entry.get('location') or {}
+      result['observations'].append({'product':str(product.get('product_name') or cleaned)[:120],'quantity':str(product.get('quantity') or '')[:60],'price':round(amount,2),'date':str(entry.get('date') or '')[:10],'location':str(location.get('osm_name') or '')[:120] if isinstance(location,dict) else '', 'code':code})
+    except Exception as exc:
+     errors.append(type(exc).__name__+': '+str(exc)[:100])
    if result['observations']:result['status']='Community observations found'
-  except (OSError,ValueError,KeyError,TypeError,TimeoutError):result['status']='Free provider unavailable'
+   elif errors:result['status']='No observations; price provider errors: '+('; '.join(errors[:2]))[:180]
+  except Exception as exc:
+   result['status']='Product search failed: '+type(exc).__name__+': '+str(exc)[:140]
   with FREE_PRICE_LOCK:
    if len(FREE_PRICE_CACHE)>2000:FREE_PRICE_CACHE.clear()
    FREE_PRICE_CACHE[key]=(time.time(),result)
