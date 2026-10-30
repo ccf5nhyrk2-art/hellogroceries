@@ -595,7 +595,7 @@ function nutritionDetails(recipe){
  const n=recipe.nutrition||{},labels=Array.isArray(recipe.dietary_labels)?recipe.dietary_labels:[];
  const fields=[['Calories','calories'],['Protein','proteinContent'],['Carbohydrates','carbohydrateContent'],['Fat','fatContent'],['Fiber','fiberContent'],['Sugar','sugarContent'],['Sodium','sodiumContent'],['Saturated fat','saturatedFatContent']];
  const rows=fields.filter(([label,key])=>n[key]).map(([label,key])=>'<li>'+esc(label)+': '+esc(n[key])+'</li>').join('');
- return '<div class="nutrition-refresh-result"><h3>Nutrition & dietary information</h3>'+(rows?'<ul>'+rows+'</ul>':'<p class="muted">Nutrition information unavailable</p>')+(labels.length?'<p><strong>Source dietary labels:</strong> '+labels.map(esc).join(', ')+'</p>':'<p class="muted">No verified dietary labels available</p>')+'<p class="muted">Source-provided values may not reflect ingredient substitutions or serving changes. Check packaging and the original recipe for allergens.</p>'+(Number(recipe.id)>=1000000?'<button type="button" data-nutrition-refresh="'+Number(recipe.id)+'" onclick="refreshRecipeNutrition('+Number(recipe.id)+')">Refresh nutrition</button>':'')+'</div>';
+ return '<div class="nutrition-refresh-result"><h3>Nutrition & dietary information</h3>'+(rows?'<ul>'+rows+'</ul>':'<p class="muted">Nutrition information unavailable</p>')+(labels.length?'<p><strong>Source dietary labels:</strong> '+labels.map(esc).join(', ')+'</p>':'<p class="muted">No verified dietary labels available</p>')+'<p class="muted">Source-provided values may not reflect ingredient substitutions or serving changes. Check packaging and the original recipe for allergens.</p>'+'</div>';
 }
 function cleanRecipeName(name){
   let n=String(name||'').trim();
