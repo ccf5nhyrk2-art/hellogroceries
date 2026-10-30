@@ -829,8 +829,8 @@ def reef_cache_write(data):
   raise
 def reef_normalize_item(item):
  value=str(item).strip()
- value=re.sub(r'^\\d+(?:\\.\\d+)?\\s*(?:(?:oz|lb|lbs|g|kg|ml|l|cups?|tbsp|tsp|tablespoons?|teaspoons?|cloves?|cans?|pieces?|x)\\b\\s*)?', '', value, flags=re.I)
- value=re.sub(r'^(?:tablespoons?|teaspoons?|tbsp|tsp)\\s+', '', value, flags=re.I)
+ value=re.sub(r'^\d+(?:\.\d+)?\s*(?:(?:oz|lb|lbs|g|kg|ml|l|cups?|tbsp|tsp|tablespoons?|teaspoons?|cloves?|cans?|pieces?|x)\b\s*)?', '', value, flags=re.I)
+ value=re.sub(r'^(?:tablespoons?|teaspoons?|tbsp|tsp)\s+', '', value, flags=re.I)
  return ' '.join(value.casefold().split()) or str(item).casefold().strip()
 def reef_cache_key(zipcode,item):
  return zipcode+'|'+reef_normalize_item(item)
@@ -853,23 +853,24 @@ def reef_cached_comparison(zipcode,items):
     stores[chain]['priced']+=1
     stores[chain]['partial_total']+=match['price']
  for store in stores.values():store['partial_total']=round(store['partial_total'],2)
- return {'stores':list(stores.values()),'cached':cached,'requested':len(items),'missing':len(items)-cached,'cache_days':7,'message':'Instacart online prices. One matching product per ingredient; package sizes and quantities may differ. Partial totals are not directly comparable.'}
+ return {'stores':list(stores.values()),'cached':cached,'requested':len(items),'missing':len(items)-cached,'unpriced_cached':sum(1 for item in items if isinstance(data.get(reef_cache_key(zipcode,item)),dict) and now-float(data[reef_cache_key(zipcode,item)].get('time',0))<=REEF_CACHE_SECONDS and not data[reef_cache_key(zipcode,item)].get('matches')),'cache_days':7,'message':'Instacart online prices. One matching product per ingredient; package sizes and quantities may differ. Partial totals are not directly comparable.'}
 def reef_refresh_batch(zipcode,items):
  if not re.fullmatch(r'\d{5}',str(zipcode)):raise ValueError('Enter a five-digit ZIP code')
  if not isinstance(items,list) or not 1<=len(items)<=10 or any(not isinstance(x,str) or not 2<=len(x.strip())<=90 for x in items):raise ValueError('Provide 1–10 grocery items')
  unique=list(dict.fromkeys(x.strip() for x in items))
  now=datetime.datetime.now(datetime.timezone.utc).timestamp()
- searched=0;skipped=0;errors=[]
+ searched=0;skipped=0;errors=[];details=[];saved_matches=0
  for item in unique:
   key=reef_cache_key(zipcode,item)
   with REEF_CACHE_LOCK:
    cache=reef_cache_read()
    old=cache.get(key)
    if isinstance(old,dict) and now-float(old.get('time',0))<REEF_CACHE_SECONDS:
-    skipped+=1;continue
+    skipped+=1;details.append({'item':item,'status':'cached','matches':len(old.get('matches',[]))});continue
   try:result=reef_test_search(zipcode,item)
   except ValueError as exc:
    errors.append({'item':item,'error':str(exc)})
+   details.append({'item':item,'status':'error','reason':str(exc)})
    break
   matches=[]
   for group in result['retailers']:
@@ -879,9 +880,11 @@ def reef_refresh_batch(zipcode,items):
    products=group['products']
    if not products:continue
    # Prefer a close name match; preserve actual package size rather than normalize unsupported units.
-   tokens=set(re.findall(r'[a-z0-9]+',item.casefold()))-{'and','of','the','fresh'}
+   normalized=reef_normalize_item(item)
+   aliases={'spice':'seasoning','blend':'seasoning'}
+   tokens=set(aliases.get(t,t) for t in re.findall(r'[a-z0-9]+',normalized))-{'and','of','the','fresh'}
    def rank(p):
-    words=set(re.findall(r'[a-z0-9]+',p['name'].casefold()))
+    words=set(aliases.get(t,t) for t in re.findall(r'[a-z0-9]+',p['name'].casefold()))
     return (len(tokens&words)/max(1,len(tokens)), -len(words))
    best=max(products,key=rank)
    if tokens and rank(best)[0]<0.5:continue
@@ -891,7 +894,9 @@ def reef_refresh_batch(zipcode,items):
    cache[key]={'time':datetime.datetime.now(datetime.timezone.utc).timestamp(),'matches':matches}
    reef_cache_write(cache)
   searched+=1
- return {'searched':searched,'cached_skipped':skipped,'errors':errors,'credits_estimate':searched*2,'batch_limit':10}
+  saved_matches+=len(matches)
+  details.append({'item':item,'status':'priced' if matches else 'no_match','matches':len(matches),'retailers_returned':len(result['retailers']),'products_returned':sum(len(g['products']) for g in result['retailers'])})
+ return {'searched':searched,'cached_skipped':skipped,'errors':errors,'credits_estimate':searched*2,'batch_limit':10,'saved_matches':saved_matches,'details':details}
 
 def retailer_catalog_prices(chain,store_name,address,items):
  if not isinstance(chain,str) or len(chain)>80 or not isinstance(store_name,str) or len(store_name)>180 or not isinstance(address,str) or len(address)>250:raise ValueError('Invalid store')
