@@ -333,7 +333,7 @@ def save(state):
 STORE_CACHE={};STORE_CACHE_LOCK=threading.Lock()
 STORE_CACHE_FILE=Path('/data/store_lookup_cache.json')
 STORE_CACHE_TTL=21600
-STORE_CACHE_VERSION=11
+STORE_CACHE_VERSION=12
 STORE_CACHE_STALE_TTL=30*86400
 try:
  raw_cache=json.loads(STORE_CACHE_FILE.read_text())
@@ -580,8 +580,8 @@ def published_retailer_nearby(lat,lon,radius):
   precise=key in coord_cache
   distance=store_distance(lat,lon,*coords)
   # ZIP centroid is an approximation: allow a small margin at the radius boundary.
-  if distance>radius+(0 if precise else 2):continue
-  matches.append({'id':'retailer-published-'+re.sub(r'[^a-z0-9]','-',(chain+'-'+street+'-'+code).lower()),'chain':chain,'name':chain,'address':street+', '+city+', '+state+' '+code,'distance_miles':round(distance,1),'distance_approximate':not precise})
+  if distance>radius+2:continue
+  matches.append({'id':'retailer-published-'+re.sub(r'[^a-z0-9]','-',(chain+'-'+street+'-'+code).lower()),'chain':chain,'name':chain,'address':street+', '+city+', '+state+' '+code,'distance_miles':round(distance,1),'distance_approximate':not precise,'outside_radius':distance>radius})
  return matches
 
 def merge_store_results(*groups):
@@ -1016,6 +1016,13 @@ class Handler(SimpleHTTPRequestHandler):
    except ValueError as e:return self.sendjson({'error':str(e)},400)
   if self.path.startswith('/api/stores/geocode-status'):
    with RETAILER_GEOCODE_LOCK:status=dict(RETAILER_GEOCODE_STATS, running=RETAILER_GEOCODE_RUNNING)
+   try:
+    saved=json.loads(Path('/data/retailer_address_coordinates.json').read_text())
+    if not isinstance(saved,dict):saved={}
+   except (OSError,ValueError,TypeError):saved={}
+   total=len(RETAILER_PUBLISHED_STORES)
+   matched=sum(1 for chain,street,city,state,code in RETAILER_PUBLISHED_STORES if (street+', '+city+', '+state+' '+code).lower() in saved)
+   status.update(total_addresses=total,cached_coordinates=matched,remaining_estimates=total-matched)
    return self.sendjson(status)
   if self.path.startswith('/api/stores?'):
    try:
