@@ -151,13 +151,14 @@ button{max-width:100%;min-height:36px;line-height:1.25;white-space:normal;overfl
 @media(max-width:750px){.layout{grid-template-columns:minmax(0,1fr)}.actions>button{min-width:0}}
 @media(max-width:480px){.filters{grid-template-columns:minmax(0,1fr)}.actions>button{flex:1 1 auto}.filter-actions{align-items:flex-start}.filter-actions label{max-width:100%}}
 /* Scrollable eight-store comparison with a pinned ingredient column */
-.reef-table-scroll{max-width:100%;max-height:460px;overflow:auto;overscroll-behavior:contain;border:1px solid #d5e1d9;border-radius:10px}
+.reef-table-scroll{width:100%;max-width:100%;max-height:none;overflow-x:auto;overflow-y:visible;overscroll-behavior-x:contain;border:1px solid #d5e1d9;border-radius:10px}
 .reef-table-scroll table{width:max-content;min-width:100%;border-collapse:separate;border-spacing:0;font-size:12px}
 .reef-table-scroll th,.reef-table-scroll td{padding:9px 11px;border-bottom:1px solid #d5e1d933;min-width:94px;vertical-align:top}
 .reef-table-scroll thead th{position:sticky;top:0;z-index:2;background:#eaf2ed;color:#173629}
+.reef-table-scroll th:last-child,.reef-table-scroll td:last-child{min-width:260px;width:260px;max-width:340px;white-space:normal;overflow-wrap:anywhere}
 .reef-table-scroll tbody td:first-child,.reef-table-scroll thead th:first-child,.reef-table-scroll tfoot th:first-child{position:sticky;left:0;min-width:190px;max-width:230px;z-index:1;background:#f5faf6;box-shadow:2px 0 4px #0001}
 .reef-table-scroll thead th:first-child{z-index:3;background:#eaf2ed}
-.reef-table-scroll tfoot th,.reef-table-scroll tfoot td{position:sticky;bottom:0;background:#eaf2ed;color:#173629;z-index:2}
+.reef-table-scroll tfoot th,.reef-table-scroll tfoot td{background:#eaf2ed;color:#173629;z-index:1}
 .reef-table-scroll tfoot th:first-child{z-index:3}
 html[data-theme="dark"] .reef-table-scroll{border-color:#35483d}
 html[data-theme="dark"] .reef-table-scroll tbody td:first-child{background:#202a25;color:#e7f2eb}
