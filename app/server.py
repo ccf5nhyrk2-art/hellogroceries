@@ -703,11 +703,19 @@ def free_community_prices(items):
  if not isinstance(items,list) or not 1<=len(items)<=10 or any(not isinstance(x,str) or not 2<=len(x.strip())<=120 for x in items):raise ValueError('Provide 1–10 ingredient names')
  def read_json(url):
   req=urllib.request.Request(url,headers={'User-Agent':'HelloGroceries/1.0 (community pricing research)','Accept':'application/json'})
-  with urllib.request.urlopen(req,timeout=10) as response:
-   if urllib.parse.urlsplit(response.geturl()).hostname not in ('world.openfoodfacts.org','prices.openfoodfacts.org'):raise ValueError('Unexpected provider redirect')
-   raw=response.read(1_000_001)
-  if len(raw)>1_000_000:raise ValueError('Response too large')
-  return json.loads(raw)
+  for attempt in range(3):
+   try:
+    with urllib.request.urlopen(req,timeout=10) as response:
+     if urllib.parse.urlsplit(response.geturl()).hostname not in ('world.openfoodfacts.org','prices.openfoodfacts.org'):raise ValueError('Unexpected provider redirect')
+     raw=response.read(1_000_001)
+    if len(raw)>1_000_000:raise ValueError('Response too large')
+    return json.loads(raw)
+   except urllib.error.HTTPError as exc:
+    if exc.code not in (429,500,502,503,504) or attempt==2:raise
+    time.sleep(1.5*(attempt+1))
+   except (TimeoutError,urllib.error.URLError):
+    if attempt==2:raise
+    time.sleep(1.5*(attempt+1))
  output=[]
  for item in items:
   cleaned=clean_price_ingredient(item)
@@ -736,6 +744,7 @@ def free_community_prices(items):
    elif errors:result['status']='No observations; price provider errors: '+('; '.join(errors[:2]))[:180]
   except Exception as exc:
    result['status']='Product search failed: '+type(exc).__name__+': '+str(exc)[:140]
+  time.sleep(0.25)
   with FREE_PRICE_LOCK:
    if len(FREE_PRICE_CACHE)>2000:FREE_PRICE_CACHE.clear()
    FREE_PRICE_CACHE[key]=(time.time(),result)
