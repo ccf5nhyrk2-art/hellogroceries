@@ -73,8 +73,7 @@ html[data-theme="dark"] .admin-sidebar button[aria-selected="true"]{background:#
   {id:'requests',label:'Requests & accounts',selectors:['#pending-heading','#accounts-heading']},
   {id:'invitations',label:'Invitations',selectors:['#form']},
   {id:'pricing',label:'Pricing & API',selectors:['#reef-heading','#price-test-heading','#pricing-visibility-heading']},
-  {id:'nutrition',label:'Nutrition',selectors:['#nutrition-heading']},
-  {id:'tasks',label:'Background tasks',selectors:['#tasks-heading']},
+  {id:'tasks',label:'Background tasks',selectors:['#tasks-heading','#nutrition-heading']},
   {id:'backup',label:'Backup & restore',selectors:['#backup-heading']},
   {id:'security',label:'Session & security',selectors:['#session-heading']}
  ];
@@ -366,7 +365,7 @@ async function loadTasks(){
     button.textContent=task.action==='nutrition'?'Open nutrition controls':task.running?'Running…':'Run again';
     button.disabled=task.running;
     button.onclick=async()=>{
-     if(task.action==='nutrition'){document.getElementById('nutrition-heading').scrollIntoView({behavior:'smooth'});return}
+     if(task.action==='nutrition'){document.getElementById('admin-tab-tasks')?.click();document.getElementById('nutrition-heading').scrollIntoView({behavior:'smooth'});return}
      if(!confirm('Run '+task.name+' now?'))return;
      button.disabled=true;document.getElementById('tasks-message').textContent='Starting '+task.name+'…';
      try{const response=await fetch('/api/admin/tasks/run',{method:'POST',headers:{'Content-Type':'application/json','X-HG-CSRF':csrf()},body:JSON.stringify({task:task.action})});const result=await response.json();if(!response.ok)throw Error(result.error||'Could not start task');document.getElementById('tasks-message').textContent=result.message||'Started'}catch(e){document.getElementById('tasks-message').textContent=e.message}
