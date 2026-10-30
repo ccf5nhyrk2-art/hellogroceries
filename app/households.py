@@ -68,6 +68,7 @@ CREATE INDEX IF NOT EXISTS hg_invitations_email ON hg_invitations(email);
 def ensure_schema(conn: sqlite3.Connection) -> None:
     conn.execute("PRAGMA foreign_keys=ON")
     conn.executescript(SCHEMA)
+    conn.execute("CREATE TABLE IF NOT EXISTS hg_settings (key TEXT PRIMARY KEY, value TEXT NOT NULL)")
     # Additive migration: older installations already have hg_users.
     if not any(row[1] == "last_login_at" for row in conn.execute("PRAGMA table_info(hg_users)")):
         conn.execute("ALTER TABLE hg_users ADD COLUMN last_login_at TEXT")
@@ -81,6 +82,21 @@ def instance_needs_setup(conn: sqlite3.Connection) -> bool:
 PASSWORD_ITERATIONS = 600_000
 SESSION_HOURS = 24 * 14
 INVITE_HOURS = 72
+
+SESSION_DAY_OPTIONS = (1, 7, 14, 30)
+
+def session_duration_days(conn):
+    row = conn.execute("SELECT value FROM hg_settings WHERE key='session_days'").fetchone()
+    try:
+        value = int(row[0]) if row else 14
+    except (TypeError, ValueError):
+        value = 14
+    return value if value in SESSION_DAY_OPTIONS else 14
+
+def set_session_duration_days(conn, days):
+    if type(days) is not int or days not in SESSION_DAY_OPTIONS:
+        raise ValueError("Session duration must be 1, 7, 14, or 30 days")
+    conn.execute("INSERT INTO hg_settings(key,value) VALUES('session_days',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value", (str(days),))
 
 def password_hash(password):
     if not isinstance(password, str) or len(password) < 12 or len(password) > 1024:
@@ -150,7 +166,7 @@ def authenticate(conn, email, password):
 def create_session(conn, user_id):
     token = secrets.token_urlsafe(32)
     conn.execute("INSERT INTO hg_sessions(token_hash,user_id,expires_at) VALUES(?,?,?)",
-                 (token_hash(token), user_id, expiry(SESSION_HOURS)))
+                 (token_hash(token), user_id, expiry(session_duration_days(conn) * 24)))
     conn.execute("UPDATE hg_users SET last_login_at=? WHERE id=?", (now(),user_id))
     return token
 
