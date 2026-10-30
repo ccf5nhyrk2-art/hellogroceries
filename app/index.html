@@ -56,6 +56,13 @@
 .shopping-department .grocery-item-wrap > details.grocery-breakdown{display:block;margin:0 0 5px 37px!important;padding:0!important;background:transparent!important}
 .shopping-department .grocery-item-wrap > details.grocery-breakdown > .grocery-breakdown-content{margin-top:7px}
 .source-correct{font-size:12px!important;padding:5px 8px!important;margin-top:5px;background:#e6f2e9!important;color:#176b4a!important}.grocery-source small{overflow-wrap:anywhere}.inventory-form{display:grid;grid-template-columns:2fr 1fr 1fr auto;gap:7px}.inventory-form input,.inventory-form select{min-width:0;max-width:100%}@media(max-width:750px){.inventory-form{grid-template-columns:1fr 1fr}.inventory-form input:first-child{grid-column:1/-1}}[data-admin-only],body:not(.is-instance-admin) [data-page="backup"]{display:none!important}body.is-instance-admin [data-admin-only]{display:revert!important}
+/* Role-based shopping simplification: pricing data remains untouched. */
+html.hg-hide-pricing #store-sales-comparison,
+html.hg-hide-pricing #shopping-price-summary,
+html.hg-hide-pricing #store-price-panel,
+html.hg-hide-pricing #sale-comparison-results,
+html.hg-hide-pricing .hg-item-price,
+html.hg-hide-pricing [data-set-price]{display:none!important}
 /* Shared dark theme */
 html[data-theme="dark"]{color-scheme:dark}
 html[data-theme="dark"],html[data-theme="dark"] body{background:#101b17!important;color:#e7f2eb!important}
@@ -1185,7 +1192,7 @@ function renderShoppingList(){
    const seenOffers=new Set();
    const reefOffers=sourceNames.flatMap(n=>reefShoppingOffers.get(reefSearchTerm(n).toLowerCase())||[]).filter(p=>{const key=p.chain+'|'+p.product+'|'+p.price;if(seenOffers.has(key))return false;seenOffers.add(key);return true}).sort((a,b)=>a.price-b.price);
    const reefMarkup=reefOffers.length?'<span class="grocery-note">Online package prices: '+reefOffers.map(p=>esc(p.chain)+' $'+Number(p.price).toFixed(2)).join(' · ')+' (sizes may differ)</span>':'';
-   const priceMarkup=(storePrice?'<span class="grocery-note">Manual price: $'+storePrice.price.toFixed(2)+' / '+esc(storePrice.unit)+'</span>':reefOffers.length?'':'<span class="grocery-note">Manual price not set</span>')+reefMarkup;
+   const priceMarkup='<span class="hg-item-price">'+(storePrice?'<span class="grocery-note">Manual price: $'+storePrice.price.toFixed(2)+' / '+esc(storePrice.unit)+'</span>':reefOffers.length?'':'<span class="grocery-note">Manual price not set</span>')+reefMarkup+'</span>';
    return '<div class="grocery-item-wrap"><div class="row grocery-row"><input type="checkbox" data-items="'+esc(JSON.stringify(names))+'" '+(purchased?'checked':'')+'><div class="grocery-description"><label class="'+(purchased?'done':'')+'">'+esc(label)+'</label>'+(review?'<span class="grocery-note">⚠ Quantity or unit needs confirmation</span>':'')+(note?'<span class="grocery-note">'+esc(note)+'</span>':'')+priceMarkup+'</div><button type="button" data-set-price="'+esc(first.name)+'">Set price</button><button type="button" data-edit-item="'+esc(first.name)+'">Edit</button></div><details class="grocery-breakdown"><summary>'+esc(sourceText)+'</summary><div class="grocery-breakdown-content">'+groceryBreakdownMarkup(x.items)+'</div></details></div>';
   }).join('');
   return '<details class="shopping-department" data-department="'+esc(group)+'" '+(shoppingOpenDepartments.has(group)?'open':'')+'><summary><span>'+symbol+' '+esc(group)+'</span><span class="department-count">'+done+' of '+entries.length+' purchased</span></summary><div class="department-items">'+rows+'</div></details>';
@@ -1616,6 +1623,10 @@ $('resume-bulk').onclick=()=>fetch('/api/action',{method:'POST',headers:{'Conten
 $('restore-backup').onclick=async()=>{const file=$('restore-file').files[0];if(!file)return;try{const backup=JSON.parse(await file.text());if(!confirm('Merge missing recipes from this backup? Existing recipes and lists will not be replaced.'))return;const r=await fetch('/api/action',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'restore-backup',backup,mode:'merge'})});const j=await r.json();if(!r.ok)throw Error(j.error);alert(j.message);await load()}catch(e){$('error').textContent=e.message}};
 
 </script><script>
+fetch('/api/pricing-visibility',{cache:'no-store'}).then(r=>r.json()).then(data=>{
+ if(data.visibility&&data.visibility[data.is_admin?'admin':'user']===false)document.documentElement.classList.add('hg-hide-pricing');
+ else document.documentElement.classList.remove('hg-hide-pricing');
+}).catch(()=>{});
 fetch('/api/auth/status',{cache:'no-store'}).then(r=>r.json()).then(status=>{
  if(status.admin)document.body.classList.add('is-instance-admin');
  else if(typeof pageButtons!=='undefined'&&pageButtons.has('backup')){
