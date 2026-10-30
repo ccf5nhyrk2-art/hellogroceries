@@ -751,6 +751,41 @@ def free_community_prices(items):
   output.append(result)
  return {'results':output,'notice':'Historical community observations, not current prices at your selected store.'}
 
+# Operator-supplied retailer catalog feed. No API key or subscription is required.
+# Each row must be a verifiable price from a specific retailer location.
+RETAIL_PRICE_PATH=Path('/data/retailer_prices.json')
+def retailer_catalog_prices(chain,store_name,address,items):
+ if not isinstance(chain,str) or len(chain)>80 or not isinstance(store_name,str) or len(store_name)>180 or not isinstance(address,str) or len(address)>250:raise ValueError('Invalid store')
+ if not isinstance(items,list) or not 1<=len(items)<=60 or any(not isinstance(x,str) or len(x)>120 for x in items):raise ValueError('Invalid ingredient list')
+ if not RETAIL_PRICE_PATH.is_file():return {'prices':[],'configured':False,'message':'No retailer catalog feed installed. Place verified prices in /data/retailer_prices.json.'}
+ try:
+  if RETAIL_PRICE_PATH.stat().st_size>5_000_000:raise ValueError('Retailer feed exceeds 5 MB')
+  data=json.loads(RETAIL_PRICE_PATH.read_text())
+  rows=data.get('prices',[]) if isinstance(data,dict) else data
+  if not isinstance(rows,list):raise ValueError('Invalid retailer feed')
+  today=datetime.date.today()
+  matched=[]
+  for row in rows[:20000]:
+   if not isinstance(row,dict):continue
+   if str(row.get('chain','')).casefold()!=chain.casefold():continue
+   if str(row.get('store_name','')).casefold()!=store_name.casefold() or str(row.get('address','')).casefold()!=address.casefold():continue
+   item=str(row.get('item','')).strip()
+   if not any(item.casefold()==x.casefold() for x in items):continue
+   try:price=float(row.get('price',0))
+   except (TypeError,ValueError):continue
+   if not 0<price<10000:continue
+   date=str(row.get('checked_at',''))[:10]
+   try:age=(today-datetime.date.fromisoformat(date)).days
+   except ValueError:continue
+   if age<0 or age>14:continue
+   unit=str(row.get('unit','')).strip()[:60]
+   source=str(row.get('source_url','')).strip()
+   parsed=urllib.parse.urlsplit(source)
+   if not unit or parsed.scheme!='https' or not parsed.hostname:continue
+   matched.append({'item':item,'price':round(price,2),'unit':unit,'checked_at':date,'source_url':source,'kind':'Verified retailer catalog feed'})
+  return {'prices':matched,'configured':True,'message':str(len(matched))+' recent store-specific catalog prices matched'}
+ except (OSError,ValueError,TypeError,json.JSONDecodeError) as exc:return {'prices':[],'configured':False,'message':'Retailer feed could not be loaded: '+str(exc)[:120]}
+
 def automatic_weekly_ads(zipcode):
  if not re.fullmatch(r'\d{5}',zipcode):raise ValueError('Enter a valid five-digit ZIP')
  with AUTO_AD_LOCK:
@@ -1075,6 +1110,10 @@ class Handler(SimpleHTTPRequestHandler):
     self.send_header('Content-Length',str(len(payload)))
     self.end_headers();self.wfile.write(payload);return
    except (ValueError,TypeError,OSError):return self.send_error(404)
+  if self.path.startswith('/api/retailer-catalog-prices?'):
+   q=urllib.parse.parse_qs(urllib.parse.urlsplit(self.path).query)
+   try:return self.sendjson(retailer_catalog_prices(q.get('chain',[''])[0],q.get('store_name',[''])[0],q.get('address',[''])[0],q.get('item',[])))
+   except ValueError as error:return self.sendjson({'error':str(error)},400)
   if self.path.startswith('/api/free-community-prices?'):
    items=urllib.parse.parse_qs(urllib.parse.urlsplit(self.path).query).get('item',[])
    try:return self.sendjson(free_community_prices(items))
