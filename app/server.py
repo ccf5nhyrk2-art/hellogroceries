@@ -955,6 +955,25 @@ def reef_cached_comparison(zipcode,items):
    retailer_summary[key]['searches']+=1
  for store in stores.values():store['partial_total']=round(store['partial_total'],2)
  return {'stores':list(stores.values()),'cached':cached,'requested':len(items),'missing':len(items)-cached,'cached_items':[item for item in items if isinstance(data.get(reef_cache_key(zipcode,item)),dict) and now-float(data[reef_cache_key(zipcode,item)].get('time',0))<=REEF_CACHE_SECONDS],'unpriced_cached':sum(1 for item in items if isinstance(data.get(reef_cache_key(zipcode,item)),dict) and now-float(data[reef_cache_key(zipcode,item)].get('time',0))<=REEF_CACHE_SECONDS and not data[reef_cache_key(zipcode,item)].get('matches')),'cache_days':365,'retailer_summary':sorted(retailer_summary.values(),key=lambda x:(-x['searches'],x['name']))[:100],'retailer_diagnostics':[{'item':item,'retailers_seen':data[reef_cache_key(zipcode,item)].get('retailers_seen',[])} for item in items if isinstance(data.get(reef_cache_key(zipcode,item)),dict) and data[reef_cache_key(zipcode,item)].get('retailers_seen')][:10],'message':'Instacart online prices. One matching product per ingredient; package sizes and quantities may differ. Partial totals are not directly comparable.'}
+def reef_package_unit_price(price,size):
+ # Only compare explicitly stated package weights or volumes.
+ # Counts, ambiguous sizes and multipacks remain unpriced per unit.
+ value=str(size or '').strip().casefold()
+ if not value or re.search(r'\b(?:pack|pk|count|ct|each|ea)\b|\d+\s*[x×]\s*\d',value):return None
+ match=re.fullmatch(r'(\d+(?:\.\d+)?)\s*(fl\.?\s*oz|fluid\s+ounces?|oz|ounces?|lbs?|pounds?|g|grams?|kg|kilograms?|ml|milliliters?|l|liters?)\.?',value)
+ if not match:return None
+ amount=float(match.group(1))
+ if amount<=0:return None
+ unit=match.group(2).replace(' ','').replace('.','')
+ if unit in ('floz','fluidounces','fluidounce','ml','milliliter','milliliters','l','liter','liters'):
+  divisor=amount*(33.8140227 if unit in ('l','liter','liters') else 0.0338140227 if unit in ('ml','milliliter','milliliters') else 1)
+  label='fl oz'
+ else:
+  divisor=amount*(16 if unit in ('lb','lbs','pound','pounds') else 35.27396195 if unit in ('kg','kilogram','kilograms') else 0.03527396195 if unit in ('g','gram','grams') else 1)
+  label='oz'
+ if divisor<=0:return None
+ return {'amount':round(price/divisor,4),'unit':label}
+
 def reef_refresh_batch(zipcode,items):
  if not re.fullmatch(r'\d{5}',str(zipcode)):raise ValueError('Enter a five-digit ZIP code')
  if not isinstance(items,list) or not 1<=len(items)<=10 or any(not isinstance(x,str) or not 2<=len(x.strip())<=90 for x in items):raise ValueError('Provide 1–10 grocery items')
@@ -1000,7 +1019,7 @@ def reef_refresh_batch(zipcode,items):
    candidates=[p for p in products if tokens and rank(p)[0]>=1.0 and not ((tokens_for(p['name'])&incompatible)-(tokens&incompatible))]
    if not candidates:continue
    best=max(candidates,key=rank)
-   matches.append({'chain':chain,'price':best['price'],'unit':best['size'],'product':best['name'],'checked_at':datetime.datetime.now(datetime.timezone.utc).isoformat()})
+   matches.append({'chain':chain,'price':best['price'],'unit':best['size'],'unit_price':reef_package_unit_price(best['price'],best['size']),'product':best['name'],'checked_at':datetime.datetime.now(datetime.timezone.utc).isoformat()})
   with REEF_CACHE_LOCK:
    cache=reef_cache_read()
    cache[key]={'time':datetime.datetime.now(datetime.timezone.utc).timestamp(),'matches':matches,'retailers_seen':result.get('retailer_names',[])}
