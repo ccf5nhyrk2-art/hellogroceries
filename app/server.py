@@ -333,7 +333,7 @@ def save(state):
 STORE_CACHE={};STORE_CACHE_LOCK=threading.Lock()
 STORE_CACHE_FILE=Path('/data/store_lookup_cache.json')
 STORE_CACHE_TTL=21600
-STORE_CACHE_VERSION=6
+STORE_CACHE_VERSION=7
 STORE_CACHE_STALE_TTL=30*86400
 try:
  raw_cache=json.loads(STORE_CACHE_FILE.read_text())
@@ -486,7 +486,8 @@ RETAILER_PUBLISHED_STORES=[
  ('Hen House','6900 W 135th St','Overland Park','KS','66223'),
  ('Hen House','11930 College Blvd','Overland Park','KS','66210'),
  ('Hen House','2724 W 53rd St','Fairway','KS','66205'),
- ('Hen House','1904 Southwest Blvd','Jefferson City','MO','65109')
+ ('Hen House','1904 Southwest Blvd','Jefferson City','MO','65109'),
+ ('Walmart','2015 W Foxwood Dr','Raymore','MO','64083')
 ]
 RETAILER_ZIP_CENTROIDS={}
 RETAILER_ZIP_LOCK=threading.Lock()
