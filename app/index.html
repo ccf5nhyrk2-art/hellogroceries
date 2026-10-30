@@ -1488,6 +1488,7 @@ function updateEnhancements(){
  for(const key of ['pantry','manual'])$(key+'-items').innerHTML=(state[key]||[]).map((x,i)=>'<button class="clear" type="button" data-remove-'+key+'="'+i+'">'+esc(x)+' ×</button>').join(' ');
 }
 $('recipes').addEventListener('click',async e=>{
+ const close=e.target.closest('[data-close-inline-detail]');if(close){const card=close.closest('.recipe-card');card?.querySelector('.recipe-inline-detail')?.remove();card?.querySelector('[data-detail]')?.setAttribute('aria-expanded','false');return;}
  const fav=e.target.closest('[data-favorite]'),detail=e.target.closest('[data-detail]');
  if(fav){const id=Number(fav.dataset.favorite),f=new Set(state.favorites||[]);f.has(id)?f.delete(id):f.add(id);await preferences({favorites:[...f]});}
  if(detail){
@@ -1495,20 +1496,24 @@ $('recipes').addEventListener('click',async e=>{
   const entries=Object.entries(r.ingredients||{});
   $('recipe-detail').innerHTML='<h2>'+esc(cleanRecipeName(r.name))+'</h2><p class="muted">'+esc(r.country||'')+'</p>'+nutritionDetails(r)+'<h3>Ingredients</h3><ul>'+entries.map(([k,v])=>'<li>'+esc(k)+' — '+esc(v)+'</li>').join('')+'</ul>'+(Array.isArray(r.instructions)&&r.instructions.length?'<h3>Cooking steps</h3><ol>'+r.instructions.map(step=>'<li>'+esc(typeof step==='string'?step:JSON.stringify(step))+'</li>').join('')+'</ol>':'<p class="muted">Cooking instructions are not stored for this recipe. Use the original recipe page.</p>')+(r.url?'<a href="'+esc(r.url)+'" target="_blank" rel="noopener noreferrer">Open original recipe</a>':'');
   const review=(state.recipe_reviews||{})[String(r.id)]||{};$('recipe-review-id').value=String(r.id);$('recipe-rating').value=String(review.rating||0);$('recipe-note').value=review.note||'';$('review-status').textContent='';
-  const dialog=$('recipe-dialog');
-  try{
-   if(typeof dialog.showModal==='function'){
-    if(!dialog.open)dialog.showModal();
-   }else{
-    dialog.setAttribute('open','');
-   }
-   dialog.scrollTop=0;
-  }catch(err){
-   console.error('Unable to open recipe details',err);
-   dialog.setAttribute('open','');
+  // Display details in the recipe card itself so they remain visible even if Safari blocks a dialog.
+  const card=detail.closest('.recipe-card');
+  if(card){
+   const existing=card.querySelector('.recipe-inline-detail');
+   if(existing){existing.remove();detail.setAttribute('aria-expanded','false');return;}
+   document.querySelectorAll('.recipe-inline-detail').forEach(el=>el.remove());
+   document.querySelectorAll('[data-detail]').forEach(el=>el.setAttribute('aria-expanded','false'));
+   const panel=document.createElement('div');
+   panel.className='recipe-inline-detail';
+   panel.style.cssText='margin:14px 0 0;padding:16px;border:1px solid #718678;border-radius:12px;background:var(--panel,#20282a);color:inherit;overflow-wrap:anywhere';
+   panel.innerHTML=$('recipe-detail').innerHTML+'<p class="muted">Your rating and cooking notes can be edited in the full recipe dialog when available.</p><button type="button" class="clear" data-close-inline-detail>Close details</button>';
+   card.querySelector('.recipe-card-body').appendChild(panel);
+   detail.setAttribute('aria-expanded','true');
+   panel.scrollIntoView({block:'nearest'});
+  }else{
+   const dialog=$('recipe-dialog');if(!dialog.open)dialog.showModal();
   }
-  if(!dialog.open)dialog.setAttribute('open','');
-  dialog.scrollIntoView({block:'center',behavior:'instant'});
+
 
  }
 });
