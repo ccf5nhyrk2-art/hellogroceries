@@ -1,3 +1,7 @@
+## Recipe import permissions
+
+All signed-in users may import individual public HelloFresh recipes using the **Import Recipe** URL field. Imports are added to the installation-wide shared recipe catalog; existing imported recipes are returned without modification for non-admin users. Regular users are limited to 20 individual import attempts per hour. Bulk imports, catalog restoration, and recipe-photo overrides remain restricted to the instance administrator. Household shopping lists, pantry, favorites, and meal plans remain isolated.
+
 ## Managing accounts
 
 The administrator can view all approved accounts at `/admin.html`, including email, household, and last successful HelloGroceries sign-in. The timestamp is tracked from the first login after this update; older activity cannot be reconstructed. The administrator can remove non-admin accounts, immediately revoking their sessions and deleting their login. Household data is intentionally retained to prevent accidental loss, including when the removed user was its only member. The administrator account cannot be removed through this interface.
