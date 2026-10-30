@@ -771,7 +771,8 @@ class Handler(SimpleHTTPRequestHandler):
 if __name__=='__main__':
  with db() as c:
   if auth.instance_needs_setup(c):
-   print('HelloGroceries first-run administrator setup token: '+BOOTSTRAP_SECRET,flush=True)
+   print('HelloGroceries first-run setup link: /auth.html#setup='+urllib.parse.quote(BOOTSTRAP_SECRET,safe=''),flush=True)
+   print('Append this path to your HelloGroceries site address. Keep this link private.',flush=True)
  if BULK_RECOVER:
   job.update(running=True,paused=False,processed=0,discovered=0,imported=0,skipped=0,errors=0,message='Recovering interrupted import; saved recipes will be skipped')
   threading.Thread(target=bulk_worker,args=(job.get('country','US'),int(job.get('limit',0))),daemon=True).start()
