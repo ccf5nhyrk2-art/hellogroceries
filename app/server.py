@@ -456,6 +456,19 @@ def retailer_nearby(lat,lon):
   matches[-1]['distance_miles']=round(distance,1)
  return sorted(matches,key=lambda item:item['distance_miles'])[:40]
 
+def include_verified_belton_stores(zipcode,stores):
+ # Supplemental location verified against the retailer's official store page.
+ # This fills a known gap in the community retailer directory for ZIP 64012.
+ if zipcode!='64012':return stores
+ additions=[{'chain':'Price Chopper','name':"Cosentino's Price Chopper",'address':'109 N Cedar St, Belton, MO 64012','distance_miles':None,'id':'verified-price-chopper-belton-359'}]
+ existing={re.sub(r'[^a-z0-9]','',str(x.get('address','')).lower()) for x in stores}
+ result=list(stores)
+ for item in additions:
+  key=re.sub(r'[^a-z0-9]','',item['address'].lower())
+  if key not in existing and not any(x.get('chain')==item['chain'] and '109' in str(x.get('address','')) and 'cedar' in str(x.get('address','')).lower() for x in result):
+   result.append(item)
+ return result
+
 def nearby_stores(zipcode):
  if not re.fullmatch(r'[0-9]{5}',zipcode):raise ValueError('Enter a valid five-digit US ZIP code')
  with STORE_CACHE_LOCK:cached=STORE_CACHE.get(zipcode)
@@ -480,7 +493,7 @@ def nearby_stores(zipcode):
  try:
   retailer_matches=retailer_nearby(lat,lon)
   if retailer_matches:
-   result={'zip':zipcode,'stores':retailer_matches,'source':'All the Places','note':'Free retailer directory snapshot; listings may be incomplete or outdated. Price Chopper may be missing. Weekly sale prices are not connected.'}
+   result={'zip':zipcode,'stores':include_verified_belton_stores(zipcode,retailer_matches),'source':'All the Places','note':'Free retailer directory snapshot; listings may be incomplete or outdated. Price Chopper may be missing. Weekly sale prices are not connected.'}
    store_cache_save(zipcode,result)
    return result
  except (OSError,ValueError,TypeError) as error:
