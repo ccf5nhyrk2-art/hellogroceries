@@ -1,3 +1,7 @@
+## Managing accounts
+
+The administrator can view all approved accounts at `/admin.html`, including email, household, and last successful HelloGroceries sign-in. The timestamp is tracked from the first login after this update; older activity cannot be reconstructed. The administrator can remove non-admin accounts, immediately revoking their sessions and deleting their login. Household data is intentionally retained to prevent accidental loss, including when the removed user was its only member. The administrator account cannot be removed through this interface.
+
 ## Registration with administrator approval (testing)
 
 Users can request an account from the login page. Registration stores a pending request with a salted PBKDF2 password hash and **does not create an active account or household** until the instance administrator approves it at `/admin.html`. Approval creates a new private household; rejection discards the pending password hash. Existing users, sessions, invitations, and household data are preserved. Sign-in is handled by HelloGroceries; no Cloudflare JWT is needed for regular sign-in.
