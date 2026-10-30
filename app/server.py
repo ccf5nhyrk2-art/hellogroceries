@@ -994,12 +994,12 @@ def reef_refresh_batch(zipcode,items):
     # Reject broad one-word overlap for multiword ingredients (e.g. stock concentrate).
     coverage=overlap/max(1,len(tokens))
     return (coverage,overlap,-abs(len(words)-len(tokens)),-len(words))
-   best=max(products,key=rank)
-   if not tokens or rank(best)[0]<1.0:continue
-   # Avoid obviously mismatched forms such as concentrates, mixes or flavored versions.
-   product_words=tokens_for(best['name'])
+   # Evaluate every returned product, not only the top-ranked candidate:
+   # a misleading concentrate/mix must not hide an otherwise valid grocery item.
    incompatible={'concentrate','powder','mix','flavored','flavour','flavor','substitute','imitation'}
-   if (product_words&incompatible)-(tokens&incompatible):continue
+   candidates=[p for p in products if tokens and rank(p)[0]>=1.0 and not ((tokens_for(p['name'])&incompatible)-(tokens&incompatible))]
+   if not candidates:continue
+   best=max(candidates,key=rank)
    matches.append({'chain':chain,'price':best['price'],'unit':best['size'],'product':best['name'],'checked_at':datetime.datetime.now(datetime.timezone.utc).isoformat()})
   with REEF_CACHE_LOCK:
    cache=reef_cache_read()
