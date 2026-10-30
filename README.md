@@ -16,6 +16,21 @@ Users can request an account from the login page. Registration stores a pending 
 
 **Safe rollout:** Keep the current Cloudflare Access policy enabled while testing registration, approval, sign-in, isolation and logout. Only after verification, remove the Cloudflare Access application/policy for `groceries.greenlee.uk` while keeping the Cloudflare Tunnel and HTTPS hostname. No change to the tunnel's upstream is required. Administrator bootstrap still requires verified Cloudflare Access if the installation has not yet created its first admin. This implementation has no automated password-reset email; users who lose their password need an administrator-assisted recovery process. Registration requests are not email-verified, so approve only addresses you recognize. Public exposure requires monitoring and further security review.
 
+## Nearby grocery stores: resilient lookup
+
+The Nearby Stores page searches for Hy-Vee, Price Chopper, ALDI and Walmart within 10 miles of the entered US ZIP code. OpenStreetMap Overpass servers are attempted first. Successful lookups are cached for six hours and saved to `/data/store_lookup_cache.json`, so results survive container restarts. If directory services are unavailable, a cached result up to 30 days old is returned with a stale-results notice.
+
+**Optional independent fallback:** To search Google Places when Overpass servers are unavailable, create a Google Maps Platform API key with the **Places API (New)** enabled and configure `GOOGLE_PLACES_API_KEY` in the `hellogroceries` service's environment. Google may require billing and charge for usage. Restrict the key to Places API (New) and protect it as a secret; never commit it to GitHub. The fallback uses a Nearby Search and may return up to 20 stores before filtering to supported chains. Without a configured key, the app uses Overpass and its persistent cache only. An empty valid directory response is not treated as a service failure.
+
+```yaml
+services:
+  hellogroceries:
+    environment:
+      GOOGLE_PLACES_API_KEY: ${GOOGLE_PLACES_API_KEY}
+```
+
+Add the key to the deployment's private `.env` or OMV environment settings, then recreate the service. This setting is optional; leave it unset if you do not want Google Places requests or potential charges.
+
 # HelloGroceries
 
 A self-hosted grocery planner and unofficial HelloFresh companion. Browse recipes, select meals, and manage a shopping checklist, with optional US recipe metadata importing.
