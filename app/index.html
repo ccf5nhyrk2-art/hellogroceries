@@ -129,6 +129,20 @@ header{position:relative;min-height:85px}
 @media(max-width:750px){#hg-header-store{font-size:12px;max-width:calc(100vw - 180px);padding:6px 8px}}
 header #hg-theme-toggle{position:absolute!important;top:16px;right:max(16px,calc((100vw - 980px)/2));bottom:auto!important;margin:0!important;float:none!important}
 @media(max-width:750px){header{padding-right:155px!important;min-height:90px}header #hg-theme-toggle{top:14px;right:12px;font-size:12px;padding:9px 11px;max-width:135px}}
+
+/* Consistent responsive control layout */
+*,*::before,*::after{box-sizing:border-box}
+.layout>section,.import-tools,.actions,.filters,.filter-actions{min-width:0}
+button,input,select{font:inherit}
+button{max-width:100%;min-height:36px;line-height:1.25;white-space:normal;overflow-wrap:break-word;text-align:center}
+.actions,.filter-actions{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+.actions>button,.filter-actions>button{flex:0 1 auto}
+.actions>input,.actions>select{min-width:0;max-width:100%}
+.filters select{font-size:14px;min-height:38px}
+.import-tools .actions{align-items:stretch}
+.import-tools .actions input[type=url]{flex:1 1 190px;width:auto;min-width:0}
+@media(max-width:750px){.layout{grid-template-columns:minmax(0,1fr)}.actions>button{min-width:0}}
+@media(max-width:480px){.filters{grid-template-columns:minmax(0,1fr)}.actions>button{flex:1 1 auto}.filter-actions{align-items:flex-start}.filter-actions label{max-width:100%}}
 </style><script>
 (function(){const originalFetch=window.fetch;window.fetch=function(input,init){const opts=init?{...init}:{};const method=(opts.method||'GET').toUpperCase();const url=typeof input==='string'?input:input.url;if(method!=='GET'&&method!=='HEAD'&&url.startsWith('/api/')){const match=document.cookie.match(/(?:^|; )hg_csrf=([^;]+)/);opts.headers={...opts.headers,'X-HG-CSRF':match?match[1]:''}}return originalFetch.call(this,input,opts)};})();
 </script>
