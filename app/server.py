@@ -938,8 +938,23 @@ def reef_cached_comparison(zipcode,items):
    elif retailer_seen(chain,seen):counts['no_matching_product']+=1
    else:counts['retailer_not_returned']+=1
   store['coverage_diagnostics']=counts
+ # Aggregate actual retailer identifiers already saved in the cache, without paid API calls.
+ retailer_summary={}
+ for item in items:
+  record=data.get(reef_cache_key(zipcode,item))
+  if not isinstance(record,dict) or now-float(record.get('time',0))>REEF_CACHE_SECONDS:continue
+  seen=record.get('retailers_seen')
+  if not isinstance(seen,list):continue
+  for entry in seen:
+   if not isinstance(entry,dict):continue
+   name=str(entry.get('name','')).strip()[:100]
+   slug=str(entry.get('slug','')).strip()[:100]
+   if not name and not slug:continue
+   key=(name.casefold(),slug.casefold())
+   if key not in retailer_summary:retailer_summary[key]={'name':name,'slug':slug,'searches':0}
+   retailer_summary[key]['searches']+=1
  for store in stores.values():store['partial_total']=round(store['partial_total'],2)
- return {'stores':list(stores.values()),'cached':cached,'requested':len(items),'missing':len(items)-cached,'cached_items':[item for item in items if isinstance(data.get(reef_cache_key(zipcode,item)),dict) and now-float(data[reef_cache_key(zipcode,item)].get('time',0))<=REEF_CACHE_SECONDS],'unpriced_cached':sum(1 for item in items if isinstance(data.get(reef_cache_key(zipcode,item)),dict) and now-float(data[reef_cache_key(zipcode,item)].get('time',0))<=REEF_CACHE_SECONDS and not data[reef_cache_key(zipcode,item)].get('matches')),'cache_days':365,'retailer_diagnostics':[{'item':item,'retailers_seen':data[reef_cache_key(zipcode,item)].get('retailers_seen',[])} for item in items if isinstance(data.get(reef_cache_key(zipcode,item)),dict) and data[reef_cache_key(zipcode,item)].get('retailers_seen')][:10],'message':'Instacart online prices. One matching product per ingredient; package sizes and quantities may differ. Partial totals are not directly comparable.'}
+ return {'stores':list(stores.values()),'cached':cached,'requested':len(items),'missing':len(items)-cached,'cached_items':[item for item in items if isinstance(data.get(reef_cache_key(zipcode,item)),dict) and now-float(data[reef_cache_key(zipcode,item)].get('time',0))<=REEF_CACHE_SECONDS],'unpriced_cached':sum(1 for item in items if isinstance(data.get(reef_cache_key(zipcode,item)),dict) and now-float(data[reef_cache_key(zipcode,item)].get('time',0))<=REEF_CACHE_SECONDS and not data[reef_cache_key(zipcode,item)].get('matches')),'cache_days':365,'retailer_summary':sorted(retailer_summary.values(),key=lambda x:(-x['searches'],x['name']))[:100],'retailer_diagnostics':[{'item':item,'retailers_seen':data[reef_cache_key(zipcode,item)].get('retailers_seen',[])} for item in items if isinstance(data.get(reef_cache_key(zipcode,item)),dict) and data[reef_cache_key(zipcode,item)].get('retailers_seen')][:10],'message':'Instacart online prices. One matching product per ingredient; package sizes and quantities may differ. Partial totals are not directly comparable.'}
 def reef_refresh_batch(zipcode,items):
  if not re.fullmatch(r'\d{5}',str(zipcode)):raise ValueError('Enter a five-digit ZIP code')
  if not isinstance(items,list) or not 1<=len(items)<=10 or any(not isinstance(x,str) or not 2<=len(x.strip())<=90 for x in items):raise ValueError('Provide 1–10 grocery items')
