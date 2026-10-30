@@ -220,4 +220,53 @@ const csrf=()=>document.cookie.split('; ').find(x=>x.startsWith('hg_csrf='))?.sl
 $('form').onsubmit=async e=>{e.preventDefault();$('error').textContent='';$('result').hidden=true;try{const r=await fetch('/api/auth/invite',{method:'POST',headers:{'Content-Type':'application/json','X-HG-CSRF':csrf()},body:JSON.stringify({email:$('email').value})});const j=await r.json();if(!r.ok)throw Error(j.error||'Invitation failed');$('link').href=j.invite_url;$('link').textContent=j.invite_url;$('result').hidden=false}catch(e){$('error').textContent=e.message}};
 $('copy').onclick=()=>navigator.clipboard.writeText($('link').href);
 $('logout').onclick=async()=>{await fetch('/api/auth/logout',{method:'POST',headers:{'X-HG-CSRF':csrf()}});location.replace('/auth.html')};
-</script><script>(function(){const b=document.createElement('button');b.id='hg-theme-toggle';b.type='button';b.setAttribute('aria-label','Toggle light and dark mode');function sync(){const dark=document.documentElement.dataset.theme==='dark';b.textContent=dark?'☀ Light mode':'☾ Dark mode';b.setAttribute('aria-pressed',String(dark))}b.addEventListener('click',()=>{const theme=document.documentElement.dataset.theme==='dark'?'light':'dark';document.documentElement.dataset.theme=theme;try{localStorage.setItem('hg-theme',theme)}catch(e){}sync()});document.body.appendChild(b);sync()})()</script></body></html>
+</script><script>(function(){const b=document.createElement('button');b.id='hg-theme-toggle';b.type='button';b.setAttribute('aria-label','Toggle light and dark mode');function sync(){const dark=document.documentElement.dataset.theme==='dark';b.textContent=dark?'☀ Light mode':'☾ Dark mode';b.setAttribute('aria-pressed',String(dark))}b.addEventListener('click',()=>{const theme=document.documentElement.dataset.theme==='dark'?'light':'dark';document.documentElement.dataset.theme=theme;try{localStorage.setItem('hg-theme',theme)}catch(e){}sync()});document.body.appendChild(b);sync()})()</script></body></html // Admin-only bulk nutrition backfill. Cursor and counters persist across reloads.
+ let nutritionRunning=false;
+ let nutritionCursor=Number(localStorage.getItem('hg-nutrition-cursor')||0);
+ let nutritionStats;
+ try{nutritionStats=JSON.parse(localStorage.getItem('hg-nutrition-stats')||'null')}catch(e){nutritionStats=null}
+ if(!nutritionStats||typeof nutritionStats!=='object')nutritionStats={updated:0,skipped:0,failed:0,missing:0};
+ for(const k of ['updated','skipped','failed','missing'])nutritionStats[k]=Number(nutritionStats[k])||0;
+ let nutritionBaseline=Number(localStorage.getItem('hg-nutrition-baseline')||0);
+ const nutritionStatus=document.getElementById('nutrition-status');
+ const nutritionStart=document.getElementById('nutrition-start');
+ const nutritionPause=document.getElementById('nutrition-pause');
+ const nutritionActivity=document.getElementById('nutrition-errors');
+ function nutritionControls(){nutritionStart.disabled=nutritionRunning;nutritionPause.disabled=!nutritionRunning}
+ function nutritionSummary(processed,total){
+  const classified=nutritionStats.updated+nutritionStats.skipped+nutritionStats.missing+nutritionStats.failed;
+  const scanned=Math.max(0,processed-nutritionBaseline);
+  const unclassified=Math.max(0,scanned-classified);
+  nutritionStatus.textContent=processed+' / '+total+' imported recipes scanned · '+nutritionStats.updated+' updated · '+nutritionStats.skipped+' already populated · '+nutritionStats.missing+' missing source nutrition · '+nutritionStats.failed+' request failures';
+  document.getElementById('nutrition-rate').textContent='Update rate: '+(classified?(100*nutritionStats.updated/classified).toFixed(1)+'%':'waiting for classified results')+' · '+unclassified+' unclassified in this session';
+  document.getElementById('nutrition-progress').value=total?100*processed/total:0;
+ }
+ nutritionStart.onclick=async()=>{
+  if(nutritionRunning)return;
+  nutritionRunning=true;nutritionControls();
+  while(nutritionRunning){
+   try{
+    const response=await fetch('/api/admin/nutrition-batch',{method:'POST',headers:{'Content-Type':'application/json','X-HG-CSRF':csrf()},body:JSON.stringify({cursor:nutritionCursor})});
+    const data=await response.json();
+    if(!response.ok)throw Error(data.error||'Import failed');
+    const previous=nutritionCursor;
+    nutritionCursor=data.cursor;
+    localStorage.setItem('hg-nutrition-cursor',String(nutritionCursor));
+    for(const k of ['updated','skipped','failed','missing'])nutritionStats[k]+=Number(data[k])||0;
+    localStorage.setItem('hg-nutrition-stats',JSON.stringify(nutritionStats));
+    nutritionSummary(data.processed,data.total);
+    const counted=['updated','skipped','failed','missing'].reduce((n,k)=>n+(Number(data[k])||0),0);
+    const lines=['Scanned through '+data.processed+'/'+data.total+' · +'+(data.updated||0)+' updated · +'+(data.skipped||0)+' existing · +'+(data.missing||0)+' missing · +'+(data.failed||0)+' failed'];
+    if(counted!==data.batch_count&&data.batch_count!==undefined)lines.push('Warning: backend batch counts do not reconcile');
+    if(data.errors?.length)lines.push(...data.errors);
+    nutritionActivity.textContent=((nutritionActivity.textContent==='No activity yet.'?'':nutritionActivity.textContent)+'\n'+lines.join('\n')).trim().slice(-6000);
+    if(data.done){nutritionRunning=false;nutritionStatus.textContent+=' · Scan complete';break}
+    if(previous===nutritionCursor){nutritionRunning=false;nutritionStatus.textContent+=' · Scan stopped: cursor did not advance';break}
+   }catch(error){nutritionRunning=false;nutritionStatus.textContent='Paused after error: '+error.message;break}
+  }
+  nutritionControls();
+ };
+ nutritionPause.onclick=()=>{nutritionRunning=false;nutritionStatus.textContent+=' · Pausing after current batch…';nutritionControls()};
+ document.getElementById('nutrition-reset').onclick=()=>{if(nutritionRunning)return;nutritionCursor=0;nutritionBaseline=0;nutritionStats={updated:0,skipped:0,failed:0,missing:0};localStorage.removeItem('hg-nutrition-cursor');localStorage.removeItem('hg-nutrition-stats');localStorage.removeItem('hg-nutrition-baseline');document.getElementById('nutrition-progress').value=0;nutritionActivity.textContent='No activity yet.';document.getElementById('nutrition-rate').textContent='Update rate: waiting for results';nutritionStatus.textContent='Ready to scan imported recipes from the beginning.'};
+ if(nutritionCursor){nutritionStatus.textContent='Previous scan cursor: '+nutritionCursor+'. Select Start / Resume to continue.';document.getElementById('nutrition-rate').textContent='Previous classified outcomes: '+Object.values(nutritionStats).reduce((a,b)=>a+b,0)+' (since last reset)'}
+>
