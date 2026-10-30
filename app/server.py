@@ -530,40 +530,60 @@ AD_PREVIEW_LOCK=threading.Lock()
 AUTO_AD_CACHE={}
 AUTO_AD_LOCK=threading.Lock()
 def automatic_weekly_ads(zipcode):
- if not re.fullmatch(r'\\d{5}',zipcode):raise ValueError('Enter a valid five-digit ZIP')
- token=os.environ.get('APIFY_TOKEN','').strip()
- if not token:return {'configured':False,'offers':[],'message':'Set APIFY_TOKEN in the container environment to enable automatic weekly-ad retrieval.'}
+ if not re.fullmatch(r'\d{5}',zipcode):raise ValueError('Enter a valid five-digit ZIP')
  with AUTO_AD_LOCK:
   cached=AUTO_AD_CACHE.get(zipcode)
   if cached and time.time()-cached[0]<43200:return cached[1]
- payload={'postalCodes':[zipcode],'mode':'flyers','merchants':['ALDI','Walmart','Hy-Vee','Price Chopper'],'onlyValidNow':True,'maxItems':400}
- endpoint='https://api.apify.com/v2/acts/yugenox~flipp-flyer-deals-scraper/run-sync-get-dataset-items'
- req=urllib.request.Request(endpoint,data=json.dumps(payload).encode(),headers={'Authorization':'Bearer '+token,'Content-Type':'application/json','Accept':'application/json'},method='POST')
+ base='https://backflipp.wishabi.com/flipp/flyers'
+ headers={'User-Agent':'Mozilla/5.0 (compatible; HelloGroceries/1.0)','Accept':'application/json'}
+ def get_json(url):
+  req=urllib.request.Request(url,headers=headers)
+  with urllib.request.urlopen(req,timeout=18) as response:
+   if urllib.parse.urlsplit(response.geturl()).hostname!='backflipp.wishabi.com':raise ValueError('Unexpected flyer redirect')
+   raw=response.read(4_000_001)
+  if len(raw)>4_000_000:raise ValueError('Flyer response too large')
+  return json.loads(raw)
  try:
-  with urllib.request.urlopen(req,timeout=45) as response:raw=response.read(2_000_001)
-  if len(raw)>2_000_000:raise ValueError('Feed response exceeds size limit')
-  rows=json.loads(raw)
-  if not isinstance(rows,list):raise ValueError('Feed returned an unexpected response')
+  listing=get_json(base+'?'+urllib.parse.urlencode({'locale':'en-us','postal_code':zipcode}))
+  flyers=listing if isinstance(listing,list) else listing.get('flyers',listing.get('data',[]))
+  if not isinstance(flyers,list):raise ValueError('Unexpected flyer list')
+  targets=('aldi','walmart','hy-vee','hy vee','price chopper')
+  selected=[]
+  for flyer in flyers:
+   if not isinstance(flyer,dict):continue
+   merchant=flyer.get('merchant_name') or flyer.get('merchant') or flyer.get('merchantName') or ''
+   if isinstance(merchant,dict):merchant=merchant.get('name','')
+   merchant=str(merchant)
+   if any(x in merchant.lower() for x in targets) and flyer.get('id'):selected.append((flyer,merchant))
+  selected=selected[:20]
+  offers=[]
+  today=datetime.date.today().isoformat()
+  for flyer,merchant in selected:
+   try:
+    details=get_json(base+'/'+urllib.parse.quote(str(flyer['id']),safe='')+'?'+urllib.parse.urlencode({'locale':'en-us','postal_code':zipcode}))
+    items=details if isinstance(details,list) else details.get('items',details.get('flyer_items',[]))
+    if not isinstance(items,list):continue
+    chain=next((name for name,aliases in (('ALDI',('aldi',)),('Walmart',('walmart',)),('Hy-Vee',('hy-vee','hy vee')),('Price Chopper',('price chopper',))) if any(alias in merchant.lower() for alias in aliases)),None)
+    if not chain:continue
+    expires=str(flyer.get('valid_to') or flyer.get('end_date') or flyer.get('validTo') or '')[:10]
+    if not re.fullmatch(r'\d{4}-\d{2}-\d{2}',expires) or expires<today:continue
+    for row in items:
+     if not isinstance(row,dict):continue
+     item=str(row.get('name') or row.get('title') or row.get('description') or '')[:100].strip()
+     price_value=row.get('price') or row.get('sale_price') or row.get('current_price')
+     if isinstance(price_value,dict):price_value=price_value.get('value') or price_value.get('amount')
+     try:price=float(re.sub(r'[^0-9.]','',str(price_value)))
+     except (ValueError,TypeError):continue
+     if not item or not 0<price<=10000:continue
+     source=str(row.get('url') or flyer.get('url') or 'https://flipp.com/en-us')
+     if not source.startswith('https://'):source='https://flipp.com/en-us'
+     offers.append({'store':chain,'item':item,'price':price,'unit':str(row.get('unit') or 'advertised item')[:30],'expires':expires,'source':source,'regional':True})
+   except (ValueError,KeyError,TimeoutError,OSError,urllib.error.URLError) as error:
+    print('Skipping unavailable weekly flyer:',type(error).__name__,flush=True)
+  result={'configured':True,'offers':offers[:3000],'message':'Regional advertised offers; verify prices and availability with each store.','checked_at':datetime.datetime.now(datetime.timezone.utc).isoformat(),'chains_found':sorted(set(x['store'] for x in offers)),'flyers_found':len(selected)}
  except Exception as error:
-  print('Automatic weekly-ad retrieval failed:',type(error).__name__,flush=True)
-  raise ValueError('Weekly-ad provider unavailable; check provider account and container logs') from error
- today=datetime.date.today().isoformat()
- offers=[]
- for row in rows:
-  if not isinstance(row,dict):continue
-  merchant=str(row.get('merchant') or row.get('merchantName') or row.get('store') or '')
-  chain=next((c for c in ('ALDI','Walmart','Hy-Vee','Price Chopper') if c.lower() in merchant.lower()),None)
-  if not chain:continue
-  item=str(row.get('name') or row.get('title') or row.get('productName') or '')[:100]
-  try:price=float(row.get('effectivePrice') or row.get('salePrice') or row.get('currentPrice') or row.get('price'))
-  except (TypeError,ValueError):continue
-  if not item or not 0<price<=10000:continue
-  expiry=str(row.get('validTo') or row.get('endDate') or row.get('expires') or '')[:10]
-  if not re.fullmatch(r'\\d{4}-\\d{2}-\\d{2}',expiry) or expiry<today:continue
-  source=str(row.get('url') or row.get('flyerUrl') or row.get('productUrl') or '')
-  if not source.startswith('https://'):continue
-  offers.append({'store':chain,'item':item,'price':price,'unit':str(row.get('unit') or row.get('priceUnit') or 'advertised item')[:30],'expires':expiry,'source':source,'regional':True})
- result={'configured':True,'offers':offers,'message':'Regional advertised offers; confirm availability and prices at the selected store.','checked_at':datetime.datetime.now(datetime.timezone.utc).isoformat()}
+  print('Free weekly flyer retrieval failed:',type(error).__name__,flush=True)
+  raise ValueError('Free weekly-ad source unavailable; retry later or consult official ads') from error
  with AUTO_AD_LOCK:AUTO_AD_CACHE[zipcode]=(time.time(),result)
  return result
 
