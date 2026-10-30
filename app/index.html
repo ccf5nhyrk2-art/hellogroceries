@@ -174,7 +174,14 @@ const pageSpecs=[
 ].filter(([key,label,node])=>key==='all'||node);
 const toolbar=document.querySelector('.shopping-view-toolbar');
 const previousButton=document.getElementById('shopping-focus-toggle');
-previousButton.remove();
+// The legacy shopping shortcut remains functional alongside the page tabs.
+previousButton.addEventListener('click',()=>showPage(document.body.dataset.activePage==='shopping'?'all':'shopping'));
+function syncShoppingShortcut(){
+ const shopping=document.body.dataset.activePage==='shopping';
+ previousButton.textContent=shopping?'← Show all pages':'🛒 Shopping list only';
+ previousButton.setAttribute('aria-pressed',String(shopping));
+}
+
 // Mobile app navigation: primary bottom tabs and a sheet for every other section.
 const mobileNav=document.createElement('nav');
 mobileNav.className='mobile-bottom-nav';
@@ -265,6 +272,7 @@ function showPage(key){
  moreTab.setAttribute('aria-expanded','false');
  document.body.classList.toggle('single-page',key!=='all');
  document.body.dataset.activePage=key;
+ syncShoppingShortcut();
  for(const tab of mobileNav.querySelectorAll('.mobile-tab[data-page]')){
   const active=tab.dataset.page===key;
   tab.classList.toggle('mobile-tab-active',active);
