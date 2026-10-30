@@ -333,7 +333,7 @@ def save(state):
 STORE_CACHE={};STORE_CACHE_LOCK=threading.Lock()
 STORE_CACHE_FILE=Path('/data/store_lookup_cache.json')
 STORE_CACHE_TTL=21600
-STORE_CACHE_VERSION=12
+STORE_CACHE_VERSION=13
 STORE_CACHE_STALE_TTL=30*86400
 try:
  raw_cache=json.loads(STORE_CACHE_FILE.read_text())
@@ -363,23 +363,28 @@ def store_distance(lat,lon,la,lo):
  return 3958.8*2*math.asin(min(1,math.sqrt(math.sin(math.radians(la-lat)/2)**2+math.cos(math.radians(lat))*math.cos(math.radians(la))*math.sin(math.radians(lo-lon)/2)**2)))
 
 def google_nearby_stores(lat,lon,radius=10):
- # Google Places is an optional, independent fallback. No credentials are sent to OSM.
+ # Optional nationwide discovery. Text searches per chain avoid the 20-result
+ # combined-nearby cap and return street-level coordinates.
  key=os.environ.get('GOOGLE_PLACES_API_KEY','').strip()
  if not key:return None
- request_body=json.dumps({'includedTypes':['supermarket','grocery_store'],'maxResultCount':20,'locationRestriction':{'circle':{'center':{'latitude':lat,'longitude':lon},'radius':radius*1609.344}}}).encode()
- req=urllib.request.Request('https://places.googleapis.com/v1/places:searchNearby',data=request_body,headers={'Content-Type':'application/json','X-Goog-Api-Key':key,'X-Goog-FieldMask':'places.id,places.displayName,places.formattedAddress,places.location'},method='POST')
- with urllib.request.urlopen(req,timeout=9) as response:body=json.load(response)
- if not isinstance(body,dict) or not isinstance(body.get('places',[]),list):raise ValueError('Invalid Places response')
  matches=[]
- for item in body.get('places',[]):
-  name=(item.get('displayName') or {}).get('text','')
-  chain=next((x for x in ('Hy-Vee','Price Chopper','Hen House','ALDI','Walmart') if x.lower() in name.lower()),None)
-  loc=item.get('location') or {}
-  if not chain or 'latitude' not in loc or 'longitude' not in loc:continue
-  distance=store_distance(lat,lon,float(loc['latitude']),float(loc['longitude']))
-  if distance>radius:continue
-  matches.append({'id':'google-'+str(item.get('id','')),'chain':chain,'name':name,'address':item.get('formattedAddress',''),'distance_miles':round(distance,1)})
+ for chain in ('ALDI','Walmart','Hy-Vee','Price Chopper','Hen House'):
+  payload={'textQuery':chain+' grocery store','pageSize':20,'locationBias':{'circle':{'center':{'latitude':lat,'longitude':lon},'radius':radius*1609.344}}}
+  req=urllib.request.Request('https://places.googleapis.com/v1/places:searchText',data=json.dumps(payload).encode(),headers={'Content-Type':'application/json','X-Goog-Api-Key':key,'X-Goog-FieldMask':'places.id,places.displayName,places.formattedAddress,places.location'},method='POST')
+  try:
+   with urllib.request.urlopen(req,timeout=7) as response:body=json.load(response)
+   for item in body.get('places',[]):
+    name=str((item.get('displayName') or {}).get('text',''))
+    if chain.lower() not in name.lower():continue
+    loc=item.get('location') or {}
+    if 'latitude' not in loc or 'longitude' not in loc:continue
+    distance=store_distance(lat,lon,float(loc['latitude']),float(loc['longitude']))
+    if distance>radius:continue
+    matches.append({'id':'google-'+str(item.get('id','')),'chain':chain,'name':name,'address':item.get('formattedAddress',''),'distance_miles':round(distance,1)})
+  except (OSError,ValueError,TypeError,KeyError) as error:
+   print('Google retailer search failed:',chain,repr(error),flush=True)
  return sorted(matches,key=lambda item:item['distance_miles'])
+
 
 # All the Places publishes public-domain retailer store-locator snapshots.
 # Only request individual retailer exports, never the massive full dataset.
@@ -650,8 +655,9 @@ def nearby_stores(zipcode,radius=10):
    distance=store_distance(lat,lon,float(loc['lat']),float(loc['lon']))
    if distance>radius:continue
    matches.append({'id':str(item.get('type',''))+'-'+str(item.get('id','')),'chain':chain,'name':name,'address':', '.join(x for x in [tags.get('addr:housenumber','')+' '+tags.get('addr:street','') if tags.get('addr:street') else '',tags.get('addr:city','')] if x.strip()),'distance_miles':round(distance,1)})
-  combined=merge_store_results(retailer_matches,published_matches,matches)
-  result={'zip':zipcode,'radius_miles':radius,'directory_status':{'all_the_places':len(retailer_matches),'openstreetmap':len(matches),'retailer_locations':len(published_matches)},'stores':combined,'source':'All the Places + OpenStreetMap','note':'Merged free store directories; listings may still be incomplete. Prices are not store-specific.'}
+  google_matches=google_nearby_stores(lat,lon,radius) or []
+  combined=merge_store_results(retailer_matches,published_matches,matches,google_matches)
+  result={'zip':zipcode,'radius_miles':radius,'directory_status':{'all_the_places':len(retailer_matches),'openstreetmap':len(matches),'retailer_locations':len(published_matches),'google_places':len(google_matches)},'stores':combined,'source':'All the Places + OpenStreetMap'+(' + Google Places' if google_matches else ''),'note':'Merged store directories; listings may still be incomplete. Prices are not store-specific.'}
   store_cache_save(cache_key,result);return result
  try:
   matches=google_nearby_stores(lat,lon,radius)
