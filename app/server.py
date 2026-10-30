@@ -820,7 +820,7 @@ def reef_test_search(zipcode,query):
   if not isinstance(retailer,dict):continue
   name=str(retailer.get('name',''))
   if name:retailer_names.append({'name':name[:100],'slug':str(retailer.get('slug',''))[:100]})
-  if not any(x in name.casefold() for x in allowed):continue
+  if not any(x in (name+' '+str(retailer.get('slug',''))).casefold() for x in allowed):continue
   products=[]
   for product in (group.get('items') or [])[:5]:
    if not isinstance(product,dict):continue
@@ -899,7 +899,7 @@ def reef_refresh_batch(zipcode,items):
    break
   matches=[]
   for group in result['retailers']:
-   name=group['retailer'].casefold()
+   name=(group['retailer']+' '+str(group.get('slug',''))).casefold()
    chain=next((x for x in ['Price Chopper','Walmart','Hy-Vee','ALDI'] if x.casefold() in name or (x=='Walmart' and ('wal-mart' in name or 'wal mart' in name))),None)
    if not chain:continue
    products=group['products']
