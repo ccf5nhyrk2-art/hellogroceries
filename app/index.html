@@ -868,6 +868,25 @@ function groceryBreakdownMarkup(items){
  return entries.map(x=>'<div class="grocery-source"><strong>'+esc(x.recipe)+'</strong><div>'+esc(x.scaled)+(x.scaledNote?' · '+esc(x.scaledNote):'')+'</div><small>Recipe ingredient: '+esc(x.name)+' · '+esc(groceryNumber(x.scale))+'× selected'+(x.scale!==1?' · original: '+esc(x.original):'')+'</small></div>').join('')+
  manual.map(name=>'<div class="grocery-source"><strong>Manually added</strong><div>'+esc(name)+'</div></div>').join('');
 }
+let retailerCatalogPrices=[];
+let retailerCatalogKey='';
+async function refreshRetailerCatalogPrices(){
+ const store=getPreferredStore(),status=$('retailer-catalog-status');
+ if(!store){if(status)status.textContent='Choose a preferred store first.';return}
+ const items=[...new Set((state.list||[]).map(x=>String(x.name||'').trim()).filter(Boolean))].slice(0,60);
+ if(!items.length){if(status)status.textContent='Add shopping-list items first.';return}
+ if(status)status.textContent='Checking retailer catalog feed…';
+ try{
+  const params=new URLSearchParams({chain:store.chain||'',store_name:store.name||'',address:store.address||''});
+  items.forEach(item=>params.append('item',item));
+  const response=await fetch('/api/retailer-catalog-prices?'+params.toString());
+  const data=await response.json();if(!response.ok)throw Error(data.error||'Catalog unavailable');
+  retailerCatalogPrices=Array.isArray(data.prices)?data.prices:[];
+  retailerCatalogKey=storeKey(store);
+  renderShoppingList();
+  const next=$('retailer-catalog-status');if(next)next.textContent=data.message||'No retailer catalog prices found';
+ }catch(error){retailerCatalogPrices=[];retailerCatalogKey='';if(status)status.textContent='Retailer catalog unavailable: '+error.message}
+}
 function shoppingPriceFor(names){
  const store=getPreferredStore();if(!store)return null;
  const key=storeKey(store),label=store.chain+' — '+(store.address||store.name);
@@ -875,6 +894,10 @@ function shoppingPriceFor(names){
  const today=new Date().toISOString().slice(0,10);
  const offers=[...saleOffers(),...regionalAutoOffers].filter(x=>x.expires>=today&&(x.store===label||(x.regional&&x.store===store.chain)));
  for(const name of names){const saved=manual.find(x=>x.item.toLowerCase()===name.toLowerCase());if(saved&&Number(saved.price)>0)return {price:Number(saved.price),unit:saved.unit,kind:'Saved store price'}}
+ if(retailerCatalogKey===key){
+  const catalog=retailerCatalogPrices.find(x=>names.some(name=>x.item.toLowerCase()===name.toLowerCase())&&Number(x.price)>0);
+  if(catalog)return {price:Number(catalog.price),unit:catalog.unit,kind:'Retailer catalog · '+catalog.checked_at};
+ }
  const matching=offers.filter(x=>Number(x.price)>0&&names.some(name=>saleMatches(x.item,name))).sort((a,b)=>Number(a.price)-Number(b.price));
  return matching.length?{price:Number(matching[0].price),unit:matching[0].unit,kind:'Verified weekly-ad offer'}:null;
 }
@@ -884,7 +907,7 @@ function updateShoppingPriceSummary(priced,total,count){
  if(!summary){summary=document.createElement('div');summary.id='shopping-price-summary';summary.className='enhance-panel';summary.style.marginBottom='12px';items.parentElement.insertBefore(summary,items)}
  const store=getPreferredStore();
  if(!store){summary.innerHTML='<strong>Store pricing</strong><p class="muted">Choose a preferred store in Nearby stores to see ingredient prices here.</p>';return}
- summary.innerHTML='<strong>'+esc(store.chain)+' shopping prices</strong> <button type="button" id="shopping-refresh-prices">Refresh weekly-ad prices</button> <button type="button" id="shopping-free-prices">Test free community prices</button><p><strong>Partial subtotal: $'+total.toFixed(2)+'</strong> · '+priced+' of '+count+' items priced</p><p class="muted">One listed unit per item; quantities, package differences, taxes and missing prices are excluded. Not a checkout estimate.</p><div id="shopping-free-results" class="muted">Historical community observations only; not verified store prices. Test 10 ingredients at a time.</div>';
+ summary.innerHTML='<strong>'+esc(store.chain)+' shopping prices</strong> <button type="button" id="shopping-refresh-prices">Refresh weekly-ad prices</button> <button type="button" id="shopping-free-prices">Test free community prices</button> <button type="button" id="shopping-retailer-prices">Check retailer catalog</button><p><strong>Partial subtotal: $'+total.toFixed(2)+'</strong> · '+priced+' of '+count+' items priced</p><p class="muted">One listed unit per item; quantities, package differences, taxes and missing prices are excluded. Not a checkout estimate.</p><div id="shopping-free-results" class="muted">Historical community observations only; not verified store prices. Test 10 ingredients at a time.</div><div id="retailer-catalog-status" class="muted">Retailer catalog feed is optional and not configured by default.</div>';
 }
 function setShoppingItemPrice(name){
  const store=getPreferredStore();if(!store){alert('Choose a preferred store first.');return}
@@ -957,6 +980,7 @@ function renderShoppingList(){
  updateShoppingPriceSummary(pricedCount,priceTotal,itemCount);
  $('shopping-refresh-prices')?.addEventListener('click',refreshShoppingAdPrices);
   $('shopping-free-prices')?.addEventListener('click',testFreeCommunityPrices);
+  $('shopping-retailer-prices')?.addEventListener('click',refreshRetailerCatalogPrices);
  $('items').querySelectorAll('[data-set-price]').forEach(b=>b.addEventListener('click',()=>setShoppingItemPrice(b.dataset.setPrice)));
 }
 const glutenIngredientPattern=/\b(wheat|flour|breadcrumbs?|bread|buns?|panko|pasta|spaghetti|linguine|penne|noodles?|couscous|bulgur|semolina|farro|barley|rye|seitan|tortillas?|pita|naan|gnocchi|orzo|soy sauce|teriyaki|hoisin|malt|beer|croutons?|pretzels?|wonton|dumplings?)\b/i;
