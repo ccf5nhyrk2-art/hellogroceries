@@ -82,6 +82,25 @@ html[data-theme="dark"] .mobile-bottom-nav .mobile-tab-active{background:#294a38
 html[data-theme="dark"] .selected-recipe-link{color:#91e7b4!important}
 @media(max-width:750px){#hg-theme-toggle{position:static!important;float:none!important;display:inline-flex!important;margin:10px 0 0!important;box-shadow:none!important;max-width:100%}}
 
+
+/* Neutral charcoal dark mode; green remains an accent only. */
+html[data-theme="dark"]{color-scheme:dark}
+html[data-theme="dark"],html[data-theme="dark"] body{background:#0d0f11!important;color:#edf0f2!important}
+html[data-theme="dark"] main,html[data-theme="dark"] section,html[data-theme="dark"] article,html[data-theme="dark"] details,html[data-theme="dark"] .card,html[data-theme="dark"] .recipe-card,html[data-theme="dark"] .account-card,html[data-theme="dark"] .enhance-panel,html[data-theme="dark"] .selected-plan,html[data-theme="dark"] .shopping-department,html[data-theme="dark"] .ingredient-preview,html[data-theme="dark"] .mobile-bottom-nav,html[data-theme="dark"] .mobile-more-nav{background:#171a1e!important;color:#edf0f2!important;border-color:#353b40!important}
+html[data-theme="dark"] .row,html[data-theme="dark"] .section,html[data-theme="dark"] .selected-meal,html[data-theme="dark"] .grocery-item-wrap,html[data-theme="dark"] .grocery-row{background:#171a1e!important;color:#edf0f2!important;border-color:#343a40!important}
+html[data-theme="dark"] input,html[data-theme="dark"] select,html[data-theme="dark"] textarea{background:#23272b!important;color:#f3f5f6!important;border-color:#535b62!important}
+html[data-theme="dark"] .enhance-panel h3,html[data-theme="dark"] .selected-plan h3,html[data-theme="dark"] .shopping-department h3,html[data-theme="dark"] .selected-meal,html[data-theme="dark"] .shopping-department summary,html[data-theme="dark"] .shopping-department .department-count{color:#e7ebee!important}
+html[data-theme="dark"] .shopping-department>summary{background:#252a2e!important;border-color:#3b4248!important}
+html[data-theme="dark"] .shopping-department .department-items{background:#171a1e!important}
+html[data-theme="dark"] .shopping-department .row,html[data-theme="dark"] .shopping-department .grocery-item-wrap{border-bottom:1px solid #30363b!important}
+html[data-theme="dark"] .shopping-department button[data-edit-item]{background:#30373d!important;color:#f0f4f5!important;border:1px solid #525c64!important}
+html[data-theme="dark"] .shopping-department button[data-edit-item]:hover{background:#414b53!important}
+html[data-theme="dark"] .grocery-breakdown>summary,html[data-theme="dark"] .grocery-breakdown-content,html[data-theme="dark"] .grocery-note{color:#a7d9bb!important}
+html[data-theme="dark"] .shopping-department .qty,html[data-theme="dark"] .muted,html[data-theme="dark"] .done{color:#b8c1c8!important}
+html[data-theme="dark"] .mobile-bottom-nav .mobile-tab{color:#cbd2d7!important}
+html[data-theme="dark"] .mobile-bottom-nav .mobile-tab-active{background:#30363b!important;color:#f0f4f5!important}
+html[data-theme="dark"] .button-secondary,html[data-theme="dark"] button.clear,html[data-theme="dark"] .photo-edit{background:#30363b!important;color:#f0f4f5!important;border-color:#535b62!important}
+html[data-theme="dark"] #hg-theme-toggle{background:#30363b!important;border-color:#59636a!important;color:#f2f4f5!important}
 </style><script>
 (function(){const originalFetch=window.fetch;window.fetch=function(input,init){const opts=init?{...init}:{};const method=(opts.method||'GET').toUpperCase();const url=typeof input==='string'?input:input.url;if(method!=='GET'&&method!=='HEAD'&&url.startsWith('/api/')){const match=document.cookie.match(/(?:^|; )hg_csrf=([^;]+)/);opts.headers={...opts.headers,'X-HG-CSRF':match?match[1]:''}}return originalFetch.call(this,input,opts)};})();
 </script>
