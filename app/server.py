@@ -458,6 +458,66 @@ def retailer_nearby(lat,lon,radius=10):
   matches[-1]['distance_miles']=round(distance,1)
  return sorted(matches,key=lambda item:item['distance_miles'])[:40]
 
+# Supplement incomplete map datasets with retailer-published location addresses.
+# ZIP centroids are approximate; exact street coordinates are not claimed.
+RETAILER_PUBLISHED_STORES=[
+ ('Price Chopper','109 N Cedar St','Belton','MO','64012'),
+ ('Price Chopper','900 W Foxwood Dr','Raymore','MO','64083'),
+ ('Price Chopper','501 Schug Ave','Peculiar','MO','64078'),
+ ('Price Chopper','12220 S 71 Hwy','Grandview','MO','64030'),
+ ('Price Chopper','520 S Commercial St','Harrisonville','MO','64701'),
+ ('Price Chopper','937 NE Woods Chapel Rd',"Lee's Summit",'MO','64064'),
+ ('Price Chopper','251 SW Greenwich Dr',"Lee's Summit",'MO','64082'),
+ ('Price Chopper','8430 Wornall Rd','Kansas City','MO','64114'),
+ ('Price Chopper','1030 W 103rd St','Kansas City','MO','64114'),
+ ('Price Chopper','3700 W 95th St','Leawood','KS','66206'),
+ ('Price Chopper','7418 W 119th St','Overland Park','KS','66213'),
+ ('Price Chopper','7000 W 75th St','Overland Park','KS','66204'),
+ ('Price Chopper','15970 S Murlen Rd','Olathe','KS','66062'),
+ ('Price Chopper','12010 W 63rd St','Shawnee','KS','66216'),
+ ('Price Chopper','4950 Roe Blvd','Roeland Park','KS','66205'),
+ ('Price Chopper','660 E Main St','Gardner','KS','66030'),
+ ('Hen House','15000 W 87th Street Pkwy','Lenexa','KS','66215'),
+ ('Hen House','4050 W 83rd St','Prairie Village','KS','66208'),
+ ('Hen House','11721 Roe Ave','Leawood','KS','66211'),
+ ('Hen House','8120 Parallel Pkwy','Kansas City','KS','66112'),
+ ('Hen House','6950 Mission Rd','Prairie Village','KS','66208'),
+ ('Hen House','13600 S Blackbob Rd','Olathe','KS','66062'),
+ ('Hen House','6900 W 135th St','Overland Park','KS','66223'),
+ ('Hen House','11930 College Blvd','Overland Park','KS','66210'),
+ ('Hen House','2724 W 53rd St','Fairway','KS','66205'),
+ ('Hen House','1904 Southwest Blvd','Jefferson City','MO','65109')
+]
+RETAILER_ZIP_CENTROIDS={}
+RETAILER_ZIP_LOCK=threading.Lock()
+def published_retailer_nearby(lat,lon,radius):
+ # Location list is independent of the searched ZIP, unlike a ZIP-specific patch.
+ with RETAILER_ZIP_LOCK:
+  known=dict(RETAILER_ZIP_CENTROIDS)
+ zips={item[4] for item in RETAILER_PUBLISHED_STORES if item[4] not in known}
+ if zips:
+  from concurrent.futures import ThreadPoolExecutor
+  def lookup_zip(code):
+   try:
+    req=urllib.request.Request('https://api.zippopotam.us/us/'+code,headers={'User-Agent':'HelloGroceries/1.0'})
+    with urllib.request.urlopen(req,timeout=3) as response:data=json.load(response)
+    p=data['places'][0]
+    return code,(float(p['latitude']),float(p['longitude']))
+   except (OSError,ValueError,KeyError,IndexError,TypeError):return code,None
+  with ThreadPoolExecutor(max_workers=8) as pool:
+   for code,coords in pool.map(lookup_zip,sorted(zips)):
+    if coords:
+     with RETAILER_ZIP_LOCK:RETAILER_ZIP_CENTROIDS[code]=coords
+ with RETAILER_ZIP_LOCK:known=dict(RETAILER_ZIP_CENTROIDS)
+ matches=[]
+ for chain,street,city,state,code in RETAILER_PUBLISHED_STORES:
+  if code not in known:continue
+  distance=store_distance(lat,lon,*known[code])
+  # ZIP centroid is an approximation: allow a small margin at the radius boundary.
+  if distance>radius+2:continue
+  matches.append({'id':'retailer-published-'+re.sub(r'[^a-z0-9]','-',(chain+'-'+street+'-'+code).lower()),'chain':chain,'name':chain,'address':street+', '+city+', '+state+' '+code,'distance_miles':round(distance,1),'distance_approximate':True})
+ return matches
+
 def merge_store_results(*groups):
  result=[];seen=set()
  for group in groups:
@@ -498,6 +558,7 @@ def nearby_stores(zipcode,radius=10):
     result=dict(legacy[1]);result['stale']=True;result['source']=str(result.get('source','Store directory'))+' (saved fallback)';result['note']='ZIP lookup unavailable; showing previously saved store locations.'
     return result
    raise RuntimeError('ZIP lookup services unavailable') from second_error
+ published_matches=published_retailer_nearby(lat,lon,radius)
  retailer_matches=[]
  try:
   retailer_matches=retailer_nearby(lat,lon,radius) or []
@@ -523,17 +584,17 @@ def nearby_stores(zipcode,radius=10):
    distance=store_distance(lat,lon,float(loc['lat']),float(loc['lon']))
    if distance>radius:continue
    matches.append({'id':str(item.get('type',''))+'-'+str(item.get('id','')),'chain':chain,'name':name,'address':', '.join(x for x in [tags.get('addr:housenumber','')+' '+tags.get('addr:street','') if tags.get('addr:street') else '',tags.get('addr:city','')] if x.strip()),'distance_miles':round(distance,1)})
-  combined=merge_store_results(retailer_matches,matches)
-  result={'zip':zipcode,'radius_miles':radius,'directory_status':{'all_the_places':len(retailer_matches),'openstreetmap':len(matches)},'stores':combined,'source':'All the Places + OpenStreetMap','note':'Merged free store directories; listings may still be incomplete. Prices are not store-specific.'}
+  combined=merge_store_results(retailer_matches,published_matches,matches)
+  result={'zip':zipcode,'radius_miles':radius,'directory_status':{'all_the_places':len(retailer_matches),'openstreetmap':len(matches),'retailer_locations':len(published_matches)},'stores':combined,'source':'All the Places + OpenStreetMap','note':'Merged free store directories; listings may still be incomplete. Prices are not store-specific.'}
   store_cache_save(cache_key,result);return result
  try:
   matches=google_nearby_stores(lat,lon)
   if matches is not None:
-   result={'zip':zipcode,'stores':merge_store_results(retailer_matches,matches),'source':'All the Places + Google Places','note':'Merged store directories; coverage varies.'}
+   result={'zip':zipcode,'stores':merge_store_results(retailer_matches,published_matches,matches),'source':'All the Places + retailer locations + Google Places','note':'Merged store directories; coverage varies.'}
    store_cache_save(cache_key,result);return result
  except (OSError,ValueError,KeyError,TypeError) as error:print('Independent store directory failed:',repr(error),flush=True)
- if retailer_matches:
-  result={'zip':zipcode,'radius_miles':radius,'directory_status':{'all_the_places':len(retailer_matches),'openstreetmap':'unavailable'},'stores':merge_store_results(retailer_matches),'source':'All the Places','note':'Other directories unavailable; results may be incomplete.'}
+ if retailer_matches or published_matches:
+  result={'zip':zipcode,'radius_miles':radius,'directory_status':{'all_the_places':len(retailer_matches),'openstreetmap':'unavailable','retailer_locations':len(published_matches)},'stores':merge_store_results(retailer_matches,published_matches),'source':'All the Places + retailer locations','note':'Other directories unavailable; results may be incomplete.'}
   store_cache_save(cache_key,result);return result
  stale=store_cache_stale(cache_key)
  if stale:return stale
