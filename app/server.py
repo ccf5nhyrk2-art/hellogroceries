@@ -558,8 +558,8 @@ class Handler(SimpleHTTPRequestHandler):
         ingredient_name=correction['name']
         unit=correction.get('unit','')
         corrected_amount=float(correction['amount'])
-        label=(str(corrected_amount).rstrip('0').rstrip('.') if corrected_amount%1 else str(int(corrected_amount)))+' '+(unit+' ' if unit and unit!='count' else '')+ingredient_name
-        amount=float(scale)
+        label='__corrected__|'+unit+'|'+ingredient_name.casefold()
+        amount=corrected_amount*float(scale)
        else:
         label=name
         amount=float(qty)*float(scale)
@@ -572,6 +572,14 @@ class Handler(SimpleHTTPRequestHandler):
        totals[name]=totals.get(name,0)+1
        sources.setdefault(name,[]).append({'recipe':'Manually added','contribution':1})
      pantry={str(x).strip().lower() for x in state.get('pantry',[])}
+     # Merge only user-verified ingredient names with identical measurement units.
+     for key in list(totals):
+      if not key.startswith('__corrected__|'):continue
+      _,unit,ingredient=key.split('|',2)
+      quantity=totals.pop(key)
+      label=(str(round(quantity,3)).rstrip('0').rstrip('.') if quantity%1 else str(int(quantity)))+' '+(unit+' ' if unit and unit!='count' else '')+ingredient
+      totals[label]=totals.get(label,0)+1
+      sources.setdefault(label,[]).extend(sources.pop(key,[]))
      old={item['name']:item for item in state.get('list',[])}
      generated=[{'name':name,'quantity':round(qty,3),'purchased':False,'sources':sources.get(name,[])} for name,qty in sorted(totals.items()) if qty>0 and name.strip().lower() not in pantry]
      for item in generated:
