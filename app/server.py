@@ -789,7 +789,7 @@ def reef_test_search(zipcode,query):
  except (urllib.error.URLError,TimeoutError) as exc:raise ValueError('ReefAPI connection timed out or failed') from None
  if not isinstance(data,dict) or not data.get('ok'):raise ValueError('ReefAPI did not return a successful search')
  groups=data.get('data',{}).get('groups',[])
- allowed=('price chopper','walmart','hy-vee','aldi')
+ allowed=('price chopper','walmart','wal-mart','wal mart','hy-vee','aldi')
  result=[];retailer_names=[]
  for group in groups if isinstance(groups,list) else []:
   if not isinstance(group,dict):continue
@@ -855,7 +855,7 @@ def reef_cached_comparison(zipcode,items):
     stores[chain]['priced']+=1
     stores[chain]['partial_total']+=match['price']
  for store in stores.values():store['partial_total']=round(store['partial_total'],2)
- return {'stores':list(stores.values()),'cached':cached,'requested':len(items),'missing':len(items)-cached,'cached_items':[item for item in items if isinstance(data.get(reef_cache_key(zipcode,item)),dict) and now-float(data[reef_cache_key(zipcode,item)].get('time',0))<=REEF_CACHE_SECONDS],'unpriced_cached':sum(1 for item in items if isinstance(data.get(reef_cache_key(zipcode,item)),dict) and now-float(data[reef_cache_key(zipcode,item)].get('time',0))<=REEF_CACHE_SECONDS and not data[reef_cache_key(zipcode,item)].get('matches')),'cache_days':7,'message':'Instacart online prices. One matching product per ingredient; package sizes and quantities may differ. Partial totals are not directly comparable.'}
+ return {'stores':list(stores.values()),'cached':cached,'requested':len(items),'missing':len(items)-cached,'cached_items':[item for item in items if isinstance(data.get(reef_cache_key(zipcode,item)),dict) and now-float(data[reef_cache_key(zipcode,item)].get('time',0))<=REEF_CACHE_SECONDS],'unpriced_cached':sum(1 for item in items if isinstance(data.get(reef_cache_key(zipcode,item)),dict) and now-float(data[reef_cache_key(zipcode,item)].get('time',0))<=REEF_CACHE_SECONDS and not data[reef_cache_key(zipcode,item)].get('matches')),'cache_days':7,'retailer_diagnostics':[{'item':item,'retailers_seen':data[reef_cache_key(zipcode,item)].get('retailers_seen',[])} for item in items if isinstance(data.get(reef_cache_key(zipcode,item)),dict) and data[reef_cache_key(zipcode,item)].get('retailers_seen')][:10],'message':'Instacart online prices. One matching product per ingredient; package sizes and quantities may differ. Partial totals are not directly comparable.'}
 def reef_refresh_batch(zipcode,items):
  if not re.fullmatch(r'\d{5}',str(zipcode)):raise ValueError('Enter a five-digit ZIP code')
  if not isinstance(items,list) or not 1<=len(items)<=10 or any(not isinstance(x,str) or not 2<=len(x.strip())<=90 for x in items):raise ValueError('Provide 1–10 grocery items')
@@ -877,7 +877,7 @@ def reef_refresh_batch(zipcode,items):
   matches=[]
   for group in result['retailers']:
    name=group['retailer'].casefold()
-   chain=next((x for x in ['Price Chopper','Walmart','Hy-Vee','ALDI'] if x.casefold() in name),None)
+   chain=next((x for x in ['Price Chopper','Walmart','Hy-Vee','ALDI'] if x.casefold() in name or (x=='Walmart' and ('wal-mart' in name or 'wal mart' in name))),None)
    if not chain:continue
    products=group['products']
    if not products:continue
@@ -893,7 +893,7 @@ def reef_refresh_batch(zipcode,items):
    matches.append({'chain':chain,'price':best['price'],'unit':best['size'],'product':best['name'],'checked_at':datetime.datetime.now(datetime.timezone.utc).isoformat()})
   with REEF_CACHE_LOCK:
    cache=reef_cache_read()
-   cache[key]={'time':datetime.datetime.now(datetime.timezone.utc).timestamp(),'matches':matches}
+   cache[key]={'time':datetime.datetime.now(datetime.timezone.utc).timestamp(),'matches':matches,'retailers_seen':result.get('retailer_names',[])}
    reef_cache_write(cache)
   searched+=1
   saved_matches+=len(matches)
