@@ -356,7 +356,7 @@ def save(state):
 STORE_CACHE={};STORE_CACHE_LOCK=threading.Lock()
 STORE_CACHE_FILE=Path('/data/store_lookup_cache.json')
 STORE_CACHE_TTL=21600
-STORE_CACHE_VERSION=14
+STORE_CACHE_VERSION=15
 STORE_CACHE_STALE_TTL=30*86400
 try:
  raw_cache=json.loads(STORE_CACHE_FILE.read_text())
@@ -411,7 +411,7 @@ def google_nearby_stores(lat,lon,radius=10):
 
 # All the Places publishes public-domain retailer store-locator snapshots.
 # Only request individual retailer exports, never the massive full dataset.
-ATP_SPIDERS={'aldi_sud_us':'ALDI','walmart_us':'Walmart','hy_vee_us':'Hy-Vee'}
+ATP_SPIDERS={'aldi_sud_us':'ALDI','walmart_us':'Walmart','hy_vee_us':'Hy-Vee','costco_us':'Costco','sams_club_us':"Sam's Club",'target_us':'Target'}
 ATP_CACHE_FILE=Path('/data/retailer_store_directory.json')
 ATP_CACHE_TTL=7*86400
 ATP_LOCK=threading.Lock()
@@ -426,7 +426,7 @@ def retailer_directory():
   updated=float(saved.get('updated',0) or 0)
   stores=saved.get('stores',[])
   if not isinstance(stores,list):stores=[]
-  if stores and time.time()-updated<ATP_CACHE_TTL:return stores
+  if stores and time.time()-updated<ATP_CACHE_TTL and set((saved.get('by_spider') or {}).keys())>=set(ATP_SPIDERS):return stores
   all_stores=[]
   success=0
   prior_by_spider=saved.get('by_spider',{}) if isinstance(saved.get('by_spider'),dict) else {}
