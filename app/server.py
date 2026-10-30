@@ -688,6 +688,45 @@ AD_PREVIEW_LOCK=threading.Lock()
 # Regional circulars are NOT guaranteed to apply to an exact store location.
 AUTO_AD_CACHE={}
 AUTO_AD_LOCK=threading.Lock()
+
+# Free community price observations; never present these as current store shelf prices.
+FREE_PRICE_CACHE={}
+FREE_PRICE_LOCK=threading.Lock()
+def free_community_prices(items):
+ if not isinstance(items,list) or len(items)>10 or any(not isinstance(x,str) or not 2<=len(x.strip())<=90 for x in items):raise ValueError('Provide 1–10 ingredient names')
+ def read_json(url):
+  req=urllib.request.Request(url,headers={'User-Agent':'HelloGroceries/1.0 (community pricing research)','Accept':'application/json'})
+  with urllib.request.urlopen(req,timeout=8) as response:
+   if urllib.parse.urlsplit(response.geturl()).hostname not in ('world.openfoodfacts.org','prices.openfoodfacts.org'):raise ValueError('Unexpected provider redirect')
+   raw=response.read(1_000_001)
+  if len(raw)>1_000_000:raise ValueError('Response too large')
+  return json.loads(raw)
+ output=[]
+ for item in items:
+  key=item.strip().casefold()
+  with FREE_PRICE_LOCK:cached=FREE_PRICE_CACHE.get(key)
+  if cached and time.time()-cached[0]<86400:
+   output.append(cached[1]);continue
+  result={'item':item,'observations':[],'status':'No matching USD observations'}
+  try:
+   url='https://world.openfoodfacts.org/cgi/search.pl?'+urllib.parse.urlencode({'search_terms':item,'search_simple':'1','action':'process','json':'1','page_size':'2','fields':'code,product_name,quantity'})
+   for product in read_json(url).get('products',[])[:2]:
+    code=str(product.get('code',''))
+    if not re.fullmatch(r'\\d{8,14}',code):continue
+    prices=read_json('https://prices.openfoodfacts.org/api/v1/prices?'+urllib.parse.urlencode({'product_code':code,'page_size':5}))
+    for entry in prices.get('items',[])[:5]:
+     amount=entry.get('price')
+     if not isinstance(amount,(int,float)) or not 0<amount<10000 or entry.get('currency')!='USD':continue
+     location=entry.get('location') or {}
+     result['observations'].append({'product':str(product.get('product_name') or item)[:120],'quantity':str(product.get('quantity') or '')[:60],'price':round(amount,2),'date':str(entry.get('date') or '')[:10],'location':str(location.get('osm_name') or '')[:120] if isinstance(location,dict) else '', 'code':code})
+   if result['observations']:result['status']='Community observations found'
+  except (OSError,ValueError,KeyError,TypeError,TimeoutError):result['status']='Free provider unavailable'
+  with FREE_PRICE_LOCK:
+   if len(FREE_PRICE_CACHE)>2000:FREE_PRICE_CACHE.clear()
+   FREE_PRICE_CACHE[key]=(time.time(),result)
+  output.append(result)
+ return {'results':output,'notice':'Historical community observations, not current prices at your selected store.'}
+
 def automatic_weekly_ads(zipcode):
  if not re.fullmatch(r'\d{5}',zipcode):raise ValueError('Enter a valid five-digit ZIP')
  with AUTO_AD_LOCK:
@@ -1012,6 +1051,10 @@ class Handler(SimpleHTTPRequestHandler):
     self.send_header('Content-Length',str(len(payload)))
     self.end_headers();self.wfile.write(payload);return
    except (ValueError,TypeError,OSError):return self.send_error(404)
+  if self.path.startswith('/api/free-community-prices?'):
+   items=urllib.parse.parse_qs(urllib.parse.urlsplit(self.path).query).get('item',[])
+   try:return self.sendjson(free_community_prices(items))
+   except ValueError as error:return self.sendjson({'error':str(error)},400)
   if self.path.startswith('/api/automatic-weekly-ads?'):
    zipcode=urllib.parse.parse_qs(urllib.parse.urlsplit(self.path).query).get('zip',[''])[0]
    try:return self.sendjson(automatic_weekly_ads(zipcode))
