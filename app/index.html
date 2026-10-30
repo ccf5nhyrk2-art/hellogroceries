@@ -914,19 +914,24 @@ async function refreshReefPrices(){
  const zip=String($('store-zip')?.value||localStorage.getItem(STORE_ZIP_KEY)||'').trim();
  if(!/^\d{5}$/.test(zip)){if(status)status.textContent='Enter your ZIP in Nearby stores first.';return}
  if(!items.length){if(status)status.textContent='No shopping items to refresh.';return}
- const batch=items.slice(reefBatchOffset,reefBatchOffset+10);
- if(!batch.length){reefBatchOffset=0;if(status)status.textContent='All 60 items have been attempted. Click again to start over.';return}
- if(!confirm('Search up to '+batch.length+' ingredients? Each uncached search normally costs 2 ReefAPI credits (up to '+batch.length*2+' credits).'))return;
- if(button)button.disabled=true;if(status)status.textContent='Checking up to '+batch.length+' ingredients…';
+ // One network search per click avoids reverse-proxy timeouts on ten sequential requests.
+ const raw=items[reefBatchOffset%items.length];
+ const ingredient=raw.replace(/^\d+(?:\.\d+)?\s*(?:oz|lb|lbs|g|kg|ml|l|cups?|tbsp|tsp|cloves?|cans?|pieces?|x)?\s+/i,'').trim()||raw;
+ if(!confirm('Search for '+ingredient+'? One uncached request normally costs 2 ReefAPI credits.'))return;
+ if(button)button.disabled=true;
+ if(status)status.textContent='Searching ReefAPI for '+ingredient+' (item '+(reefBatchOffset+1)+' of '+items.length+')…';
  try{
-  const r=await fetch('/api/reef-refresh',{method:'POST',headers:{'Content-Type':'application/json','X-HG-CSRF':document.cookie.split('; ').find(x=>x.startsWith('hg_csrf='))?.slice(8)||''},body:JSON.stringify({zip,items:batch})});
+  const r=await fetch('/api/reef-refresh',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({zip,items:[ingredient]})});
   const data=await r.json();if(!r.ok)throw Error(data.error||'Refresh failed');
-  if(data.errors?.length){if(status)status.textContent='Provider error for '+data.errors[0].item+': '+data.errors[0].error+'. Completed '+data.searched+' searches.'}
-  else if(status)status.textContent='Completed '+data.searched+' new searches (~'+data.credits_estimate+' credits); '+data.cached_skipped+' reused from cache. Batch '+(Math.floor(reefBatchOffset/10)+1)+'.';
-  reefBatchOffset+=batch.length;if(reefBatchOffset>=items.length)reefBatchOffset=0;
+  if(data.errors?.length){
+   if(status)status.textContent='ReefAPI could not search '+ingredient+': '+data.errors[0].error+'. No cached price was added. Try again later or use the next item.';
+  }else{
+   reefBatchOffset=(reefBatchOffset+1)%items.length;
+   if(status)status.textContent='Searched '+ingredient+'; '+data.searched+' new request (~'+data.credits_estimate+' credits), '+data.cached_skipped+' cached. Click again for the next item.';
+  }
   await showReefCachedPrices();
-  if($('retailer-catalog-status'))$('retailer-catalog-status').textContent=data.errors?.length?'Stopped after provider error: '+data.errors[0].error:'Completed '+data.searched+' new searches (~'+data.credits_estimate+' credits); '+data.cached_skipped+' reused from cache. Click Refresh again for next batch.';
- }catch(e){if(status)status.textContent='Live price refresh failed: '+e.message}
+  if($('retailer-catalog-status'))$('retailer-catalog-status').textContent=data.errors?.length?'Search failed for '+ingredient+': '+data.errors[0].error+'. Try again later.':'Finished '+ingredient+'. Click Refresh again for the next ingredient.';
+ }catch(e){if(status)status.textContent='Live price refresh failed for '+ingredient+': '+e.message}
  finally{if(button)button.disabled=false}
 }
 async function compareRetailerPrices(){
@@ -967,7 +972,7 @@ function updateShoppingPriceSummary(priced,total,count){
  if(!summary){summary=document.createElement('div');summary.id='shopping-price-summary';summary.className='enhance-panel';summary.style.marginBottom='12px';items.parentElement.insertBefore(summary,items)}
  const store=getPreferredStore();
  if(!store){summary.innerHTML='<strong>Store pricing</strong><p class="muted">Choose a preferred store in Nearby stores to see ingredient prices here.</p>';return}
- summary.innerHTML='<strong>'+esc(store.chain)+' shopping prices</strong> <button type="button" id="shopping-refresh-prices">Refresh weekly-ad prices</button> <button type="button" id="shopping-free-prices">Test free community prices</button> <button type="button" id="shopping-retailer-prices">Check retailer catalog</button> <button type="button" id="shopping-compare-stores">Compare 4 stores</button> <button type="button" id="shopping-reef-refresh">Refresh live prices (10 items)</button> <button type="button" id="shopping-reef-view">View cached 4-store prices</button><p><strong>Partial subtotal: $'+total.toFixed(2)+'</strong> · '+priced+' of '+count+' items priced</p><p class="muted">One listed unit per item; quantities, package differences, taxes and missing prices are excluded. Not a checkout estimate.</p><div id="shopping-free-results" class="muted">Historical community observations only; not verified store prices. Test 10 ingredients at a time.</div><div id="retailer-catalog-status" class="muted">Retailer catalog feed is optional and not configured by default.</div><div id="retailer-comparison-results" class="muted" aria-live="polite"></div>';
+ summary.innerHTML='<strong>'+esc(store.chain)+' shopping prices</strong> <button type="button" id="shopping-refresh-prices">Refresh weekly-ad prices</button> <button type="button" id="shopping-free-prices">Test free community prices</button> <button type="button" id="shopping-retailer-prices">Check retailer catalog</button> <button type="button" id="shopping-compare-stores">Compare 4 stores</button> <button type="button" id="shopping-reef-refresh">Refresh next ingredient</button> <button type="button" id="shopping-reef-view">View cached 4-store prices</button><p><strong>Partial subtotal: $'+total.toFixed(2)+'</strong> · '+priced+' of '+count+' items priced</p><p class="muted">One listed unit per item; quantities, package differences, taxes and missing prices are excluded. Not a checkout estimate.</p><div id="shopping-free-results" class="muted">Historical community observations only; not verified store prices. Test 10 ingredients at a time.</div><div id="retailer-catalog-status" class="muted">Retailer catalog feed is optional and not configured by default.</div><div id="retailer-comparison-results" class="muted" aria-live="polite"></div>';
 }
 function setShoppingItemPrice(name){
  const store=getPreferredStore();if(!store){alert('Choose a preferred store first.');return}
