@@ -101,6 +101,14 @@ html[data-theme="dark"] .mobile-bottom-nav .mobile-tab{color:#cbd2d7!important}
 html[data-theme="dark"] .mobile-bottom-nav .mobile-tab-active{background:#30363b!important;color:#f0f4f5!important}
 html[data-theme="dark"] .button-secondary,html[data-theme="dark"] button.clear,html[data-theme="dark"] .photo-edit{background:#30363b!important;color:#f0f4f5!important;border-color:#535b62!important}
 html[data-theme="dark"] #hg-theme-toggle{background:#30363b!important;border-color:#59636a!important;color:#f2f4f5!important}
+
+/* Charcoal header and navigation in dark mode; green reserved for actions. */
+html[data-theme="dark"] header{background:#171a1e!important;color:#f2f4f5!important;border-bottom:1px solid #353b40!important}
+html[data-theme="dark"] header a{color:#b5d6c4!important}
+html[data-theme="dark"] .shopping-view-toolbar{background:transparent!important}
+html[data-theme="dark"] .page-nav-button{background:#292e33!important;color:#e6eaed!important;border:1px solid #414950!important;box-shadow:none!important}
+html[data-theme="dark"] .page-nav-button:hover{background:#383f45!important}
+html[data-theme="dark"] .page-nav-button.page-nav-active,html[data-theme="dark"] .page-nav-active{background:#244a39!important;color:#f2fff7!important;border-color:#75bc95!important;box-shadow:inset 0 0 0 1px #75bc95!important}
 </style><script>
 (function(){const originalFetch=window.fetch;window.fetch=function(input,init){const opts=init?{...init}:{};const method=(opts.method||'GET').toUpperCase();const url=typeof input==='string'?input:input.url;if(method!=='GET'&&method!=='HEAD'&&url.startsWith('/api/')){const match=document.cookie.match(/(?:^|; )hg_csrf=([^;]+)/);opts.headers={...opts.headers,'X-HG-CSRF':match?match[1]:''}}return originalFetch.call(this,input,opts)};})();
 </script>
