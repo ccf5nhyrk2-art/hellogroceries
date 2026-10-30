@@ -429,6 +429,30 @@ async function lookupStores(zip){
   if(sequence!==storeLookupSequence)return;
   try{localStorage.setItem(STORE_ZIP_KEY,zip)}catch(e){}
   renderStoreResults(data);
+  if(!window.hgGeocodePollActive){
+   window.hgGeocodePollActive=true;
+   let polls=0,wasRunning=false;
+   const check=async()=>{
+    try{
+     const r=await fetch('/api/stores/geocode-status',{cache:'no-store'});
+     if(!r.ok)throw Error('status unavailable');
+     const x=await r.json();
+     const detail=' · Address coordinates: '+x.matched+' matched, '+x.failed+' errors'+(x.running?' (updating…)':x.finished?' (finished)':'');
+     const label=$('store-status');
+     if(label && !label.textContent.includes('Address coordinates:'))label.textContent+=detail;
+     else if(label)label.textContent=label.textContent.replace(/ · Address coordinates:.*$/,'')+detail;
+     if(x.running)wasRunning=true;
+     if(wasRunning&&!x.running){
+      window.hgGeocodePollActive=false;
+      lookupStores($('store-zip').value.trim());
+      return;
+     }
+     if(x.running&&polls++<180){setTimeout(check,5000);return}
+    }catch(e){}
+    window.hgGeocodePollActive=false;
+   };
+   setTimeout(check,1000);
+  }
  }catch(e){
   if(sequence!==storeLookupSequence)return;
   $('store-status').textContent=e.name==='AbortError'?'Store lookup timed out after 20 seconds. Please try again later.':(e.message||'Store lookup failed.');
