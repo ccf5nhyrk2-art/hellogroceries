@@ -408,6 +408,53 @@ def auth_rate_allowed(ip, route, limit=8, window=900):
   AUTH_ATTEMPTS[key]=recent
   return True
 
+
+def rebuild_grocery_list(state):
+ totals={}
+ sources={}
+ for recipe in allrecipes():
+  scale=state['selected'].get(str(recipe['id']))
+  if scale is None:continue
+  for name,qty in recipe['ingredients'].items():
+   correction=state.get('recipe_ingredient_corrections',{}).get(str(recipe['id'])+'|'+name)
+   if isinstance(correction,dict):
+    ingredient_name=correction['name']
+    unit=correction.get('unit','')
+    corrected_amount=float(correction['amount'])
+    label='__corrected__|'+unit+'|'+ingredient_name.casefold()
+    amount=corrected_amount*float(scale)
+   else:
+    label=name
+    amount=float(qty)*float(scale)
+   if not (0<amount<100000):continue
+   totals[label]=totals.get(label,0)+amount
+   sources.setdefault(label,[]).append({'recipe_id':recipe['id'],'recipe':recipe['name'],'original_name':name,'corrected':bool(correction),'source_quantity':qty,'multiplier':scale,'contribution':round(amount,3)})
+ for item in state.get('manual',[]):
+  if isinstance(item,str) and item.strip():
+   name=item.strip()
+   totals[name]=totals.get(name,0)+1
+   sources.setdefault(name,[]).append({'recipe':'Manually added','contribution':1})
+ pantry={str(x).strip().lower() for x in state.get('pantry',[])}
+ # Merge only user-verified ingredient names with identical measurement units.
+ for key in list(totals):
+  if not key.startswith('__corrected__|'):continue
+  _,unit,ingredient=key.split('|',2)
+  quantity=totals.pop(key)
+  available=state.get('pantry_inventory',{}).get(ingredient+'|'+unit,0)
+  if type(available) not in (int,float) or not 0<=available<=100000:available=0
+  quantity=max(0,quantity-available)
+  if quantity<=0:continue
+  label=(str(round(quantity,3)).rstrip('0').rstrip('.') if quantity%1 else str(int(quantity)))+' '+(unit+' ' if unit and unit!='count' else '')+ingredient
+  totals[label]=totals.get(label,0)+1
+  sources.setdefault(label,[]).extend(sources.pop(key,[]))
+ old={item['name']:item for item in state.get('list',[])}
+ generated=[{'name':name,'quantity':round(qty,3),'purchased':False,'sources':sources.get(name,[])} for name,qty in sorted(totals.items()) if qty>0 and name.strip().lower() not in pantry]
+ for item in generated:
+  previous=old.get(item['name'])
+  if previous and previous.get('quantity')==item['quantity']:item['purchased']=bool(previous.get('purchased'))
+ state['list']=generated
+
+
 class Handler(SimpleHTTPRequestHandler):
  def __init__(self,*a,**kw):super().__init__(*a,directory=str(BASE),**kw)
  def sendjson(self,obj,status=200):
@@ -789,49 +836,7 @@ class Handler(SimpleHTTPRequestHandler):
      if rating or note.strip():reviews[str(rid)]={'rating':rating,'note':note.strip()}
      else:reviews.pop(str(rid),None)
     elif action in ('generate','preview_grocery'):
-     totals={}
-     sources={}
-     for recipe in allrecipes():
-      scale=state['selected'].get(str(recipe['id']))
-      if scale is None:continue
-      for name,qty in recipe['ingredients'].items():
-       correction=state.get('recipe_ingredient_corrections',{}).get(str(recipe['id'])+'|'+name)
-       if isinstance(correction,dict):
-        ingredient_name=correction['name']
-        unit=correction.get('unit','')
-        corrected_amount=float(correction['amount'])
-        label='__corrected__|'+unit+'|'+ingredient_name.casefold()
-        amount=corrected_amount*float(scale)
-       else:
-        label=name
-        amount=float(qty)*float(scale)
-       if not (0<amount<100000):continue
-       totals[label]=totals.get(label,0)+amount
-       sources.setdefault(label,[]).append({'recipe_id':recipe['id'],'recipe':recipe['name'],'original_name':name,'corrected':bool(correction),'source_quantity':qty,'multiplier':scale,'contribution':round(amount,3)})
-     for item in state.get('manual',[]):
-      if isinstance(item,str) and item.strip():
-       name=item.strip()
-       totals[name]=totals.get(name,0)+1
-       sources.setdefault(name,[]).append({'recipe':'Manually added','contribution':1})
-     pantry={str(x).strip().lower() for x in state.get('pantry',[])}
-     # Merge only user-verified ingredient names with identical measurement units.
-     for key in list(totals):
-      if not key.startswith('__corrected__|'):continue
-      _,unit,ingredient=key.split('|',2)
-      quantity=totals.pop(key)
-      available=state.get('pantry_inventory',{}).get(ingredient+'|'+unit,0)
-      if type(available) not in (int,float) or not 0<=available<=100000:available=0
-      quantity=max(0,quantity-available)
-      if quantity<=0:continue
-      label=(str(round(quantity,3)).rstrip('0').rstrip('.') if quantity%1 else str(int(quantity)))+' '+(unit+' ' if unit and unit!='count' else '')+ingredient
-      totals[label]=totals.get(label,0)+1
-      sources.setdefault(label,[]).extend(sources.pop(key,[]))
-     old={item['name']:item for item in state.get('list',[])}
-     generated=[{'name':name,'quantity':round(qty,3),'purchased':False,'sources':sources.get(name,[])} for name,qty in sorted(totals.items()) if qty>0 and name.strip().lower() not in pantry]
-     for item in generated:
-      previous=old.get(item['name'])
-      if previous and previous.get('quantity')==item['quantity']:item['purchased']=bool(previous.get('purchased'))
-     state['list']=generated
+     rebuild_grocery_list(state)
     elif action=='set_pantry_inventory':
      name=p.get('name');unit=p.get('unit','');amount=p.get('amount')
      allowed={'','count','teaspoon','tablespoon','cup','ounce','pound','gram','kilogram','milliliter','liter','clove','bunch','head','stalk','slice','piece','pinch','can','package','bag'}
@@ -854,6 +859,7 @@ class Handler(SimpleHTTPRequestHandler):
      if found is None:raise ValueError('Unknown item')
      found['purchased']=bool(p['purchased'])
     else:raise ValueError('Unknown action')
+    if action=='select':rebuild_grocery_list(state)
     if action=='preview_grocery':return self.sendjson({'items':state['list']})
     state['revision']+=1;save(state)
    return self.sendjson(state)
