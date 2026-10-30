@@ -493,13 +493,17 @@ def nearby_stores(zipcode,radius=10):
    print('Store ZIP lookup failed:',repr(first_error),'fallback:',repr(second_error),flush=True)
    stale=store_cache_stale(cache_key)
    if stale:return stale
+   with STORE_CACHE_LOCK:legacy=STORE_CACHE.get(zipcode)
+   if legacy and isinstance(legacy[1],dict) and legacy[1].get('stores'):
+    result=dict(legacy[1]);result['stale']=True;result['source']=str(result.get('source','Store directory'))+' (saved fallback)';result['note']='ZIP lookup unavailable; showing previously saved store locations.'
+    return result
    raise RuntimeError('ZIP lookup services unavailable') from second_error
  retailer_matches=[]
  try:
   retailer_matches=retailer_nearby(lat,lon,radius) or []
  except (OSError,ValueError,TypeError) as error:
   print('Retailer directory lookup failed:',repr(error),flush=True)
- query='[out:json][timeout:10];(nwr["shop"="supermarket"]["name"~"Hy.Vee|Price Chopper|Hen House|ALDI|Walmart",i](around:'+str(int(radius*1609.344))+','+str(lat)+','+str(lon)+');nwr["shop"="supermarket"]["brand"~"Hy.Vee|Price Chopper|Hen House|ALDI|Walmart",i](around:16093,'+str(lat)+','+str(lon)+'););out center;'
+ query='[out:json][timeout:10];(nwr["shop"="supermarket"]["name"~"Hy.Vee|Price Chopper|Hen House|ALDI|Walmart",i](around:'+str(int(radius*1609.344))+','+str(lat)+','+str(lon)+');nwr["shop"="supermarket"]["brand"~"Hy.Vee|Price Chopper|Hen House|ALDI|Walmart",i](around:'+str(int(radius*1609.344))+','+str(lat)+','+str(lon)+'););out center;'
  payload=urllib.parse.urlencode({'data':query}).encode()
  elements=None
  for endpoint in ('https://overpass.private.coffee/api/interpreter','https://overpass.kumi.systems/api/interpreter','https://overpass-api.de/api/interpreter'):
@@ -521,18 +525,22 @@ def nearby_stores(zipcode,radius=10):
    matches.append({'id':str(item.get('type',''))+'-'+str(item.get('id','')),'chain':chain,'name':name,'address':', '.join(x for x in [tags.get('addr:housenumber','')+' '+tags.get('addr:street','') if tags.get('addr:street') else '',tags.get('addr:city','')] if x.strip()),'distance_miles':round(distance,1)})
   combined=merge_store_results(retailer_matches,matches)
   result={'zip':zipcode,'radius_miles':radius,'directory_status':{'all_the_places':len(retailer_matches),'openstreetmap':len(matches)},'stores':combined,'source':'All the Places + OpenStreetMap','note':'Merged free store directories; listings may still be incomplete. Prices are not store-specific.'}
-  store_cache_save(zipcode,result);return result
+  store_cache_save(cache_key,result);return result
  try:
   matches=google_nearby_stores(lat,lon)
   if matches is not None:
    result={'zip':zipcode,'stores':merge_store_results(retailer_matches,matches),'source':'All the Places + Google Places','note':'Merged store directories; coverage varies.'}
-   store_cache_save(zipcode,result);return result
+   store_cache_save(cache_key,result);return result
  except (OSError,ValueError,KeyError,TypeError) as error:print('Independent store directory failed:',repr(error),flush=True)
  if retailer_matches:
   result={'zip':zipcode,'radius_miles':radius,'directory_status':{'all_the_places':len(retailer_matches),'openstreetmap':'unavailable'},'stores':merge_store_results(retailer_matches),'source':'All the Places','note':'Other directories unavailable; results may be incomplete.'}
-  store_cache_save(zipcode,result);return result
- stale=store_cache_stale(zipcode)
+  store_cache_save(cache_key,result);return result
+ stale=store_cache_stale(cache_key)
  if stale:return stale
+ with STORE_CACHE_LOCK:legacy=STORE_CACHE.get(zipcode)
+ if legacy and isinstance(legacy[1],dict) and legacy[1].get('stores'):
+  result=dict(legacy[1]);result['stale']=True;result['source']=str(result.get('source','Store directory'))+' (saved fallback)'
+  return result
  raise RuntimeError('Store directory lookup unavailable; configure GOOGLE_PLACES_API_KEY for an independent fallback')
 
 # Read-only public retailer ad preview. A public page is not a location-specific price feed.
