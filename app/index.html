@@ -227,6 +227,7 @@ function showPage(key){
    if(!parent)break;
    for(const sibling of parent.children){
     if(sibling===el||sibling===toolbar)continue;
+    if(key==='recipes'&&parent===first&&sibling.id==='shop-sales'){conceal(sibling);continue;}
     if(key==='recipes'&&parent===first&&!['shop-sales','my-recipes','selected-plan'].includes(sibling.id))continue;
     if(key==='shopping'&&parent===second&&[...second.children].indexOf(sibling)>[...second.children].indexOf(target))continue;
     conceal(sibling);
