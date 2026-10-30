@@ -379,6 +379,83 @@ def google_nearby_stores(lat,lon):
   matches.append({'id':'google-'+str(item.get('id','')),'chain':chain,'name':name,'address':item.get('formattedAddress',''),'distance_miles':round(distance,1)})
  return sorted(matches,key=lambda item:item['distance_miles'])
 
+# All the Places publishes public-domain retailer store-locator snapshots.
+# Only request individual retailer exports, never the massive full dataset.
+ATP_SPIDERS={'aldi_sud_us':'ALDI','walmart_us':'Walmart','hy_vee_us':'Hy-Vee'}
+ATP_CACHE_FILE=Path('/data/retailer_store_directory.json')
+ATP_CACHE_TTL=7*86400
+ATP_LOCK=threading.Lock()
+
+def retailer_directory():
+ with ATP_LOCK:
+  saved={}
+  try:
+   saved=json.loads(ATP_CACHE_FILE.read_text())
+   if not isinstance(saved,dict):saved={}
+  except (OSError,ValueError,TypeError):pass
+  updated=float(saved.get('updated',0) or 0)
+  stores=saved.get('stores',[])
+  if not isinstance(stores,list):stores=[]
+  if stores and time.time()-updated<ATP_CACHE_TTL:return stores
+  all_stores=[]
+  success=0
+  for spider,chain in ATP_SPIDERS.items():
+   url='https://data.alltheplaces.xyz/runs/latest/output/'+spider+'.geojson'
+   try:
+    req=urllib.request.Request(url,headers={'User-Agent':'HelloGroceries/1.0 (store directory cache)','Accept':'application/geo+json,application/json,*/*'})
+    with urllib.request.urlopen(req,timeout=10) as resp:
+     # Individual retailer exports only; bound downloads to avoid exhausting RAM.
+     raw=resp.read(12_000_001)
+    if len(raw)>12_000_000:raise ValueError('Store export too large')
+    parsed=json.loads(raw)
+    features=parsed.get('features',[]) if isinstance(parsed,dict) else []
+    if not isinstance(features,list):raise ValueError('Invalid retailer export')
+    success+=1
+    for item in features:
+     if not isinstance(item,dict):continue
+     geometry=item.get('geometry') or {}
+     coordinates=geometry.get('coordinates') if geometry.get('type')=='Point' else None
+     if not isinstance(coordinates,list) or len(coordinates)<2:continue
+     try:lon,lat=float(coordinates[0]),float(coordinates[1])
+     except (ValueError,TypeError):continue
+     if not (-125<=lon<=-66 and 24<=lat<=50):continue
+     props=item.get('properties') or {}
+     if not isinstance(props,dict):continue
+     if props.get('addr:country','US') not in ('US','USA','United States'):continue
+     name=str(props.get('name') or chain)[:150]
+     address=str(props.get('addr:full') or props.get('addr:street_address') or '')[:180]
+     if not address:
+      address=' '.join(str(props.get(k,'')) for k in ('addr:housenumber','addr:street')).strip()
+     city=str(props.get('addr:city') or '')[:80]
+     if city and city.lower() not in address.lower():address=', '.join(filter(None,(address,city)))
+     all_stores.append({'id':'atp-'+spider+'-'+str(item.get('id') or props.get('ref') or len(all_stores))[:110],'chain':chain,'name':name,'address':address,'lat':lat,'lon':lon})
+   except (OSError,ValueError,TypeError) as error:
+    print('Free retailer directory failed:',spider,repr(error),flush=True)
+  if success:
+   # Keep a previously complete directory if only a subset of downloads succeeded.
+   if stores and success<len(ATP_SPIDERS):
+    return stores
+   result={'updated':time.time(),'stores':all_stores}
+   try:
+    tmp=ATP_CACHE_FILE.with_suffix('.tmp')
+    tmp.write_text(json.dumps(result))
+    os.replace(tmp,ATP_CACHE_FILE)
+   except OSError as error:print('Retailer directory cache write failed:',repr(error),flush=True)
+   return all_stores
+  return stores
+
+def retailer_nearby(lat,lon):
+ directory=retailer_directory()
+ if not directory:return None
+ matches=[]
+ for item in directory:
+  try:distance=store_distance(lat,lon,float(item['lat']),float(item['lon']))
+  except (ValueError,KeyError,TypeError):continue
+  if distance>10:continue
+  matches.append({key:item[key] for key in ('id','chain','name','address')})
+  matches[-1]['distance_miles']=round(distance,1)
+ return sorted(matches,key=lambda item:item['distance_miles'])[:40]
+
 def nearby_stores(zipcode):
  if not re.fullmatch(r'[0-9]{5}',zipcode):raise ValueError('Enter a valid five-digit US ZIP code')
  with STORE_CACHE_LOCK:cached=STORE_CACHE.get(zipcode)
@@ -400,6 +477,14 @@ def nearby_stores(zipcode):
    stale=store_cache_stale(zipcode)
    if stale:return stale
    raise RuntimeError('ZIP lookup services unavailable') from second_error
+ try:
+  retailer_matches=retailer_nearby(lat,lon)
+  if retailer_matches:
+   result={'zip':zipcode,'stores':retailer_matches,'source':'All the Places','note':'Free retailer directory snapshot; listings may be incomplete or outdated. Price Chopper may be missing. Weekly sale prices are not connected.'}
+   store_cache_save(zipcode,result)
+   return result
+ except (OSError,ValueError,TypeError) as error:
+  print('Retailer directory lookup failed:',repr(error),flush=True)
  query='[out:json][timeout:10];(nwr["shop"="supermarket"]["name"~"Hy.Vee|Price Chopper|ALDI|Walmart",i](around:16093,'+str(lat)+','+str(lon)+');nwr["shop"="supermarket"]["brand"~"Hy.Vee|Price Chopper|ALDI|Walmart",i](around:16093,'+str(lat)+','+str(lon)+'););out center;'
  payload=urllib.parse.urlencode({'data':query}).encode()
  elements=None
