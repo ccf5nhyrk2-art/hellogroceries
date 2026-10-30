@@ -333,7 +333,7 @@ def save(state):
 STORE_CACHE={};STORE_CACHE_LOCK=threading.Lock()
 STORE_CACHE_FILE=Path('/data/store_lookup_cache.json')
 STORE_CACHE_TTL=21600
-STORE_CACHE_VERSION=8
+STORE_CACHE_VERSION=9
 STORE_CACHE_STALE_TTL=30*86400
 try:
  raw_cache=json.loads(STORE_CACHE_FILE.read_text())
@@ -523,12 +523,43 @@ def published_retailer_nearby(lat,lon,radius):
      with RETAILER_ZIP_LOCK:RETAILER_ZIP_CENTROIDS[code]=coords
  with RETAILER_ZIP_LOCK:known=dict(RETAILER_ZIP_CENTROIDS)
  matches=[]
+ coord_file=Path('/data/retailer_address_coordinates.json')
+ try:
+  coord_cache=json.loads(coord_file.read_text())
+  if not isinstance(coord_cache,dict):coord_cache={}
+ except (OSError,ValueError,TypeError):coord_cache={}
+ pending=[]
+ for chain,street,city,state,code in RETAILER_PUBLISHED_STORES:
+  key=(street+', '+city+', '+state+' '+code).lower()
+  if key not in coord_cache and code in known and store_distance(lat,lon,*known[code])<=radius+3:
+   pending.append((key,street+', '+city+', '+state+' '+code))
+ changed=False
+ for key,address in pending[:3]:
+  try:
+   url='https://geocoding.geo.census.gov/geocoder/geographies/onelineaddress?'+urllib.parse.urlencode({'address':address,'benchmark':'Public_AR_Current','vintage':'Current_Current','format':'json'})
+   req=urllib.request.Request(url,headers={'User-Agent':'HelloGroceries/1.0'})
+   with urllib.request.urlopen(req,timeout=3) as response:geo=json.load(response)
+   candidates=geo.get('result',{}).get('addressMatches',[])
+   if candidates:
+    point=candidates[0]['coordinates']
+    glat,glon=float(point['y']),float(point['x'])
+    if -125<=glon<=-66 and 24<=glat<=50:
+     coord_cache[key]=[glat,glon];changed=True
+  except (OSError,ValueError,TypeError,KeyError,IndexError) as error:
+   print('Store address geocoding unavailable:',repr(error),flush=True)
+ if changed:
+  try:
+   tmp=coord_file.with_suffix('.tmp');tmp.write_text(json.dumps(coord_cache));os.replace(tmp,coord_file)
+  except OSError as error:print('Store coordinate cache write failed:',repr(error),flush=True)
  for chain,street,city,state,code in RETAILER_PUBLISHED_STORES:
   if code not in known:continue
-  distance=store_distance(lat,lon,*known[code])
+  key=(street+', '+city+', '+state+' '+code).lower()
+  coords=coord_cache.get(key) or known[code]
+  precise=key in coord_cache
+  distance=store_distance(lat,lon,*coords)
   # ZIP centroid is an approximation: allow a small margin at the radius boundary.
-  if distance>radius+2:continue
-  matches.append({'id':'retailer-published-'+re.sub(r'[^a-z0-9]','-',(chain+'-'+street+'-'+code).lower()),'chain':chain,'name':chain,'address':street+', '+city+', '+state+' '+code,'distance_miles':round(distance,1),'distance_approximate':True})
+  if distance>radius+(0 if precise else 2):continue
+  matches.append({'id':'retailer-published-'+re.sub(r'[^a-z0-9]','-',(chain+'-'+street+'-'+code).lower()),'chain':chain,'name':chain,'address':street+', '+city+', '+state+' '+code,'distance_miles':round(distance,1),'distance_approximate':not precise})
  return matches
 
 def merge_store_results(*groups):
