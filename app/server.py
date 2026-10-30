@@ -587,6 +587,7 @@ class Handler(SimpleHTTPRequestHandler):
   if self.path=='/api/recipes':return self.sendjson(allrecipes())
   if self.path=='/api/state':return self.sendjson(read())
   if self.path=='/api/backup':
+   if not getattr(request_scope,'admin',False):return self.sendjson({'error':'Administrator required'},403)
    with lock:
     with db() as conn:
      data={'version':1,'exported_at':datetime.datetime.now(datetime.timezone.utc).isoformat(),'state':read(),'imported':[dict(url=u,payload=json.loads(v)) for u,v in conn.execute('SELECT url,payload FROM imported')],'photos':[dict(recipe_id=i,image_url=u) for i,u in conn.execute('SELECT recipe_id,image_url FROM photos')]}
