@@ -344,7 +344,7 @@ except (OSError,ValueError,TypeError,IndexError):pass
 def store_cache_save(cache_key,result):
  result['cache_version']=STORE_CACHE_VERSION
  with STORE_CACHE_LOCK:
-  STORE_CACHE[zipcode]=(time.time(),result)
+  STORE_CACHE[cache_key]=(time.time(),result)
   try:
    tmp=STORE_CACHE_FILE.with_suffix('.tmp')
    tmp.write_text(json.dumps({key:[ts,data] for key,(ts,data) in STORE_CACHE.items() if time.time()-ts<STORE_CACHE_STALE_TTL}))
