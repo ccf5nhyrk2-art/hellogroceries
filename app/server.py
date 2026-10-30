@@ -333,6 +333,7 @@ def save(state):
 STORE_CACHE={};STORE_CACHE_LOCK=threading.Lock()
 STORE_CACHE_FILE=Path('/data/store_lookup_cache.json')
 STORE_CACHE_TTL=21600
+STORE_CACHE_VERSION=2
 STORE_CACHE_STALE_TTL=30*86400
 try:
  raw_cache=json.loads(STORE_CACHE_FILE.read_text())
@@ -341,6 +342,7 @@ try:
 except (OSError,ValueError,TypeError,IndexError):pass
 
 def store_cache_save(zipcode,result):
+ result['cache_version']=STORE_CACHE_VERSION
  with STORE_CACHE_LOCK:
   STORE_CACHE[zipcode]=(time.time(),result)
   try:
@@ -351,7 +353,7 @@ def store_cache_save(zipcode,result):
 
 def store_cache_stale(zipcode):
  with STORE_CACHE_LOCK:cached=STORE_CACHE.get(zipcode)
- if cached and time.time()-cached[0]<STORE_CACHE_STALE_TTL:
+ if cached and time.time()-cached[0]<STORE_CACHE_STALE_TTL and cached[1].get('cache_version')==STORE_CACHE_VERSION:
   result=dict(cached[1]);result['stale']=True
   result['note']='Showing previously found stores (cached results); live store directories are unavailable.'
   return result
@@ -472,7 +474,7 @@ def merge_store_results(*groups):
 def nearby_stores(zipcode):
  if not re.fullmatch(r'[0-9]{5}',zipcode):raise ValueError('Enter a valid five-digit US ZIP code')
  with STORE_CACHE_LOCK:cached=STORE_CACHE.get(zipcode)
- if cached and time.time()-cached[0]<STORE_CACHE_TTL:return cached[1]
+ if cached and time.time()-cached[0]<STORE_CACHE_TTL and cached[1].get('cache_version')==STORE_CACHE_VERSION:return cached[1]
  headers={'User-Agent':'HelloGroceries/1.0 (self-hosted grocery planner)','Accept':'application/json'}
  def getjson(url):
   with urllib.request.urlopen(urllib.request.Request(url,headers=headers),timeout=6) as resp:return json.load(resp)
