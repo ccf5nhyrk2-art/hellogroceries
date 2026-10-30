@@ -507,7 +507,7 @@ class Handler(SimpleHTTPRequestHandler):
    size=int(self.headers.get('Content-Length','0'))
    if size<1 or size>25000000:return self.sendjson({'error':'Too large (25 MB maximum)'},413)
    p=json.loads(self.rfile.read(size));action=p['action']
-   if action in ('start-us-import','pause-bulk','resume-bulk','restore-backup','import','bulk-import','set-photo') and not getattr(request_scope,'admin',False):
+   if action in ('start-us-import','pause-bulk','resume-bulk','restore-backup','import','bulk','photo') and not getattr(request_scope,'admin',False):
     return self.sendjson({'error':'Administrator required'},403)
    if action=='start-us-import':return self.sendjson(start_us_import())
    if action=='pause-bulk':
