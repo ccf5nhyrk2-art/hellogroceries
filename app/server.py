@@ -632,7 +632,16 @@ class Handler(SimpleHTTPRequestHandler):
     print('Store lookup failed:',repr(error),flush=True)
     return self.sendjson({'error':'Store lookup could not reach the directory services. Check the HelloGroceries container logs for DNS or network errors.'},503)
   if self.path=='/api/recipes':return self.sendjson(allrecipes())
-  if self.path=='/api/state':return self.sendjson(read())
+  if self.path=='/api/state':
+   with lock:
+    state=read()
+    # Repair lists saved before automatic generation was introduced.
+    if state.get('selected') and not state.get('list'):
+     rebuild_grocery_list(state)
+     if state.get('list'):
+      state['revision']=state.get('revision',0)+1
+      save(state)
+    return self.sendjson(state)
   if self.path=='/api/backup':
    if not getattr(request_scope,'admin',False):return self.sendjson({'error':'Administrator required'},403)
    with lock:
@@ -859,7 +868,12 @@ class Handler(SimpleHTTPRequestHandler):
      if found is None:raise ValueError('Unknown item')
      found['purchased']=bool(p['purchased'])
     else:raise ValueError('Unknown action')
-    if action=='select':rebuild_grocery_list(state)
+    if action=='select':
+     rebuild_grocery_list(state)
+     if p.get('checked') and not state['list']:
+      selected_recipes=[r for r in allrecipes() if str(r['id']) in state['selected']]
+      if selected_recipes and not any(r.get('ingredients') for r in selected_recipes):
+       return self.sendjson({'error':'Selected recipes have no ingredient data. Try another recipe or import one with ingredients.'},422)
     if action=='preview_grocery':return self.sendjson({'items':state['list']})
     state['revision']+=1;save(state)
    return self.sendjson(state)
