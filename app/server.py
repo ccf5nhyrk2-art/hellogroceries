@@ -1061,6 +1061,12 @@ class Handler(SimpleHTTPRequestHandler):
     return self.sendjson({'available':False,'message':'Progress temporarily unavailable'})
   if self.path.startswith('/api/'):return self.sendjson({'error':'Not found'},404)
   return super().do_GET()
+ def end_headers(self):
+  # Static HTML/JS must be revalidated after a container image update.
+  path=urllib.parse.urlsplit(self.path).path
+  if path in ('/','/index.html','/auth.html') or path.endswith(('.js','.css')):
+   self.send_header('Cache-Control','no-cache, must-revalidate')
+  super().end_headers()
  def do_POST(self):
   request_scope.household_id=None
   if self.path in ('/api/auth/setup','/api/auth/login','/api/auth/register'):return self.auth_post()
