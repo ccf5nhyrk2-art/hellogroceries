@@ -1,6 +1,24 @@
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="referrer" content="no-referrer"><title>HelloGroceries — Account</title>
-<style>body{font:16px system-ui;background:#f4f7f5;color:#17251c;display:grid;place-items:center;min-height:95vh}main{background:white;padding:2rem;max-width:420px;width:85%;border-radius:16px;box-shadow:0 8px 30px #0001}input,button{box-sizing:border-box;width:100%;padding:12px;margin:8px 0;border:1px solid #aaa;border-radius:8px}button{background:#18734b;color:white;border:0;cursor:pointer}#error{color:#a00}</style></head>
+<style>body{font:16px system-ui;background:#f4f7f5;color:#17251c;display:grid;place-items:center;min-height:95vh}main{background:white;padding:2rem;max-width:420px;width:85%;border-radius:16px;box-shadow:0 8px 30px #0001}input,button{box-sizing:border-box;width:100%;padding:12px;margin:8px 0;border:1px solid #aaa;border-radius:8px}button{background:#18734b;color:white;border:0;cursor:pointer}#error{color:#a00}
+/* Shared dark theme */
+html[data-theme="dark"]{color-scheme:dark}
+html[data-theme="dark"],html[data-theme="dark"] body{background:#101b17!important;color:#e7f2eb!important}
+html[data-theme="dark"] main,html[data-theme="dark"] section,html[data-theme="dark"] .account-card,html[data-theme="dark"] .recipe-card,html[data-theme="dark"] .row,html[data-theme="dark"] article,html[data-theme="dark"] details,html[data-theme="dark"] .card{background-color:#192a22!important;color:#e7f2eb!important;border-color:#365347!important}
+html[data-theme="dark"] input,html[data-theme="dark"] select,html[data-theme="dark"] textarea{background:#20352a!important;color:#f1faf4!important;border-color:#54715e!important}
+html[data-theme="dark"] input::placeholder,html[data-theme="dark"] textarea::placeholder{color:#b4c6ba!important}
+html[data-theme="dark"] .muted,html[data-theme="dark"] .account-meta,html[data-theme="dark"] .account-count,html[data-theme="dark"] .status,html[data-theme="dark"] .done{color:#bacfc1!important}
+html[data-theme="dark"] a{color:#91e7b4}
+html[data-theme="dark"] .button-secondary,html[data-theme="dark"] button.clear,html[data-theme="dark"] .photo-edit,html[data-theme="dark"] .tag{background:#294a38!important;color:#e6f6eb!important;border-color:#456c52!important}
+html[data-theme="dark"] .button-danger{background:#482b2b!important;color:#ffb9b5!important;border-color:#8e5250!important}
+html[data-theme="dark"] .tag.admin{background:#273e5b!important;color:#c0dbff!important}
+html[data-theme="dark"] .tag.never{background:#303d35!important;color:#d0ded4!important}
+html[data-theme="dark"] .error,html[data-theme="dark"] #error{color:#ffaaa7!important}
+html[data-theme="dark"] .recipe-photo,html[data-theme="dark"] .photo-placeholder{background:#263a30!important}
+html[data-theme="dark"] .row,html[data-theme="dark"] .section{border-color:#365347!important}
+#hg-theme-toggle{position:fixed;right:16px;bottom:16px;z-index:9999;background:#176b4a;color:white;border:1px solid #91b9a0;border-radius:999px;padding:10px 14px;font:600 14px system-ui;box-shadow:0 3px 14px #0004;cursor:pointer}
+#hg-theme-toggle:focus-visible{outline:3px solid #e0bd66;outline-offset:3px}
+</style><script>(function(){try{var t=localStorage.getItem('hg-theme');document.documentElement.dataset.theme=t==='dark'||(t!=='light'&&matchMedia('(prefers-color-scheme: dark)').matches)?'dark':'light'}catch(e){document.documentElement.dataset.theme='light'}})();</script></head>
 <body><main><h1>HelloGroceries</h1><p id="mode">Checking your account…</p><form id="form" hidden><input type="email" id="email" placeholder="Email" autocomplete="email" required><input type="password" id="password" placeholder="Password (12+ characters)" autocomplete="new-password" required minlength="12"><section id="household-section" hidden><input id="household" placeholder="Household name" maxlength="80"></section><button id="submit">Continue</button></form><p id="error" role="alert"></p><p id="switch" hidden><button type="button" id="toggle">Request an account</button></p></main>
 <script>
 const $=id=>document.getElementById(id);
@@ -42,4 +60,4 @@ $('toggle').onclick=()=>{
  $('error').textContent='';$('error').style.color='#a00';
 };
 initialize();
-</script></body></html>
+</script><script>(function(){const b=document.createElement('button');b.id='hg-theme-toggle';b.type='button';b.setAttribute('aria-label','Toggle light and dark mode');function sync(){const dark=document.documentElement.dataset.theme==='dark';b.textContent=dark?'☀ Light mode':'☾ Dark mode';b.setAttribute('aria-pressed',String(dark))}b.addEventListener('click',()=>{const theme=document.documentElement.dataset.theme==='dark'?'light':'dark';document.documentElement.dataset.theme=theme;try{localStorage.setItem('hg-theme',theme)}catch(e){}sync()});document.body.appendChild(b);sync()})()</script></body></html>
