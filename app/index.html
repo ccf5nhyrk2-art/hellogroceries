@@ -222,6 +222,8 @@ function mealGroup(r){const n=(r.name||'').toLowerCase();if(/pasta|spaghetti|lin
 // Name-based filter: hides obvious add-ons without altering saved recipes.
 function cleanRecipeName(name){
   let n=String(name||'').trim();
+  // Catalog imports may prefix titles with YYYY-Www-NNN (not only YYYY-Www-Rnn).
+  n=n.replace(/^20\\d{2}[-_ ]?W\\d{1,2}[-_ ]?\\d{1,4}\\s*[:–—-]?\\s*/i,'');
   n=n.replace(/^20[0-9]{2}\s*W[0-9]{1,2}\s*R\b\s*(?:with\s+)?/i,'');
   for(let i=0;i<8;i++){
     const prev=n;
@@ -808,7 +810,8 @@ function hfImageLoaded(img,id){
    }
    hfBrokenPhotos.set(String(id),{id:String(id),name:(recipes.find(r=>String(r.id)===String(id))||{}).name||'',url:img.src,reason:'Generic HelloFresh logo'});
    img.style.display='none';
-   if(img.nextElementSibling)img.nextElementSibling.style.display='grid';
+   const placeholder=img.parentElement?.querySelector('.photo-placeholder');
+  if(placeholder)placeholder.style.display='grid';
    hfUpdatePhotoAudit();
   }
  }catch(err){/* Keep images if the browser cannot inspect them. */}
