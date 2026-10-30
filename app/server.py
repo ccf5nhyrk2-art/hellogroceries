@@ -948,12 +948,17 @@ def reef_refresh_batch(zipcode,items):
    if not products:continue
    # Prefer a close name match; preserve actual package size rather than normalize unsupported units.
    normalized=reef_normalize_item(item)
-   aliases={'spice':'seasoning','blend':'seasoning'}
-   tokens=set(aliases.get(t,t) for t in re.findall(r'[a-z0-9]+',normalized))-{'and','of','the','fresh'}
+   aliases={'spices':'spice','seasonings':'seasoning','tomatoes':'tomato','potatoes':'potato','onions':'onion','lemons':'lemon','limes':'lime','beans':'bean','peppers':'pepper','chillies':'chili','chilies':'chili','chilli':'chili','scallions':'scallion','cucumbers':'cucumber','shallots':'shallot','cloves':'clove'}
+   ignored={'and','of','the','fresh','unit','units','tablespoon','tablespoons','teaspoon','teaspoons','cup','cups','ounce','ounces','oz','lb','lbs','pound','pounds'}
+   def tokens_for(value):
+    return {aliases.get(t,t) for t in re.findall(r'[a-z0-9]+',value.casefold()) if t not in ignored}
+   tokens=tokens_for(normalized)
    def rank(p):
-    words=set(aliases.get(t,t) for t in re.findall(r'[a-z0-9]+',p['name'].casefold()))
-    return (len(tokens&words)/max(1,len(tokens)), -len(words))
+    words=tokens_for(p['name'])
+    overlap=len(tokens&words)
+    return (overlap/max(1,len(tokens)),overlap,-len(words))
    best=max(products,key=rank)
+   # Require the distinctive ingredient words to appear; do not substitute unrelated products.
    if tokens and rank(best)[0]<0.5:continue
    matches.append({'chain':chain,'price':best['price'],'unit':best['size'],'product':best['name'],'checked_at':datetime.datetime.now(datetime.timezone.utc).isoformat()})
   with REEF_CACHE_LOCK:
