@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="referrer" content="no-referrer"><title>HelloGroceries — Account</title>
 <style>body{font:16px system-ui;background:#f4f7f5;color:#17251c;display:grid;place-items:center;min-height:95vh}main{background:white;padding:2rem;max-width:420px;width:85%;border-radius:16px;box-shadow:0 8px 30px #0001}input,button{box-sizing:border-box;width:100%;padding:12px;margin:8px 0;border:1px solid #aaa;border-radius:8px}button{background:#18734b;color:white;border:0;cursor:pointer}#error{color:#a00}</style></head>
-<body><main><h1>HelloGroceries</h1><p id="mode">Checking your account…</p><form id="form" hidden><input type="email" id="email" placeholder="Email" autocomplete="email" required><input type="password" id="password" placeholder="Password (12+ characters)" autocomplete="new-password" required minlength="12"><section id="household-section" hidden><input id="household" placeholder="Household name" maxlength="80"></section><button id="submit">Continue</button></form><p id="error" role="alert"></p></main>
+<body><main><h1>HelloGroceries</h1><p id="mode">Checking your account…</p><form id="form" hidden><input type="email" id="email" placeholder="Email" autocomplete="email" required><input type="password" id="password" placeholder="Password (12+ characters)" autocomplete="new-password" required minlength="12"><section id="household-section" hidden><input id="household" placeholder="Household name" maxlength="80"></section><button id="submit">Continue</button></form><p id="error" role="alert"></p><p id="switch" hidden><button type="button" id="toggle">Request an account</button></p></main>
 <script>
 const $=id=>document.getElementById(id);
 const fragment=new URLSearchParams(location.hash.slice(1));
@@ -15,6 +15,7 @@ async function initialize(){
   mode=invite?'redeem':s.setup_required?'setup':'login';
   $('mode').textContent={redeem:'Accept your household invitation',setup:'Create the first administrator account',login:'Sign in to your household'}[mode];
   $('household-section').hidden=mode==='login';
+  $('switch').hidden=mode==='setup'||mode==='redeem';
   $('password').autocomplete=mode==='login'?'current-password':'new-password';
   $('form').hidden=false;
  }catch(e){$('error').textContent='Unable to check account status'}
@@ -24,12 +25,21 @@ $('form').onsubmit=async e=>{
  const data={email:$('email').value,password:$('password').value};
  if(mode!=='login')data.household=$('household').value;
  if(mode==='redeem')data.token=invite;
- const endpoint={redeem:'/api/auth/redeem',setup:'/api/auth/setup',login:'/api/auth/login'}[mode];
+ const endpoint={redeem:'/api/auth/redeem',setup:'/api/auth/setup',login:'/api/auth/login',register:'/api/auth/register'}[mode];
  try{
   const r=await fetch(endpoint,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
   const j=await r.json();if(!r.ok)throw Error(j.error||'Unable to sign in');
+  if(mode==='register'){$('error').style.color='#176b4a';$('error').textContent=j.message;return}
   location.replace('/');
  }catch(e){$('error').textContent=e.message}
+};
+$('toggle').onclick=()=>{
+ mode=mode==='login'?'register':'login';
+ $('mode').textContent=mode==='register'?'Request an account (administrator approval required)':'Sign in to your household';
+ $('household-section').hidden=mode==='login';
+ $('password').autocomplete=mode==='login'?'current-password':'new-password';
+ $('toggle').textContent=mode==='login'?'Request an account':'Already have an account? Sign in';
+ $('error').textContent='';$('error').style.color='#a00';
 };
 initialize();
 </script></body></html>
