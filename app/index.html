@@ -868,7 +868,26 @@ function groceryBreakdownMarkup(items){
  return entries.map(x=>'<div class="grocery-source"><strong>'+esc(x.recipe)+'</strong><div>'+esc(x.scaled)+(x.scaledNote?' · '+esc(x.scaledNote):'')+'</div><small>Recipe ingredient: '+esc(x.name)+' · '+esc(groceryNumber(x.scale))+'× selected'+(x.scale!==1?' · original: '+esc(x.original):'')+'</small></div>').join('')+
  manual.map(name=>'<div class="grocery-source"><strong>Manually added</strong><div>'+esc(name)+'</div></div>').join('');
 }
+function shoppingPriceFor(names){
+ const store=getPreferredStore();if(!store)return null;
+ const key=storeKey(store),label=store.chain+' — '+(store.address||store.name);
+ const manual=storedPrices().filter(x=>x.key===key);
+ const today=new Date().toISOString().slice(0,10);
+ const offers=[...saleOffers(),...regionalAutoOffers].filter(x=>x.expires>=today&&(x.store===label||(x.regional&&x.store===store.chain)));
+ for(const name of names){const saved=manual.find(x=>x.item.toLowerCase()===name.toLowerCase());if(saved&&Number(saved.price)>0)return {price:Number(saved.price),unit:saved.unit,kind:'Saved store price'}}
+ const matching=offers.filter(x=>Number(x.price)>0&&names.some(name=>saleMatches(x.item,name))).sort((a,b)=>Number(a.price)-Number(b.price));
+ return matching.length?{price:Number(matching[0].price),unit:matching[0].unit,kind:'Verified weekly-ad offer'}:null;
+}
+function updateShoppingPriceSummary(priced,total,count){
+ const items=$('items');if(!items)return;
+ let summary=$('shopping-price-summary');
+ if(!summary){summary=document.createElement('div');summary.id='shopping-price-summary';summary.className='enhance-panel';summary.style.marginBottom='12px';items.parentElement.insertBefore(summary,items)}
+ const store=getPreferredStore();
+ if(!store){summary.innerHTML='<strong>Store pricing</strong><p class="muted">Choose a preferred store in Nearby stores to see ingredient prices here.</p>';return}
+ summary.innerHTML='<strong>'+esc(store.chain)+' shopping prices</strong><p><strong>Partial subtotal: $'+total.toFixed(2)+'</strong> · '+priced+' of '+count+' items priced</p><p class="muted">One listed unit per item; quantities, package differences, taxes and missing prices are excluded. Not a checkout estimate.</p>';
+}
 function renderShoppingList(){
+ let pricedCount=0,priceTotal=0,itemCount=0;
  const groups=new Map();
  for(const item of state.list||[]){
   const override=(state.ingredient_overrides||{})[item.name];
@@ -887,10 +906,15 @@ function renderShoppingList(){
    const sourceCount=x.items.reduce((n,i)=>n+(Array.isArray(i.sources)?i.sources.length:0),0)||groceryRecipeBreakdown(x.items).length;
    const sourceText=sourceCount?'Used in '+sourceCount+' '+(sourceCount===1?'recipe':'recipes'):'View item sources';
    const review=x.items.some(shoppingNeedsReview);
-   return '<div class="grocery-item-wrap"><div class="row grocery-row"><input type="checkbox" data-items="'+esc(JSON.stringify(names))+'" '+(purchased?'checked':'')+'><div class="grocery-description"><label class="'+(purchased?'done':'')+'">'+esc(label)+'</label>'+(review?'<span class="grocery-note">⚠ Quantity or unit needs confirmation</span>':'')+(note?'<span class="grocery-note">'+esc(note)+'</span>':'')+'</div><button type="button" data-edit-item="'+esc(first.name)+'">Edit</button></div><details class="grocery-breakdown"><summary>'+esc(sourceText)+'</summary><div class="grocery-breakdown-content">'+groceryBreakdownMarkup(x.items)+'</div></details></div>';
+   const storePrice=shoppingPriceFor(names);
+   itemCount++;
+   if(storePrice){pricedCount++;priceTotal+=storePrice.price}
+   const priceMarkup=storePrice?'<span class="grocery-note" title="'+esc(storePrice.kind)+'">$'+storePrice.price.toFixed(2)+' / '+esc(storePrice.unit)+' · '+esc(storePrice.kind)+'</span>':'<span class="grocery-note">Price unavailable</span>';
+   return '<div class="grocery-item-wrap"><div class="row grocery-row"><input type="checkbox" data-items="'+esc(JSON.stringify(names))+'" '+(purchased?'checked':'')+'><div class="grocery-description"><label class="'+(purchased?'done':'')+'">'+esc(label)+'</label>'+(review?'<span class="grocery-note">⚠ Quantity or unit needs confirmation</span>':'')+(note?'<span class="grocery-note">'+esc(note)+'</span>':'')+priceMarkup+'</div><button type="button" data-edit-item="'+esc(first.name)+'">Edit</button></div><details class="grocery-breakdown"><summary>'+esc(sourceText)+'</summary><div class="grocery-breakdown-content">'+groceryBreakdownMarkup(x.items)+'</div></details></div>';
   }).join('');
   return '<details class="shopping-department" data-department="'+esc(group)+'" '+(shoppingOpenDepartments.has(group)?'open':'')+'><summary><span>'+symbol+' '+esc(group)+'</span><span class="department-count">'+done+' of '+entries.length+' purchased</span></summary><div class="department-items">'+rows+'</div></details>';
  }).join('')||'<p class="muted">'+(Object.keys(state.selected||{}).length?'Your selected meals have not produced grocery items. Check that the recipes contain ingredients and that none are excluded by your pantry; try reselecting a meal.':'No meals selected yet. Add a meal to your plan to automatically populate Shop.')+'</p>';
+ updateShoppingPriceSummary(pricedCount,priceTotal,itemCount);
 }
 const glutenIngredientPattern=/\b(wheat|flour|breadcrumbs?|bread|buns?|panko|pasta|spaghetti|linguine|penne|noodles?|couscous|bulgur|semolina|farro|barley|rye|seitan|tortillas?|pita|naan|gnocchi|orzo|soy sauce|teriyaki|hoisin|malt|beer|croutons?|pretzels?|wonton|dumplings?)\b/i;
 const dairyIngredientPattern=/\b(milk|cheese|cheddar|mozzarella|parmesan|feta|ricotta|cream|creme fraiche|crème fraîche|butter|ghee|yogurt|yoghurt|sour cream|buttermilk|whey|casein|half.and.half|mascarpone|queso|paneer|halloumi|ranch dressing|alfredo)\b/i;
