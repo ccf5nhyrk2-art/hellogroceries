@@ -803,7 +803,11 @@ class Handler(SimpleHTTPRequestHandler):
      rid=str(int(p['id']));servings=float(p.get('servings',1))
      if not (0<servings<=20):raise ValueError('Serving multiplier must be 0–20')
      if rid not in {str(r['id']) for r in allrecipes()}:raise ValueError('Unknown recipe')
-     if p.get('checked'):state['selected'][rid]=servings
+     if p.get('checked'):
+      recipe=next((r for r in allrecipes() if str(r['id'])==rid),None)
+      if not recipe or not isinstance(recipe.get('ingredients'),dict) or not any(isinstance(name,str) and name.strip() and isinstance(qty,(int,float)) and qty>0 for name,qty in recipe['ingredients'].items()):
+       raise ValueError('This recipe has no usable ingredients, so it cannot populate Shop. Import a recipe with ingredient data or choose another meal.')
+      state['selected'][rid]=servings
      else:state['selected'].pop(rid,None)
     elif action=='correct_recipe_ingredient':
      rid=p.get('recipe_id');original=p.get('original')
