@@ -203,6 +203,28 @@ def allowed_url(url):
  host=(u.hostname or '').lower()
  return u.scheme=='https' and (host=='hellofresh.com' or host.startswith('hellofresh.') or host.endswith('.hellofresh.com') or host.endswith('.hellofresh.co.uk') or host.endswith('.hellofresh.com.au') or host.endswith('.hellofresh.co.nz')) and not u.username and not u.password
 
+def nutrition_fallback(page):
+ # Parse embedded HelloFresh nutrition arrays without inferring missing values.
+ fields={'energyKcal':'calories','calories':'calories','protein':'proteinContent','carbohydrate':'carbohydrateContent','fat':'fatContent','fiber':'fiberContent','sugar':'sugarContent','sodium':'sodiumContent','saturatedFat':'saturatedFatContent'}
+ output={}
+ for match in re.finditer(r'"(?:nutrition|nutritionalValues|nutritionalInformation)"\\s*:\\s*(\\[[^\\]\\n]{0,12000}\\]|\\{[^}\\n]{0,12000}\\})',page,re.I):
+  try:data=json.loads(match.group(1))
+  except (ValueError,TypeError):continue
+  if isinstance(data,dict):data=[dict(name=k,amount=v) for k,v in data.items()]
+  if not isinstance(data,list):continue
+  for item in data:
+   if not isinstance(item,dict):continue
+   name=str(item.get('name') or item.get('type') or item.get('key') or '').rsplit('.',1)[-1]
+   key=fields.get(name)
+   if not key:continue
+   value=item.get('amount',item.get('value'))
+   unit=item.get('unit','')
+   if isinstance(value,dict):value=value.get('amount',value.get('value'))
+   if isinstance(value,(int,float,str)) and str(value).strip() and len(str(value))<30:
+    output[key]=str(value).strip()+(' '+str(unit).strip() if unit else '')
+  if output:return output
+ return {}
+
 def recipe_from_url(url):
  if not allowed_url(url):raise ValueError('Only public HTTPS HelloFresh recipe URLs are supported')
  req=urllib.request.Request(url,headers={'User-Agent':'Mozilla/5.0 (compatible; PersonalRecipeImporter/1.0)'})
@@ -244,6 +266,7 @@ def recipe_from_url(url):
    value=source_nutrition.get(key)
    if isinstance(value,(str,int,float)) and 0<len(str(value).strip())<=70:
     nutrition[key]=str(value).strip()
+ if not nutrition:nutrition=nutrition_fallback(raw)
  diet_labels=[]
  diet=found.get('suitableForDiet',[])
  if isinstance(diet,str):diet=[diet]
@@ -1399,7 +1422,7 @@ class Handler(SimpleHTTPRequestHandler):
     with db() as conn:
      rows=conn.execute('SELECT id,url,payload FROM imported WHERE id>? ORDER BY id LIMIT 3',(cursor,)).fetchall()
      total=conn.execute('SELECT COUNT(*) FROM imported').fetchone()[0]
-    updated=skipped=failed=0
+    updated=skipped=failed=missing=0
     errors=[]
     for rid,url,payload in rows:
      try:
@@ -1411,7 +1434,7 @@ class Handler(SimpleHTTPRequestHandler):
       nutrition=fresh.get('nutrition') or {}
       labels=fresh.get('dietary_labels') or []
       if not nutrition and not labels:
-       failed+=1
+       missing+=1
        errors.append(str(rid)+': No source nutrition found')
        continue
       original['nutrition']=nutrition
@@ -1424,7 +1447,7 @@ class Handler(SimpleHTTPRequestHandler):
       errors.append(str(rid)+': '+str(exc)[:120])
     next_cursor=rows[-1][0] if rows else cursor
     with db() as conn:remaining=conn.execute('SELECT COUNT(*) FROM imported WHERE id>?',(next_cursor,)).fetchone()[0]
-    return self.sendjson({'ok':True,'cursor':next_cursor,'total':total,'processed':total-remaining,'updated':updated,'skipped':skipped,'failed':failed,'errors':errors,'done':remaining==0})
+    return self.sendjson({'ok':True,'cursor':next_cursor,'total':total,'processed':total-remaining,'updated':updated,'skipped':skipped,'failed':failed,'missing':missing,'errors':errors,'done':remaining==0})
    except (ValueError,TypeError) as exc:return self.sendjson({'error':str(exc)},400)
   if self.path=='/api/nutrition-refresh':
    if not self.gate(write=True):return
