@@ -241,10 +241,26 @@ let initialPage='all';
 try{initialPage=localStorage.getItem(PAGE_VIEW_KEY)||(localStorage.getItem('hellogroceries-shopping-only')==='1'?'shopping':'all')}catch(e){}
 showPage(initialPage);
 
+const PREFERRED_STORE_KEY='hellogroceries-preferred-store-v1';
+function getPreferredStore(){try{return JSON.parse(localStorage.getItem(PREFERRED_STORE_KEY)||'null')}catch(e){return null}}
+function storeKey(x){return [x.chain||'',x.name||'',x.address||''].join('|').toLowerCase()}
 function renderStoreResults(data){
- const root=$('store-results');const stores=data.stores||[];
- root.innerHTML=stores.length?stores.map(x=>'<div class="row"><div><strong>'+esc(x.chain)+'</strong> — '+esc(x.name)+'<div class="muted">'+esc(x.address||'Address unavailable')+' · '+esc(x.distance_miles)+' miles</div></div></div>').join(''):'No matching stores found within 10 miles. Store directory coverage may be incomplete.';
- $('store-status').textContent=stores.length+' matching locations near '+data.zip;
+ const root=$('store-results'),stores=data.stores||[],preferred=getPreferredStore();
+ const header='<div class="muted" style="margin:10px 0">Choose a preferred store. Compare nearby locations below; verified weekly sale prices are not connected yet.</div>';
+ root.innerHTML=header+(stores.length?stores.map((x,i)=>{
+  const selected=preferred&&storeKey(preferred)===storeKey(x);
+  const address=x.address||'';
+  const destination=address||[x.name,x.chain,data.zip].filter(Boolean).join(', ');
+  const google='https://www.google.com/maps/search/?api=1&query='+encodeURIComponent(destination);
+  const apple='https://maps.apple.com/?q='+encodeURIComponent(destination);
+  return '<div class="row" style="align-items:flex-start;gap:12px"><div style="flex:1;min-width:0"><strong>'+esc(x.chain)+'</strong> — '+esc(x.name)+'<div class="muted">'+esc(address||'Address unavailable')+' · '+esc(x.distance_miles)+' miles</div><div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:6px"><a href="'+google+'" target="_blank" rel="noopener noreferrer">Google Maps</a><a href="'+apple+'" target="_blank" rel="noopener noreferrer">Apple Maps</a></div></div><button type="button" data-preferred-store="'+i+'" aria-pressed="'+(selected?'true':'false')+'">'+(selected?'✓ Preferred':'Select store')+'</button></div>';
+ }).join(''):'No matching stores found within 10 miles. Store directory coverage may be incomplete.');
+ $('store-status').textContent=stores.length+' matching locations near '+data.zip+(data.source?' · '+data.source:'')+(data.stale?' · cached results':'');
+ root.querySelectorAll('[data-preferred-store]').forEach(button=>button.addEventListener('click',()=>{
+  const item=stores[Number(button.dataset.preferredStore)];
+  try{localStorage.setItem(PREFERRED_STORE_KEY,JSON.stringify({chain:item.chain,name:item.name,address:item.address||'',id:item.id||''}))}catch(e){}
+  renderStoreResults(data);
+ }));
 }
 let storeLookupSequence=0;
 async function lookupStores(zip){
