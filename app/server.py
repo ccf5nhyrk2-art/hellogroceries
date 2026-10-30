@@ -333,7 +333,7 @@ def save(state):
 STORE_CACHE={};STORE_CACHE_LOCK=threading.Lock()
 STORE_CACHE_FILE=Path('/data/store_lookup_cache.json')
 STORE_CACHE_TTL=21600
-STORE_CACHE_VERSION=5
+STORE_CACHE_VERSION=6
 STORE_CACHE_STALE_TTL=30*86400
 try:
  raw_cache=json.loads(STORE_CACHE_FILE.read_text())
@@ -460,11 +460,63 @@ def retailer_nearby(lat,lon,radius=10):
 
 # Supplement incomplete map datasets with retailer-published location addresses.
 # ZIP centroids are approximate; exact street coordinates are not claimed.
-# Store discovery is data-driven: no city-specific hardcoded location lists.
-# The directory exports and OpenStreetMap supply real coordinates.
+RETAILER_PUBLISHED_STORES=[
+ ('Price Chopper','109 N Cedar St','Belton','MO','64012'),
+ ('Price Chopper','900 W Foxwood Dr','Raymore','MO','64083'),
+ ('Price Chopper','501 Schug Ave','Peculiar','MO','64078'),
+ ('Price Chopper','12220 S 71 Hwy','Grandview','MO','64030'),
+ ('Price Chopper','520 S Commercial St','Harrisonville','MO','64701'),
+ ('Price Chopper','937 NE Woods Chapel Rd',"Lee's Summit",'MO','64064'),
+ ('Price Chopper','251 SW Greenwich Dr',"Lee's Summit",'MO','64082'),
+ ('Price Chopper','8430 Wornall Rd','Kansas City','MO','64114'),
+ ('Price Chopper','1030 W 103rd St','Kansas City','MO','64114'),
+ ('Price Chopper','3700 W 95th St','Leawood','KS','66206'),
+ ('Price Chopper','7418 W 119th St','Overland Park','KS','66213'),
+ ('Price Chopper','7000 W 75th St','Overland Park','KS','66204'),
+ ('Price Chopper','15970 S Murlen Rd','Olathe','KS','66062'),
+ ('Price Chopper','12010 W 63rd St','Shawnee','KS','66216'),
+ ('Price Chopper','4950 Roe Blvd','Roeland Park','KS','66205'),
+ ('Price Chopper','660 E Main St','Gardner','KS','66030'),
+ ('Hen House','15000 W 87th Street Pkwy','Lenexa','KS','66215'),
+ ('Hen House','4050 W 83rd St','Prairie Village','KS','66208'),
+ ('Hen House','11721 Roe Ave','Leawood','KS','66211'),
+ ('Hen House','8120 Parallel Pkwy','Kansas City','KS','66112'),
+ ('Hen House','6950 Mission Rd','Prairie Village','KS','66208'),
+ ('Hen House','13600 S Blackbob Rd','Olathe','KS','66062'),
+ ('Hen House','6900 W 135th St','Overland Park','KS','66223'),
+ ('Hen House','11930 College Blvd','Overland Park','KS','66210'),
+ ('Hen House','2724 W 53rd St','Fairway','KS','66205'),
+ ('Hen House','1904 Southwest Blvd','Jefferson City','MO','65109')
+]
+RETAILER_ZIP_CENTROIDS={}
+RETAILER_ZIP_LOCK=threading.Lock()
 def published_retailer_nearby(lat,lon,radius):
- return []
-
+ # Location list is independent of the searched ZIP, unlike a ZIP-specific patch.
+ with RETAILER_ZIP_LOCK:
+  known=dict(RETAILER_ZIP_CENTROIDS)
+ zips={item[4] for item in RETAILER_PUBLISHED_STORES if item[4] not in known}
+ if zips:
+  from concurrent.futures import ThreadPoolExecutor
+  def lookup_zip(code):
+   try:
+    req=urllib.request.Request('https://api.zippopotam.us/us/'+code,headers={'User-Agent':'HelloGroceries/1.0'})
+    with urllib.request.urlopen(req,timeout=3) as response:data=json.load(response)
+    p=data['places'][0]
+    return code,(float(p['latitude']),float(p['longitude']))
+   except (OSError,ValueError,KeyError,IndexError,TypeError):return code,None
+  with ThreadPoolExecutor(max_workers=8) as pool:
+   for code,coords in pool.map(lookup_zip,sorted(zips)):
+    if coords:
+     with RETAILER_ZIP_LOCK:RETAILER_ZIP_CENTROIDS[code]=coords
+ with RETAILER_ZIP_LOCK:known=dict(RETAILER_ZIP_CENTROIDS)
+ matches=[]
+ for chain,street,city,state,code in RETAILER_PUBLISHED_STORES:
+  if code not in known:continue
+  distance=store_distance(lat,lon,*known[code])
+  # ZIP centroid is an approximation: allow a small margin at the radius boundary.
+  if distance>radius+2:continue
+  matches.append({'id':'retailer-published-'+re.sub(r'[^a-z0-9]','-',(chain+'-'+street+'-'+code).lower()),'chain':chain,'name':chain,'address':street+', '+city+', '+state+' '+code,'distance_miles':round(distance,1),'distance_approximate':True})
+ return matches
 
 def merge_store_results(*groups):
  result=[];seen=set()
