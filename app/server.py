@@ -446,6 +446,42 @@ class Handler(SimpleHTTPRequestHandler):
    self.send_header('Set-Cookie','hg_csrf='+csrf+'; SameSite=Lax; Path=/'+secure)
    self.send_header('Content-Length',str(len(payload)));self.end_headers();self.wfile.write(payload)
   except (ValueError,TypeError,KeyError) as exc:self.sendjson({'error':str(exc)},400)
+ def invite_post(self):
+  if not self.gate(write=True):return
+  if not getattr(request_scope,'admin',False):return self.sendjson({'error':'Administrator required'},403)
+  try:
+   size=int(self.headers.get('Content-Length','0'))
+   if not 0<size<=8192:raise ValueError('Invalid request size')
+   data=json.loads(self.rfile.read(size))
+   with db() as c:
+    token=auth.issue_invite(c,request_scope.user_id,data.get('email'),None)
+    c.commit()
+   return self.sendjson({'token':token,'expires_in_hours':auth.INVITE_HOURS})
+  except (ValueError,TypeError,KeyError) as exc:return self.sendjson({'error':str(exc)},400)
+ def redeem_post(self):
+  origin=self.headers.get('Origin','')
+  host=self.headers.get('Host','')
+  if origin not in ('https://'+host,'http://'+host):return self.sendjson({'error':'Invalid origin'},403)
+  try:
+   size=int(self.headers.get('Content-Length','0'))
+   if not 0<size<=8192:raise ValueError('Invalid request size')
+   data=json.loads(self.rfile.read(size))
+   with db() as c:
+    auth.ensure_schema(c)
+    uid,hid=auth.redeem_invite(c,data.get('token'),data.get('email'),data.get('password'),data.get('household'))
+    session=auth.create_session(c,uid)
+    c.commit()
+   csrf=secrets.token_urlsafe(32)
+   payload=b'{"ok":true}'
+   self.send_response(200)
+   self.send_header('Content-Type','application/json')
+   self.send_header('Cache-Control','no-store')
+   secure='; Secure' if origin.startswith('https://') else ''
+   self.send_header('Set-Cookie','hg_session='+session+'; HttpOnly; SameSite=Lax; Path=/'+secure)
+   self.send_header('Set-Cookie','hg_csrf='+csrf+'; SameSite=Lax; Path=/'+secure)
+   self.send_header('Content-Length',str(len(payload)))
+   self.end_headers();self.wfile.write(payload)
+  except (ValueError,TypeError,KeyError) as exc:return self.sendjson({'error':str(exc)},400)
  def do_GET(self):
   request_scope.household_id=None
   if self.path=='/api/auth/status':
@@ -501,6 +537,8 @@ class Handler(SimpleHTTPRequestHandler):
  def do_POST(self):
   request_scope.household_id=None
   if self.path in ('/api/auth/setup','/api/auth/login'):return self.auth_post()
+  if self.path=='/api/auth/redeem':return self.redeem_post()
+  if self.path=='/api/auth/invite':return self.invite_post()
   if not self.gate(write=True):return
   if self.path!='/api/action':return self.sendjson({'error':'Not found'},404)
   try:
