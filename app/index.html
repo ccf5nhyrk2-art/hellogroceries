@@ -327,17 +327,30 @@ function saleMatches(item,ingredient){
  return a.length>0&&a.every(word=>b.includes(word));
 }
 function renderSalesComparison(){
- const select=$('sale-store'),previous=select.value;
- select.innerHTML='<option value="">Select a nearby store</option>'+nearbyStoreResults.map((store,i)=>'<option value="'+i+'">'+esc(store.chain+' — '+(store.address||store.name))+'</option>').join('');
- if([...select.options].some(o=>o.value===previous))select.value=previous;
- else{const preferred=getPreferredStore();const index=nearbyStoreResults.findIndex(x=>preferred&&storeKey(x)===storeKey(preferred));if(index>=0)select.value=String(index)}
- const now=new Date().toISOString().slice(0,10),offers=saleOffers().filter(x=>x.expires>=now),items=groceryNames(),preferred=getPreferredStore();
- const matched=offers.map(x=>({...x,matches:items.filter(item=>saleMatches(x.item,item))})).filter(x=>x.matches.length);
- const groups=new Map();
- for(const offer of matched){if(!groups.has(offer.store))groups.set(offer.store,[]);groups.get(offer.store).push(offer)}
+ const select=$('sale-store'),old=select.value;
+ select.innerHTML='<option value="">Select a nearby store</option>'+nearbyStoreResults.map((x,i)=>'<option value="'+i+'">'+esc(x.chain+' — '+(x.address||x.name))+'</option>').join('');
+ if([...select.options].some(x=>x.value===old))select.value=old;
+ else{const pref=getPreferredStore(),i=nearbyStoreResults.findIndex(x=>pref&&storeKey(x)===storeKey(pref));if(i>=0)select.value=String(i)}
+ const today=new Date().toISOString().slice(0,10),offers=saleOffers().filter(x=>x.expires>=today),items=groceryNames();
+ const matches=offers.map(x=>({...x,matches:items.filter(y=>saleMatches(x.item,y))})).filter(x=>x.matches.length);
  const root=$('sale-comparison-results');
- root.innerHTML='<p class="muted">'+items.length+' shopping-list items · '+matched.length+' matching verified offers · '+offers.length+' unexpired offers saved in this browser</p>'+
- (groups.size?[...groups].map(([store,rows])=>'<div class="enhance-panel" style="margin:10px 0"><strong>'+esc(store)+'</strong>'+(preferred&&store===preferred.chain+' — '+preferred.address?' · Preferred':'')+rows.map(o=>'<div class="row" style="gap:8px;flex-wrap:wrap"><span style="flex:1">'+esc(o.item)+' — 
+ root.innerHTML='<p class="muted">'+items.length+' shopping-list items · '+matches.length+' matching offers · '+offers.length+' current offers saved in this browser</p>'+
+ (matches.length?matches.map(x=>'<div class="row"><div><strong>'+esc(x.store)+'</strong> · '+esc(x.item)+' · $'+Number(x.price).toFixed(2)+' / '+esc(x.unit)+'<div class="muted">Matches: '+esc(x.matches.join(', '))+' · Ends '+esc(x.expires)+'</div><a href="'+esc(x.source)+'" target="_blank" rel="noopener noreferrer">Verify weekly ad</a></div><button type="button" class="clear" data-delete-offer="'+esc(x.id)+'">Remove</button></div>').join(''):'<p class="muted">No saved offers match your current shopping list. Add verified offers from nearby retailers above.</p>')+
+ '<p class="muted">Prices for different package sizes are not directly comparable; no savings totals are estimated.</p>';
+ root.querySelectorAll('[data-delete-offer]').forEach(btn=>btn.addEventListener('click',()=>{localStorage.setItem(SALE_OFFERS_KEY,JSON.stringify(saleOffers().filter(x=>x.id!==btn.dataset.deleteOffer)));renderSalesComparison()}));
+}
+$('store-sale-form').addEventListener('submit',e=>{
+ e.preventDefault();
+ const index=$('sale-store').value,store=nearbyStoreResults[Number(index)];
+ if(index===''||!store){$('sale-status').textContent='Find nearby stores and select one first.';return}
+ const source=$('sale-source').value.trim();
+ try{if(new URL(source).protocol!=='https:')throw Error()}catch(e){$('sale-status').textContent='Enter a valid HTTPS weekly-ad URL.';return}
+ const offer={id:String(Date.now())+'-'+Math.random().toString(36).slice(2),store:store.chain+' — '+(store.address||store.name),item:$('sale-item').value.trim(),price:Number($('sale-price').value),unit:$('sale-unit').value.trim(),expires:$('sale-expires').value,source};
+ if(!offer.item||!offer.unit||!Number.isFinite(offer.price)||offer.price<=0||!offer.expires){$('sale-status').textContent='Complete every offer field.';return}
+ if(offer.expires<new Date().toISOString().slice(0,10)){$('sale-status').textContent='That offer has expired.';return}
+ localStorage.setItem(SALE_OFFERS_KEY,JSON.stringify([...saleOffers(),offer].slice(-250)));
+ $('sale-status').textContent='Offer saved in this browser.';$('sale-item').value='';$('sale-price').value='';renderSalesComparison();
+});
 async function lookupStores(zip){
  const sequence=++storeLookupSequence;
  $('store-status').textContent='Looking up nearby stores…';$('store-results').textContent='';
