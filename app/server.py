@@ -596,6 +596,12 @@ class Handler(SimpleHTTPRequestHandler):
   except (ValueError,TypeError,KeyError) as exc:return self.sendjson({'error':str(exc)},400)
  def do_GET(self):
   request_scope.household_id=None
+  if self.path=='/api/auth/session-settings':
+   if not self.gate():return
+   if not getattr(request_scope,'admin',False):return self.sendjson({'error':'Administrator required'},403)
+   with db() as c:
+    auth.ensure_schema(c)
+    return self.sendjson({'days':auth.session_duration_days(c),'options':list(auth.SESSION_DAY_OPTIONS)})
   if self.path=='/api/auth/accounts':
    if not self.gate():return
    if not getattr(request_scope,'admin',False):return self.sendjson({'error':'Administrator required'},403)
@@ -667,6 +673,18 @@ class Handler(SimpleHTTPRequestHandler):
  def do_POST(self):
   request_scope.household_id=None
   if self.path in ('/api/auth/setup','/api/auth/login','/api/auth/register'):return self.auth_post()
+  if self.path=='/api/auth/session-settings':
+   if not self.gate(write=True):return
+   if not getattr(request_scope,'admin',False):return self.sendjson({'error':'Administrator required'},403)
+   try:
+    size=int(self.headers.get('Content-Length','0'))
+    if not 0<size<=1024:raise ValueError('Invalid request size')
+    data=json.loads(self.rfile.read(size))
+    with db() as c:
+     auth.ensure_schema(c)
+     auth.set_session_duration_days(c,data.get('days'))
+    return self.sendjson({'ok':True,'days':data['days']})
+   except (ValueError,TypeError,KeyError) as exc:return self.sendjson({'error':str(exc)},400)
   if self.path=='/api/auth/remove-account':
    if not self.gate(write=True):return
    if not getattr(request_scope,'admin',False):return self.sendjson({'error':'Administrator required'},403)
