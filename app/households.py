@@ -44,6 +44,15 @@ CREATE TABLE IF NOT EXISTS hg_invitations (
  redeemed_at TEXT,
  revoked_at TEXT
 );
+CREATE TABLE IF NOT EXISTS hg_registration_requests (
+ id INTEGER PRIMARY KEY AUTOINCREMENT,
+ email TEXT NOT NULL UNIQUE COLLATE NOCASE,
+ password_hash TEXT NOT NULL,
+ household_name TEXT NOT NULL,
+ status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','approved','rejected')),
+ created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ reviewed_at TEXT
+);
 CREATE TABLE IF NOT EXISTS hg_sessions (
  token_hash TEXT PRIMARY KEY,
  user_id INTEGER NOT NULL REFERENCES hg_users(id) ON DELETE CASCADE,
@@ -199,6 +208,52 @@ def redeem_invite(conn, token, email, password, new_household=None):
         conn.execute("UPDATE hg_invitations SET redeemed_at=? WHERE id=? AND redeemed_at IS NULL", (now(), invite[0]))
         conn.commit()
         return uid, hid
+    except Exception:
+        conn.rollback()
+        raise
+
+def request_registration(conn, email, password, household_name):
+    email = validate_email(email)
+    if not isinstance(household_name,str) or not 1 <= len(household_name.strip()) <= 80:
+        raise ValueError("Household name must be 1–80 characters")
+    hashed = password_hash(password)
+    conn.execute("BEGIN IMMEDIATE")
+    try:
+        if conn.execute("SELECT 1 FROM hg_users WHERE email=?", (email,)).fetchone():
+            raise ValueError("Registration cannot be completed for this email")
+        row=conn.execute("SELECT status FROM hg_registration_requests WHERE email=?", (email,)).fetchone()
+        if row:
+            raise ValueError("Registration request already received")
+        conn.execute("INSERT INTO hg_registration_requests(email,password_hash,household_name) VALUES(?,?,?)",
+                     (email,hashed,household_name.strip()))
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+
+def pending_registrations(conn):
+    return [dict(id=r[0],email=r[1],household=r[2],created_at=r[3])
+            for r in conn.execute("SELECT id,email,household_name,created_at FROM hg_registration_requests WHERE status='pending' ORDER BY id")]
+
+def review_registration(conn, admin_id, request_id, approve):
+    if not conn.execute("SELECT 1 FROM hg_users WHERE id=? AND is_instance_admin=1",(admin_id,)).fetchone():
+        raise PermissionError("Administrator required")
+    if type(request_id) is not int or request_id < 1 or type(approve) is not bool:
+        raise ValueError("Invalid review request")
+    conn.execute("BEGIN IMMEDIATE")
+    try:
+        row=conn.execute("SELECT email,password_hash,household_name FROM hg_registration_requests WHERE id=? AND status='pending'",(request_id,)).fetchone()
+        if not row: raise ValueError("Request is no longer pending")
+        if approve:
+            if conn.execute("SELECT 1 FROM hg_users WHERE email=?",(row[0],)).fetchone():
+                raise ValueError("Account already exists")
+            uid=conn.execute("INSERT INTO hg_users(email,password_hash) VALUES(?,?)",(row[0],row[1])).lastrowid
+            hid=conn.execute("INSERT INTO hg_households(name) VALUES(?)",(row[2],)).lastrowid
+            conn.execute("INSERT INTO hg_memberships(user_id,household_id,role) VALUES(?,?,'owner')",(uid,hid))
+            conn.execute("INSERT INTO hg_household_state(household_id,payload) VALUES(?,?)",(hid,'{"selected":{},"list":[],"revision":0}'))
+        conn.execute("UPDATE hg_registration_requests SET status=?,reviewed_at=?,password_hash='' WHERE id=?",
+                     ('approved' if approve else 'rejected',now(),request_id))
+        conn.commit()
     except Exception:
         conn.rollback()
         raise
