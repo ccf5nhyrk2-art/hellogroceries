@@ -103,11 +103,11 @@ html[data-theme="dark"] .admin-sidebar button[aria-selected="true"]{background:#
   button.onclick=()=>activate(entry.id);
   nav.appendChild(button);content.appendChild(pane);
  }
- const remaining=[...main.children].filter(node=>node!==back&&node!==title&&node!==layout&&node.tagName!=='SCRIPT');
- const extras=document.createElement('div');extras.className='admin-pane';extras.id='admin-pane-other';extras.setAttribute('role','tabpanel');
- for(const node of remaining){if(node.id==='logout')continue;if(node.tagName==='P'&&node.querySelector('#logout'))continue;extras.appendChild(node)}
- if(extras.children.length){const btn=document.createElement('button');btn.type='button';btn.id='admin-tab-other';btn.setAttribute('role','tab');btn.textContent='Other settings';btn.onclick=()=>activate('other');nav.appendChild(btn);content.appendChild(extras)}
- const logout=document.getElementById('logout');if(logout)content.appendChild(logout.closest('p')||logout);
+ const invitationPane=document.getElementById('admin-pane-invitations');
+ const invitationLead=[...main.children].find(node=>node.tagName==='P'&&node.textContent.includes('Create a private household invitation'));
+ if(invitationLead&&invitationPane)invitationPane.insertBefore(invitationLead,invitationPane.firstChild);
+ const logout=document.getElementById('logout');
+ if(logout)content.appendChild(logout.closest('p')||logout);
  layout.append(nav,content);main.appendChild(layout);
  function activate(id){
   const selected=document.getElementById('admin-pane-'+id)?id:'requests';
