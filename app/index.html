@@ -273,6 +273,17 @@ html[data-theme="dark"] .reef-table-scroll thead th,html[data-theme="dark"] .ree
 .enhance-panel .plan-dinners-always-open{border:0!important;border-top:1px solid rgba(140,155,148,.25)!important;border-radius:0!important;margin:18px 0 0!important;background:transparent!important}
 .enhance-panel .plan-dinners-always-open .ios-tool-body:before{content:'Plan dinners';display:block;font-weight:700;font-size:18px;margin-bottom:12px}
 
+/* Prevent store/theme collision and remove excess top whitespace on phones. */
+@media (max-width:750px) {
+ header {padding:10px 12px 9px!important;min-height:0!important;display:grid!important;grid-template-columns:minmax(0,1fr) auto;column-gap:8px;row-gap:6px;align-items:center}
+ header h1 {grid-column:1;grid-row:1;margin:0!important;min-width:0;font-size:clamp(17px,4.8vw,21px)!important}
+ header #hg-theme-toggle {position:static!important;grid-column:2;grid-row:1;top:auto!important;right:auto!important;max-width:none!important;margin:0!important;padding:7px 9px!important;font-size:12px!important;white-space:nowrap}
+ header #hg-header-store {grid-column:1/-1;grid-row:2;width:100%;max-width:100%!important;min-width:0;margin:0!important;min-height:38px}
+ header>a[data-admin-only] {grid-column:1/-1}
+ main {padding:4px 10px 20px!important}
+ main>.layout {margin-top:0!important;padding-top:0!important}
+ .enhance-panel:has(> #week-grid) {margin-top:0!important}
+}
 /* Shared compact mobile header and tighter content start. Desktop unchanged. */
 @media (max-width:750px) {
  header {min-height:0!important;padding:10px 14px 11px!important;box-sizing:border-box}
