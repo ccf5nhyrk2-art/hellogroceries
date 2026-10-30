@@ -333,7 +333,7 @@ def save(state):
 STORE_CACHE={};STORE_CACHE_LOCK=threading.Lock()
 STORE_CACHE_FILE=Path('/data/store_lookup_cache.json')
 STORE_CACHE_TTL=21600
-STORE_CACHE_VERSION=7
+STORE_CACHE_VERSION=8
 STORE_CACHE_STALE_TTL=30*86400
 try:
  raw_cache=json.loads(STORE_CACHE_FILE.read_text())
@@ -401,6 +401,9 @@ def retailer_directory():
   if stores and time.time()-updated<ATP_CACHE_TTL:return stores
   all_stores=[]
   success=0
+  prior_by_spider=saved.get('by_spider',{}) if isinstance(saved.get('by_spider'),dict) else {}
+  refreshed_by_spider={}
+  failed_spiders=[]
   for spider,chain in ATP_SPIDERS.items():
    url='https://data.alltheplaces.xyz/runs/latest/output/'+spider+'.geojson'
    try:
@@ -413,6 +416,7 @@ def retailer_directory():
     features=parsed.get('features',[]) if isinstance(parsed,dict) else []
     if not isinstance(features,list):raise ValueError('Invalid retailer export')
     success+=1
+    spider_stores=[]
     for item in features:
      if not isinstance(item,dict):continue
      geometry=item.get('geometry') or {}
@@ -430,21 +434,29 @@ def retailer_directory():
       address=' '.join(str(props.get(k,'')) for k in ('addr:housenumber','addr:street')).strip()
      city=str(props.get('addr:city') or '')[:80]
      if city and city.lower() not in address.lower():address=', '.join(filter(None,(address,city)))
-     all_stores.append({'id':'atp-'+spider+'-'+str(item.get('id') or props.get('ref') or len(all_stores))[:110],'chain':chain,'name':name,'address':address,'lat':lat,'lon':lon})
+     spider_stores.append({'id':'atp-'+spider+'-'+str(item.get('id') or props.get('ref') or len(all_stores))[:110],'chain':chain,'name':name,'address':address,'lat':lat,'lon':lon})
+    refreshed_by_spider[spider]=spider_stores
    except (OSError,ValueError,TypeError) as error:
+    failed_spiders.append(spider)
     print('Free retailer directory failed:',spider,repr(error),flush=True)
+  # Keep each chain's last successful export when its current download fails.
+  # Never discard healthy chains merely because another spider is unavailable.
+  for spider in ATP_SPIDERS:
+   entries=refreshed_by_spider.get(spider)
+   if entries is None:
+    entries=prior_by_spider.get(spider)
+    if not isinstance(entries,list):
+     entries=[x for x in stores if isinstance(x,dict) and str(x.get('id','')).startswith('atp-'+spider+'-')]
+   all_stores.extend(entries or [])
   if success:
-   # Keep a previously complete directory if only a subset of downloads succeeded.
-   if stores and success<len(ATP_SPIDERS):
-    return stores
-   result={'updated':time.time(),'stores':all_stores}
+   result={'updated':time.time(),'stores':all_stores,'by_spider':{spider:refreshed_by_spider.get(spider,prior_by_spider.get(spider,[])) for spider in ATP_SPIDERS},'failed_spiders':failed_spiders}
    try:
     tmp=ATP_CACHE_FILE.with_suffix('.tmp')
     tmp.write_text(json.dumps(result))
     os.replace(tmp,ATP_CACHE_FILE)
    except OSError as error:print('Retailer directory cache write failed:',repr(error),flush=True)
    return all_stores
-  return stores
+  return all_stores or stores
 
 def retailer_nearby(lat,lon,radius=10):
  directory=retailer_directory()
