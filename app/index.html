@@ -796,24 +796,10 @@ $('items').addEventListener('change',e=>{if(e.target.dataset.items)action({actio
  button.disabled=true;
  await action({action:'select',id:Number(button.dataset.suggestAdd),checked:true,servings:1});
 });
-$('generate-grocery').onclick=async()=>{
- const button=$('generate-grocery');
- button.disabled=true;
- const previous=button.textContent;
- button.textContent='Generating…';
- try{
-  const response=await fetch('/api/action',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'generate'})});
-  const result=await response.json();
-  if(!response.ok)throw Error(result.error||'Unable to generate shopping list');
-  state=result;
-  render();
-  const selectedIds=Object.keys(state.selected||{});
-  const missing=selectedIds.filter(id=>!recipes.some(r=>String(r.id)===id&&Object.keys(r.ingredients||{}).length));
-  const message=state.list?.length?'Shopping list updated: '+state.list.length+' items.':!selectedIds.length?'No meals selected. Add meals to your plan first.':missing.length?'No groceries found. '+missing.length+' of '+selectedIds.length+' selected recipes have missing ingredient data.':'No groceries generated. Check pantry exclusions and recipe ingredients.';
-  $('generate-status').textContent=message;
-  $('error').textContent=message;
- }catch(error){const message='Could not generate shopping list: '+error.message;$('error').textContent=message;$('generate-status').textContent=message}
- finally{button.disabled=false;button.textContent=previous}
+$('generate-grocery').onclick=()=>{
+ $('grocery-preview').hidden=true;
+ $('generate-status').textContent='';
+ action({action:'generate'});
 };
 $('preview-grocery').onclick=async()=>{
  const target=$('grocery-preview');
