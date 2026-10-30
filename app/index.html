@@ -926,7 +926,7 @@ async function refreshRetailerCatalogPrices(){
 }
 let reefBatchOffset=0;
 async function showReefCachedPrices(){
- const target=$('retailer-comparison-results');if(!target)return;
+ let target=$('retailer-comparison-results');if(!target)return;
  const items=[...new Set((state.list||[]).filter(x=>!x.checked).map(x=>String(x.name||'').trim()).filter(Boolean))].slice(0,60);
  const zip=String($('store-zip')?.value||localStorage.getItem(STORE_ZIP_KEY)||'').trim();
  if(!/^\d{5}$/.test(zip)){target.textContent='Enter your five-digit ZIP code in Nearby stores first.';return}
@@ -943,7 +943,12 @@ async function showReefCachedPrices(){
   }
   reefShoppingOffers=new Map();
   for(const [item,offers] of byItem)reefShoppingOffers.set(reefSearchTerm(item).toLowerCase(),offers);
+  // Re-rendering the shopping list replaces the comparison element.
+  // Restore the live target so cached results appear in the new DOM.
   renderShoppingList();
+  const currentTarget=$('retailer-comparison-results');
+  if(!currentTarget)throw Error('Shopping price comparison container missing');
+  target=currentTarget;
 
   const chains=['Price Chopper','Walmart','Hy-Vee','ALDI'];
   const money=v=>'$'+Number(v).toFixed(2);
