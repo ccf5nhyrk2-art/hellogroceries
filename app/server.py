@@ -4,7 +4,7 @@ from http.cookies import SimpleCookie
 import households as auth
 import secrets
 import cloudflare_auth
-import json,sqlite3,threading,re,html,io,zipfile,datetime,urllib.request,urllib.parse,urllib.robotparser,xml.etree.ElementTree as ET,time,subprocess,sys,fcntl,os,ipaddress,socket
+import math,json,sqlite3,threading,re,html,io,zipfile,datetime,urllib.request,urllib.parse,urllib.robotparser,xml.etree.ElementTree as ET,time,subprocess,sys,fcntl,os,ipaddress,socket
 BASE=Path(__file__).parent;DB=Path('/data/shopping.db');DB.parent.mkdir(exist_ok=True,parents=True)
 RECIPES=json.loads((BASE/'recipes.json').read_text());lock=threading.Lock()
 # Generate a persistent first-run secret when the operator has not configured one.
