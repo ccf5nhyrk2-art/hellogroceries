@@ -456,18 +456,18 @@ def retailer_nearby(lat,lon):
   matches[-1]['distance_miles']=round(distance,1)
  return sorted(matches,key=lambda item:item['distance_miles'])[:40]
 
-def include_verified_belton_stores(zipcode,stores):
- # Supplemental location verified against the retailer's official store page.
- # This fills a known gap in the community retailer directory for ZIP 64012.
- if zipcode!='64012':return stores
- additions=[{'chain':'Price Chopper','name':"Cosentino's Price Chopper",'address':'109 N Cedar St, Belton, MO 64012','distance_miles':None,'id':'verified-price-chopper-belton-359'}]
- existing={re.sub(r'[^a-z0-9]','',str(x.get('address','')).lower()) for x in stores}
- result=list(stores)
- for item in additions:
-  key=re.sub(r'[^a-z0-9]','',item['address'].lower())
-  if key not in existing and not any(x.get('chain')==item['chain'] and '109' in str(x.get('address','')) and 'cedar' in str(x.get('address','')).lower() for x in result):
-   result.append(item)
- return result
+def merge_store_results(*groups):
+ result=[];seen=set()
+ for group in groups:
+  for item in group or []:
+   if not isinstance(item,dict):continue
+   chain=str(item.get('chain','')).strip()
+   address=str(item.get('address','')).strip()
+   if not chain or not address:continue
+   normalized=re.sub(r'[^a-z0-9]','',(chain+' '+address).lower())
+   if normalized in seen:continue
+   seen.add(normalized);result.append(item)
+ return sorted(result,key=lambda x:float(x.get('distance_miles') or 999))[:60]
 
 def nearby_stores(zipcode):
  if not re.fullmatch(r'[0-9]{5}',zipcode):raise ValueError('Enter a valid five-digit US ZIP code')
@@ -490,12 +490,9 @@ def nearby_stores(zipcode):
    stale=store_cache_stale(zipcode)
    if stale:return stale
    raise RuntimeError('ZIP lookup services unavailable') from second_error
+ retailer_matches=[]
  try:
-  retailer_matches=retailer_nearby(lat,lon)
-  if retailer_matches:
-   result={'zip':zipcode,'stores':include_verified_belton_stores(zipcode,retailer_matches),'source':'All the Places','note':'Free retailer directory snapshot; listings may be incomplete or outdated. Price Chopper may be missing. Weekly sale prices are not connected.'}
-   store_cache_save(zipcode,result)
-   return result
+  retailer_matches=retailer_nearby(lat,lon) or []
  except (OSError,ValueError,TypeError) as error:
   print('Retailer directory lookup failed:',repr(error),flush=True)
  query='[out:json][timeout:10];(nwr["shop"="supermarket"]["name"~"Hy.Vee|Price Chopper|ALDI|Walmart",i](around:16093,'+str(lat)+','+str(lon)+');nwr["shop"="supermarket"]["brand"~"Hy.Vee|Price Chopper|ALDI|Walmart",i](around:16093,'+str(lat)+','+str(lon)+'););out center;'
@@ -518,14 +515,18 @@ def nearby_stores(zipcode):
    distance=store_distance(lat,lon,float(loc['lat']),float(loc['lon']))
    if distance>10:continue
    matches.append({'id':str(item.get('type',''))+'-'+str(item.get('id','')),'chain':chain,'name':name,'address':', '.join(x for x in [tags.get('addr:housenumber','')+' '+tags.get('addr:street','') if tags.get('addr:street') else '',tags.get('addr:city','')] if x.strip()),'distance_miles':round(distance,1)})
-  result={'zip':zipcode,'stores':sorted(matches,key=lambda x:x['distance_miles'])[:40],'source':'OpenStreetMap','note':'Store listings may be incomplete. Weekly sale prices are not yet connected.'}
+  combined=merge_store_results(retailer_matches,matches)
+  result={'zip':zipcode,'stores':combined,'source':'All the Places + OpenStreetMap','note':'Merged free store directories; listings may still be incomplete. Prices are not store-specific.'}
   store_cache_save(zipcode,result);return result
  try:
   matches=google_nearby_stores(lat,lon)
   if matches is not None:
-   result={'zip':zipcode,'stores':matches,'source':'Google Places','note':'Results from Google Places. Weekly sale prices are not connected.'}
+   result={'zip':zipcode,'stores':merge_store_results(retailer_matches,matches),'source':'All the Places + Google Places','note':'Merged store directories; coverage varies.'}
    store_cache_save(zipcode,result);return result
  except (OSError,ValueError,KeyError,TypeError) as error:print('Independent store directory failed:',repr(error),flush=True)
+ if retailer_matches:
+  result={'zip':zipcode,'stores':merge_store_results(retailer_matches),'source':'All the Places','note':'Other directories unavailable; results may be incomplete.'}
+  store_cache_save(zipcode,result);return result
  stale=store_cache_stale(zipcode)
  if stale:return stale
  raise RuntimeError('Store directory lookup unavailable; configure GOOGLE_PLACES_API_KEY for an independent fallback')
