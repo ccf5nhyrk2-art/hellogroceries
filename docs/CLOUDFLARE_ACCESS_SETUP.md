@@ -16,10 +16,10 @@
 
 In **Cloudflare Zero Trust → Access → Applications → HelloGroceries**, retrieve:
 
-1. **Team domain**, e.g. `example.cloudflareaccess.com`.
-2. **Application AUD tag** (the exact audience identifier).
+1. **Team domain:** `greenlee1.cloudflareaccess.com` (confirmed in the Cloudflare Access login page).
+2. **Application AUD tag:** `e28f3f8c9c8c1f038f18c62920f6279d1a493cfa0081ea8d8de1d6b6d1060b0b` (provided by the application owner).
 
-Configure these as server-side environment variables, for example `HG_CF_TEAM_DOMAIN` and `HG_CF_AUD`. **Do not hardcode guessed values.** A separate, explicit owner email allowlist (`HG_ADMIN_EMAIL`) should determine who can claim the first admin account; Access membership alone may include invited friends. Confirm the intended administrator email before activation.
+Configure these as server-side environment variables, `HG_CF_TEAM_DOMAIN=greenlee1.cloudflareaccess.com` and `HG_CF_AUD=e28f3f8c9c8c1f038f18c62920f6279d1a493cfa0081ea8d8de1d6b6d1060b0b`. The application must explicitly read and verify these values before first-admin setup is enabled. A separate owner email allowlist (`HG_ADMIN_EMAIL`) should determine who can claim the first admin account; Access membership alone may include invited friends. Confirm the intended administrator email before activation. The Cloudflare Access application is named `groceries`, hostname `groceries.greenlee.uk`, with policy `HelloGroceries Admin`. The owner confirmed a private browsing window now shows Cloudflare's email-code login screen.
 
 ## Mandatory server-side security
 
