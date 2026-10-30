@@ -26,6 +26,37 @@ IMPORT_LOG=Path('/data/us_import.log')
 import_launch_lock=threading.Lock()
 import_process=None
 
+TASK_HISTORY_FILE=Path('/data/admin_task_history.json')
+TASK_HISTORY_LOCK=threading.Lock()
+def task_record(name,status):
+ with TASK_HISTORY_LOCK:
+  try:data=json.loads(TASK_HISTORY_FILE.read_text())
+  except (OSError,ValueError,TypeError):data={}
+  if not isinstance(data,dict):data={}
+  row=data.setdefault(name,{})
+  row['last_'+('started' if status=='running' else 'finished')]=datetime.datetime.now(datetime.timezone.utc).isoformat()
+  row['status']=status
+  tmp=TASK_HISTORY_FILE.with_suffix('.tmp')
+  try:tmp.write_text(json.dumps(data));os.replace(tmp,TASK_HISTORY_FILE)
+  except OSError:pass
+
+def task_overview():
+ try:history=json.loads(TASK_HISTORY_FILE.read_text())
+ except (OSError,ValueError,TypeError):history={}
+ if not isinstance(history,dict):history={}
+ def item(key,name,frequency,running=False,last=None,action=None):
+  row=history.get(key,{})
+  return {'key':key,'name':name,'frequency':frequency,'running':bool(running),'last_started':row.get('last_started') or last,'last_finished':row.get('last_finished'),'status':'running' if running else row.get('status','Not recorded'),'action':action}
+ progress=Path('/data/us_import_progress.json')
+ nutrition=history.get('nutrition',{})
+ return [
+  item('us_import','HelloFresh US recipe import','Manual / on demand',us_import_running() or (import_process is not None and import_process.poll() is None),datetime.datetime.fromtimestamp(progress.stat().st_mtime,datetime.timezone.utc).isoformat() if progress.exists() else None,'us_import'),
+  item('nutrition','Bulk recipe nutrition scan','Manual / on demand',False,None,'nutrition'),
+  item('store_directory','Nationwide store directory refresh','Automatic when cache expires (7 days) or store search needs it',False,datetime.datetime.fromtimestamp(ATP_CACHE_FILE.stat().st_mtime,datetime.timezone.utc).isoformat() if ATP_CACHE_FILE.exists() else None,'store_directory'),
+  item('store_geocode','Store address geocoding','Automatic during store search (only uncached addresses)',RETAILER_GEOCODE_RUNNING,datetime.datetime.fromtimestamp(Path('/data/retailer_address_coordinates.json').stat().st_mtime,datetime.timezone.utc).isoformat() if Path('/data/retailer_address_coordinates.json').exists() else None,'store_geocode'),
+  item('reef_prices','ReefAPI grocery price refresh','Manual only; cached prices expire after 365 days',False,None,None)
+ ]
+
 def us_import_running():
  fd=IMPORT_LOCK.open('a+')
  try:
@@ -45,6 +76,7 @@ def start_us_import():
   time.sleep(0.15)
   if import_process.poll() is not None:
    raise ValueError('Importer exited immediately; check /data/us_import.log')
+  task_record('us_import','running')
   return {'ok':True,'message':'US importer started. Existing imported URLs will be skipped.'}
 
 def db():
@@ -1285,6 +1317,10 @@ class Handler(SimpleHTTPRequestHandler):
   except (ValueError,TypeError,KeyError) as exc:return self.sendjson({'error':str(exc)},400)
  def do_GET(self):
   request_scope.household_id=None
+  if self.path=='/api/admin/tasks':
+   if not self.gate():return
+   if not getattr(request_scope,'admin',False):return self.sendjson({'error':'Administrator required'},403)
+   return self.sendjson({'tasks':task_overview()})
   if self.path.startswith('/api/reef-cached-prices?'):
    if not self.gate():return
    q=urllib.parse.parse_qs(urllib.parse.urlsplit(self.path).query)
@@ -1414,6 +1450,30 @@ class Handler(SimpleHTTPRequestHandler):
   super().end_headers()
  def do_POST(self):
   request_scope.household_id=None
+  if self.path=='/api/admin/tasks/run':
+   if not self.gate(write=True):return
+   if not getattr(request_scope,'admin',False):return self.sendjson({'error':'Administrator required'},403)
+   try:
+    size=int(self.headers.get('Content-Length','0'))
+    if not 0<size<=512:raise ValueError('Invalid request size')
+    name=json.loads(self.rfile.read(size)).get('task')
+    if name=='us_import':return self.sendjson(start_us_import())
+    if name=='store_directory':
+     with ATP_LOCK:
+      ATP_CACHE_FILE.unlink(missing_ok=True)
+     with STORE_CACHE_LOCK:STORE_CACHE.clear()
+     task_record(name,'queued')
+     return self.sendjson({'ok':True,'message':'Directory cache cleared; next store search will fetch fresh nationwide data.'})
+    if name=='store_geocode':
+     global RETAILER_GEOCODE_RUNNING
+     with RETAILER_GEOCODE_LOCK:
+      if RETAILER_GEOCODE_RUNNING:raise ValueError('Geocoding is already running')
+      RETAILER_GEOCODE_RUNNING=True
+     threading.Thread(target=geocode_retailer_addresses,daemon=True).start()
+     task_record(name,'running')
+     return self.sendjson({'ok':True,'message':'Store address geocoding started.'})
+    raise ValueError('Unsupported task; use the existing nutrition or price controls')
+   except (ValueError,TypeError) as exc:return self.sendjson({'error':str(exc)},400)
   if self.path in ('/api/auth/setup','/api/auth/login','/api/auth/register'):return self.auth_post()
   if self.path=='/api/admin/nutrition-batch':
    if not self.gate(write=True):return
@@ -1451,6 +1511,7 @@ class Handler(SimpleHTTPRequestHandler):
       errors.append(str(rid)+': '+str(exc)[:120])
     next_cursor=rows[-1][0] if rows else cursor
     with db() as conn:remaining=conn.execute('SELECT COUNT(*) FROM imported WHERE id>?',(next_cursor,)).fetchone()[0]
+    task_record('nutrition','completed' if remaining==0 else 'running')
     return self.sendjson({'ok':True,'cursor':next_cursor,'total':total,'processed':total-remaining,'updated':updated,'skipped':skipped,'failed':failed,'missing':missing,'errors':errors,'done':remaining==0})
    except (ValueError,TypeError) as exc:return self.sendjson({'error':str(exc)},400)
   if self.path=='/api/nutrition-refresh':
