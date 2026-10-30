@@ -291,6 +291,7 @@ function renderStoreResults(data){
  }).join(''):'No matching stores found within 10 miles. Store directory coverage may be incomplete.');
  $('store-status').textContent=stores.length+' matching locations near '+data.zip+(data.source?' · '+data.source:'')+(data.stale?' · cached results':'');
  renderSalesComparison();
+ void loadAutomaticWeeklyAds(String(data.zip||$('store-zip').value).trim());
  root.querySelectorAll('[data-preferred-store]').forEach(button=>button.addEventListener('click',()=>{
   const item=stores[Number(button.dataset.preferredStore)];
   try{localStorage.setItem(PREFERRED_STORE_KEY,JSON.stringify({chain:item.chain,name:item.name,address:item.address||'',id:item.id||''}))}catch(e){}
