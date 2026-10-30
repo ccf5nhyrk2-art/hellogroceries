@@ -916,7 +916,7 @@ async function testFreeCommunityPrices(){
   const data=await response.json();if(!response.ok)throw Error(data.error||'Lookup unavailable');
   const matches=(data.results||[]).filter(x=>x.observations?.length);
   target.innerHTML='<p><strong>'+matches.length+' of '+batch.length+' ingredients have community observations.</strong> Checked '+(communityPriceOffset+batch.length)+' of '+items.length+'. Not verified at your preferred store.</p>'+
-   (data.results||[]).map(x=>'<div style="margin:6px 0"><strong>'+esc(x.item)+'</strong> — '+esc(x.status)+
+   (data.results||[]).map(x=>' <div style="margin:6px 0"><strong>'+esc(x.item)+'</strong> <span class="muted">(searched: '+esc(x.search_term||x.item)+')</span> — '+esc(x.status)+
     (x.observations||[]).slice(0,2).map(o=>'<div class="grocery-note">'+esc(o.product)+' ('+esc(o.quantity)+'): $'+Number(o.price).toFixed(2)+' · '+esc(o.date||'date unknown')+(o.location?' · '+esc(o.location):'')+' · Open Prices</div>').join('')+'</div>').join('')+
    '<p class="muted">Historical crowdsourced prices are excluded from your shopping subtotal.</p>';
   communityPriceOffset+=batch.length;if(communityPriceOffset>=items.length)communityPriceOffset=0;
