@@ -790,12 +790,13 @@ def reef_test_search(zipcode,query):
  if not isinstance(data,dict) or not data.get('ok'):raise ValueError('ReefAPI did not return a successful search')
  groups=data.get('data',{}).get('groups',[])
  allowed=('price chopper','walmart','hy-vee','aldi')
- result=[]
+ result=[];retailer_names=[]
  for group in groups if isinstance(groups,list) else []:
   if not isinstance(group,dict):continue
   retailer=group.get('retailer') or {}
   if not isinstance(retailer,dict):continue
   name=str(retailer.get('name',''))
+  if name:retailer_names.append({'name':name[:100],'slug':str(retailer.get('slug',''))[:100]})
   if not any(x in name.casefold() for x in allowed):continue
   products=[]
   for product in (group.get('items') or [])[:5]:
@@ -805,7 +806,7 @@ def reef_test_search(zipcode,query):
    if not 0<price<10000:continue
    products.append({'name':str(product.get('name',''))[:180],'size':str(product.get('size',''))[:80],'price':round(price,2),'price_is_estimate':bool(product.get('price_is_estimate')),'url':str(product.get('url',''))[:500]})
   result.append({'retailer':name[:100],'slug':str(retailer.get('slug',''))[:100],'products':products})
- return {'query':query,'postal_code':zipcode,'retailers':result,'credits_reported':(data.get('meta') or {}).get('charged_credits'),'note':'Instacart online prices; not in-store shelf prices. Retailers absent from the response are not verified as unsupported.'}
+ return {'query':query,'postal_code':zipcode,'retailers':result,'retailer_names':retailer_names[:40],'credits_reported':(data.get('meta') or {}).get('charged_credits'),'note':'Instacart online prices; not in-store shelf prices. Retailers absent from the response are not verified as unsupported.'}
 
 REEF_CACHE_PATH=Path('/data/reef_price_cache.json')
 REEF_CACHE_LOCK=threading.Lock()
@@ -896,7 +897,7 @@ def reef_refresh_batch(zipcode,items):
    reef_cache_write(cache)
   searched+=1
   saved_matches+=len(matches)
-  details.append({'item':item,'status':'priced' if matches else 'no_match','matches':len(matches),'retailers_returned':len(result['retailers']),'products_returned':sum(len(g['products']) for g in result['retailers'])})
+  details.append({'item':item,'status':'priced' if matches else 'no_match','matches':len(matches),'retailers_returned':len(result['retailers']),'products_returned':sum(len(g['products']) for g in result['retailers']),'retailers_seen':result.get('retailer_names',[])})
  return {'searched':searched,'cached_skipped':skipped,'errors':errors,'credits_estimate':searched*2,'batch_limit':10,'saved_matches':saved_matches,'details':details}
 
 def retailer_catalog_prices(chain,store_name,address,items):
