@@ -289,7 +289,25 @@ function renderStoreResults(data){
 
   return '<div class="row" style="align-items:flex-start;gap:12px"><div style="flex:1;min-width:0"><strong>'+esc(x.chain)+'</strong> — '+esc(x.name)+'<div class="muted">'+esc(address||'Address unavailable')+' · '+(x.distance_approximate?'~':'')+esc(x.distance_miles)+' miles'+(x.distance_approximate?' (ZIP-based estimate)':'')+(x.outside_radius?' (near radius boundary)':'')+'</div><div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:6px"><a href="'+google+'" target="_blank" rel="noopener noreferrer">Google Maps</a><a href="'+apple+'" target="_blank" rel="noopener noreferrer">Apple Maps</a>'+adHtml+'</div></div><button type="button" data-preferred-store="'+i+'" aria-pressed="'+(selected?'true':'false')+'">'+(selected?'✓ Preferred':'Select store')+'</button></div>';
  }).join(''):'No matching stores found within 10 miles. Store directory coverage may be incomplete.');
- $('store-status').textContent=stores.length+' matching locations within '+(data.radius_miles||10)+' miles of '+data.zip+(data.directory_status?' · Directories: All the Places '+data.directory_status.all_the_places+', OpenStreetMap '+data.directory_status.openstreetmap+', retailer locations '+(data.directory_status.retailer_locations||0):'')+' · '+stores.filter(x=>x.outside_radius).length+' near boundary (up to 2 miles beyond radius)' +(data.source?' · '+data.source:'')+(data.stale?' · cached results':'');
+ const boundary=stores.filter(x=>x.outside_radius).length;
+ const status=$('store-status');
+ status.textContent=stores.length+' grocery stores found near '+data.zip+' · '+(data.radius_miles||10)+'-mile search'+(boundary?' · '+boundary+' near boundary':'')+(data.stale?' · saved results':'');
+ let diagnostics=document.getElementById('store-diagnostics');
+ if(!diagnostics){
+  diagnostics=document.createElement('details');
+  diagnostics.id='store-diagnostics';
+  diagnostics.style.cssText='margin:6px 0 12px;color:var(--muted,#aab6b0);font-size:13px';
+  const summary=document.createElement('summary');
+  summary.textContent='Store data & accuracy details';
+  summary.style.cursor='pointer';
+  const content=document.createElement('div');
+  content.id='store-diagnostics-content';
+  content.style.marginTop='6px';
+  diagnostics.append(summary,content);
+  status.insertAdjacentElement('afterend',diagnostics);
+ }
+ const ds=data.directory_status||{};
+ document.getElementById('store-diagnostics-content').textContent='Sources: All the Places '+(ds.all_the_places??'unknown')+', OpenStreetMap '+(ds.openstreetmap??'unknown')+', supplemental stores '+(ds.retailer_locations??0)+'. '+boundary+' locations near the selected radius (up to 2 miles outside). '+stores.filter(x=>x.distance_approximate).length+' displayed distances use ZIP estimates.';
  renderSalesComparison();
  void loadAutomaticWeeklyAds(String(data.zip||$('store-zip').value).trim());
  root.querySelectorAll('[data-preferred-store]').forEach(button=>button.addEventListener('click',()=>{
@@ -437,10 +455,11 @@ async function lookupStores(zip){
      const r=await fetch('/api/stores/geocode-status',{cache:'no-store'});
      if(!r.ok)throw Error('status unavailable');
      const x=await r.json();
-     const detail=' · Address coordinates: '+x.cached_coordinates+'/'+x.total_addresses+' saved, '+x.remaining_estimates+' remaining · This run: '+x.matched+' matched, '+x.failed+' errors'+(x.running?' (updating…)':x.finished?' (finished)':'');
-     const label=$('store-status');
-     if(label && !label.textContent.includes('Address coordinates:'))label.textContent+=detail;
-     else if(label)label.textContent=label.textContent.replace(/ · Address coordinates:.*$/,'')+detail;
+     const info=document.getElementById('store-diagnostics-content');
+     if(info){
+      const base=info.textContent.replace(/ Address coordinates:.*$/,'');
+      info.textContent=base+' Address coordinates: '+x.cached_coordinates+'/'+x.total_addresses+' saved, '+x.remaining_estimates+' remaining. Current run: '+x.matched+' matched, '+x.failed+' errors'+(x.running?' (updating…)':x.finished?' (finished)':'')+'.';
+     }
      if(x.running)wasRunning=true;
      if(wasRunning&&!x.running){
       window.hgGeocodePollActive=false;
