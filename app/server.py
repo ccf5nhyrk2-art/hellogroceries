@@ -333,7 +333,7 @@ def save(state):
 STORE_CACHE={};STORE_CACHE_LOCK=threading.Lock()
 STORE_CACHE_FILE=Path('/data/store_lookup_cache.json')
 STORE_CACHE_TTL=21600
-STORE_CACHE_VERSION=4
+STORE_CACHE_VERSION=5
 STORE_CACHE_STALE_TTL=30*86400
 try:
  raw_cache=json.loads(STORE_CACHE_FILE.read_text())
@@ -362,11 +362,11 @@ def store_cache_stale(zipcode):
 def store_distance(lat,lon,la,lo):
  return 3958.8*2*math.asin(min(1,math.sqrt(math.sin(math.radians(la-lat)/2)**2+math.cos(math.radians(lat))*math.cos(math.radians(la))*math.sin(math.radians(lo-lon)/2)**2)))
 
-def google_nearby_stores(lat,lon):
+def google_nearby_stores(lat,lon,radius=10):
  # Google Places is an optional, independent fallback. No credentials are sent to OSM.
  key=os.environ.get('GOOGLE_PLACES_API_KEY','').strip()
  if not key:return None
- request_body=json.dumps({'includedTypes':['supermarket','grocery_store'],'maxResultCount':20,'locationRestriction':{'circle':{'center':{'latitude':lat,'longitude':lon},'radius':16093.0}}}).encode()
+ request_body=json.dumps({'includedTypes':['supermarket','grocery_store'],'maxResultCount':20,'locationRestriction':{'circle':{'center':{'latitude':lat,'longitude':lon},'radius':radius*1609.344}}}).encode()
  req=urllib.request.Request('https://places.googleapis.com/v1/places:searchNearby',data=request_body,headers={'Content-Type':'application/json','X-Goog-Api-Key':key,'X-Goog-FieldMask':'places.id,places.displayName,places.formattedAddress,places.location'},method='POST')
  with urllib.request.urlopen(req,timeout=9) as response:body=json.load(response)
  if not isinstance(body,dict) or not isinstance(body.get('places',[]),list):raise ValueError('Invalid Places response')
@@ -377,7 +377,7 @@ def google_nearby_stores(lat,lon):
   loc=item.get('location') or {}
   if not chain or 'latitude' not in loc or 'longitude' not in loc:continue
   distance=store_distance(lat,lon,float(loc['latitude']),float(loc['longitude']))
-  if distance>10:continue
+  if distance>radius:continue
   matches.append({'id':'google-'+str(item.get('id','')),'chain':chain,'name':name,'address':item.get('formattedAddress',''),'distance_miles':round(distance,1)})
  return sorted(matches,key=lambda item:item['distance_miles'])
 
@@ -460,84 +460,10 @@ def retailer_nearby(lat,lon,radius=10):
 
 # Supplement incomplete map datasets with retailer-published location addresses.
 # ZIP centroids are approximate; exact street coordinates are not claimed.
-RETAILER_PUBLISHED_STORES=[
- ('Price Chopper','109 N Cedar St','Belton','MO','64012'),
- ('Price Chopper','900 W Foxwood Dr','Raymore','MO','64083'),
- ('Price Chopper','501 Schug Ave','Peculiar','MO','64078'),
- ('Price Chopper','12220 S 71 Hwy','Grandview','MO','64030'),
- ('Price Chopper','520 S Commercial St','Harrisonville','MO','64701'),
- ('Price Chopper','937 NE Woods Chapel Rd',"Lee's Summit",'MO','64064'),
- ('Price Chopper','251 SW Greenwich Dr',"Lee's Summit",'MO','64082'),
- ('Price Chopper','8430 Wornall Rd','Kansas City','MO','64114'),
- ('Price Chopper','1030 W 103rd St','Kansas City','MO','64114'),
- ('Price Chopper','3700 W 95th St','Leawood','KS','66206'),
- ('Price Chopper','7418 W 119th St','Overland Park','KS','66213'),
- ('Price Chopper','7000 W 75th St','Overland Park','KS','66204'),
- ('Price Chopper','15970 S Murlen Rd','Olathe','KS','66062'),
- ('Price Chopper','12010 W 63rd St','Shawnee','KS','66216'),
- ('Price Chopper','4950 Roe Blvd','Roeland Park','KS','66205'),
- ('Price Chopper','660 E Main St','Gardner','KS','66030'),
- ('Hen House','15000 W 87th Street Pkwy','Lenexa','KS','66215'),
- ('Hen House','4050 W 83rd St','Prairie Village','KS','66208'),
- ('Hen House','11721 Roe Ave','Leawood','KS','66211'),
- ('Hen House','8120 Parallel Pkwy','Kansas City','KS','66112'),
- ('Hen House','6950 Mission Rd','Prairie Village','KS','66208'),
- ('Hen House','13600 S Blackbob Rd','Olathe','KS','66062'),
- ('Hen House','6900 W 135th St','Overland Park','KS','66223'),
- ('Hen House','11930 College Blvd','Overland Park','KS','66210'),
- ('Hen House','2724 W 53rd St','Fairway','KS','66205'),
- ('Hen House','1904 Southwest Blvd','Jefferson City','MO','65109')
-]
-RETAILER_GEOCODE_CACHE={}
-RETAILER_GEOCODE_LOCK=threading.Lock()
-# Verified Walmart Supercenters absent from some retailer-directory snapshots.
-RETAILER_PUBLISHED_STORES.extend([
- ('Walmart','2015 W Foxwood Dr','Raymore','MO','64083'),
- ('Walmart','1701 W 133rd St','Kansas City','MO','64145'),
- ('Walmart','1700 N State Route 291','Harrisonville','MO','64701'),
- ('Walmart','3410 SW Market St',"Lee's Summit",'MO','64082'),
- ('Walmart','1000 NE Sam Walton Ln',"Lee's Summit",'MO','64086')
-])
+# Store discovery is data-driven: no city-specific hardcoded location lists.
+# The directory exports and OpenStreetMap supply real coordinates.
 def published_retailer_nearby(lat,lon,radius):
- # Geocode each *street address*, never a ZIP centroid; skip unlocated stores.
- # Nominatim is rate-limited, so geocode sequentially and persist in memory.
- import concurrent.futures
- with RETAILER_GEOCODE_LOCK:known=dict(RETAILER_GEOCODE_CACHE)
- # Query only plausible regional addresses to limit network requests.
- candidates=[]
- for item in RETAILER_PUBLISHED_STORES:
-  chain,street,city,state,code=item
-  if state not in ('MO','KS'):continue
-  if code in ('65109',):continue
-  key='|'.join(item)
-  if key not in known:candidates.append((key,item))
- def geocode(pair):
-  key,item=pair
-  chain,street,city,state,code=item
-  query=', '.join((street,city,state,code,'USA'))
-  url='https://nominatim.openstreetmap.org/search?'+urllib.parse.urlencode({'q':query,'format':'json','limit':1})
-  try:
-   req=urllib.request.Request(url,headers={'User-Agent':'HelloGroceries/1.0 (self-hosted grocery planner)','Accept':'application/json'})
-   with urllib.request.urlopen(req,timeout=3) as resp:locations=json.load(resp)
-   if locations:return key,(float(locations[0]['lat']),float(locations[0]['lon']))
-  except (OSError,ValueError,KeyError,IndexError,TypeError):pass
-  return key,None
- # Avoid long requests when geocoding services are unavailable.
- with concurrent.futures.ThreadPoolExecutor(max_workers=4) as pool:
-  futures=[pool.submit(geocode,pair) for pair in candidates]
-  for future in concurrent.futures.as_completed(futures):
-   key,coords=future.result()
-   with RETAILER_GEOCODE_LOCK:RETAILER_GEOCODE_CACHE[key]=coords
- with RETAILER_GEOCODE_LOCK:known=dict(RETAILER_GEOCODE_CACHE)
- matches=[]
- for item in RETAILER_PUBLISHED_STORES:
-  chain,street,city,state,code=item
-  coords=known.get('|'.join(item))
-  if coords is None:continue
-  distance=store_distance(lat,lon,*coords)
-  if distance>radius:continue
-  matches.append({'id':'retailer-published-'+re.sub(r'[^a-z0-9]','-',(chain+'-'+street+'-'+code).lower()),'chain':chain,'name':chain,'address':street+', '+city+', '+state+' '+code,'distance_miles':round(distance,1),'distance_approximate':False})
- return matches
+ return []
 
 
 def merge_store_results(*groups):
@@ -589,10 +515,10 @@ def nearby_stores(zipcode,radius=10):
  query='[out:json][timeout:10];(nwr["shop"="supermarket"]["name"~"Hy.Vee|Price Chopper|Hen House|ALDI|Walmart",i](around:'+str(int(radius*1609.344))+','+str(lat)+','+str(lon)+');nwr["shop"="supermarket"]["brand"~"Hy.Vee|Price Chopper|Hen House|ALDI|Walmart",i](around:'+str(int(radius*1609.344))+','+str(lat)+','+str(lon)+'););out center;'
  payload=urllib.parse.urlencode({'data':query}).encode()
  elements=None
- for endpoint in ('https://overpass.private.coffee/api/interpreter','https://overpass.kumi.systems/api/interpreter','https://overpass-api.de/api/interpreter'):
+ for endpoint in ('https://overpass.nchc.org.tw/api/interpreter','https://overpass.private.coffee/api/interpreter','https://overpass.kumi.systems/api/interpreter','https://overpass-api.de/api/interpreter'):
   try:
    request=urllib.request.Request(endpoint,data=payload,headers=headers,method='POST')
-   with urllib.request.urlopen(request,timeout=5) as resp:candidate=json.load(resp)
+   with urllib.request.urlopen(request,timeout=8) as resp:candidate=json.load(resp)
    if not isinstance(candidate,dict) or not isinstance(candidate.get('elements'),list):raise ValueError('Invalid directory response')
    elements=candidate['elements'];break
   except (OSError,ValueError) as error:print('Store directory endpoint failed:',endpoint,repr(error),flush=True)
@@ -610,7 +536,7 @@ def nearby_stores(zipcode,radius=10):
   result={'zip':zipcode,'radius_miles':radius,'directory_status':{'all_the_places':len(retailer_matches),'openstreetmap':len(matches),'retailer_locations':len(published_matches)},'stores':combined,'source':'All the Places + OpenStreetMap','note':'Merged free store directories; listings may still be incomplete. Prices are not store-specific.'}
   store_cache_save(cache_key,result);return result
  try:
-  matches=google_nearby_stores(lat,lon)
+  matches=google_nearby_stores(lat,lon,radius)
   if matches is not None:
    result={'zip':zipcode,'stores':merge_store_results(retailer_matches,published_matches,matches),'source':'All the Places + retailer locations + Google Places','note':'Merged store directories; coverage varies.'}
    store_cache_save(cache_key,result);return result
