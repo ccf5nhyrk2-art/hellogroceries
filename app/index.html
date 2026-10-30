@@ -910,13 +910,19 @@ async function showReefCachedPrices(){
    if(!byItem.has(p.item))byItem.set(p.item,[]);
    byItem.get(p.item).push({...p,chain:store.chain});
   }
-  const itemRows=items.map(item=>{
-   const offers=(byItem.get(item)||[]).sort((a,b)=>Number(a.price)-Number(b.price));
-   if(!offers.length)return '<details><summary>'+esc(item)+' — '+(data.cached_items?.includes(item)?'Searched, no matching price':'Not priced yet')+'</summary><p class="muted">No matching prices available. Walmart or other stores may not return a product for this ingredient.</p></details>';
-   const best=offers[0];
-   return '<details><summary>'+esc(item)+' — cheapest available: '+esc(best.chain)+' $'+Number(best.price).toFixed(2)+'</summary>'+offers.map(p=>'<p>'+esc(p.chain)+': $'+Number(p.price).toFixed(2)+' / '+esc(p.unit||'size unknown')+' — '+esc(p.product||'')+'</p>').join('')+'</details>';
+  const chains=['Price Chopper','Walmart','Hy-Vee','ALDI'];
+  const money=p=>p?'$'+Number(p.price).toFixed(2):'—';
+  const rows=items.map(item=>{
+   const offers=byItem.get(item)||[];
+   const best=offers.length?[...offers].sort((a,b)=>Number(a.price)-Number(b.price))[0]:null;
+   const cells=chains.map(chain=>'<td style="padding:6px;white-space:nowrap">'+esc(money(offers.find(p=>p.chain===chain)))+'</td>').join('');
+   const detail=offers.length?'<details><summary>Products and sizes</summary>'+offers.map(p=>'<div>'+esc(p.chain)+': '+esc(p.product||'')+' · '+esc(p.unit||'size unknown')+'</div>').join('')+'</details>':'';
+   const status=best?esc(best.chain)+' '+esc(money(best)):(data.cached_items?.includes(item)?'No match':'Not searched');
+   return '<tr><td style="padding:6px;min-width:180px">'+esc(item)+detail+'</td>'+cells+'<td style="padding:6px;white-space:nowrap">'+status+'</td></tr>';
   });
-  target.innerHTML='<p><strong>ReefAPI:</strong> '+data.cached+' of '+data.requested+' searched in last 7 days; '+data.missing+' not cached; '+(data.unpriced_cached||0)+' searched without a matched price.</p><p class="muted">Cheapest means lowest listed package price, not lowest price per comparable quantity.</p>'+data.stores.map(store=>'<details><summary><strong>'+esc(store.chain)+'</strong> — $'+Number(store.partial_total).toFixed(2)+' partial total · '+store.priced+' of '+store.requested+' priced</summary>'+store.prices.map(p=>'<p>'+esc(p.item)+': $'+Number(p.price).toFixed(2)+' / '+esc(p.unit||'unit unknown')+' — '+esc(p.product||'')+'</p>').join('')+'</details>').join('')+'<h4>Prices by ingredient</h4>'+itemRows.join('')+'<p class="muted">'+esc(data.message)+'</p>';
+  const header='<tr><th>Ingredient</th>'+chains.map(c=>'<th>'+esc(c)+'</th>').join('')+'<th>Lowest package</th></tr>';
+  const table='<div style="max-height:360px;overflow:auto"><table style="width:100%;font-size:12px;border-collapse:collapse">'+header+rows.join('')+'</table></div>';
+  target.innerHTML='<p><strong>ReefAPI:</strong> '+data.cached+' of '+data.requested+' searched in last 7 days; '+data.missing+' not cached; '+(data.unpriced_cached||0)+' searched without a matched price.</p><p class="muted">Prices reflect different package sizes. Lowest package price is not necessarily best unit value. Missing prices are shown as dashes, not $0.</p>'+data.stores.map(store=>'<details><summary><strong>'+esc(store.chain)+'</strong> — $'+Number(store.partial_total).toFixed(2)+' partial total · '+store.priced+' of '+store.requested+' priced</summary>'+store.prices.map(p=>'<p>'+esc(p.item)+': $'+Number(p.price).toFixed(2)+' / '+esc(p.unit||'unit unknown')+' — '+esc(p.product||'')+'</p>').join('')+'</details>').join('')+'<h4>Prices by ingredient</h4>'+table+'<p class="muted">'+esc(data.message)+'</p>';
  }catch(e){target.textContent='Cached pricing unavailable: '+e.message}
 }
 async function refreshReefPrices(){
