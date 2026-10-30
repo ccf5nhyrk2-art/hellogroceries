@@ -115,6 +115,7 @@ for(const [key,label] of pageSpecs){
  if(mobileTabs.some(x=>x[0]===key))continue;
  const option=document.createElement('button');
  option.type='button';option.className='mobile-more-option';option.dataset.page=key;
+ if(key==='backup')option.dataset.adminOnly='';
  option.textContent=label;
  option.addEventListener('click',()=>{try{showPage(key)}catch(error){alert('Navigation error: '+error.message);console.error(error)}});
  mobileMore.querySelector('.mobile-more-options').appendChild(option);
@@ -125,6 +126,7 @@ for(const [key,label] of pageSpecs){
  button.type='button';button.className='page-nav-button';
  button.textContent=label;
  button.addEventListener('click',()=>{try{showPage(key)}catch(error){alert('Navigation error: '+error.message);console.error(error)}});
+ if(key==='backup')button.dataset.adminOnly='';
  toolbar.appendChild(button);pageButtons.set(key,button);
 }
 function showPage(key){
@@ -942,5 +944,8 @@ $('restore-backup').onclick=async()=>{const file=$('restore-file').files[0];if(!
 </script><script>
 fetch('/api/auth/status',{cache:'no-store'}).then(r=>r.json()).then(status=>{
  if(status.admin)document.body.classList.add('is-instance-admin');
+ else if(typeof pageButtons!=='undefined'&&pageButtons.has('backup')){
+  if(localStorage.getItem('hellogroceries-active-page-v1')==='backup')showPage('all');
+ }
 }).catch(()=>{});
 </script><script>if('serviceWorker' in navigator)navigator.serviceWorker.getRegistrations().then(rs=>rs.forEach(r=>{if(r.active&&r.active.scriptURL.endsWith('/sw.js'))r.unregister()})).catch(()=>{});</script></body></html>
