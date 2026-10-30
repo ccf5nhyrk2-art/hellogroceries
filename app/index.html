@@ -967,7 +967,7 @@ function updateShoppingPriceSummary(priced,total,count){
  if(!summary){summary=document.createElement('div');summary.id='shopping-price-summary';summary.className='enhance-panel';summary.style.marginBottom='12px';items.parentElement.insertBefore(summary,items)}
  const store=getPreferredStore();
  if(!store){summary.innerHTML='<strong>Store pricing</strong><p class="muted">Choose a preferred store in Nearby stores to see ingredient prices here.</p>';return}
- summary.innerHTML='<strong>'+esc(store.chain)+' shopping prices</strong> <button type="button" id="shopping-refresh-prices">Refresh weekly-ad prices</button> <button type="button" id="shopping-free-prices">Test free community prices</button> <button type="button" id="shopping-retailer-prices">Check retailer catalog</button> <button type="button" id="shopping-compare-stores">Compare 4 stores</button> <button type="button" id="shopping-reef-refresh">Refresh live prices (10 items)</button> <button type="button" id="shopping-reef-view">View cached 4-store prices</button>'+(String(store.chain||'').toLowerCase()==='price chopper'?' <a href="https://www.shopmypricechopper.com/" target="_blank" rel="noopener noreferrer">Shop Price Chopper online (Instacart)</a>':'')+'<p><strong>Partial subtotal: $'+total.toFixed(2)+'</strong> · '+priced+' of '+count+' items priced</p><p class="muted">One listed unit per item; quantities, package differences, taxes and missing prices are excluded. Not a checkout estimate.</p><div id="shopping-free-results" class="muted">Historical community observations only; not verified store prices. Test 10 ingredients at a time.</div><div id="retailer-catalog-status" class="muted">Retailer catalog feed is optional and not configured by default.</div><div id="retailer-comparison-results" class="muted" aria-live="polite"></div>';
+ summary.innerHTML='<strong>'+esc(store.chain)+' shopping prices</strong> <button type="button" id="shopping-refresh-prices">Refresh weekly-ad prices</button> <button type="button" id="shopping-free-prices">Test free community prices</button> <button type="button" id="shopping-retailer-prices">Check retailer catalog</button> <button type="button" id="shopping-compare-stores">Compare 4 stores</button> <button type="button" id="shopping-reef-refresh">Refresh live prices (10 items)</button> <button type="button" id="shopping-reef-view">View cached 4-store prices</button><p><strong>Partial subtotal: $'+total.toFixed(2)+'</strong> · '+priced+' of '+count+' items priced</p><p class="muted">One listed unit per item; quantities, package differences, taxes and missing prices are excluded. Not a checkout estimate.</p><div id="shopping-free-results" class="muted">Historical community observations only; not verified store prices. Test 10 ingredients at a time.</div><div id="retailer-catalog-status" class="muted">Retailer catalog feed is optional and not configured by default.</div><div id="retailer-comparison-results" class="muted" aria-live="polite"></div>';
 }
 function setShoppingItemPrice(name){
  const store=getPreferredStore();if(!store){alert('Choose a preferred store first.');return}
@@ -1009,6 +1009,19 @@ async function testFreeCommunityPrices(){
  }catch(error){target.textContent='Free community lookup unavailable: '+error.message}
  finally{button.disabled=false}
 }
+// Delegate pricing actions: the shopping summary is recreated during rendering.
+document.addEventListener('click',event=>{
+ const refresh=event.target.closest('#shopping-reef-refresh');
+ const view=event.target.closest('#shopping-reef-view');
+ if(!refresh&&!view)return;
+ event.preventDefault();
+ const status=$('retailer-catalog-status');
+ if(status)status.textContent=refresh?'Preparing live pricing request…':'Opening cached price comparison…';
+ Promise.resolve().then(()=>refresh?refreshReefPrices():showReefCachedPrices()).catch(error=>{
+  const output=$('retailer-catalog-status')||$('retailer-comparison-results');
+  if(output)output.textContent='Pricing action failed: '+error.message;
+ });
+});
 function renderShoppingList(){
  let pricedCount=0,priceTotal=0,itemCount=0;
  const groups=new Map();
@@ -1042,8 +1055,7 @@ function renderShoppingList(){
   $('shopping-free-prices')?.addEventListener('click',testFreeCommunityPrices);
   $('shopping-retailer-prices')?.addEventListener('click',refreshRetailerCatalogPrices);
   $('shopping-compare-stores')?.addEventListener('click',compareRetailerPrices);
-  $('shopping-reef-refresh')?.addEventListener('click',refreshReefPrices);
-  $('shopping-reef-view')?.addEventListener('click',showReefCachedPrices);
+
  $('items').querySelectorAll('[data-set-price]').forEach(b=>b.addEventListener('click',()=>setShoppingItemPrice(b.dataset.setPrice)));
 }
 const glutenIngredientPattern=/\b(wheat|flour|breadcrumbs?|bread|buns?|panko|pasta|spaghetti|linguine|penne|noodles?|couscous|bulgur|semolina|farro|barley|rye|seitan|tortillas?|pita|naan|gnocchi|orzo|soy sauce|teriyaki|hoisin|malt|beer|croutons?|pretzels?|wonton|dumplings?)\b/i;
