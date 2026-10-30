@@ -1388,6 +1388,44 @@ class Handler(SimpleHTTPRequestHandler):
  def do_POST(self):
   request_scope.household_id=None
   if self.path in ('/api/auth/setup','/api/auth/login','/api/auth/register'):return self.auth_post()
+  if self.path=='/api/admin/nutrition-batch':
+   if not self.gate(write=True):return
+   if not getattr(request_scope,'admin',False):return self.sendjson({'error':'Administrator required'},403)
+   try:
+    size=int(self.headers.get('Content-Length','0'))
+    if not 0<size<=1024:raise ValueError('Invalid request size')
+    args=json.loads(self.rfile.read(size))
+    cursor=max(0,int(args.get('cursor',0)))
+    with db() as conn:
+     rows=conn.execute('SELECT id,url,payload FROM imported WHERE id>? ORDER BY id LIMIT 3',(cursor,)).fetchall()
+     total=conn.execute('SELECT COUNT(*) FROM imported').fetchone()[0]
+    updated=skipped=failed=0
+    errors=[]
+    for rid,url,payload in rows:
+     try:
+      original=json.loads(payload)
+      if original.get('nutrition'):
+       skipped+=1
+       continue
+      fresh=recipe_from_url(url)
+      nutrition=fresh.get('nutrition') or {}
+      labels=fresh.get('dietary_labels') or []
+      if not nutrition and not labels:
+       failed+=1
+       errors.append(str(rid)+': No source nutrition found')
+       continue
+      original['nutrition']=nutrition
+      original['dietary_labels']=labels
+      with lock:
+       with db() as conn:conn.execute('UPDATE imported SET payload=? WHERE id=?',(json.dumps(original),rid))
+      updated+=1
+     except (ValueError,TypeError,OSError,urllib.error.URLError,TimeoutError) as exc:
+      failed+=1
+      errors.append(str(rid)+': '+str(exc)[:120])
+    next_cursor=rows[-1][0] if rows else cursor
+    with db() as conn:remaining=conn.execute('SELECT COUNT(*) FROM imported WHERE id>?',(next_cursor,)).fetchone()[0]
+    return self.sendjson({'ok':True,'cursor':next_cursor,'total':total,'processed':total-remaining,'updated':updated,'skipped':skipped,'failed':failed,'errors':errors,'done':remaining==0})
+   except (ValueError,TypeError) as exc:return self.sendjson({'error':str(exc)},400)
   if self.path=='/api/nutrition-refresh':
    if not self.gate(write=True):return
    try:
