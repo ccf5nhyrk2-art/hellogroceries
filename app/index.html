@@ -960,6 +960,35 @@ async function refreshReefPrices(){
  }catch(e){if(status)status.textContent='Live price refresh failed: '+e.message}
  finally{if(button)button.disabled=false}
 }
+async function refreshReefBatch(){
+ const status=$('retailer-catalog-status'),button=$('shopping-reef-batch');
+ const items=[...new Set((state.list||[]).filter(x=>!x.checked).map(x=>String(x.name||'').trim()).filter(Boolean))].slice(0,60);
+ const zip=String($('store-zip')?.value||localStorage.getItem(STORE_ZIP_KEY)||'').trim();
+ if(!/^\d{5}$/.test(zip)){if(status)status.textContent='Enter a valid ZIP code first.';return}
+ if(!items.length){if(status)status.textContent='No ingredients to price.';return}
+ if(button)button.disabled=true;
+ try{
+  const params=new URLSearchParams({zip});items.forEach(item=>params.append('item',item));
+  const r=await fetch('/api/reef-cached-prices?'+params,{cache:'no-store'});
+  const cache=await r.json();if(!r.ok)throw Error(cache.error||'Cache check failed');
+  const cached=new Set((cache.cached_items||[]).map(x=>reefSearchTerm(x).toLowerCase()));
+  const pending=items.filter(x=>!cached.has(reefSearchTerm(x).toLowerCase())).slice(0,10);
+  if(!pending.length){if(status)status.textContent='All ingredients recently checked; no credits used.';return}
+  const estimate=pending.length*2;
+  if(!confirm('Refresh '+pending.length+' uncached ingredients, one at a time? Estimated maximum '+estimate+' ReefAPI credits. Stop if a request fails.'))return;
+  let done=0,matches=0,credits=0;
+  for(const item of pending){
+   if(status)status.textContent='Pricing '+(done+1)+' of '+pending.length+': '+reefSearchTerm(item)+'… Estimated credits so far: '+credits;
+   const response=await fetch('/api/reef-refresh',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({zip,items:[item]})});
+   const data=await response.json();if(!response.ok||data.errors?.length)throw Error(data.errors?.[0]?.error||data.error||'Request failed');
+   done++;matches+=Number(data.saved_matches||0);credits+=Number(data.credits_estimate||0);
+   if(status)status.textContent='Completed '+done+' of '+pending.length+'; '+matches+' store matches; ~'+credits+' credits used.';
+  }
+  await showReefCachedPrices();
+  if(status)status.textContent='Finished '+done+' ingredients, '+matches+' retailer matches; estimated '+credits+' credits.';
+ }catch(e){if(status)status.textContent='Batch stopped: '+e.message+'. Completed results remain cached.';await showReefCachedPrices()}
+ finally{if(button)button.disabled=false}
+}
 async function compareRetailerPrices(){
  const target=$('retailer-comparison-results');
  if(!target)return;
@@ -998,7 +1027,7 @@ function updateShoppingPriceSummary(priced,total,count){
  if(!summary){summary=document.createElement('div');summary.id='shopping-price-summary';summary.className='enhance-panel';summary.style.marginBottom='12px';items.parentElement.insertBefore(summary,items)}
  const store=getPreferredStore();
  if(!store){summary.innerHTML='<strong>Store pricing</strong><p class="muted">Choose a preferred store in Nearby stores to see ingredient prices here.</p>';return}
- summary.innerHTML='<strong>'+esc(store.chain)+' shopping prices</strong> <button type="button" id="shopping-refresh-prices">Refresh weekly-ad prices</button> <button type="button" id="shopping-free-prices">Test free community prices</button> <button type="button" id="shopping-retailer-prices">Check retailer catalog</button> <button type="button" id="shopping-compare-stores">Compare 4 stores</button> <button type="button" id="shopping-reef-refresh">Refresh next ingredient</button> <button type="button" id="shopping-reef-view">View cached 4-store prices</button><p><strong>Partial subtotal: $'+total.toFixed(2)+'</strong> · '+priced+' of '+count+' items priced</p><p class="muted">One listed unit per item; quantities, package differences, taxes and missing prices are excluded. Not a checkout estimate.</p><div id="shopping-free-results" class="muted">Historical community observations only; not verified store prices. Test 10 ingredients at a time.</div><div id="retailer-catalog-status" class="muted">Retailer catalog feed is optional and not configured by default.</div><div id="retailer-comparison-results" class="muted" aria-live="polite"></div>';
+ summary.innerHTML='<strong>'+esc(store.chain)+' shopping prices</strong> <button type="button" id="shopping-refresh-prices">Refresh weekly-ad prices</button> <button type="button" id="shopping-free-prices">Test free community prices</button> <button type="button" id="shopping-retailer-prices">Check retailer catalog</button> <button type="button" id="shopping-compare-stores">Compare 4 stores</button> <button type="button" id="shopping-reef-refresh">Refresh next ingredient</button> <button type="button" id="shopping-reef-batch">Refresh next 10 ingredients</button> <button type="button" id="shopping-reef-view">View cached 4-store prices</button><p><strong>Partial subtotal: $'+total.toFixed(2)+'</strong> · '+priced+' of '+count+' items priced</p><p class="muted">One listed unit per item; quantities, package differences, taxes and missing prices are excluded. Not a checkout estimate.</p><div id="shopping-free-results" class="muted">Historical community observations only; not verified store prices. Test 10 ingredients at a time.</div><div id="retailer-catalog-status" class="muted">Retailer catalog feed is optional and not configured by default.</div><div id="retailer-comparison-results" class="muted" aria-live="polite"></div>';
 }
 function setShoppingItemPrice(name){
  const store=getPreferredStore();if(!store){alert('Choose a preferred store first.');return}
