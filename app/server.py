@@ -625,7 +625,7 @@ class Handler(SimpleHTTPRequestHandler):
    size=int(self.headers.get('Content-Length','0'))
    if size<1 or size>25000000:return self.sendjson({'error':'Too large (25 MB maximum)'},413)
    p=json.loads(self.rfile.read(size));action=p['action']
-   if action in ('start-us-import','pause-bulk','resume-bulk','restore-backup','import','bulk','photo') and not getattr(request_scope,'admin',False):
+   if action in ('start-us-import','pause-bulk','resume-bulk','restore-backup','bulk','photo') and not getattr(request_scope,'admin',False):
     return self.sendjson({'error':'Administrator required'},403)
    if action=='start-us-import':return self.sendjson(start_us_import())
    if action=='pause-bulk':
@@ -702,7 +702,16 @@ class Handler(SimpleHTTPRequestHandler):
      for oldfile in PHOTO_DIR.glob(str(rid)+'.*'):oldfile.unlink(missing_ok=True)
     return self.sendjson({'ok':True})
    if action=='import':
-    url=str(p.get('url',''))
+    url=str(p.get('url','')).strip()
+    # Non-admin users may add one recipe at a time, not alter existing
+    # catalog records or launch bulk/system-wide imports.
+    if not getattr(request_scope,'admin',False):
+     if not auth_rate_allowed(str(request_scope.user_id),'single-recipe-import',20,3600):
+      return self.sendjson({'error':'Recipe import limit reached. Try again later.'},429)
+     with db() as c:
+      existing=c.execute('SELECT id,payload FROM imported WHERE url=?',(url,)).fetchone()
+     if existing:
+      return self.sendjson({'ok':True,'recipe':json.loads(existing[1]),'already_imported':True})
     recipe=recipe_from_url(url)
     with lock:
      with db() as c:
