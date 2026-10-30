@@ -49,5 +49,29 @@ class HouseholdSecurityTests(unittest.TestCase):
         with self.assertRaises(PermissionError):
             auth.issue_invite(self.conn, friend, "other@example.test")
 
+
+    def test_pending_registration_requires_admin_approval(self):
+        admin, original = auth.create_first_admin(self.conn, "owner@example.test", "very-long-password-123")
+        auth.request_registration(self.conn, "new@example.test", "another-long-password-123", "New Home")
+        self.assertEqual(len(auth.pending_registrations(self.conn)), 1)
+        with self.assertRaises(ValueError):
+            auth.authenticate(self.conn, "new@example.test", "another-long-password-123")
+        request_id = auth.pending_registrations(self.conn)[0]["id"]
+        auth.review_registration(self.conn, admin, request_id, True)
+        uid = auth.authenticate(self.conn, "new@example.test", "another-long-password-123")
+        self.assertIsNone(auth.household_access(self.conn, uid, original))
+        self.assertEqual(len(auth.pending_registrations(self.conn)), 0)
+        with self.assertRaises(ValueError):
+            auth.review_registration(self.conn, admin, request_id, True)
+
+    def test_rejected_registration_never_creates_account(self):
+        admin, _ = auth.create_first_admin(self.conn, "owner@example.test", "very-long-password-123")
+        auth.request_registration(self.conn, "no@example.test", "another-long-password-123", "No Home")
+        request_id = auth.pending_registrations(self.conn)[0]["id"]
+        auth.review_registration(self.conn, admin, request_id, False)
+        with self.assertRaises(ValueError):
+            auth.authenticate(self.conn, "no@example.test", "another-long-password-123")
+        self.assertEqual(self.conn.execute("SELECT password_hash FROM hg_registration_requests WHERE id=?",(request_id,)).fetchone()[0], "")
+
 if __name__ == "__main__":
     unittest.main()
