@@ -968,7 +968,7 @@ def reef_refresh_batch(zipcode,items):
    old=cache.get(key)
    if isinstance(old,dict) and now-float(old.get('time',0))<REEF_CACHE_SECONDS:
     skipped+=1;details.append({'item':item,'status':'cached','matches':len(old.get('matches',[]))});continue
-  try:result=reef_test_search(zipcode,item)
+  try:result=reef_test_search(zipcode,reef_normalize_item(item))
   except ValueError as exc:
    errors.append({'item':item,'error':str(exc)})
    details.append({'item':item,'status':'error','reason':str(exc)})
@@ -990,10 +990,16 @@ def reef_refresh_batch(zipcode,items):
    def rank(p):
     words=tokens_for(p['name'])
     overlap=len(tokens&words)
-    return (overlap/max(1,len(tokens)),overlap,-len(words))
+    # Ingredient identity matters more than the cheapest or shortest product title.
+    # Reject broad one-word overlap for multiword ingredients (e.g. stock concentrate).
+    coverage=overlap/max(1,len(tokens))
+    return (coverage,overlap,-abs(len(words)-len(tokens)),-len(words))
    best=max(products,key=rank)
-   # Require the distinctive ingredient words to appear; do not substitute unrelated products.
-   if tokens and rank(best)[0]<0.5:continue
+   if not tokens or rank(best)[0]<1.0:continue
+   # Avoid obviously mismatched forms such as concentrates, mixes or flavored versions.
+   product_words=tokens_for(best['name'])
+   incompatible={'concentrate','powder','mix','flavored','flavour','flavor','substitute','imitation'}
+   if (product_words&incompatible)-(tokens&incompatible):continue
    matches.append({'chain':chain,'price':best['price'],'unit':best['size'],'product':best['name'],'checked_at':datetime.datetime.now(datetime.timezone.utc).isoformat()})
   with REEF_CACHE_LOCK:
    cache=reef_cache_read()
