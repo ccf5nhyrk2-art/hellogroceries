@@ -1,3 +1,7 @@
+## Nutrition and dietary labels
+
+Individual HelloFresh URL imports now retain available structured nutrition fields (calories, protein, carbohydrates, fat, fiber, sugar, sodium, saturated fat) and explicitly declared `suitableForDiet` classifications. Recipe cards show calories and verified dietary labels when available; **Cook / Details** shows the complete available nutrition panel. Existing imported and bundled recipes without structured nutrition data show an unavailable message. No nutritional values or allergen-free claims are inferred from recipe names or ingredients. Nutritional values may vary with substitutions and portion sizes; check the original recipe and product packaging for allergens.
+
 ## Recipe import permissions
 
 All signed-in users may import individual public HelloFresh recipes using the **Import Recipe** URL field. Imports are added to the installation-wide shared recipe catalog; existing imported recipes are returned without modification for non-admin users. Regular users are limited to 20 individual import attempts per hour. Bulk imports, catalog restoration, and recipe-photo overrides remain restricted to the instance administrator. Household shopping lists, pantry, favorites, and meal plans remain isolated.
