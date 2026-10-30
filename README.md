@@ -1,3 +1,9 @@
+## Registration with administrator approval (testing)
+
+Users can request an account from the login page. Registration stores a pending request with a salted PBKDF2 password hash and **does not create an active account or household** until the instance administrator approves it at `/admin.html`. Approval creates a new private household; rejection discards the pending password hash. Existing users, sessions, invitations, and household data are preserved. Sign-in is handled by HelloGroceries; no Cloudflare JWT is needed for regular sign-in.
+
+**Safe rollout:** Keep the current Cloudflare Access policy enabled while testing registration, approval, sign-in, isolation and logout. Only after verification, remove the Cloudflare Access application/policy for `groceries.greenlee.uk` while keeping the Cloudflare Tunnel and HTTPS hostname. No change to the tunnel's upstream is required. Administrator bootstrap still requires verified Cloudflare Access if the installation has not yet created its first admin. This implementation has no automated password-reset email; users who lose their password need an administrator-assisted recovery process. Registration requests are not email-verified, so approve only addresses you recognize. Public exposure requires monitoring and further security review.
+
 # HelloGroceries
 
 A self-hosted grocery planner and unofficial HelloFresh companion. Browse recipes, select meals, and manage a shopping checklist, with optional US recipe metadata importing.
