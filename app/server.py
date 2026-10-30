@@ -773,7 +773,7 @@ def save_reef_key(key):
   raise
 
 def reef_test_search(zipcode,query):
- if not re.fullmatch(r'\\d{5}',str(zipcode)):raise ValueError('Enter a five-digit US ZIP code')
+ if not re.fullmatch(r'\d{5}',str(zipcode)):raise ValueError('Enter a five-digit US ZIP code')
  query=str(query).strip()
  if not 2<=len(query)<=90:raise ValueError('Enter a grocery item (2–90 characters)')
  try:key=REEF_KEY_PATH.read_text().strip()
