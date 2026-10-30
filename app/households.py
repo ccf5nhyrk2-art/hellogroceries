@@ -68,6 +68,9 @@ CREATE INDEX IF NOT EXISTS hg_invitations_email ON hg_invitations(email);
 def ensure_schema(conn: sqlite3.Connection) -> None:
     conn.execute("PRAGMA foreign_keys=ON")
     conn.executescript(SCHEMA)
+    # Additive migration: older installations already have hg_users.
+    if not any(row[1] == "last_login_at" for row in conn.execute("PRAGMA table_info(hg_users)")):
+        conn.execute("ALTER TABLE hg_users ADD COLUMN last_login_at TEXT")
 
 def instance_needs_setup(conn: sqlite3.Connection) -> bool:
     ensure_schema(conn)
@@ -148,6 +151,7 @@ def create_session(conn, user_id):
     token = secrets.token_urlsafe(32)
     conn.execute("INSERT INTO hg_sessions(token_hash,user_id,expires_at) VALUES(?,?,?)",
                  (token_hash(token), user_id, expiry(SESSION_HOURS)))
+    conn.execute("UPDATE hg_users SET last_login_at=? WHERE id=?", (now(),user_id))
     return token
 
 def session_user(conn, token):
@@ -253,6 +257,44 @@ def review_registration(conn, admin_id, request_id, approve):
             conn.execute("INSERT INTO hg_household_state(household_id,payload) VALUES(?,?)",(hid,'{"selected":{},"list":[],"revision":0}'))
         conn.execute("UPDATE hg_registration_requests SET status=?,reviewed_at=?,password_hash='' WHERE id=?",
                      ('approved' if approve else 'rejected',now(),request_id))
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+
+def list_accounts(conn, admin_id):
+    if not conn.execute("SELECT 1 FROM hg_users WHERE id=? AND is_instance_admin=1",(admin_id,)).fetchone():
+        raise PermissionError("Administrator required")
+    rows=conn.execute("""
+        SELECT u.id,u.email,u.is_instance_admin,u.created_at,u.last_login_at,
+               GROUP_CONCAT(h.name, ', ')
+        FROM hg_users u
+        LEFT JOIN hg_memberships m ON m.user_id=u.id
+        LEFT JOIN hg_households h ON h.id=m.household_id
+        GROUP BY u.id
+        ORDER BY u.is_instance_admin DESC,u.created_at,u.id
+    """).fetchall()
+    return [dict(id=r[0],email=r[1],admin=bool(r[2]),created_at=r[3],
+                 last_login_at=r[4],households=r[5] or '') for r in rows]
+
+def remove_account(conn, admin_id, user_id):
+    if type(user_id) is not int or user_id < 1:
+        raise ValueError("Invalid account ID")
+    conn.execute("BEGIN IMMEDIATE")
+    try:
+        if not conn.execute("SELECT 1 FROM hg_users WHERE id=? AND is_instance_admin=1",(admin_id,)).fetchone():
+            raise PermissionError("Administrator required")
+        if user_id == admin_id:
+            raise ValueError("You cannot remove your own administrator account")
+        row=conn.execute("SELECT is_instance_admin FROM hg_users WHERE id=?",(user_id,)).fetchone()
+        if row is None:raise ValueError("Account not found")
+        if row[0]:raise ValueError("The instance administrator cannot be removed")
+        # Do not cascade-delete household state: removing a login must not destroy
+        # someone's grocery lists, pantry or other household data.
+        conn.execute("DELETE FROM hg_memberships WHERE user_id=?",(user_id,))
+        conn.execute("DELETE FROM hg_sessions WHERE user_id=?",(user_id,))
+        conn.execute("DELETE FROM hg_invitations WHERE invited_by=?",(user_id,))
+        conn.execute("DELETE FROM hg_users WHERE id=?",(user_id,))
         conn.commit()
     except Exception:
         conn.rollback()
