@@ -1,4 +1,36 @@
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="referrer" content="no-referrer"><title>HelloGroceries — Administration</title><style>body{font:16px system-ui;background:#f4f7f5;color:#173629;max-width:680px;margin:48px auto;padding:0 20px}main{background:#fff;padding:25px;border-radius:14px}input,button{padding:12px;border-radius:8px;border:1px solid #bbb}input{width:min(90%,380px)}button{background:#176b4a;color:white;cursor:pointer;border:0}#error{color:#a00}#result{overflow-wrap:anywhere}</style></head><body><main><p><a href="/">← Groceries</a></p><h1>Household administration</h1><p>Create a private household invitation. Each link expires in 72 hours and can be used once. Send it directly to the intended person.</p><form id="form"><label for="email">Friend's email address</label><p><input type="email" id="email" required placeholder="friend@example.com"></p><button>Generate invitation</button></form><p id="error" role="alert"></p><div id="result" hidden><p>Invitation link:</p><p><a id="link" rel="noreferrer"></a></p><button id="copy" type="button">Copy invitation link</button><p>If Cloudflare Access is still enabled, this friend's email must also be allowed there until you switch it off.</p></div><hr><h2>Pending registrations</h2><p>Approve a request to create a separate private household. Applicants can then sign in with their password.</p><div id="pending">Loading…</div><p><button id="refresh" type="button">Refresh requests</button></p><p><button id="logout" type="button">Sign out</button></p></main><script>
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="referrer" content="no-referrer"><title>HelloGroceries — Administration</title><style>body{font:16px system-ui;background:#f4f7f5;color:#173629;max-width:680px;margin:48px auto;padding:0 20px}main{background:#fff;padding:25px;border-radius:14px}input,button{padding:12px;border-radius:8px;border:1px solid #bbb}input{width:min(90%,380px)}button{background:#176b4a;color:white;cursor:pointer;border:0}#error{color:#a00}#result{overflow-wrap:anywhere}</style></head><body><main><p><a href="/">← Groceries</a></p><h1>Household administration</h1><p>Create a private household invitation. Each link expires in 72 hours and can be used once. Send it directly to the intended person.</p><form id="form"><label for="email">Friend's email address</label><p><input type="email" id="email" required placeholder="friend@example.com"></p><button>Generate invitation</button></form><p id="error" role="alert"></p><div id="result" hidden><p>Invitation link:</p><p><a id="link" rel="noreferrer"></a></p><button id="copy" type="button">Copy invitation link</button><p>If Cloudflare Access is still enabled, this friend's email must also be allowed there until you switch it off.</p></div><hr><h2>Accounts</h2><p>Approved users and last successful sign-in. Removing an account revokes sessions but retains household data.</p><div id="accounts">Loading…</div><button id="refresh-accounts" type="button">Refresh accounts</button><hr><h2>Pending registrations</h2><p>Approve a request to create a separate private household. Applicants can then sign in with their password.</p><div id="pending">Loading…</div><p><button id="refresh" type="button">Refresh requests</button></p><p><button id="logout" type="button">Sign out</button></p></main><script>
+async function loadAccounts(){
+ const el=document.getElementById('accounts');
+ try{
+  const response=await fetch('/api/auth/accounts',{cache:'no-store'});
+  const data=await response.json();
+  if(!response.ok)throw Error(data.error||'Unable to load accounts');
+  el.replaceChildren();
+  for(const account of data.accounts){
+   const row=document.createElement('p');
+   const detail=document.createElement('span');
+   const when=account.last_login_at?new Date(account.last_login_at.includes('T')?account.last_login_at:account.last_login_at.replace(' ','T')+'Z').toLocaleString():'Never';
+   detail.textContent=account.email+(account.admin?' (Admin)':'')+' — '+(account.households||'No household')+' — Last login: '+when+' ';
+   row.append(detail);
+   if(!account.admin){
+    const remove=document.createElement('button');remove.type='button';remove.textContent='Remove';
+    remove.onclick=async()=>{
+     if(!confirm('Remove '+account.email+'? Active sessions will be revoked; household data will be retained.'))return;
+     remove.disabled=true;
+     try{
+      const response=await fetch('/api/auth/remove-account',{method:'POST',headers:{'Content-Type':'application/json','X-HG-CSRF':csrf()},body:JSON.stringify({id:account.id})});
+      const result=await response.json();
+      if(!response.ok)throw Error(result.error||'Unable to remove account');
+      await loadAccounts();
+     }catch(e){alert(e.message);remove.disabled=false}
+    };
+    row.append(remove);
+   }
+   el.append(row);
+  }
+ }catch(e){el.textContent=e.message}
+}
+document.getElementById('refresh-accounts').onclick=loadAccounts;
 async function loadPending(){
  const el=document.getElementById('pending');
  try{
@@ -15,7 +47,7 @@ async function loadPending(){
     btn.onclick=async()=>{if(!confirm(title+' '+item.email+'?'))return;btn.disabled=true;try{
      const response=await fetch('/api/auth/review',{method:'POST',headers:{'Content-Type':'application/json','X-HG-CSRF':csrf()},body:JSON.stringify({id:item.id,approve})});
      const result=await response.json();if(!response.ok)throw Error(result.error||'Review failed');
-     await loadPending()
+     await loadPending();await loadAccounts()
     }catch(e){alert(e.message);btn.disabled=false}};
     p.append(btn,' ');
    }
@@ -26,7 +58,7 @@ async function loadPending(){
 document.getElementById('refresh').onclick=loadPending;
 const csrf=()=>document.cookie.split('; ').find(x=>x.startsWith('hg_csrf='))?.slice(8)||'';
 const $=id=>document.getElementById(id);
-(async()=>{let r=await fetch('/api/auth/status'),j=await r.json();if(!j.authenticated)location.replace('/auth.html');else if(!j.admin){$('form').hidden=true;$('error').textContent='Administrator access required'}else loadPending()})();
+(async()=>{let r=await fetch('/api/auth/status'),j=await r.json();if(!j.authenticated)location.replace('/auth.html');else if(!j.admin){$('form').hidden=true;$('error').textContent='Administrator access required'}else {loadPending();loadAccounts()}})();
 $('form').onsubmit=async e=>{e.preventDefault();$('error').textContent='';$('result').hidden=true;try{const r=await fetch('/api/auth/invite',{method:'POST',headers:{'Content-Type':'application/json','X-HG-CSRF':csrf()},body:JSON.stringify({email:$('email').value})});const j=await r.json();if(!r.ok)throw Error(j.error||'Invitation failed');$('link').href=j.invite_url;$('link').textContent=j.invite_url;$('result').hidden=false}catch(e){$('error').textContent=e.message}};
 $('copy').onclick=()=>navigator.clipboard.writeText($('link').href);
 $('logout').onclick=async()=>{await fetch('/api/auth/logout',{method:'POST',headers:{'X-HG-CSRF':csrf()}});location.replace('/auth.html')};
