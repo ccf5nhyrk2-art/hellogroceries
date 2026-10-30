@@ -73,6 +73,15 @@ html[data-theme="dark"] .recipe-photo,html[data-theme="dark"] .photo-placeholder
 html[data-theme="dark"] .row,html[data-theme="dark"] .section{border-color:#365347!important}
 #hg-theme-toggle{position:static;display:inline-flex;align-items:center;margin-top:12px;background:#176b4a;color:white;border:1px solid #91b9a0;border-radius:999px;padding:10px 14px;font:600 14px system-ui;box-shadow:0 3px 14px #0004;cursor:pointer}
 #hg-theme-toggle:focus-visible{outline:3px solid #e0bd66;outline-offset:3px}
+/* Mobile theme layout and nested panels */
+html[data-theme="dark"] .enhance-panel,html[data-theme="dark"] .selected-plan,html[data-theme="dark"] .shopping-department,html[data-theme="dark"] .ingredient-preview,html[data-theme="dark"] .mobile-bottom-nav,html[data-theme="dark"] .mobile-more-nav{background:#192a22!important;color:#e7f2eb!important;border-color:#365347!important}
+html[data-theme="dark"] .enhance-panel h3,html[data-theme="dark"] .selected-plan h3,html[data-theme="dark"] .selected-meal,html[data-theme="dark"] .shopping-department h3{color:#e7f2eb!important}
+html[data-theme="dark"] .selected-meal,html[data-theme="dark"] .mobile-bottom-nav{border-color:#365347!important}
+html[data-theme="dark"] .mobile-bottom-nav .mobile-tab{color:#c4dccc!important}
+html[data-theme="dark"] .mobile-bottom-nav .mobile-tab-active{background:#294a38!important;color:#baf1ce!important}
+html[data-theme="dark"] .selected-recipe-link{color:#91e7b4!important}
+@media(max-width:750px){#hg-theme-toggle{position:static!important;float:none!important;display:inline-flex!important;margin:10px 0 0!important;box-shadow:none!important;max-width:100%}}
+
 </style><script>
 (function(){const originalFetch=window.fetch;window.fetch=function(input,init){const opts=init?{...init}:{};const method=(opts.method||'GET').toUpperCase();const url=typeof input==='string'?input:input.url;if(method!=='GET'&&method!=='HEAD'&&url.startsWith('/api/')){const match=document.cookie.match(/(?:^|; )hg_csrf=([^;]+)/);opts.headers={...opts.headers,'X-HG-CSRF':match?match[1]:''}}return originalFetch.call(this,input,opts)};})();
 </script>
