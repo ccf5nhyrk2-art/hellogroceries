@@ -641,12 +641,6 @@ class Handler(SimpleHTTPRequestHandler):
   if self.path=='/api/state':
    with lock:
     state=read()
-    # Repair lists saved before automatic generation was introduced.
-    if state.get('selected') and not state.get('list'):
-     rebuild_grocery_list(state)
-     if state.get('list'):
-      state['revision']=state.get('revision',0)+1
-      save(state)
     return self.sendjson(state)
   if self.path=='/api/backup':
    if not getattr(request_scope,'admin',False):return self.sendjson({'error':'Administrator required'},403)
