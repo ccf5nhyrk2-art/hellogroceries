@@ -474,7 +474,7 @@ class Handler(SimpleHTTPRequestHandler):
    with db() as c:
     token=auth.issue_invite(c,request_scope.user_id,data.get('email'),None)
     c.commit()
-   return self.sendjson({'token':token,'expires_in_hours':auth.INVITE_HOURS})
+   return self.sendjson({'invite_url':'https://groceries.greenlee.uk/auth.html#invite='+urllib.parse.quote(token,safe=''),'expires_in_hours':auth.INVITE_HOURS})
   except (ValueError,TypeError,KeyError) as exc:return self.sendjson({'error':str(exc)},400)
  def redeem_post(self):
   origin=self.headers.get('Origin','')
@@ -503,7 +503,9 @@ class Handler(SimpleHTTPRequestHandler):
  def do_GET(self):
   request_scope.household_id=None
   if self.path=='/api/auth/status':
-   with db() as c:return self.sendjson({'setup_required':auth.instance_needs_setup(c),'authenticated':self.identity()[0] is not None})
+   with db() as c:
+    user,hid=self.identity()
+    return self.sendjson({'setup_required':auth.instance_needs_setup(c),'authenticated':user is not None,'admin':bool(user and user[2]),'email':user[1] if user else None})
   if not self.gate():return
   if self.path.startswith('/api/photo/'):
    try:
