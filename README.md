@@ -16,6 +16,12 @@ Users can request an account from the login page. Registration stores a pending 
 
 **Safe rollout:** Keep the current Cloudflare Access policy enabled while testing registration, approval, sign-in, isolation and logout. Only after verification, remove the Cloudflare Access application/policy for `groceries.greenlee.uk` while keeping the Cloudflare Tunnel and HTTPS hostname. No change to the tunnel's upstream is required. Administrator bootstrap still requires verified Cloudflare Access if the installation has not yet created its first admin. This implementation has no automated password-reset email; users who lose their password need an administrator-assisted recovery process. Registration requests are not email-verified, so approve only addresses you recognize. Public exposure requires monitoring and further security review.
 
+## Free retailer directory (no API key)
+
+Nearby Stores now tries **All the Places** retailer-location snapshots first for ALDI, Walmart and Hy-Vee. These open-data GeoJSON exports are downloaded at most once per seven days and stored in the existing `/data/retailer_store_directory.json` volume. ZIP-code geocoding remains unchanged. Stores within 10 miles are shown; Overpass is still attempted if no nearby retailer matches the snapshot or if the snapshot cannot be downloaded. Price Chopper currently depends on Overpass because its export has not been verified.
+
+The first lookup after deployment may take longer while downloading store exports. The exports are third-party snapshots and may be incomplete, delayed or unavailable; the app does not invent stores. The existing six-hour per-ZIP cache and 30-day stale-result fallback remain in place. No API key or paid account is needed for the All the Places source. See [All the Places](https://www.alltheplaces.xyz/) for source data and licensing.
+
 ## Nearby grocery stores: resilient lookup
 
 The Nearby Stores page searches for Hy-Vee, Price Chopper, ALDI and Walmart within 10 miles of the entered US ZIP code. OpenStreetMap Overpass servers are attempted first. Successful lookups are cached for six hours and saved to `/data/store_lookup_cache.json`, so results survive container restarts. If directory services are unavailable, a cached result up to 30 days old is returned with a stale-results notice.
