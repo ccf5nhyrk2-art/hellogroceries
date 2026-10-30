@@ -333,12 +333,18 @@ function renderSalesComparison(){
  if([...select.options].some(x=>x.value===old))select.value=old;
  else{const pref=getPreferredStore(),i=nearbyStoreResults.findIndex(x=>pref&&storeKey(x)===storeKey(pref));if(i>=0)select.value=String(i)}
  const today=new Date().toISOString().slice(0,10),offers=saleOffers().filter(x=>x.expires>=today),items=groceryNames();
- const matches=offers.map(x=>({...x,matches:items.filter(y=>saleMatches(x.item,y))})).filter(x=>x.matches.length);
+
+ const preferred=getPreferredStore(),preferredLabel=preferred?preferred.chain+' — '+(preferred.address||preferred.name):'';
+ const matched=items.map(item=>({item,offers:offers.filter(x=>saleMatches(x.item,item)).sort((a,b)=>Number(a.price)-Number(b.price))}));
+ const withOffers=matched.filter(x=>x.offers.length),withoutOffers=matched.filter(x=>!x.offers.length);
  $('sale-shopping-items').innerHTML=items.map(x=>'<option value="'+esc(x)+'"></option>').join('');
  const root=$('sale-comparison-results');
- root.innerHTML='<p class="muted">'+items.length+' shopping-list items · '+matches.length+' matching offers · '+offers.length+' current offers saved in this browser</p>'+
- (matches.length?matches.map(x=>'<div class="row"><div><strong>'+esc(x.store)+'</strong> · '+esc(x.item)+' · $'+Number(x.price).toFixed(2)+' / '+esc(x.unit)+'<div class="muted">Matches: '+esc(x.matches.join(', '))+' · Ends '+esc(x.expires)+'</div><a href="'+esc(x.source)+'" target="_blank" rel="noopener noreferrer">Verify weekly ad</a></div><button type="button" class="clear" data-delete-offer="'+esc(x.id)+'">Remove</button></div>').join(''):'<p class="muted">No saved offers match your current shopping list. Add verified offers from nearby retailers above.</p>')+
- '<p class="muted">Prices for different package sizes are not directly comparable; no savings totals are estimated.</p>';
+ const offerRow=x=>'<div class="row" style="gap:10px;align-items:flex-start"><div style="flex:1"><strong>'+esc(x.store)+'</strong> · $'+Number(x.price).toFixed(2)+' / '+esc(x.unit)+'<div class="muted">Advertised: '+esc(x.item)+' · Ends '+esc(x.expires)+'</div><a href="'+esc(x.source)+'" target="_blank" rel="noopener noreferrer">Verify weekly ad</a></div><button type="button" class="clear" data-delete-offer="'+esc(x.id)+'">Remove</button></div>';
+ root.innerHTML='<p class="muted">'+items.length+' shopping-list items · '+withOffers.length+' ingredients with matching saved offers · '+withoutOffers.length+' without matching offers</p>'+
+ (preferredLabel?'<p><strong>Preferred:</strong> '+esc(preferredLabel)+'</p>':'<p class="muted">Choose a preferred store above to highlight its offers.</p>')+
+ (withOffers.length?'<h4>Matching advertised offers</h4>'+withOffers.map(group=>'<div class="enhance-panel" style="margin:10px 0"><strong>'+esc(group.item)+'</strong>'+group.offers.sort((a,b)=>Number((b.store===preferredLabel))-Number((a.store===preferredLabel))).map(x=>offerRow(x)).join('')+'</div>').join(''):'<p class="muted">No verified saved offers match your shopping list yet. Check nearby retailers’ weekly ads, or add a verified offer above.</p>')+
+ (withoutOffers.length?'<details><summary style="cursor:pointer">Ingredients without matching offers ('+withoutOffers.length+')</summary><div class="muted" style="margin-top:8px">'+withoutOffers.map(x=>'<div style="padding:3px 0">'+esc(x.item)+'</div>').join('')+'</div></details>':'')+
+ '<p class="muted">These are matches against user-saved advertised offers, not a live price feed. Prices for different package sizes cannot be ranked as cheaper; verify all offers with the retailer.</p>';
  root.querySelectorAll('[data-delete-offer]').forEach(btn=>btn.addEventListener('click',()=>{localStorage.setItem(SALE_OFFERS_KEY,JSON.stringify(saleOffers().filter(x=>x.id!==btn.dataset.deleteOffer)));renderSalesComparison()}));
 }
 $('store-sale-form').addEventListener('submit',e=>{
