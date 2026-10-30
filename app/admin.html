@@ -187,7 +187,7 @@ document.getElementById('refresh').onclick=loadPending;
 // Admin-only bulk nutrition backfill. Cursor persists across page reloads.
 let nutritionRunning=false;
 let nutritionCursor=Number(localStorage.getItem('hg-nutrition-cursor')||0);
-let nutritionStats={updated:0,skipped:0,failed:0};
+let nutritionStats={updated:0,skipped:0,failed:0,missing:0};
 const nutritionStatus=document.getElementById('nutrition-status');
 const nutritionStart=document.getElementById('nutrition-start');
 const nutritionPause=document.getElementById('nutrition-pause');
@@ -201,9 +201,9 @@ nutritionStart.onclick=async()=>{
    const data=await response.json();
    if(!response.ok)throw Error(data.error||'Import failed');
    nutritionCursor=data.cursor;localStorage.setItem('hg-nutrition-cursor',String(nutritionCursor));
-   for(const k of ['updated','skipped','failed'])nutritionStats[k]+=data[k]||0;
+   for(const k of ['updated','skipped','failed','missing'])nutritionStats[k]+=data[k]||0;
    document.getElementById('nutrition-progress').value=data.total?100*data.processed/data.total:100;
-   nutritionStatus.textContent=data.processed+' / '+data.total+' imported recipes scanned · '+nutritionStats.updated+' updated · '+nutritionStats.skipped+' already populated · '+nutritionStats.failed+' unavailable or failed';
+   nutritionStatus.textContent=data.processed+' / '+data.total+' imported recipes scanned · '+nutritionStats.updated+' updated · '+nutritionStats.skipped+' already populated · '+nutritionStats.missing+' missing source nutrition · '+nutritionStats.failed+' request failures';
    if(data.errors?.length){const el=document.getElementById('nutrition-errors');el.textContent=(el.textContent+'\n'+data.errors.join('\n')).slice(-4000);el.style.whiteSpace='pre-wrap'}
    if(data.done){nutritionRunning=false;nutritionStatus.textContent+=' · Scan complete';break}
   }catch(error){nutritionRunning=false;nutritionStatus.textContent='Paused after error: '+error.message;break}
@@ -211,7 +211,7 @@ nutritionStart.onclick=async()=>{
  nutritionControls();
 };
 nutritionPause.onclick=()=>{nutritionRunning=false;nutritionStatus.textContent+=' · Pausing after current batch…';nutritionControls()};
-document.getElementById('nutrition-reset').onclick=()=>{if(nutritionRunning)return;nutritionCursor=0;nutritionStats={updated:0,skipped:0,failed:0};localStorage.removeItem('hg-nutrition-cursor');document.getElementById('nutrition-progress').value=0;document.getElementById('nutrition-errors').textContent='';nutritionStatus.textContent='Ready to scan imported recipes from the beginning.'};
+document.getElementById('nutrition-reset').onclick=()=>{if(nutritionRunning)return;nutritionCursor=0;nutritionStats={updated:0,skipped:0,failed:0,missing:0};localStorage.removeItem('hg-nutrition-cursor');document.getElementById('nutrition-progress').value=0;document.getElementById('nutrition-errors').textContent='';nutritionStatus.textContent='Ready to scan imported recipes from the beginning.'};
 if(nutritionCursor)nutritionStatus.textContent='Previous scan cursor: '+nutritionCursor+'. Select Start / Resume to continue.';
 
 const csrf=()=>document.cookie.split('; ').find(x=>x.startsWith('hg_csrf='))?.slice(8)||'';
