@@ -235,7 +235,25 @@ def recipe_from_url(url):
  for item in items:
   item=str(item).strip()
   if item:ingredients[item]=ingredients.get(item,0)+1
- return {'name':name,'country':urllib.parse.urlsplit(url).hostname,'url':url,'image':str(photo),'ingredients':ingredients,'ingredient_text':items,'source':'HelloFresh page','instructions_url':url}
+ # Only store nutrition and dietary attributes explicitly supplied by the source.
+ nutrition={}
+ source_nutrition=found.get('nutrition')
+ if isinstance(source_nutrition,dict):
+  fields=('calories','proteinContent','carbohydrateContent','fatContent','fiberContent','sugarContent','sodiumContent','saturatedFatContent')
+  for key in fields:
+   value=source_nutrition.get(key)
+   if isinstance(value,(str,int,float)) and 0<len(str(value).strip())<=70:
+    nutrition[key]=str(value).strip()
+ diet_labels=[]
+ diet=found.get('suitableForDiet',[])
+ if isinstance(diet,str):diet=[diet]
+ if isinstance(diet,list):
+  allowed={'GlutenFreeDiet':'Gluten-free','VegetarianDiet':'Vegetarian','VeganDiet':'Vegan','LowFatDiet':'Low fat','LowLactoseDiet':'Low lactose','LowSaltDiet':'Low sodium','DiabeticDiet':'Diabetic-friendly'}
+  for entry in diet:
+   if isinstance(entry,str):
+    label=allowed.get(entry.rsplit('/',1)[-1])
+    if label and label not in diet_labels:diet_labels.append(label)
+ return {'name':name,'country':urllib.parse.urlsplit(url).hostname,'url':url,'image':str(photo),'ingredients':ingredients,'ingredient_text':items,'source':'HelloFresh page','instructions_url':url,'nutrition':nutrition,'dietary_labels':diet_labels}
 
 def discover_sitemap(country,limit):
  roots={'US':'https://www.hellofresh.com/sitemap_recipe_pages.xml','UK':'https://www.hellofresh.co.uk/sitemap.xml','AU':'https://www.hellofresh.com.au/sitemap.xml','CA':'https://www.hellofresh.ca/sitemap.xml','DE':'https://www.hellofresh.de/sitemap.xml','NL':'https://www.hellofresh.nl/sitemap.xml'}
