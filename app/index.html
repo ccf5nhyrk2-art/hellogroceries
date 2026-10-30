@@ -611,6 +611,8 @@ $('smart-auto').onclick=async()=>{
  const keys=new Set((state.list||[]).map(x=>ingredientKey(x.name)));
  const candidates=recipes.filter(r=>!isWineListing(r)&&!isHolidayRecipe(r)&&!isAddon(r)&&Object.keys(r.ingredients||{}).length>=3).map(r=>({r,score:Object.keys(r.ingredients||{}).filter(x=>keys.has(ingredientKey(x))).length})).sort((a,b)=>b.score-a.score||a.r.id-b.r.id);
  const used=new Set();
+ const recent=new Set(Object.values(state.previous_week||{}).map(String));
+ candidates.sort((a,b)=>Number(recent.has(String(a.r.id)))-Number(recent.has(String(b.r.id)))||b.score-a.score);
  for(const day of days.slice(0,count)){const next=candidates.find(x=>!used.has(x.r.id));if(!next)break;plan[day]=next.r.id;used.add(next.r.id)}
  if(confirm('Replace the first '+count+' days of your weekly planner with suggested dinners? Your shopping list will not change.'))await preferences({weekly:plan});
 };
