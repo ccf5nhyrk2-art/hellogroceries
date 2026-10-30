@@ -969,9 +969,9 @@ async function showReefCachedPrices(){
    }).sort((a,b)=>Number(a.price)-Number(b.price));
    const units=new Set(offers.filter(p=>p.baseUnit).map(p=>p.baseUnit));
    const comparable=offers.length>1&&units.size===1&&offers.every(p=>p.unitPrice!==null);
-   const best=comparable?[...offers].sort((a,b)=>a.unitPrice-b.unitPrice)[0]:(offers[0]||null);
+   const best=offers[0]||null; // Basket cost uses lowest package price; unit value is reported separately.
    return {item,offers,best,comparable};
-  }).sort((a,b)=>(a.best?0:1)-(b.best?0:1)||(a.best&&b.best?(a.comparable&&b.comparable?Number(a.best.unitPrice)-Number(b.best.unitPrice):Number(a.best.price)-Number(b.best.price)):a.item.localeCompare(b.item)));
+  }).sort((a,b)=>(a.best?0:1)-(b.best?0:1)||(a.best&&b.best?Number(a.best.price)-Number(b.best.price):a.item.localeCompare(b.item)));
   const rows=enriched.map(({item,offers,best})=>{
    const units=new Set(offers.filter(p=>p.baseUnit).map(p=>p.baseUnit));
    const comparable=units.size===1&&offers.length>1&&offers.every(p=>p.unitPrice!==null);
@@ -991,11 +991,11 @@ async function showReefCachedPrices(){
   }).join('');
   const bestBasket=enriched.filter(x=>x.best).reduce((sum,x)=>sum+Number(x.best.price),0);
   const priced=enriched.filter(x=>x.best).length;
-  const footer='<tr><th style="padding:8px;text-align:left">Partial store totals</th>'+totals+'<td style="padding:8px"><strong>'+esc(money(bestBasket))+'</strong><div class="muted">Lowest comparable unit where available; otherwise lowest package · '+priced+'/'+items.length+'</div></td></tr>';
+  const footer='<tr><th style="padding:8px;text-align:left">Partial store totals</th>'+totals+'<td style="padding:8px"><strong>'+esc(money(bestBasket))+'</strong><div class="muted">Lowest listed package (unit value shown separately) · '+priced+'/'+items.length+'</div></td></tr>';
   const table='<div style="max-height:420px;overflow:auto"><table style="width:100%;font-size:12px;border-collapse:collapse">'+header+rows.join('')+'<tfoot>'+footer+'</tfoot></table></div>';
   const storeSummary='<h4>Store totals (partial)</h4>'+data.stores.map(store=>'<div>'+esc(store.chain)+': <strong>'+esc(money(store.partial_total))+'</strong> · '+store.priced+'/'+store.requested+' priced</div>').join('');
   const diagnostics=(data.retailer_diagnostics||[]).length?'<details><summary>Retailers returned by ReefAPI (diagnostics)</summary>'+(data.retailer_diagnostics||[]).map(d=>'<p>'+esc(d.item)+': '+esc((d.retailers_seen||[]).map(x=>x.name+' ('+x.slug+')').join(', ')||'No retailer names')+'</p>').join('')+'</details>':'<p class="muted">Retailer diagnostics will appear after a new search; older cached searches do not contain them.</p>';
-  target.innerHTML='<p><strong>ReefAPI:</strong> '+data.cached+' of '+data.requested+' searched in last 365 days; '+data.missing+' not cached; '+(data.unpriced_cached||0)+' searched without a matched price.</p><p class="muted">Sorted by lowest comparable unit price when available, otherwise lowest listed package price. Unit prices use package ounces or fluid ounces only where size is parseable; volume and weight are never compared. Different products may not be equivalent. Missing prices are not zero. Totals exclude missing items, quantities, taxes and delivery.</p>'+storeSummary+'<h4>Prices by ingredient — lowest first</h4>'+table+'<p><strong>Bottom line:</strong> '+esc(money(bestBasket))+' estimated mixed-store partial basket across '+priced+' priced ingredients. Not a checkout estimate.</p>'+diagnostics+'<p class="muted">'+esc(data.message)+'</p>';
+  target.innerHTML='<p><strong>ReefAPI:</strong> '+data.cached+' of '+data.requested+' searched in last 365 days; '+data.missing+' not cached; '+(data.unpriced_cached||0)+' searched without a matched price.</p><p class="muted">Sorted by lowest listed package price; comparable unit prices are shown separately. Unit prices use package ounces or fluid ounces only where size is parseable; volume and weight are never compared. Different products may not be equivalent. Missing prices are not zero. Totals exclude missing items, quantities, taxes and delivery.</p>'+storeSummary+'<h4>Prices by ingredient — lowest first</h4>'+table+'<p><strong>Bottom line:</strong> '+esc(money(bestBasket))+' lowest-package mixed-store partial basket across '+priced+' priced ingredients. Not a checkout estimate.</p>'+diagnostics+'<p class="muted">'+esc(data.message)+'</p>';
 
  }catch(e){target.textContent='Cached pricing unavailable: '+e.message}
 }
