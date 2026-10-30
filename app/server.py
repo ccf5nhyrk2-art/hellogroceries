@@ -373,6 +373,23 @@ def nearby_stores(zipcode):
  with STORE_CACHE_LOCK:STORE_CACHE[zipcode]=(time.time(),result)
  return result
 
+AUTH_RATE_LOCK=threading.Lock()
+AUTH_ATTEMPTS={}
+def auth_rate_allowed(ip, route, limit=8, window=900):
+ now_ts=time.monotonic()
+ key=(ip,route)
+ with AUTH_RATE_LOCK:
+  if len(AUTH_ATTEMPTS)>10000:
+   for k,v in list(AUTH_ATTEMPTS.items()):
+    if not v or now_ts-v[-1]>window:AUTH_ATTEMPTS.pop(k,None)
+  recent=[t for t in AUTH_ATTEMPTS.get(key,[]) if now_ts-t<window]
+  if len(recent)>=limit:
+   AUTH_ATTEMPTS[key]=recent
+   return False
+  recent.append(now_ts)
+  AUTH_ATTEMPTS[key]=recent
+  return True
+
 class Handler(SimpleHTTPRequestHandler):
  def __init__(self,*a,**kw):super().__init__(*a,directory=str(BASE),**kw)
  def sendjson(self,obj,status=200):
@@ -395,7 +412,7 @@ class Handler(SimpleHTTPRequestHandler):
    auth.ensure_schema(c)
    setup=auth.instance_needs_setup(c)
   path=urllib.parse.urlsplit(self.path).path
-  if path in ('/auth.html','/api/auth/status','/api/auth/login','/api/auth/setup'):
+  if path in ('/auth.html','/api/auth/status','/api/auth/login','/api/auth/setup','/api/auth/register'):
    return True
   user,hid=self.identity()
   if user is None or hid is None:
@@ -428,10 +445,16 @@ class Handler(SimpleHTTPRequestHandler):
   if origin != scheme+'://'+host:return self.sendjson({'error':'Invalid origin'},403)
   size=int(self.headers.get('Content-Length','0'))
   if size<1 or size>8192:return self.sendjson({'error':'Invalid request size'},400)
+  if path=='/api/auth/login' and not auth_rate_allowed(self.client_address[0], 'login', 10):return self.sendjson({'error':'Too many attempts. Try again later.'},429)
+  if path=='/api/auth/register' and not auth_rate_allowed(self.client_address[0], 'register', 4):return self.sendjson({'error':'Too many registrations. Try again later.'},429)
   try:
    data=json.loads(self.rfile.read(size))
    with db() as c:
     auth.ensure_schema(c)
+    if path=='/api/auth/register':
+     if auth.instance_needs_setup(c):return self.sendjson({'error':'Administrator setup required'},403)
+     auth.request_registration(c,data.get('email'),data.get('password'),data.get('household'))
+     return self.sendjson({'ok':True,'message':'Request received. You can sign in after an administrator approves it.'},202)
     if path=='/api/auth/setup':
      verified_email=cloudflare_auth.verified_email(self.headers.get('Cf-Access-Jwt-Assertion',''))
      if not verified_email or verified_email.casefold()!=auth.validate_email(data.get('email')):
@@ -502,6 +525,12 @@ class Handler(SimpleHTTPRequestHandler):
   except (ValueError,TypeError,KeyError) as exc:return self.sendjson({'error':str(exc)},400)
  def do_GET(self):
   request_scope.household_id=None
+  if self.path=='/api/auth/registrations':
+   if not self.gate():return
+   if not getattr(request_scope,'admin',False):return self.sendjson({'error':'Administrator required'},403)
+   with db() as c:
+    auth.ensure_schema(c)
+    return self.sendjson({'requests':auth.pending_registrations(c)})
   if self.path=='/api/auth/status':
    with db() as c:
     user,hid=self.identity()
@@ -556,7 +585,19 @@ class Handler(SimpleHTTPRequestHandler):
   return super().do_GET()
  def do_POST(self):
   request_scope.household_id=None
-  if self.path in ('/api/auth/setup','/api/auth/login'):return self.auth_post()
+  if self.path in ('/api/auth/setup','/api/auth/login','/api/auth/register'):return self.auth_post()
+  if self.path=='/api/auth/review':
+   if not self.gate(write=True):return
+   if not getattr(request_scope,'admin',False):return self.sendjson({'error':'Administrator required'},403)
+   try:
+    size=int(self.headers.get('Content-Length','0'))
+    if not 0<size<=8192:raise ValueError('Invalid request size')
+    data=json.loads(self.rfile.read(size))
+    with db() as c:
+     auth.ensure_schema(c)
+     auth.review_registration(c,request_scope.user_id,data.get('id'),data.get('approve'))
+    return self.sendjson({'ok':True})
+   except (ValueError,TypeError,KeyError) as exc:return self.sendjson({'error':str(exc)},400)
   if self.path=='/api/auth/redeem':return self.redeem_post()
   if self.path=='/api/auth/invite':return self.invite_post()
   if self.path=='/api/auth/logout':return self.logout_post()
