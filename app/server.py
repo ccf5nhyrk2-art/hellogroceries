@@ -333,7 +333,7 @@ def save(state):
 STORE_CACHE={};STORE_CACHE_LOCK=threading.Lock()
 STORE_CACHE_FILE=Path('/data/store_lookup_cache.json')
 STORE_CACHE_TTL=21600
-STORE_CACHE_VERSION=10
+STORE_CACHE_VERSION=11
 STORE_CACHE_STALE_TTL=30*86400
 try:
  raw_cache=json.loads(STORE_CACHE_FILE.read_text())
@@ -505,9 +505,11 @@ RETAILER_ZIP_CENTROIDS={}
 RETAILER_ZIP_LOCK=threading.Lock()
 RETAILER_GEOCODE_LOCK=threading.Lock()
 RETAILER_GEOCODE_RUNNING=False
+RETAILER_GEOCODE_STATS={'processed':0,'matched':0,'failed':0,'finished':False}
 
 def geocode_retailer_addresses():
  global RETAILER_GEOCODE_RUNNING
+ with RETAILER_GEOCODE_LOCK:RETAILER_GEOCODE_STATS.update(processed=0,matched=0,failed=0,finished=False)
  path=Path('/data/retailer_address_coordinates.json')
  try:
   try:
@@ -517,6 +519,7 @@ def geocode_retailer_addresses():
   for chain,street,city,state,code in RETAILER_PUBLISHED_STORES:
    key=(street+', '+city+', '+state+' '+code).lower()
    if key in cached:continue
+   with RETAILER_GEOCODE_LOCK:RETAILER_GEOCODE_STATS['processed']+=1
    try:
     url='https://geocoding.geo.census.gov/geocoder/geographies/onelineaddress?'+urllib.parse.urlencode({'address':street+', '+city+', '+state+' '+code,'benchmark':'Public_AR_Current','vintage':'Current_Current','format':'json'})
     req=urllib.request.Request(url,headers={'User-Agent':'HelloGroceries/1.0'})
@@ -528,11 +531,16 @@ def geocode_retailer_addresses():
      if -125<=glon<=-66 and 24<=glat<=50:
       cached[key]=[glat,glon]
       tmp=path.with_suffix('.tmp');tmp.write_text(json.dumps(cached));os.replace(tmp,path)
+      with RETAILER_GEOCODE_LOCK:RETAILER_GEOCODE_STATS['matched']+=1
+      with STORE_CACHE_LOCK:STORE_CACHE.clear()
    except (OSError,ValueError,TypeError,KeyError,IndexError) as error:
+    with RETAILER_GEOCODE_LOCK:RETAILER_GEOCODE_STATS['failed']+=1
     print('Background store geocoding failed:',repr(error),flush=True)
    time.sleep(1)
  finally:
-  with RETAILER_GEOCODE_LOCK:RETAILER_GEOCODE_RUNNING=False
+  with RETAILER_GEOCODE_LOCK:
+   RETAILER_GEOCODE_RUNNING=False
+   RETAILER_GEOCODE_STATS['finished']=True
 
 def published_retailer_nearby(lat,lon,radius):
  # Location list is independent of the searched ZIP, unlike a ZIP-specific patch.
@@ -1006,6 +1014,9 @@ class Handler(SimpleHTTPRequestHandler):
    chain=urllib.parse.parse_qs(urllib.parse.urlsplit(self.path).query).get('chain',[''])[0]
    try:return self.sendjson(retailer_ad_preview(chain))
    except ValueError as e:return self.sendjson({'error':str(e)},400)
+  if self.path.startswith('/api/stores/geocode-status'):
+   with RETAILER_GEOCODE_LOCK:status=dict(RETAILER_GEOCODE_STATS, running=RETAILER_GEOCODE_RUNNING)
+   return self.sendjson(status)
   if self.path.startswith('/api/stores?'):
    try:
     params=urllib.parse.parse_qs(urllib.parse.urlsplit(self.path).query)
