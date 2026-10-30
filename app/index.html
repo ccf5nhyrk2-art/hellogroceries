@@ -272,6 +272,19 @@ html[data-theme="dark"] .reef-table-scroll thead th,html[data-theme="dark"] .ree
 .enhance-panel .plan-dinners-always-open>.ios-tool-body{padding:14px 0 0!important}
 .enhance-panel .plan-dinners-always-open{border:0!important;border-top:1px solid rgba(140,155,148,.25)!important;border-radius:0!important;margin:18px 0 0!important;background:transparent!important}
 .enhance-panel .plan-dinners-always-open .ios-tool-body:before{content:'Plan dinners';display:block;font-weight:700;font-size:18px;margin-bottom:12px}
+
+/* Compact, touch-friendly weekly planner on phones. */
+@media (max-width: 700px) {
+ .enhance-panel:has(> #week-grid) {min-width:0}
+ #week-grid {display:grid!important;grid-template-columns:minmax(0,1fr)!important;gap:0!important;min-width:0}
+ #week-grid label {display:flex!important;flex-direction:column!important;align-items:stretch!important;gap:7px!important;padding:11px 0!important;width:100%;min-width:0;font-size:15px!important;line-height:1.35}
+ #week-grid label select {display:block;width:100%!important;max-width:100%!important;min-width:0!important;box-sizing:border-box;height:46px!important;font-size:16px!important;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+ .enhance-panel:has(> #week-grid)>.actions {display:grid!important;grid-template-columns:minmax(0,1fr) minmax(0,1fr)!important;gap:9px!important}
+ .enhance-panel:has(> #week-grid)>.actions button {min-width:0!important;padding:11px 8px!important;font-size:14px!important}
+ .plan-dinners-always-open .ios-tool-body {min-width:0}
+ .plan-dinners-always-open #smart-days {width:68px;min-width:0}
+ .plan-dinners-always-open #smart-auto {min-height:44px}
+}
 </style><script>
 (function(){const originalFetch=window.fetch;window.fetch=function(input,init){const opts=init?{...init}:{};const method=(opts.method||'GET').toUpperCase();const url=typeof input==='string'?input:input.url;if(method!=='GET'&&method!=='HEAD'&&url.startsWith('/api/')){const match=document.cookie.match(/(?:^|; )hg_csrf=([^;]+)/);opts.headers={...opts.headers,'X-HG-CSRF':match?match[1]:''}}return originalFetch.call(this,input,opts)};})();
 </script>
@@ -1749,7 +1762,7 @@ function updateEnhancements(){
  $('manage-collection').innerHTML='<option value="">Choose a collection…</option>'+Object.keys(state.collections||{}).map(n=>'<option value="'+esc(n)+'">'+esc(n)+'</option>').join('');
  $('manage-collection').value=Object.hasOwn(state.collections||{},managed)?managed:'';
  renderManagedCollection();
- const available=recipes.filter(r=>Object.hasOwn(state.selected||{},String(r.id))||(state.favorites||[]).includes(r.id)||Object.values(state.weekly||{}).includes(r.id));const options='<option value="">No meal — select a recipe first</option>'+available.map(r=>'<option value="'+r.id+'">'+esc(cleanRecipeName(r.name))+'</option>').join('');
+ const available=recipes.filter(r=>Object.hasOwn(state.selected||{},String(r.id))||(state.favorites||[]).includes(r.id)||Object.values(state.weekly||{}).includes(r.id));const options='<option value="">+ Choose a meal</option>'+available.map(r=>'<option value="'+r.id+'">'+esc(cleanRecipeName(r.name))+'</option>').join('');
  const focus=document.activeElement;
  if(!focus||!focus.closest('#week-grid')){
  $('week-grid').innerHTML=days.map(d=>'<label>'+d+'<select data-week="'+d+'">'+options+'</select></label>').join('');
