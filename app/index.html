@@ -273,6 +273,16 @@ html[data-theme="dark"] .reef-table-scroll thead th,html[data-theme="dark"] .ree
 .enhance-panel .plan-dinners-always-open{border:0!important;border-top:1px solid rgba(140,155,148,.25)!important;border-radius:0!important;margin:18px 0 0!important;background:transparent!important}
 .enhance-panel .plan-dinners-always-open .ios-tool-body:before{content:'Plan dinners';display:block;font-weight:700;font-size:18px;margin-bottom:12px}
 
+/* Shared compact mobile header and tighter content start. Desktop unchanged. */
+@media (max-width:750px) {
+ header {min-height:0!important;padding:10px 14px 11px!important;box-sizing:border-box}
+ header h1 {font-size:21px!important;line-height:1.25!important;margin:0 0 6px!important;padding:0!important}
+ header>div {display:none!important}
+ #hg-header-store {margin:0!important;max-width:min(100%,420px)!important;padding:7px 10px!important;min-height:38px;box-sizing:border-box;font-size:12px!important}
+ main {padding-top:6px!important}
+ main>.layout {gap:8px!important}
+ main>.layout section {margin-top:0!important}
+}
 /* Tighter mobile planner rows without sacrificing touch target size. */
 @media (max-width:700px) {
  #week-grid label {gap:4px!important;padding:7px 0!important;font-size:14px!important}
