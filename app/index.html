@@ -264,14 +264,18 @@ window.addEventListener('storage',e=>{if(e.key===PREFERRED_STORE_KEY)updateHeade
 function renderStoreResults(data){
  const root=$('store-results'),stores=data.stores||[],preferred=getPreferredStore();
  nearbyStoreResults=stores;
- const header='<div class="muted" style="margin:10px 0">Choose a preferred store. Compare nearby locations below; verified weekly sale prices are not connected yet.</div>';
+ const header='<div class="muted" style="margin:10px 0">Choose a preferred store. Compare nearby locations below. Open each retailer’s weekly ad to verify offers for the exact location; automatic store-specific pricing is not connected yet.</div>';
  root.innerHTML=header+(stores.length?stores.map((x,i)=>{
   const selected=preferred&&storeKey(preferred)===storeKey(x);
   const address=x.address||'';
   const destination=address||[x.name,x.chain,data.zip].filter(Boolean).join(', ');
   const google='https://www.google.com/maps/search/?api=1&query='+encodeURIComponent(destination);
   const apple='https://maps.apple.com/?q='+encodeURIComponent(destination);
-  return '<div class="row" style="align-items:flex-start;gap:12px"><div style="flex:1;min-width:0"><strong>'+esc(x.chain)+'</strong> — '+esc(x.name)+'<div class="muted">'+esc(address||'Address unavailable')+' · '+esc(x.distance_miles)+' miles</div><div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:6px"><a href="'+google+'" target="_blank" rel="noopener noreferrer">Google Maps</a><a href="'+apple+'" target="_blank" rel="noopener noreferrer">Apple Maps</a></div></div><button type="button" data-preferred-store="'+i+'" aria-pressed="'+(selected?'true':'false')+'">'+(selected?'✓ Preferred':'Select store')+'</button></div>';
+  const adLinks={'ALDI':'https://www.aldi.us/store/aldi/pages/weekly-specials','Walmart':'https://www.walmart.com/c/kp/weekly-ads-grocery','Hy-Vee':'https://www.hy-vee.com/','Price Chopper':'https://www.pricechopper.com/'};
+  const weeklyAd=adLinks[x.chain]||'';
+  const adHtml=weeklyAd?' <a href="'+weeklyAd+'" target="_blank" rel="noopener noreferrer" title="Choose this location on the retailer website to confirm local offers">Weekly ad ↗</a>':'';
+
+  return '<div class="row" style="align-items:flex-start;gap:12px"><div style="flex:1;min-width:0"><strong>'+esc(x.chain)+'</strong> — '+esc(x.name)+'<div class="muted">'+esc(address||'Address unavailable')+' · '+esc(x.distance_miles)+' miles</div><div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:6px"><a href="'+google+'" target="_blank" rel="noopener noreferrer">Google Maps</a><a href="'+apple+'" target="_blank" rel="noopener noreferrer">Apple Maps</a>'+adHtml+'</div></div><button type="button" data-preferred-store="'+i+'" aria-pressed="'+(selected?'true':'false')+'">'+(selected?'✓ Preferred':'Select store')+'</button></div>';
  }).join(''):'No matching stores found within 10 miles. Store directory coverage may be incomplete.');
  $('store-status').textContent=stores.length+' matching locations near '+data.zip+(data.source?' · '+data.source:'')+(data.stale?' · cached results':'');
  renderSalesComparison();
