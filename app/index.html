@@ -353,6 +353,7 @@ $('store-sale-form').addEventListener('submit',e=>{
  localStorage.setItem(SALE_OFFERS_KEY,JSON.stringify([...saleOffers(),offer].slice(-250)));
  $('sale-status').textContent='Offer saved in this browser.';$('sale-item').value='';$('sale-price').value='';renderSalesComparison();
 });
+let storeLookupSequence=0;
 async function lookupStores(zip){
  const sequence=++storeLookupSequence;
  $('store-status').textContent='Looking up nearby stores…';$('store-results').textContent='';
