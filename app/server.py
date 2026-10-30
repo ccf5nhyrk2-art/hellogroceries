@@ -90,7 +90,7 @@ def pricing_visibility():
  with db() as c:
   c.execute('CREATE TABLE IF NOT EXISTS admin_preferences (key TEXT PRIMARY KEY,value TEXT NOT NULL)')
   values=dict(c.execute("SELECT key,value FROM admin_preferences WHERE key IN ('show_prices_admin','show_prices_user')"))
- return {'admin':values.get('show_prices_admin','1')=='1','user':values.get('show_prices_user','1')=='1'}
+ return {'admin':values.get('show_prices_admin','1')=='1','user':values.get('show_prices_user','0')=='1'}
 
 def allrecipes():
  with db() as c: imported=[json.loads(x[0]) for x in c.execute('SELECT payload FROM imported ORDER BY id DESC')]
