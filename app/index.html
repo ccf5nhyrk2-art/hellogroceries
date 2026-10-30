@@ -273,6 +273,12 @@ html[data-theme="dark"] .reef-table-scroll thead th,html[data-theme="dark"] .ree
 .enhance-panel .plan-dinners-always-open{border:0!important;border-top:1px solid rgba(140,155,148,.25)!important;border-radius:0!important;margin:18px 0 0!important;background:transparent!important}
 .enhance-panel .plan-dinners-always-open .ios-tool-body:before{content:'Plan dinners';display:block;font-weight:700;font-size:18px;margin-bottom:12px}
 
+/* Tighter mobile planner rows without sacrificing touch target size. */
+@media (max-width:700px) {
+ #week-grid label {gap:4px!important;padding:7px 0!important;font-size:14px!important}
+ #week-grid label select {height:44px!important;min-height:44px!important;padding:7px 12px!important;font-size:15px!important}
+ .enhance-panel:has(> #week-grid)>.actions {margin-top:10px!important}
+}
 /* Compact, touch-friendly weekly planner on phones. */
 @media (max-width: 700px) {
  .enhance-panel:has(> #week-grid) {min-width:0}
