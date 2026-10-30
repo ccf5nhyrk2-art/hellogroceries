@@ -150,6 +150,18 @@ button{max-width:100%;min-height:36px;line-height:1.25;white-space:normal;overfl
 .import-tools .actions input[type=url]{flex:1 1 190px;width:auto;min-width:0}
 @media(max-width:750px){.layout{grid-template-columns:minmax(0,1fr)}.actions>button{min-width:0}}
 @media(max-width:480px){.filters{grid-template-columns:minmax(0,1fr)}.actions>button{flex:1 1 auto}.filter-actions{align-items:flex-start}.filter-actions label{max-width:100%}}
+/* Scrollable eight-store comparison with a pinned ingredient column */
+.reef-table-scroll{max-width:100%;max-height:460px;overflow:auto;overscroll-behavior:contain;border:1px solid #d5e1d9;border-radius:10px}
+.reef-table-scroll table{width:max-content;min-width:100%;border-collapse:separate;border-spacing:0;font-size:12px}
+.reef-table-scroll th,.reef-table-scroll td{padding:9px 11px;border-bottom:1px solid #d5e1d933;min-width:94px;vertical-align:top}
+.reef-table-scroll thead th{position:sticky;top:0;z-index:2;background:#eaf2ed;color:#173629}
+.reef-table-scroll tbody td:first-child,.reef-table-scroll thead th:first-child,.reef-table-scroll tfoot th:first-child{position:sticky;left:0;min-width:190px;max-width:230px;z-index:1;background:#f5faf6;box-shadow:2px 0 4px #0001}
+.reef-table-scroll thead th:first-child{z-index:3;background:#eaf2ed}
+.reef-table-scroll tfoot th,.reef-table-scroll tfoot td{position:sticky;bottom:0;background:#eaf2ed;color:#173629;z-index:2}
+.reef-table-scroll tfoot th:first-child{z-index:3}
+html[data-theme="dark"] .reef-table-scroll{border-color:#35483d}
+html[data-theme="dark"] .reef-table-scroll tbody td:first-child{background:#202a25;color:#e7f2eb}
+html[data-theme="dark"] .reef-table-scroll thead th,html[data-theme="dark"] .reef-table-scroll tfoot th,html[data-theme="dark"] .reef-table-scroll tfoot td{background:#2b3c32;color:#e7f2eb}
 </style><script>
 (function(){const originalFetch=window.fetch;window.fetch=function(input,init){const opts=init?{...init}:{};const method=(opts.method||'GET').toUpperCase();const url=typeof input==='string'?input:input.url;if(method!=='GET'&&method!=='HEAD'&&url.startsWith('/api/')){const match=document.cookie.match(/(?:^|; )hg_csrf=([^;]+)/);opts.headers={...opts.headers,'X-HG-CSRF':match?match[1]:''}}return originalFetch.call(this,input,opts)};})();
 </script>
@@ -1006,7 +1018,7 @@ async function showReefCachedPrices(){
   const bestBasket=enriched.filter(x=>x.best).reduce((sum,x)=>sum+Number(x.best.price),0);
   const priced=enriched.filter(x=>x.best).length;
   const footer='<tr><th style="padding:8px;text-align:left">Partial store totals</th>'+totals+'<td style="padding:8px"><strong>'+esc(money(bestBasket))+'</strong><div class="muted">Lowest listed package (unit value shown separately) · '+priced+'/'+items.length+'</div></td></tr>';
-  const table='<div style="max-height:420px;overflow:auto"><table style="width:100%;font-size:12px;border-collapse:collapse">'+header+rows.join('')+'<tfoot>'+footer+'</tfoot></table></div>';
+  const table='<div class="reef-table-scroll" role="region" aria-label="Store price comparison — scroll horizontally for all retailers" tabindex="0"><table><thead>'+header+'</thead><tbody>'+rows.join('')+'</tbody><tfoot>'+footer+'</tfoot></table></div>';
   const storeSummary='<h4>Store totals (partial)</h4>'+data.stores.map(store=>'<div>'+esc(store.chain)+': <strong>'+(store.priced>0?esc(money(store.partial_total)):'Not available')+'</strong> · '+store.priced+'/'+store.requested+' priced</div>').join('');
   const diagnostics=(data.retailer_diagnostics||[]).length?'<details><summary>Retailers returned by ReefAPI (diagnostics)</summary>'+(data.retailer_diagnostics||[]).map(d=>'<p>'+esc(d.item)+': '+esc((d.retailers_seen||[]).map(x=>x.name+' ('+x.slug+')').join(', ')||'No retailer names')+'</p>').join('')+'</details>':'<p class="muted">Retailer diagnostics will appear after a new search; older cached searches do not contain them.</p>';
   target.innerHTML='<p><strong>ReefAPI:</strong> '+data.cached+' of '+data.requested+' searched in last 365 days; '+data.missing+' not cached; '+(data.unpriced_cached||0)+' searched without a matched price.</p><p class="muted">Sorted by lowest listed package price; comparable unit prices are shown separately. Unit prices use package ounces or fluid ounces only where size is parseable; volume and weight are never compared. Different products may not be equivalent. Missing prices are not zero. Totals exclude missing items, quantities, taxes and delivery.</p>'+storeSummary+'<h4>Prices by ingredient — lowest first</h4>'+table+'<p><strong>Bottom line:</strong> '+esc(money(bestBasket))+' lowest-package mixed-store partial basket across '+priced+' priced ingredients. Not a checkout estimate.</p>'+diagnostics+'<p class="muted">'+esc(data.message)+'</p>';
