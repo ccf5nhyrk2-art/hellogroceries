@@ -234,6 +234,8 @@ function showPage(key){
    }
   }
   for(const child of main.children)if(child!==toolbar&&!path.has(child))conceal(child);
+  // Recipes targets the whole first section; explicitly hide nested store tools.
+  if(key==='recipes')conceal(document.getElementById('shop-sales'));
  }
  closeMobileMore();
  moreTab.setAttribute('aria-expanded','false');
