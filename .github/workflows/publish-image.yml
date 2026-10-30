@@ -2,7 +2,7 @@ name: Build and publish HelloGroceries image
 
 on:
   push:
-    branches: [main]
+    branches: [main, feature/invite-only-households]
   workflow_dispatch:
 
 permissions:
@@ -33,7 +33,7 @@ jobs:
           file: ./Dockerfile
           push: true
           tags: |
-            ghcr.io/ccf5nhyrk2-art/hellogroceries:latest
             ghcr.io/ccf5nhyrk2-art/hellogroceries:${{ github.sha }}
+            ${{ github.ref_name == 'main' && 'ghcr.io/ccf5nhyrk2-art/hellogroceries:latest' || 'ghcr.io/ccf5nhyrk2-art/hellogroceries:accounts-test' }}
           labels: |
             org.opencontainers.image.source=https://github.com/ccf5nhyrk2-art/hellogroceries
