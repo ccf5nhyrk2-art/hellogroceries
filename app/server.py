@@ -786,6 +786,47 @@ def retailer_catalog_prices(chain,store_name,address,items):
   return {'prices':matched,'configured':True,'message':str(len(matched))+' recent store-specific catalog prices matched'}
  except (OSError,ValueError,TypeError,json.JSONDecodeError) as exc:return {'prices':[],'configured':False,'message':'Retailer feed could not be loaded: '+str(exc)[:120]}
 
+def compare_retailer_catalog_prices(items):
+ if not isinstance(items,list) or not 1<=len(items)<=60 or any(not isinstance(x,str) or not x.strip() or len(x)>120 for x in items):raise ValueError('Provide 1–60 ingredient names')
+ chains=['Price Chopper','Walmart','Hy-Vee','ALDI']
+ result={'stores':[], 'configured':False}
+ if not RETAIL_PRICE_PATH.is_file():
+  result['message']='No verified retailer price feed connected yet.'
+  return result
+ try:
+  if RETAIL_PRICE_PATH.stat().st_size>5_000_000:raise ValueError('Feed exceeds 5 MB')
+  data=json.loads(RETAIL_PRICE_PATH.read_text())
+  rows=data.get('prices',[]) if isinstance(data,dict) else data
+  if not isinstance(rows,list):raise ValueError('Invalid feed')
+  today=datetime.date.today()
+  for chain in chains:
+   candidates={}
+   for row in rows[:20000]:
+    if not isinstance(row,dict) or str(row.get('chain','')).casefold()!=chain.casefold():continue
+    name=str(row.get('item','')).strip()
+    if name.casefold() not in {x.casefold() for x in items}:continue
+    try:price=float(row.get('price',0));date=datetime.date.fromisoformat(str(row.get('checked_at',''))[:10])
+    except (ValueError,TypeError):continue
+    if not 0<price<10000 or not 0<=(today-date).days<=14:continue
+    source=str(row.get('source_url','')).strip()
+    parsed=urllib.parse.urlsplit(source)
+    if parsed.scheme!='https' or not parsed.hostname or not str(row.get('unit','')).strip():continue
+    store_name=str(row.get('store_name','')).strip()[:180]
+    address=str(row.get('address','')).strip()[:250]
+    if not store_name or not address:continue
+    key=(store_name.casefold(),address.casefold())
+    if key not in candidates:candidates[key]={'chain':chain,'store_name':store_name,'address':address,'prices':{}}
+    prior=candidates[key]['prices'].get(name.casefold())
+    if prior is None or str(row.get('checked_at',''))>prior['checked_at']:
+     candidates[key]['prices'][name.casefold()]={'item':name,'price':round(price,2),'unit':str(row['unit'])[:60],'checked_at':str(row['checked_at'])[:10],'source_url':source}
+   for store in candidates.values():
+    values=list(store['prices'].values())
+    result['stores'].append({'chain':store['chain'],'store_name':store['store_name'],'address':store['address'],'priced':len(values),'requested':len(items),'partial_total':round(sum(x['price'] for x in values),2),'prices':values})
+  result['configured']=True
+  result['message']='Prices shown are only from the installed verified feed; partial totals are not full basket estimates.'
+ except (OSError,ValueError,TypeError) as exc:result['message']='Retailer feed unavailable: '+str(exc)[:120]
+ return result
+
 def automatic_weekly_ads(zipcode):
  if not re.fullmatch(r'\d{5}',zipcode):raise ValueError('Enter a valid five-digit ZIP')
  with AUTO_AD_LOCK:
@@ -1110,6 +1151,10 @@ class Handler(SimpleHTTPRequestHandler):
     self.send_header('Content-Length',str(len(payload)))
     self.end_headers();self.wfile.write(payload);return
    except (ValueError,TypeError,OSError):return self.send_error(404)
+  if self.path.startswith('/api/compare-retailer-prices?'):
+   q=urllib.parse.parse_qs(urllib.parse.urlsplit(self.path).query)
+   try:return self.sendjson(compare_retailer_catalog_prices(q.get('item',[])))
+   except ValueError as error:return self.sendjson({'error':str(error)},400)
   if self.path.startswith('/api/retailer-catalog-prices?'):
    q=urllib.parse.parse_qs(urllib.parse.urlsplit(self.path).query)
    try:return self.sendjson(retailer_catalog_prices(q.get('chain',[''])[0],q.get('store_name',[''])[0],q.get('address',[''])[0],q.get('item',[])))
