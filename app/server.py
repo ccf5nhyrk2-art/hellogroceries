@@ -854,7 +854,7 @@ def reef_test_search(zipcode,query):
  except (urllib.error.URLError,TimeoutError) as exc:raise ValueError('ReefAPI connection timed out or failed') from None
  if not isinstance(data,dict) or not data.get('ok'):raise ValueError('ReefAPI did not return a successful search')
  groups=data.get('data',{}).get('groups',[])
- allowed=('price chopper','walmart','wal-mart','wal mart','hy-vee','aldi','sam\'s club','sams-club','costco','target')
+ allowed=('price chopper','walmart','wal-mart','wal mart','hy-vee','aldi','sam\'s club','sams-club','costco','target','hen house','hen-house','henhouse')
  result=[];retailer_names=[]
  for group in groups if isinstance(groups,list) else []:
   if not isinstance(group,dict):continue
@@ -906,7 +906,7 @@ def reef_cached_comparison(zipcode,items):
  if not isinstance(items,list) or not 1<=len(items)<=60 or any(not isinstance(x,str) or not x.strip() or len(x)>120 for x in items):raise ValueError('Provide 1–60 shopping items')
  now=datetime.datetime.now(datetime.timezone.utc).timestamp()
  with REEF_CACHE_LOCK:data=reef_cache_read()
- chains=['Price Chopper','Walmart','Hy-Vee','ALDI',"Sam's Club",'Costco','Target']
+ chains=['Price Chopper','Walmart','Hy-Vee','ALDI',"Sam's Club",'Costco','Target','Hen House']
  stores={x:{'chain':x,'prices':[],'priced':0,'requested':len(items),'partial_total':0} for x in chains}
  cached=0
  for item in items:
@@ -942,7 +942,7 @@ def reef_refresh_batch(zipcode,items):
   matches=[]
   for group in result['retailers']:
    name=(group['retailer']+' '+str(group.get('slug',''))).casefold()
-   chain=next((x for x in ['Price Chopper','Walmart','Hy-Vee','ALDI',"Sam's Club",'Costco','Target'] if x.casefold() in name or (x=='Walmart' and ('wal-mart' in name or 'wal mart' in name))),None)
+   chain=next((x for x in ['Price Chopper','Walmart','Hy-Vee','ALDI',"Sam's Club",'Costco','Target','Hen House'] if x.casefold() in name or (x=='Walmart' and ('wal-mart' in name or 'wal mart' in name)) or (x=="Sam's Club" and any(a in name for a in ('sams club','sams-club','sam’s club'))) or (x=='Hen House' and any(a in name for a in ('henhouse','hen-house')))),None)
    if not chain:continue
    products=group['products']
    if not products:continue
@@ -999,7 +999,7 @@ def retailer_catalog_prices(chain,store_name,address,items):
 
 def compare_retailer_catalog_prices(items):
  if not isinstance(items,list) or not 1<=len(items)<=60 or any(not isinstance(x,str) or not x.strip() or len(x)>120 for x in items):raise ValueError('Provide 1–60 ingredient names')
- chains=['Price Chopper','Walmart','Hy-Vee','ALDI',"Sam's Club",'Costco','Target']
+ chains=['Price Chopper','Walmart','Hy-Vee','ALDI',"Sam's Club",'Costco','Target','Hen House']
  result={'stores':[], 'configured':False}
  if not RETAIL_PRICE_PATH.is_file():
   result['message']='No verified retailer price feed connected yet.'
