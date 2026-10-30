@@ -525,6 +525,48 @@ PUBLIC_AD_PAGES={
 }
 AD_PREVIEW_CACHE={}
 AD_PREVIEW_LOCK=threading.Lock()
+# Optional automatic multi-retailer circular feed. Requires operator APIFY_TOKEN.
+# Regional circulars are NOT guaranteed to apply to an exact store location.
+AUTO_AD_CACHE={}
+AUTO_AD_LOCK=threading.Lock()
+def automatic_weekly_ads(zipcode):
+ if not re.fullmatch(r'\\d{5}',zipcode):raise ValueError('Enter a valid five-digit ZIP')
+ token=os.environ.get('APIFY_TOKEN','').strip()
+ if not token:return {'configured':False,'offers':[],'message':'Set APIFY_TOKEN in the container environment to enable automatic weekly-ad retrieval.'}
+ with AUTO_AD_LOCK:
+  cached=AUTO_AD_CACHE.get(zipcode)
+  if cached and time.time()-cached[0]<43200:return cached[1]
+ payload={'postalCodes':[zipcode],'mode':'flyers','merchants':['ALDI','Walmart','Hy-Vee','Price Chopper'],'onlyValidNow':True,'maxItems':400}
+ endpoint='https://api.apify.com/v2/acts/yugenox~flipp-flyer-deals-scraper/run-sync-get-dataset-items'
+ req=urllib.request.Request(endpoint,data=json.dumps(payload).encode(),headers={'Authorization':'Bearer '+token,'Content-Type':'application/json','Accept':'application/json'},method='POST')
+ try:
+  with urllib.request.urlopen(req,timeout=45) as response:raw=response.read(2_000_001)
+  if len(raw)>2_000_000:raise ValueError('Feed response exceeds size limit')
+  rows=json.loads(raw)
+  if not isinstance(rows,list):raise ValueError('Feed returned an unexpected response')
+ except Exception as error:
+  print('Automatic weekly-ad retrieval failed:',type(error).__name__,flush=True)
+  raise ValueError('Weekly-ad provider unavailable; check provider account and container logs') from error
+ today=datetime.date.today().isoformat()
+ offers=[]
+ for row in rows:
+  if not isinstance(row,dict):continue
+  merchant=str(row.get('merchant') or row.get('merchantName') or row.get('store') or '')
+  chain=next((c for c in ('ALDI','Walmart','Hy-Vee','Price Chopper') if c.lower() in merchant.lower()),None)
+  if not chain:continue
+  item=str(row.get('name') or row.get('title') or row.get('productName') or '')[:100]
+  try:price=float(row.get('effectivePrice') or row.get('salePrice') or row.get('currentPrice') or row.get('price'))
+  except (TypeError,ValueError):continue
+  if not item or not 0<price<=10000:continue
+  expiry=str(row.get('validTo') or row.get('endDate') or row.get('expires') or '')[:10]
+  if not re.fullmatch(r'\\d{4}-\\d{2}-\\d{2}',expiry) or expiry<today:continue
+  source=str(row.get('url') or row.get('flyerUrl') or row.get('productUrl') or '')
+  if not source.startswith('https://'):continue
+  offers.append({'store':chain,'item':item,'price':price,'unit':str(row.get('unit') or row.get('priceUnit') or 'advertised item')[:30],'expires':expiry,'source':source,'regional':True})
+ result={'configured':True,'offers':offers,'message':'Regional advertised offers; confirm availability and prices at the selected store.','checked_at':datetime.datetime.now(datetime.timezone.utc).isoformat()}
+ with AUTO_AD_LOCK:AUTO_AD_CACHE[zipcode]=(time.time(),result)
+ return result
+
 def retailer_ad_preview(chain):
  if chain not in PUBLIC_AD_PAGES:raise ValueError('No supported public ad page for this retailer')
  with AD_PREVIEW_LOCK:
@@ -791,6 +833,10 @@ class Handler(SimpleHTTPRequestHandler):
     self.send_header('Content-Length',str(len(payload)))
     self.end_headers();self.wfile.write(payload);return
    except (ValueError,TypeError,OSError):return self.send_error(404)
+  if self.path.startswith('/api/automatic-weekly-ads?'):
+   zipcode=urllib.parse.parse_qs(urllib.parse.urlsplit(self.path).query).get('zip',[''])[0]
+   try:return self.sendjson(automatic_weekly_ads(zipcode))
+   except ValueError as error:return self.sendjson({'error':str(error)},400)
   if self.path.startswith('/api/retailer-ad?'):
    chain=urllib.parse.parse_qs(urllib.parse.urlsplit(self.path).query).get('chain',[''])[0]
    try:return self.sendjson(retailer_ad_preview(chain))
