@@ -391,7 +391,7 @@ def google_nearby_stores(lat,lon,radius=10):
  key=os.environ.get('GOOGLE_PLACES_API_KEY','').strip()
  if not key:return None
  matches=[]
- for chain in ('ALDI','Walmart','Hy-Vee','Price Chopper','Hen House'):
+ for chain in ('ALDI','Walmart','Hy-Vee','Price Chopper','Hen House',"Sam's Club",'Costco','Target'):
   payload={'textQuery':chain+' grocery store','pageSize':20,'locationBias':{'circle':{'center':{'latitude':lat,'longitude':lon},'radius':radius*1609.344}}}
   req=urllib.request.Request('https://places.googleapis.com/v1/places:searchText',data=json.dumps(payload).encode(),headers={'Content-Type':'application/json','X-Goog-Api-Key':key,'X-Goog-FieldMask':'places.id,places.displayName,places.formattedAddress,places.location'},method='POST')
   try:
@@ -812,7 +812,7 @@ def reef_test_search(zipcode,query):
  except (urllib.error.URLError,TimeoutError) as exc:raise ValueError('ReefAPI connection timed out or failed') from None
  if not isinstance(data,dict) or not data.get('ok'):raise ValueError('ReefAPI did not return a successful search')
  groups=data.get('data',{}).get('groups',[])
- allowed=('price chopper','walmart','wal-mart','wal mart','hy-vee','aldi')
+ allowed=('price chopper','walmart','wal-mart','wal mart','hy-vee','aldi','sam\'s club','sams-club','costco','target')
  result=[];retailer_names=[]
  for group in groups if isinstance(groups,list) else []:
   if not isinstance(group,dict):continue
@@ -864,7 +864,7 @@ def reef_cached_comparison(zipcode,items):
  if not isinstance(items,list) or not 1<=len(items)<=60 or any(not isinstance(x,str) or not x.strip() or len(x)>120 for x in items):raise ValueError('Provide 1–60 shopping items')
  now=datetime.datetime.now(datetime.timezone.utc).timestamp()
  with REEF_CACHE_LOCK:data=reef_cache_read()
- chains=['Price Chopper','Walmart','Hy-Vee','ALDI']
+ chains=['Price Chopper','Walmart','Hy-Vee','ALDI',"Sam's Club",'Costco','Target']
  stores={x:{'chain':x,'prices':[],'priced':0,'requested':len(items),'partial_total':0} for x in chains}
  cached=0
  for item in items:
@@ -900,7 +900,7 @@ def reef_refresh_batch(zipcode,items):
   matches=[]
   for group in result['retailers']:
    name=(group['retailer']+' '+str(group.get('slug',''))).casefold()
-   chain=next((x for x in ['Price Chopper','Walmart','Hy-Vee','ALDI'] if x.casefold() in name or (x=='Walmart' and ('wal-mart' in name or 'wal mart' in name))),None)
+   chain=next((x for x in ['Price Chopper','Walmart','Hy-Vee','ALDI',"Sam's Club",'Costco','Target'] if x.casefold() in name or (x=='Walmart' and ('wal-mart' in name or 'wal mart' in name))),None)
    if not chain:continue
    products=group['products']
    if not products:continue
@@ -957,7 +957,7 @@ def retailer_catalog_prices(chain,store_name,address,items):
 
 def compare_retailer_catalog_prices(items):
  if not isinstance(items,list) or not 1<=len(items)<=60 or any(not isinstance(x,str) or not x.strip() or len(x)>120 for x in items):raise ValueError('Provide 1–60 ingredient names')
- chains=['Price Chopper','Walmart','Hy-Vee','ALDI']
+ chains=['Price Chopper','Walmart','Hy-Vee','ALDI',"Sam's Club",'Costco','Target']
  result={'stores':[], 'configured':False}
  if not RETAIL_PRICE_PATH.is_file():
   result['message']='No verified retailer price feed connected yet.'
@@ -1030,7 +1030,7 @@ def automatic_weekly_ads(zipcode):
     details=get_json(base+'/'+urllib.parse.quote(str(flyer['id']),safe='')+'?'+urllib.parse.urlencode({'locale':'en-us','postal_code':zipcode}))
     items=details if isinstance(details,list) else details.get('items',details.get('flyer_items',[]))
     if not isinstance(items,list):continue
-    chain=next((name for name,aliases in (('ALDI',('aldi',)),('Walmart',('walmart',)),('Hy-Vee',('hy-vee','hy vee')),('Price Chopper',('price chopper',)),('Hen House',('hen house',))) if any(alias in merchant.lower() for alias in aliases)),None)
+    chain=next((name for name,aliases in (('ALDI',('aldi',)),('Walmart',('walmart',)),('Hy-Vee',('hy-vee','hy vee')),('Price Chopper',('price chopper',)),('Hen House',('hen house',)),("Sam's Club",('sam\'s club','sams club')),('Costco',('costco',)),('Target',('target',))) if any(alias in merchant.lower() for alias in aliases)),None)
     if not chain:continue
     expires=str(flyer.get('valid_to') or flyer.get('end_date') or flyer.get('validTo') or '')[:10]
     if not re.fullmatch(r'\d{4}-\d{2}-\d{2}',expires) or expires<today:continue
