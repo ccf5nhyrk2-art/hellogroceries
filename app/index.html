@@ -925,30 +925,39 @@ async function showReefCachedPrices(){
   target.innerHTML='<p><strong>ReefAPI:</strong> '+data.cached+' of '+data.requested+' searched in last 7 days; '+data.missing+' not cached; '+(data.unpriced_cached||0)+' searched without a matched price.</p><p class="muted">Prices reflect different package sizes. Lowest package price is not necessarily best unit value. Missing prices are shown as dashes, not $0.</p>'+data.stores.map(store=>'<details><summary><strong>'+esc(store.chain)+'</strong> — $'+Number(store.partial_total).toFixed(2)+' partial total · '+store.priced+' of '+store.requested+' priced</summary>'+store.prices.map(p=>'<p>'+esc(p.item)+': $'+Number(p.price).toFixed(2)+' / '+esc(p.unit||'unit unknown')+' — '+esc(p.product||'')+'</p>').join('')+'</details>').join('')+'<h4>Prices by ingredient</h4>'+table+'<p class="muted">'+esc(data.message)+'</p>';
  }catch(e){target.textContent='Cached pricing unavailable: '+e.message}
 }
+function reefSearchTerm(raw){
+ return String(raw||'').trim()
+  .replace(/^\d+(?:\.\d+)?(?:\s*[-–]\s*\d+(?:\.\d+)?)?\s*/,'')
+  .replace(/^(?:ounces?|oz|pounds?|lbs?|grams?|g|kg|ml|liters?|l|cups?|tablespoons?|tbsp|teaspoons?|tsp|cloves?|cans?|pieces?|units?|each|packets?|packages?)\b(?:\s*\((?:tsp|tbsp|oz|lb|g|ml)\))?\s*/i,'')
+  .replace(/^of\s+/i,'').trim()||String(raw||'').trim();
+}
 async function refreshReefPrices(){
  const status=$('retailer-catalog-status'),button=$('shopping-reef-refresh');
  const items=[...new Set((state.list||[]).filter(x=>!x.checked).map(x=>String(x.name||'').trim()).filter(Boolean))].slice(0,60);
  const zip=String($('store-zip')?.value||localStorage.getItem(STORE_ZIP_KEY)||'').trim();
  if(!/^\d{5}$/.test(zip)){if(status)status.textContent='Enter your ZIP in Nearby stores first.';return}
  if(!items.length){if(status)status.textContent='No shopping items to refresh.';return}
- // One network search per click avoids reverse-proxy timeouts on ten sequential requests.
- const raw=items[reefBatchOffset%items.length];
- const ingredient=raw.replace(/^\d+(?:\.\d+)?\s*(?:oz|lb|lbs|g|kg|ml|l|cups?|tbsp|tsp|cloves?|cans?|pieces?|x)?\s+/i,'').trim()||raw;
- if(!confirm('Search for '+ingredient+'? One uncached request normally costs 2 ReefAPI credits.'))return;
  if(button)button.disabled=true;
- if(status)status.textContent='Searching ReefAPI for '+ingredient+' (item '+(reefBatchOffset+1)+' of '+items.length+')…';
  try{
-  const r=await fetch('/api/reef-refresh',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({zip,items:[ingredient]})});
-  const data=await r.json();if(!r.ok)throw Error(data.error||'Refresh failed');
-  if(data.errors?.length){
-   if(status)status.textContent='ReefAPI could not search '+ingredient+': '+data.errors[0].error+'. No cached price was added. Try again later or use the next item.';
-  }else{
-   reefBatchOffset=(reefBatchOffset+1)%items.length;
-   if(status)status.textContent='Searched '+ingredient+'; '+data.searched+' new request (~'+data.credits_estimate+' credits), '+data.cached_skipped+' cached. Click again for the next item.';
+  const params=new URLSearchParams({zip});items.forEach(item=>params.append('item',item));
+  const response=await fetch('/api/reef-cached-prices?'+params,{cache:'no-store'});
+  const cache=await response.json();if(!response.ok)throw Error(cache.error||'Could not check cached prices');
+  const cached=new Set((cache.cached_items||[]).map(x=>reefSearchTerm(x).toLowerCase()));
+  let selected=-1;
+  for(let n=0;n<items.length;n++){
+   const i=(reefBatchOffset+n)%items.length;
+   if(!cached.has(reefSearchTerm(items[i]).toLowerCase())){selected=i;break}
   }
+  if(selected<0){if(status)status.textContent='All '+items.length+' ingredients have been searched within 7 days. No API credits used.';await showReefCachedPrices();return}
+  const ingredient=reefSearchTerm(items[selected]);
+  if(!confirm('Search ReefAPI for "'+ingredient+'"? '+(cache.missing||0)+' ingredients not cached. One uncached request normally costs 2 credits.')){if(status)status.textContent='Search cancelled; no new request sent.';return}
+  if(status)status.textContent='Searching ReefAPI for '+ingredient+' (item '+(selected+1)+' of '+items.length+')…';
+  const r=await fetch('/api/reef-refresh',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({zip,items:[items[selected]]})});
+  const data=await r.json();if(!r.ok)throw Error(data.error||'Refresh failed');
+  if(!data.errors?.length)reefBatchOffset=(selected+1)%items.length;
   await showReefCachedPrices();
-  if($('retailer-catalog-status'))$('retailer-catalog-status').textContent=data.errors?.length?'Search failed for '+ingredient+': '+data.errors[0].error+'. Try again later.':(data.details?.[0]?.status==='no_match'?'Searched '+ingredient+' but no qualifying store prices matched. '+(data.details[0].products_returned||0)+' products from supported retailers returned.': 'Finished '+ingredient+': '+(data.saved_matches??0)+' retailer prices saved. Click Refresh again for the next ingredient.');
- }catch(e){if(status)status.textContent='Live price refresh failed for '+ingredient+': '+e.message}
+  if(status)status.textContent=data.errors?.length?'Search failed for '+ingredient+': '+data.errors[0].error:(data.details?.[0]?.status==='no_match'?'Searched '+ingredient+' but no qualifying prices matched.': 'Finished '+ingredient+': '+(data.saved_matches??0)+' retailer prices saved; ~'+(data.credits_estimate||0)+' credits estimated.');
+ }catch(e){if(status)status.textContent='Live price refresh failed: '+e.message}
  finally{if(button)button.disabled=false}
 }
 async function compareRetailerPrices(){
