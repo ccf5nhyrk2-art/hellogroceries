@@ -10,7 +10,7 @@ from jwt import PyJWKClient
 
 TEAM = os.environ.get("HG_CF_TEAM_DOMAIN", "greenlee1.cloudflareaccess.com").strip().lower()
 AUD = os.environ.get("HG_CF_AUD", "e28f3f8c9c8c1f038f18c62920f6279d1a493cfa0081ea8d8de1d6b6d1060b0b").strip()
-if not re.fullmatch(r"[a-z0-9-]+\\.cloudflareaccess\\.com", TEAM):
+if not re.fullmatch(r"[a-z0-9-]+\.cloudflareaccess\.com", TEAM):
     raise RuntimeError("Invalid Cloudflare Access team domain")
 if not re.fullmatch(r"[0-9a-f]{64}", AUD):
     raise RuntimeError("Invalid Cloudflare Access audience")
