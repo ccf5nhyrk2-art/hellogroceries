@@ -903,6 +903,7 @@ function refreshShoppingAdPrices(){
  lastAutomaticZip='';loadAutomaticWeeklyAds(zip).then(()=>renderShoppingList());
 }
 let communityPriceOffset=0;
+let communityCoverage={checked:0,found:0,errors:0};
 async function testFreeCommunityPrices(){
  const target=$('shopping-free-results'),button=$('shopping-free-prices');
  const items=[...new Set((state.list||[]).map(x=>String(x.name||'').trim()).filter(x=>x.length>=2))];
@@ -915,11 +916,12 @@ async function testFreeCommunityPrices(){
   const response=await fetch('/api/free-community-prices?'+params.toString());
   const data=await response.json();if(!response.ok)throw Error(data.error||'Lookup unavailable');
   const matches=(data.results||[]).filter(x=>x.observations?.length);
+  communityCoverage.checked+=batch.length;communityCoverage.found+=matches.length;communityCoverage.errors+=(data.results||[]).filter(x=>/failed|unavailable|errors/i.test(x.status||'')).length;
   target.innerHTML='<p><strong>'+matches.length+' of '+batch.length+' ingredients have community observations.</strong> Checked '+(communityPriceOffset+batch.length)+' of '+items.length+'. Not verified at your preferred store.</p>'+
    (data.results||[]).map(x=>' <div style="margin:6px 0"><strong>'+esc(x.item)+'</strong> <span class="muted">(searched: '+esc(x.search_term||x.item)+')</span> — '+esc(x.status)+
     (x.observations||[]).slice(0,2).map(o=>'<div class="grocery-note">'+esc(o.product)+' ('+esc(o.quantity)+'): $'+Number(o.price).toFixed(2)+' · '+esc(o.date||'date unknown')+(o.location?' · '+esc(o.location):'')+' · Open Prices</div>').join('')+'</div>').join('')+
-   '<p class="muted">Historical crowdsourced prices are excluded from your shopping subtotal.</p>';
-  communityPriceOffset+=batch.length;if(communityPriceOffset>=items.length)communityPriceOffset=0;
+   '<p><strong>Session coverage: '+communityCoverage.found+' of '+communityCoverage.checked+' observations found · '+communityCoverage.errors+' provider errors.</strong></p><p class="muted">Historical crowdsourced prices are excluded from your shopping subtotal.</p>';
+  communityPriceOffset+=batch.length;if(communityPriceOffset>=items.length){communityPriceOffset=0;communityCoverage={checked:0,found:0,errors:0}}
   button.textContent=communityPriceOffset?'Test next 10 ingredients':'Test free community prices again';
  }catch(error){target.textContent='Free community lookup unavailable: '+error.message}
  finally{button.disabled=false}
