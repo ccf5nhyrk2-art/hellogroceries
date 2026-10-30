@@ -546,7 +546,7 @@ class Handler(SimpleHTTPRequestHandler):
      reviews=state.setdefault('recipe_reviews',{})
      if rating or note.strip():reviews[str(rid)]={'rating':rating,'note':note.strip()}
      else:reviews.pop(str(rid),None)
-    elif action=='generate':
+    elif action in ('generate','preview_grocery'):
      totals={}
      sources={}
      for recipe in allrecipes():
@@ -590,6 +590,7 @@ class Handler(SimpleHTTPRequestHandler):
      if found is None:raise ValueError('Unknown item')
      found['purchased']=bool(p['purchased'])
     else:raise ValueError('Unknown action')
+    if action=='preview_grocery':return self.sendjson({'items':state['list']})
     state['revision']+=1;save(state)
    return self.sendjson(state)
   except (ValueError,KeyError,TypeError,json.JSONDecodeError) as e:return self.sendjson({'error':str(e)},400)
