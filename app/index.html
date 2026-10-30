@@ -287,9 +287,9 @@ function renderStoreResults(data){
   const weeklyAd=adLinks[x.chain]||'';
   const adHtml=weeklyAd?' <a href="'+weeklyAd+'" target="_blank" rel="noopener noreferrer" title="Choose this location on the retailer website to confirm local offers">Weekly ad ↗</a>':'';
 
-  return '<div class="row" style="align-items:flex-start;gap:12px"><div style="flex:1;min-width:0"><strong>'+esc(x.chain)+'</strong> — '+esc(x.name)+'<div class="muted">'+esc(address||'Address unavailable')+' · '+(x.distance_approximate?'~':'')+esc(x.distance_miles)+' miles'+(x.distance_approximate?' (ZIP-based estimate)':'')+'</div><div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:6px"><a href="'+google+'" target="_blank" rel="noopener noreferrer">Google Maps</a><a href="'+apple+'" target="_blank" rel="noopener noreferrer">Apple Maps</a>'+adHtml+'</div></div><button type="button" data-preferred-store="'+i+'" aria-pressed="'+(selected?'true':'false')+'">'+(selected?'✓ Preferred':'Select store')+'</button></div>';
+  return '<div class="row" style="align-items:flex-start;gap:12px"><div style="flex:1;min-width:0"><strong>'+esc(x.chain)+'</strong> — '+esc(x.name)+'<div class="muted">'+esc(address||'Address unavailable')+' · '+(x.distance_approximate?'~':'')+esc(x.distance_miles)+' miles'+(x.distance_approximate?' (ZIP-based estimate)':'')+(x.outside_radius?' (near radius boundary)':'')+'</div><div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:6px"><a href="'+google+'" target="_blank" rel="noopener noreferrer">Google Maps</a><a href="'+apple+'" target="_blank" rel="noopener noreferrer">Apple Maps</a>'+adHtml+'</div></div><button type="button" data-preferred-store="'+i+'" aria-pressed="'+(selected?'true':'false')+'">'+(selected?'✓ Preferred':'Select store')+'</button></div>';
  }).join(''):'No matching stores found within 10 miles. Store directory coverage may be incomplete.');
- $('store-status').textContent=stores.length+' matching locations within '+(data.radius_miles||10)+' miles of '+data.zip+(data.directory_status?' · Directories: All the Places '+data.directory_status.all_the_places+', OpenStreetMap '+data.directory_status.openstreetmap+', retailer locations '+(data.directory_status.retailer_locations||0):'')+(data.source?' · '+data.source:'')+(data.stale?' · cached results':'');
+ $('store-status').textContent=stores.length+' matching locations within '+(data.radius_miles||10)+' miles of '+data.zip+(data.directory_status?' · Directories: All the Places '+data.directory_status.all_the_places+', OpenStreetMap '+data.directory_status.openstreetmap+', retailer locations '+(data.directory_status.retailer_locations||0):'')+' · '+stores.filter(x=>x.outside_radius).length+' near boundary (up to 2 miles beyond radius)' +(data.source?' · '+data.source:'')+(data.stale?' · cached results':'');
  renderSalesComparison();
  void loadAutomaticWeeklyAds(String(data.zip||$('store-zip').value).trim());
  root.querySelectorAll('[data-preferred-store]').forEach(button=>button.addEventListener('click',()=>{
@@ -437,7 +437,7 @@ async function lookupStores(zip){
      const r=await fetch('/api/stores/geocode-status',{cache:'no-store'});
      if(!r.ok)throw Error('status unavailable');
      const x=await r.json();
-     const detail=' · Address coordinates: '+x.matched+' matched, '+x.failed+' errors'+(x.running?' (updating…)':x.finished?' (finished)':'');
+     const detail=' · Address coordinates: '+x.cached_coordinates+'/'+x.total_addresses+' saved, '+x.remaining_estimates+' remaining · This run: '+x.matched+' matched, '+x.failed+' errors'+(x.running?' (updating…)':x.finished?' (finished)':'');
      const label=$('store-status');
      if(label && !label.textContent.includes('Address coordinates:'))label.textContent+=detail;
      else if(label)label.textContent=label.textContent.replace(/ · Address coordinates:.*$/,'')+detail;
