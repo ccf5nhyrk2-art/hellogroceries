@@ -86,6 +86,12 @@ def db():
  c.execute('CREATE TABLE IF NOT EXISTS photos (recipe_id INTEGER PRIMARY KEY, image_url TEXT NOT NULL)')
  return c
 
+def pricing_visibility():
+ with db() as c:
+  c.execute('CREATE TABLE IF NOT EXISTS admin_preferences (key TEXT PRIMARY KEY,value TEXT NOT NULL)')
+  values=dict(c.execute("SELECT key,value FROM admin_preferences WHERE key IN ('show_prices_admin','show_prices_user')"))
+ return {'admin':values.get('show_prices_admin','1')=='1','user':values.get('show_prices_user','1')=='1'}
+
 def allrecipes():
  with db() as c: imported=[json.loads(x[0]) for x in c.execute('SELECT payload FROM imported ORDER BY id DESC')]
  recipes=RECIPES+imported
@@ -1317,6 +1323,9 @@ class Handler(SimpleHTTPRequestHandler):
   except (ValueError,TypeError,KeyError) as exc:return self.sendjson({'error':str(exc)},400)
  def do_GET(self):
   request_scope.household_id=None
+  if self.path=='/api/pricing-visibility':
+   if not self.gate():return
+   return self.sendjson({'visibility':pricing_visibility(),'is_admin':bool(getattr(request_scope,'admin',False))})
   if self.path=='/api/admin/tasks':
    if not self.gate():return
    if not getattr(request_scope,'admin',False):return self.sendjson({'error':'Administrator required'},403)
@@ -1450,6 +1459,20 @@ class Handler(SimpleHTTPRequestHandler):
   super().end_headers()
  def do_POST(self):
   request_scope.household_id=None
+  if self.path=='/api/admin/pricing-visibility':
+   if not self.gate(write=True):return
+   if not getattr(request_scope,'admin',False):return self.sendjson({'error':'Administrator required'},403)
+   try:
+    size=int(self.headers.get('Content-Length','0'))
+    if not 0<size<=512:raise ValueError('Invalid request size')
+    values=json.loads(self.rfile.read(size))
+    if not isinstance(values,dict) or any(type(values.get(k)) is not bool for k in ('admin','user')):raise ValueError('Both visibility options must be booleans')
+    with db() as c:
+     c.execute('CREATE TABLE IF NOT EXISTS admin_preferences (key TEXT PRIMARY KEY,value TEXT NOT NULL)')
+     for role in ('admin','user'):c.execute('INSERT OR REPLACE INTO admin_preferences(key,value) VALUES (?,?)',('show_prices_'+role,'1' if values[role] else '0'))
+     c.commit()
+    return self.sendjson({'ok':True,'visibility':pricing_visibility()})
+   except (ValueError,TypeError) as exc:return self.sendjson({'error':str(exc)},400)
   if self.path=='/api/admin/tasks/run':
    if not self.gate(write=True):return
    if not getattr(request_scope,'admin',False):return self.sendjson({'error':'Administrator required'},403)
