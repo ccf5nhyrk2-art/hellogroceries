@@ -415,7 +415,13 @@ def rebuild_grocery_list(state):
  for recipe in allrecipes():
   scale=state['selected'].get(str(recipe['id']))
   if scale is None:continue
-  for name,qty in recipe['ingredients'].items():
+  ingredients=recipe.get('ingredients')
+  if not isinstance(ingredients,dict):continue
+  for name,qty in ingredients.items():
+   if not isinstance(name,str) or not name.strip():continue
+   try:quantity=float(qty)
+   except (ValueError,TypeError,OverflowError):continue
+   if not math.isfinite(quantity) or quantity<=0:continue
    correction=state.get('recipe_ingredient_corrections',{}).get(str(recipe['id'])+'|'+name)
    if isinstance(correction,dict):
     ingredient_name=correction['name']
@@ -425,7 +431,7 @@ def rebuild_grocery_list(state):
     amount=corrected_amount*float(scale)
    else:
     label=name
-    amount=float(qty)*float(scale)
+    amount=quantity*float(scale)
    if not (0<amount<100000):continue
    totals[label]=totals.get(label,0)+amount
    sources.setdefault(label,[]).append({'recipe_id':recipe['id'],'recipe':recipe['name'],'original_name':name,'corrected':bool(correction),'source_quantity':qty,'multiplier':scale,'contribution':round(amount,3)})
@@ -804,7 +810,6 @@ class Handler(SimpleHTTPRequestHandler):
      if not (0<servings<=20):raise ValueError('Serving multiplier must be 0–20')
      if rid not in {str(r['id']) for r in allrecipes()}:raise ValueError('Unknown recipe')
      if p.get('checked'):
-      recipe=next((r for r in allrecipes() if str(r['id'])==rid),None)
       state['selected'][rid]=servings
      else:state['selected'].pop(rid,None)
     elif action=='correct_recipe_ingredient':
@@ -872,10 +877,6 @@ class Handler(SimpleHTTPRequestHandler):
     else:raise ValueError('Unknown action')
     if action=='select':
      rebuild_grocery_list(state)
-     if p.get('checked') and not state['list']:
-      selected_recipes=[r for r in allrecipes() if str(r['id']) in state['selected']]
-      if selected_recipes and not any(r.get('ingredients') for r in selected_recipes):
-       return self.sendjson({'error':'Selected recipes have no ingredient data. Try another recipe or import one with ingredients.'},422)
     if action=='preview_grocery':return self.sendjson({'items':state['list']})
     state['revision']+=1;save(state)
    return self.sendjson(state)
