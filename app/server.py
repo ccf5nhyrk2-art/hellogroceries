@@ -333,7 +333,7 @@ def save(state):
 STORE_CACHE={};STORE_CACHE_LOCK=threading.Lock()
 STORE_CACHE_FILE=Path('/data/store_lookup_cache.json')
 STORE_CACHE_TTL=21600
-STORE_CACHE_VERSION=3
+STORE_CACHE_VERSION=4
 STORE_CACHE_STALE_TTL=30*86400
 try:
  raw_cache=json.loads(STORE_CACHE_FILE.read_text())
@@ -488,35 +488,57 @@ RETAILER_PUBLISHED_STORES=[
  ('Hen House','2724 W 53rd St','Fairway','KS','66205'),
  ('Hen House','1904 Southwest Blvd','Jefferson City','MO','65109')
 ]
-RETAILER_ZIP_CENTROIDS={}
-RETAILER_ZIP_LOCK=threading.Lock()
+RETAILER_GEOCODE_CACHE={}
+RETAILER_GEOCODE_LOCK=threading.Lock()
+# Verified Walmart Supercenters absent from some retailer-directory snapshots.
+RETAILER_PUBLISHED_STORES.extend([
+ ('Walmart','2015 W Foxwood Dr','Raymore','MO','64083'),
+ ('Walmart','1701 W 133rd St','Kansas City','MO','64145'),
+ ('Walmart','1700 N State Route 291','Harrisonville','MO','64701'),
+ ('Walmart','3410 SW Market St',"Lee's Summit",'MO','64082'),
+ ('Walmart','1000 NE Sam Walton Ln',"Lee's Summit",'MO','64086')
+])
 def published_retailer_nearby(lat,lon,radius):
- # Location list is independent of the searched ZIP, unlike a ZIP-specific patch.
- with RETAILER_ZIP_LOCK:
-  known=dict(RETAILER_ZIP_CENTROIDS)
- zips={item[4] for item in RETAILER_PUBLISHED_STORES if item[4] not in known}
- if zips:
-  from concurrent.futures import ThreadPoolExecutor
-  def lookup_zip(code):
-   try:
-    req=urllib.request.Request('https://api.zippopotam.us/us/'+code,headers={'User-Agent':'HelloGroceries/1.0'})
-    with urllib.request.urlopen(req,timeout=3) as response:data=json.load(response)
-    p=data['places'][0]
-    return code,(float(p['latitude']),float(p['longitude']))
-   except (OSError,ValueError,KeyError,IndexError,TypeError):return code,None
-  with ThreadPoolExecutor(max_workers=8) as pool:
-   for code,coords in pool.map(lookup_zip,sorted(zips)):
-    if coords:
-     with RETAILER_ZIP_LOCK:RETAILER_ZIP_CENTROIDS[code]=coords
- with RETAILER_ZIP_LOCK:known=dict(RETAILER_ZIP_CENTROIDS)
+ # Geocode each *street address*, never a ZIP centroid; skip unlocated stores.
+ # Nominatim is rate-limited, so geocode sequentially and persist in memory.
+ import concurrent.futures
+ with RETAILER_GEOCODE_LOCK:known=dict(RETAILER_GEOCODE_CACHE)
+ # Query only plausible regional addresses to limit network requests.
+ candidates=[]
+ for item in RETAILER_PUBLISHED_STORES:
+  chain,street,city,state,code=item
+  if state not in ('MO','KS'):continue
+  if code in ('65109',):continue
+  key='|'.join(item)
+  if key not in known:candidates.append((key,item))
+ def geocode(pair):
+  key,item=pair
+  chain,street,city,state,code=item
+  query=', '.join((street,city,state,code,'USA'))
+  url='https://nominatim.openstreetmap.org/search?'+urllib.parse.urlencode({'q':query,'format':'json','limit':1})
+  try:
+   req=urllib.request.Request(url,headers={'User-Agent':'HelloGroceries/1.0 (self-hosted grocery planner)','Accept':'application/json'})
+   with urllib.request.urlopen(req,timeout=3) as resp:locations=json.load(resp)
+   if locations:return key,(float(locations[0]['lat']),float(locations[0]['lon']))
+  except (OSError,ValueError,KeyError,IndexError,TypeError):pass
+  return key,None
+ # Avoid long requests when geocoding services are unavailable.
+ with concurrent.futures.ThreadPoolExecutor(max_workers=4) as pool:
+  futures=[pool.submit(geocode,pair) for pair in candidates]
+  for future in concurrent.futures.as_completed(futures):
+   key,coords=future.result()
+   with RETAILER_GEOCODE_LOCK:RETAILER_GEOCODE_CACHE[key]=coords
+ with RETAILER_GEOCODE_LOCK:known=dict(RETAILER_GEOCODE_CACHE)
  matches=[]
- for chain,street,city,state,code in RETAILER_PUBLISHED_STORES:
-  if code not in known:continue
-  distance=store_distance(lat,lon,*known[code])
-  # ZIP centroid is an approximation: allow a small margin at the radius boundary.
-  if distance>radius+2:continue
-  matches.append({'id':'retailer-published-'+re.sub(r'[^a-z0-9]','-',(chain+'-'+street+'-'+code).lower()),'chain':chain,'name':chain,'address':street+', '+city+', '+state+' '+code,'distance_miles':round(distance,1),'distance_approximate':True})
+ for item in RETAILER_PUBLISHED_STORES:
+  chain,street,city,state,code=item
+  coords=known.get('|'.join(item))
+  if coords is None:continue
+  distance=store_distance(lat,lon,*coords)
+  if distance>radius:continue
+  matches.append({'id':'retailer-published-'+re.sub(r'[^a-z0-9]','-',(chain+'-'+street+'-'+code).lower()),'chain':chain,'name':chain,'address':street+', '+city+', '+state+' '+code,'distance_miles':round(distance,1),'distance_approximate':False})
  return matches
+
 
 def merge_store_results(*groups):
  result=[];seen=set()
