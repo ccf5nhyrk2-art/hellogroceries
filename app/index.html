@@ -1506,7 +1506,8 @@ $('recipes').addEventListener('click',async e=>{
    const panel=document.createElement('div');
    panel.className='recipe-inline-detail';
    panel.style.cssText='margin:14px 0 0;padding:16px;border:1px solid #718678;border-radius:12px;background:var(--panel,#20282a);color:inherit;overflow-wrap:anywhere';
-   panel.innerHTML=$('recipe-detail').innerHTML+'<p class="muted">Your rating and cooking notes can be edited in the full recipe dialog when available.</p><button type="button" class="clear" data-close-inline-detail>Close details</button>';
+   const saved=(state.recipe_reviews||{})[String(r.id)]||{};
+   panel.innerHTML=$('recipe-detail').innerHTML+'<form data-inline-review="'+esc(String(r.id))+'"><h3>Your rating &amp; cooking notes</h3><label>Rating <select name="rating">'+[0,1,2,3,4,5].map(n=>'<option value="'+n+'"'+(Number(saved.rating||0)===n?' selected':'')+'>'+(n?n+' stars':'Not rated')+'</option>').join('')+'</select></label><label>Cooking notes<textarea name="note" maxlength="2000" rows="4">'+esc(saved.note||'')+'</textarea></label><button type="submit">Save rating &amp; notes</button><small data-review-feedback class="muted"></small></form><button type="button" class="clear" data-close-inline-detail>Close details</button>';
    card.querySelector('.recipe-card-body').appendChild(panel);
    detail.setAttribute('aria-expanded','true');
    panel.scrollIntoView({block:'nearest'});
@@ -1516,6 +1517,19 @@ $('recipes').addEventListener('click',async e=>{
 
 
  }
+});
+$('recipes').addEventListener('submit',async e=>{
+ const form=e.target.closest('[data-inline-review]');if(!form)return;
+ e.preventDefault();
+ const feedback=form.querySelector('[data-review-feedback]'),button=form.querySelector('[type="submit"]');
+ button.disabled=true;feedback.textContent='Saving…';
+ try{
+  const response=await fetch('/api/action',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'rate_recipe',id:Number(form.dataset.inlineReview),rating:Number(form.elements.rating.value),note:form.elements.note.value})});
+  const result=await response.json();
+  if(!response.ok)throw Error(result.error||'Unable to save');
+  state=result;feedback.textContent='Saved!';
+ }catch(err){feedback.textContent=err.message||'Unable to save';}
+ finally{button.disabled=false;}
 });
 $('recipes').addEventListener('change',async e=>{
  const el=e.target.closest('[data-collection-add]');if(!el||!el.value)return;
