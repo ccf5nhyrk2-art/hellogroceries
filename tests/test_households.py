@@ -73,5 +73,25 @@ class HouseholdSecurityTests(unittest.TestCase):
             auth.authenticate(self.conn, "no@example.test", "another-long-password-123")
         self.assertEqual(self.conn.execute("SELECT password_hash FROM hg_registration_requests WHERE id=?",(request_id,)).fetchone()[0], "")
 
+
+    def test_account_management_and_last_login(self):
+        admin, original = auth.create_first_admin(self.conn, "owner@example.test", "very-long-password-123")
+        auth.request_registration(self.conn, "user@example.test", "another-long-password-123", "User Home")
+        auth.review_registration(self.conn, admin, auth.pending_registrations(self.conn)[0]["id"], True)
+        user = auth.authenticate(self.conn, "user@example.test", "another-long-password-123")
+        self.assertIsNone(next(a for a in auth.list_accounts(self.conn,admin) if a["id"]==user)["last_login_at"])
+        token = auth.create_session(self.conn, user)
+        self.conn.commit()
+        self.assertIsNotNone(next(a for a in auth.list_accounts(self.conn,admin) if a["id"]==user)["last_login_at"])
+        household = self.conn.execute("SELECT household_id FROM hg_memberships WHERE user_id=?",(user,)).fetchone()[0]
+        with self.assertRaises(PermissionError):
+            auth.remove_account(self.conn,user,admin)
+        with self.assertRaises(ValueError):
+            auth.remove_account(self.conn,admin,admin)
+        auth.remove_account(self.conn,admin,user)
+        self.assertIsNone(auth.session_user(self.conn,token))
+        self.assertIsNotNone(self.conn.execute("SELECT payload FROM hg_household_state WHERE household_id=?",(household,)).fetchone())
+        self.assertIsNotNone(self.conn.execute("SELECT payload FROM hg_household_state WHERE household_id=?",(original,)).fetchone())
+
 if __name__ == "__main__":
     unittest.main()
