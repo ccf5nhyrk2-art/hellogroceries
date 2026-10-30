@@ -371,7 +371,7 @@ def google_nearby_stores(lat,lon):
  matches=[]
  for item in body.get('places',[]):
   name=(item.get('displayName') or {}).get('text','')
-  chain=next((x for x in ('Hy-Vee','Price Chopper','ALDI','Walmart') if x.lower() in name.lower()),None)
+  chain=next((x for x in ('Hy-Vee','Price Chopper','Hen House','ALDI','Walmart') if x.lower() in name.lower()),None)
   loc=item.get('location') or {}
   if not chain or 'latitude' not in loc or 'longitude' not in loc:continue
   distance=store_distance(lat,lon,float(loc['latitude']),float(loc['longitude']))
@@ -495,7 +495,7 @@ def nearby_stores(zipcode):
   retailer_matches=retailer_nearby(lat,lon) or []
  except (OSError,ValueError,TypeError) as error:
   print('Retailer directory lookup failed:',repr(error),flush=True)
- query='[out:json][timeout:10];(nwr["shop"="supermarket"]["name"~"Hy.Vee|Price Chopper|ALDI|Walmart",i](around:16093,'+str(lat)+','+str(lon)+');nwr["shop"="supermarket"]["brand"~"Hy.Vee|Price Chopper|ALDI|Walmart",i](around:16093,'+str(lat)+','+str(lon)+'););out center;'
+ query='[out:json][timeout:10];(nwr["shop"="supermarket"]["name"~"Hy.Vee|Price Chopper|Hen House|ALDI|Walmart",i](around:16093,'+str(lat)+','+str(lon)+');nwr["shop"="supermarket"]["brand"~"Hy.Vee|Price Chopper|Hen House|ALDI|Walmart",i](around:16093,'+str(lat)+','+str(lon)+'););out center;'
  payload=urllib.parse.urlencode({'data':query}).encode()
  elements=None
  for endpoint in ('https://overpass.private.coffee/api/interpreter','https://overpass.kumi.systems/api/interpreter','https://overpass-api.de/api/interpreter'):
@@ -509,7 +509,7 @@ def nearby_stores(zipcode):
   matches=[]
   for item in elements:
    tags=item.get('tags') or {};name=tags.get('name','');brand=(tags.get('brand','')+' '+name).lower()
-   chain=next((x for x in ('Hy-Vee','Price Chopper','ALDI','Walmart') if x.lower() in brand),None)
+   chain=next((x for x in ('Hy-Vee','Price Chopper','Hen House','ALDI','Walmart') if x.lower() in brand),None)
    loc=item.get('center') or item
    if not chain or 'lat' not in loc or 'lon' not in loc:continue
    distance=store_distance(lat,lon,float(loc['lat']),float(loc['lon']))
@@ -561,7 +561,7 @@ def automatic_weekly_ads(zipcode):
   listing=get_json(base+'?'+urllib.parse.urlencode({'locale':'en-us','postal_code':zipcode}))
   flyers=listing if isinstance(listing,list) else listing.get('flyers',listing.get('data',[]))
   if not isinstance(flyers,list):raise ValueError('Unexpected flyer list')
-  targets=('aldi','walmart','hy-vee','hy vee','price chopper')
+  targets=('aldi','walmart','hy-vee','hy vee','price chopper','hen house')
   selected=[]
   for flyer in flyers:
    if not isinstance(flyer,dict):continue
@@ -577,7 +577,7 @@ def automatic_weekly_ads(zipcode):
     details=get_json(base+'/'+urllib.parse.quote(str(flyer['id']),safe='')+'?'+urllib.parse.urlencode({'locale':'en-us','postal_code':zipcode}))
     items=details if isinstance(details,list) else details.get('items',details.get('flyer_items',[]))
     if not isinstance(items,list):continue
-    chain=next((name for name,aliases in (('ALDI',('aldi',)),('Walmart',('walmart',)),('Hy-Vee',('hy-vee','hy vee')),('Price Chopper',('price chopper',))) if any(alias in merchant.lower() for alias in aliases)),None)
+    chain=next((name for name,aliases in (('ALDI',('aldi',)),('Walmart',('walmart',)),('Hy-Vee',('hy-vee','hy vee')),('Price Chopper',('price chopper',)),('Hen House',('hen house',))) if any(alias in merchant.lower() for alias in aliases)),None)
     if not chain:continue
     expires=str(flyer.get('valid_to') or flyer.get('end_date') or flyer.get('validTo') or '')[:10]
     if not re.fullmatch(r'\d{4}-\d{2}-\d{2}',expires) or expires<today:continue
