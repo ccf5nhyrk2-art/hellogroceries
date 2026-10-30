@@ -356,7 +356,7 @@ def save(state):
 STORE_CACHE={};STORE_CACHE_LOCK=threading.Lock()
 STORE_CACHE_FILE=Path('/data/store_lookup_cache.json')
 STORE_CACHE_TTL=21600
-STORE_CACHE_VERSION=13
+STORE_CACHE_VERSION=14
 STORE_CACHE_STALE_TTL=30*86400
 try:
  raw_cache=json.loads(STORE_CACHE_FILE.read_text())
@@ -658,7 +658,7 @@ def nearby_stores(zipcode,radius=10):
   retailer_matches=retailer_nearby(lat,lon,radius) or []
  except (OSError,ValueError,TypeError) as error:
   print('Retailer directory lookup failed:',repr(error),flush=True)
- query='[out:json][timeout:10];(nwr["shop"="supermarket"]["name"~"Hy.Vee|Price Chopper|Hen House|ALDI|Walmart",i](around:'+str(int(radius*1609.344))+','+str(lat)+','+str(lon)+');nwr["shop"="supermarket"]["brand"~"Hy.Vee|Price Chopper|Hen House|ALDI|Walmart",i](around:'+str(int(radius*1609.344))+','+str(lat)+','+str(lon)+'););out center;'
+ query='[out:json][timeout:10];(nwr["shop"="supermarket"]["name"~"Hy.Vee|Price Chopper|Hen House|ALDI|Walmart|Sam.s Club|Costco|Target",i](around:'+str(int(radius*1609.344))+','+str(lat)+','+str(lon)+');nwr["shop"="supermarket"]["brand"~"Hy.Vee|Price Chopper|Hen House|ALDI|Walmart|Sam.s Club|Costco|Target",i](around:'+str(int(radius*1609.344))+','+str(lat)+','+str(lon)+'););out center;'
  payload=urllib.parse.urlencode({'data':query}).encode()
  elements=None
  for endpoint in ('https://overpass.nchc.org.tw/api/interpreter','https://overpass.private.coffee/api/interpreter','https://overpass.kumi.systems/api/interpreter','https://overpass-api.de/api/interpreter'):
@@ -672,7 +672,7 @@ def nearby_stores(zipcode,radius=10):
   matches=[]
   for item in elements:
    tags=item.get('tags') or {};name=tags.get('name','');brand=(tags.get('brand','')+' '+name).lower()
-   chain=next((x for x in ('Hy-Vee','Price Chopper','Hen House','ALDI','Walmart') if x.lower() in brand),None)
+   chain=next((x for x in ('Hy-Vee','Price Chopper','Hen House','ALDI','Walmart',"Sam's Club",'Costco','Target') if x.lower() in brand),None)
    loc=item.get('center') or item
    if not chain or 'lat' not in loc or 'lon' not in loc:continue
    distance=store_distance(lat,lon,float(loc['lat']),float(loc['lon']))
