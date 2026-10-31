@@ -521,6 +521,10 @@ html[data-theme="dark"] .mobile-more-logout{color:#ff8989!important;border-color
 .recipe-dialog textarea{width:100%;box-sizing:border-box;min-height:90px}
 html[data-theme="dark"] .recipe-dialog{background:#20272a;color:#edf0f2;border-color:#465650}
 @media(max-width:600px){.recipe-dialog{width:calc(100vw - 20px);max-height:90dvh;padding:16px}}
+
+/* Make the details panel visible even on browsers that cannot use native modal dialogs. */
+.recipe-dialog[open]{display:block!important;visibility:visible!important;opacity:1!important;z-index:2147483000}
+.recipe-dialog.recipe-dialog-fallback{position:fixed!important;inset:50% auto auto 50%!important;transform:translate(-50%,-50%);margin:0!important;max-height:85dvh;overflow:auto;box-shadow:0 0 0 100vmax rgba(0,0,0,.68),0 24px 80px #0008}
 </style><script>
 (function(){const originalFetch=window.fetch;window.fetch=function(input,init){const opts=init?{...init}:{};const method=(opts.method||'GET').toUpperCase();const url=typeof input==='string'?input:input.url;if(method!=='GET'&&method!=='HEAD'&&url.startsWith('/api/')){const match=document.cookie.match(/(?:^|; )hg_csrf=([^;]+)/);opts.headers={...opts.headers,'X-HG-CSRF':match?match[1]:''}}return originalFetch.call(this,input,opts)};})();
 </script>
@@ -2361,8 +2365,15 @@ $('recipes').addEventListener('click',async e=>{
   // Keep recipe cards aligned by displaying details in the existing dialog.
   const dialog=$('recipe-dialog');
   if(!dialog.open){
-   try{dialog.showModal();}catch(err){dialog.setAttribute('open','');}
+   try {
+    if(typeof dialog.showModal==='function') dialog.showModal();
+    else throw new Error('Modal dialog unsupported');
+   } catch(err) {
+    dialog.setAttribute('open','');
+    dialog.classList.add('recipe-dialog-fallback');
+   }
   }
+  dialog.scrollTop=0;
   $('close-recipe').focus();
 
 
@@ -2429,7 +2440,7 @@ $('recipe-review-form').addEventListener('submit',async e=>{
  const result=await response.json();if(!response.ok){$('review-status').textContent=result.error||'Unable to save';return}
  state=result;$('review-status').textContent='Saved';render();
 });
-$('close-recipe').onclick=()=>$('recipe-dialog').close();
+$('close-recipe').onclick=()=>{const d=$('recipe-dialog');if(d.classList.contains('recipe-dialog-fallback')){d.removeAttribute('open');d.classList.remove('recipe-dialog-fallback');}else d.close();};
 async function saveNamedCollection(name){
  name=String(name||'').trim();if(!name)return false;
  const c={...(state.collections||{})};if(!c[name])c[name]=[];
