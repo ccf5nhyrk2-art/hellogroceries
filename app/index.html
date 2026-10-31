@@ -2648,8 +2648,22 @@ body:has(#hg-tour-overlay:not([hidden])) #hg-tour-replay{display:none!important}
  const obs=new MutationObserver(update);
  obs.observe(progress,{childList:true,subtree:true});
  obs.observe(overlay,{attributes:true,attributeFilter:['hidden']});
- // Highlighted controls remain usable; only Next/Back change the tour step.
- // This prevents page clicks from unexpectedly skipping or reordering steps.
+ // Advance only for a real tap on the currently highlighted tour action.
+ // Programmatic page switches and other clicks must not skip steps.
+ document.addEventListener('click',event=>{
+  if(overlay.hidden||!event.isTrusted||advancing)return;
+  if(step===2||step<1||step>7)return; // Collections advance only after a confirmed save.
+  const selected=highlighted;
+  if(!selected||!(event.target instanceof Node)||!selected.contains(event.target))return;
+  advancing=true;
+  // Let the page navigation handler finish before changing the tour step.
+  setTimeout(()=>{
+   advancing=false;
+   if(!overlay.hidden&&window.hgTourIndex?.()===step)next.click();
+  },120);
+ },true);
+ // Highlighted controls remain usable; a successful tap advances the walkthrough.
+ // The Next and Back buttons remain available for optional steps.
  const create=document.getElementById('create-collection');
  create?.addEventListener('click',()=>{
   if(overlay.hidden||step!==2)return;
