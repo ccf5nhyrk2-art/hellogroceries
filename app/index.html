@@ -484,6 +484,16 @@ html[data-theme="dark"] .mobile-more-logout{color:#ff8989!important;border-color
  .shopping-view-toolbar #shopping-focus-toggle,
  .shopping-view-toolbar .page-nav-button[data-page="all"]{display:none!important}
 }
+
+/* Desktop-only recipe cleanup; mobile controls retain their existing behavior. */
+@media(min-width:751px){
+ .shopping-view-toolbar .page-nav-button[data-page="recipes"]{order:0}
+ .shopping-view-toolbar .page-nav-button[data-page="shopping"]{order:1}
+ .shopping-view-toolbar .page-nav-button:not([data-page="recipes"]):not([data-page="shopping"]){order:2}
+ #hf-photo-audit{display:none!important}
+ #mobile-recipe-filter-toggle{display:block!important;width:auto!important;margin:12px 0!important;padding:9px 14px!important;border-radius:10px!important;font-size:14px!important;cursor:pointer}
+ #mobile-recipe-filters.desktop-collapsed{display:none!important}
+}
 </style><script>
 (function(){const originalFetch=window.fetch;window.fetch=function(input,init){const opts=init?{...init}:{};const method=(opts.method||'GET').toUpperCase();const url=typeof input==='string'?input:input.url;if(method!=='GET'&&method!=='HEAD'&&url.startsWith('/api/')){const match=document.cookie.match(/(?:^|; )hg_csrf=([^;]+)/);opts.headers={...opts.headers,'X-HG-CSRF':match?match[1]:''}}return originalFetch.call(this,input,opts)};})();
 </script>
@@ -634,6 +644,12 @@ for(const [key,label] of pageSpecs){
 }
 function showPage(key){
  if(!pageButtons.has(key))key='all';
+ if(key==='recipes'&&window.matchMedia('(min-width:751px)').matches){
+  const panel=document.getElementById('selected-plan');
+  const toggle=document.getElementById('show-selected-meals');
+  if(panel)panel.hidden=true;
+  if(toggle)toggle.setAttribute('aria-expanded','false');
+ }
  if(key==='selected-meals'){
   const panel=document.getElementById('selected-plan');
   const toggle=document.getElementById('show-selected-meals');
@@ -741,7 +757,13 @@ let initialPage='all';
 try{initialPage=localStorage.getItem(PAGE_VIEW_KEY)||(localStorage.getItem('hellogroceries-shopping-only')==='1'?'shopping':'all')}catch(e){}
 if(window.matchMedia('(min-width:751px)').matches && (initialPage==='all'||initialPage==='shopping'&&localStorage.getItem(PAGE_VIEW_KEY)!=='shopping'))initialPage='recipes';
 try{showPage(initialPage)}catch(error){console.error('Page navigation initialization failed',error);document.body.dataset.activePage='all';}
-document.getElementById('mobile-recipe-filter-toggle')?.addEventListener('click',function(){const el=document.getElementById('mobile-recipe-filters');const open=el.classList.toggle('is-open');this.setAttribute('aria-expanded',String(open));this.textContent=open?'☷ Hide filters':'☷ Filters';});
+if(window.matchMedia('(min-width:751px)').matches){
+ const filterPanel=document.getElementById('mobile-recipe-filters');
+ const filterButton=document.getElementById('mobile-recipe-filter-toggle');
+ filterPanel?.classList.add('desktop-collapsed');
+ if(filterButton){filterButton.textContent='☷ Show filters';filterButton.setAttribute('aria-expanded','false');}
+}
+document.getElementById('mobile-recipe-filter-toggle')?.addEventListener('click',function(){const el=document.getElementById('mobile-recipe-filters');const desktop=window.matchMedia('(min-width:751px)').matches;const open=desktop?!el.classList.toggle('desktop-collapsed'):el.classList.toggle('is-open');this.setAttribute('aria-expanded',String(open));this.textContent=open?'☷ Hide filters':(desktop?'☷ Show filters':'☷ Filters');});
 // Reuse the same page navigation as the mobile bottom tabs.
 document.querySelectorAll('.mobile-home-dashboard [data-home-go]').forEach(button=>{
  button.addEventListener('click',event=>{
