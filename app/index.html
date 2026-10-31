@@ -2561,7 +2561,13 @@ fetch('/api/auth/status',{credentials:'same-origin',cache:'no-store'}).then(r=>r
 #shop-generate-tour{background:#123d2a;color:#fff;border:1px solid #61b78a;border-radius:11px;padding:11px 14px;font-weight:700;cursor:pointer}
 body:not([data-active-page="shopping"]) #shop-generate-tour{display:none!important}
 #shop-generate-tour{display:none!important}
-body.hg-tour-generate-step[data-active-page="shopping"] #shop-generate-tour{display:block!important;position:relative!important;z-index:2147483002!important;margin:8px 12px!important}
+body.hg-tour-generate-step[data-active-page="shopping"] .shopping-view-toolbar{display:flex!important;position:fixed!important;left:12px;right:12px;top:calc(env(safe-area-inset-top,0px) + 100px);z-index:2147483003!important;justify-content:center!important;background:transparent!important;pointer-events:none!important}
+body.hg-tour-generate-step[data-active-page="shopping"] #shop-generate-tour{display:block!important;position:relative!important;z-index:2147483004!important;margin:8px 12px!important;pointer-events:auto!important;box-shadow:0 0 0 5px #176b4a,0 0 22px #63e6a0!important}
+body.hg-tour-generate-step[data-active-page="shopping"] #shopping-focus-toggle{display:none!important}
+body:has(#hg-tour-overlay:not([hidden])) .mobile-bottom-nav{z-index:2147483003!important;isolation:isolate!important}
+body:has(#hg-tour-overlay:not([hidden])) .mobile-bottom-nav .mobile-tab.hg-tour-highlight{z-index:2147483004!important;touch-action:manipulation!important}
+body:has(#hg-tour-overlay:not([hidden])) #hg-tour-card{z-index:2147483005!important}
+body:has(#hg-tour-overlay:not([hidden])) #hg-tour-overlay{z-index:2147483002!important}
 .hg-tour-highlight{position:relative!important;z-index:2147483002!important;outline:4px solid #63e6a0!important;outline-offset:4px!important;box-shadow:0 0 0 8px #16764c99,0 0 22px #63e6a0!important;border-radius:10px!important;pointer-events:auto!important}
 #hg-tour-overlay{pointer-events:none!important;background:rgba(0,0,0,.57)!important}
 body:has(#hg-tour-overlay:not([hidden])) #hg-tour-replay{display:none!important}
@@ -2586,7 +2592,7 @@ body:has(#hg-tour-overlay:not([hidden])) #hg-tour-replay{display:none!important}
   const name=collectionInput.value.trim();
   if(!name){collectionStatus.textContent='Enter a collection name first.';collectionInput.focus();return}
   const existing=[...document.getElementById('collection-filter')?.options||[]].some(o=>o.value===name);
-  if(existing){collectionStatus.textContent='This collection already exists. Continuing…';next.disabled=false;next.click();return}
+  if(existing){collectionStatus.textContent='✓ This collection already exists. Tap Next to continue.';next.disabled=false;return}
   const original=document.getElementById('new-collection'),save=document.getElementById('create-collection');
   if(!original||!save){collectionStatus.textContent='Collection controls are unavailable. Please try again.';return}
   collectionStatus.textContent='Saving collection…';collectionButton.disabled=true;original.value=name;save.click();
@@ -2609,14 +2615,14 @@ body:has(#hg-tour-overlay:not([hidden])) #hg-tour-replay{display:none!important}
  function position(){
   clear();document.body.classList.toggle('hg-tour-generate-step',!overlay.hidden&&step===5);if(overlay.hidden)return;
   highlighted=target(step);
-  if(highlighted){highlighted.classList.add('hg-tour-highlight');if(!highlighted.closest('.mobile-bottom-nav'))highlighted.scrollIntoView({block:'nearest',behavior:'instant'});}
+  if(highlighted){highlighted.classList.add('hg-tour-highlight');if(!highlighted.closest('.mobile-bottom-nav')&&step!==5)highlighted.scrollIntoView({block:'nearest',behavior:'instant'});}
   hint.textContent=highlighted?'Tap the glowing button to continue. You can also use Next.':'Tap Next to continue.';
   collectionForm.hidden=step!==2;
   if(step===2){
    hint.textContent='Optional: create a collection now, or tap Next to do it later.';
    next.disabled=false;next.title='Continue without creating a collection';
   }else{next.disabled=false;next.title=''}
-  if(step===5)hint.textContent='Optional: review your meals first. Tap Next without generating anything.';
+  if(step===5)hint.textContent='The highlighted Generate Shopping List button is a preview during the tour. Tap Next to continue without changing your list.';
   if(step===7){hint.textContent='Store availability varies. Choose your store when ready, or tap Next.';}
   next.textContent=step===8?'Start planning':'Next';
  }
@@ -2626,7 +2632,7 @@ body:has(#hg-tour-overlay:not([hidden])) #hg-tour-replay{display:none!important}
   if(!Number.isFinite(n))return;
   if(n!==step){
    step=n;
-   const destinations={1:'recipes',2:'recipes',3:'planner',4:'shopping',5:'shopping',6:'pantry'};
+   const destinations={1:'recipes',2:'recipes',3:'planner',4:'shopping',5:'shopping',6:'pantry',7:'stores'};
    const destination=destinations[step];
    if(destination&&document.body.dataset.activePage!==destination){
     page(destination);
@@ -2653,7 +2659,7 @@ body:has(#hg-tour-overlay:not([hidden])) #hg-tour-replay{display:none!important}
   let attempts=0;
   const check=()=>{
    if(overlay.hidden||step!==2)return;
-   if(option()){collectionStatus.textContent='Collection created!';next.disabled=false;next.click();return}
+   if(option()){collectionStatus.textContent='✓ Collection created successfully. You can continue when ready.';hint.textContent='Your collection is saved! Tap Next to continue.';collectionButton.disabled=false;next.disabled=false;return}
    if(++attempts<18)setTimeout(check,180);
    else {hint.textContent='Collection not saved yet. Check for an error and try again.';collectionStatus.textContent='Unable to confirm the collection was saved.';collectionButton.disabled=false;}
   };
