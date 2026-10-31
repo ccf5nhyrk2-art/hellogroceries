@@ -1461,7 +1461,12 @@ class Handler(SimpleHTTPRequestHandler):
    if not 0<size<=8192:raise ValueError('Invalid request size')
    data=json.loads(self.rfile.read(size))
    with db() as c:
-    token=auth.issue_invite(c,request_scope.user_id,data.get('email'),None)
+    # Shared invites join the administrator's existing household; private invites
+    # still create a separate household as before.
+    mode=data.get('mode','shared')
+    if mode not in ('shared','private'):raise ValueError('Invalid invitation type')
+    household_id=request_scope.household_id if mode=='shared' else None
+    token=auth.issue_invite(c,request_scope.user_id,data.get('email'),household_id)
     c.commit()
    return self.sendjson({'invite_url':'https://groceries.greenlee.uk/auth.html#invite='+urllib.parse.quote(token,safe=''),'expires_in_hours':auth.INVITE_HOURS})
   except (ValueError,TypeError,KeyError) as exc:return self.sendjson({'error':str(exc)},400)
