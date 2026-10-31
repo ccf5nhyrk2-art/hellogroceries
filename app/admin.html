@@ -495,7 +495,9 @@ async function refreshAiUsage(){
   const data=await response.json();
   if(!response.ok)throw Error(data.error||'Unable to load scan costs');
   const users=data.users||[];
-  document.getElementById('ai-month-summary').textContent='This calendar month: '+data.month_scans+' scans · 
+  document.getElementById('ai-month-summary').textContent='This calendar month: '+data.month_scans+' scans · '+String.fromCharCode(36)+Number(data.month_estimated_usd).toFixed(4)+' estimated';
+  if(document.activeElement!==document.getElementById('ai-budget'))document.getElementById('ai-budget').value=data.limits.monthly_budget_usd;
+  if(document.activeElement!==document.getElementById('ai-user-limit'))document.getElementById('ai-user-limit').value=data.limits.user_monthly_scans;
   const scans=users.reduce((n,u)=>n+u.scans,0);
   const total=users.reduce((n,u)=>n+u.estimated_usd,0);
   const usd=String.fromCharCode(36);
