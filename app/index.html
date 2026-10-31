@@ -1868,7 +1868,7 @@ $('pantry-barcode-save').onclick=async()=>{
  const status=$('pantry-barcode-status');
  if(!/^[0-9]{8,14}$/.test(barcode)||!name){status.textContent='Enter a valid barcode and product name.';return}
  try{
-  const response=await fetch('/api/pantry/barcode/save',{method:'POST',headers:{'Content-Type':'application/json','X-CSRF-Token':csrfToken()},credentials:'same-origin',body:JSON.stringify({barcode,name,size})});
+  const response=await fetch('/api/pantry/barcode/save',{method:'POST',headers:{'Content-Type':'application/json','X-HG-CSRF':(document.cookie.match(/(?:^|; )hg_csrf=([^;]*)/)||[])[1]||''},credentials:'same-origin',body:JSON.stringify({barcode,name,size})});
   const result=await response.json();
   if(!response.ok)throw Error(result.error||'Unable to save product');
   const item={name:name+(size&&!name.includes(size)?' '+size:''),quantity:1,unit:'count',selected:true};
