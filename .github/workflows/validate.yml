@@ -1,0 +1,43 @@
+name: Validate HelloGroceries
+
+on:
+  push:
+    branches: [develop, main]
+  pull_request:
+    branches: [main, develop]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Python syntax
+        run: python -m compileall -q app tests
+      - name: Unit tests
+        run: python -m unittest discover -s tests -p 'test_*.py'
+      - name: JavaScript syntax (inline scripts)
+        run: |
+          node - <<'NODE'
+          const fs = require('node:fs');
+          const vm = require('node:vm');
+          for (const file of ['app/index.html', 'app/auth.html', 'app/household.html', 'app/admin.html']) {
+            if (!fs.existsSync(file)) continue;
+            const html = fs.readFileSync(file, 'utf8');
+            const scripts = [...html.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script>/gi)];
+            for (let i = 0; i < scripts.length; i++) {
+              const [, attrs, body] = scripts[i];
+              if (/\bsrc\s*=/.test(attrs) || /\btype\s*=\s*["'](?:application\/json|importmap)/i.test(attrs)) continue;
+              new vm.Script(body, { filename: file + ':script-' + (i + 1) });
+            }
+            console.log(file + ': checked ' + scripts.length + ' inline scripts');
+          }
+          NODE
