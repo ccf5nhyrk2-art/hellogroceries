@@ -1627,6 +1627,12 @@ class Handler(SimpleHTTPRequestHandler):
    with db() as c:
     auth.ensure_schema(c)
     return self.sendjson({'days':auth.session_duration_days(c),'options':list(auth.SESSION_DAY_OPTIONS)})
+  if self.path=='/api/auth/blocked-emails':
+   if not self.gate():return
+   if not getattr(request_scope,'admin',False):return self.sendjson({'error':'Administrator required'},403)
+   with db() as c:
+    auth.ensure_schema(c)
+    return self.sendjson({'blocked':auth.blocked_emails(c,request_scope.user_id)})
   if self.path=='/api/auth/accounts':
    if not self.gate():return
    if not getattr(request_scope,'admin',False):return self.sendjson({'error':'Administrator required'},403)
@@ -2077,6 +2083,18 @@ class Handler(SimpleHTTPRequestHandler):
      auth.set_session_duration_days(c,data.get('days'))
     return self.sendjson({'ok':True,'days':data['days']})
    except (ValueError,TypeError,KeyError) as exc:return self.sendjson({'error':str(exc)},400)
+  if self.path=='/api/auth/unblock-email':
+   if not self.gate(write=True):return
+   if not getattr(request_scope,'admin',False):return self.sendjson({'error':'Administrator required'},403)
+   try:
+    size=int(self.headers.get('Content-Length','0'))
+    if not 0<size<=8192:raise ValueError('Invalid request size')
+    data=json.loads(self.rfile.read(size))
+    with db() as c:
+     auth.ensure_schema(c)
+     auth.unblock_email(c,request_scope.user_id,data.get('email'))
+    return self.sendjson({'ok':True})
+   except (ValueError,TypeError,KeyError) as exc:return self.sendjson({'error':str(exc)},400)
   if self.path=='/api/auth/remove-account':
    if not self.gate(write=True):return
    if not getattr(request_scope,'admin',False):return self.sendjson({'error':'Administrator required'},403)
@@ -2086,7 +2104,7 @@ class Handler(SimpleHTTPRequestHandler):
     data=json.loads(self.rfile.read(size))
     with db() as c:
      auth.ensure_schema(c)
-     auth.remove_account(c,request_scope.user_id,data.get('id'))
+     auth.remove_account(c,request_scope.user_id,data.get('id'),data.get('block_future',False))
     return self.sendjson({'ok':True})
    except (ValueError,TypeError,KeyError) as exc:return self.sendjson({'error':str(exc)},400)
   if self.path=='/api/auth/review':
