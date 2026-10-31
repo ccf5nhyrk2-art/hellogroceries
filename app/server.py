@@ -1668,6 +1668,26 @@ class Handler(SimpleHTTPRequestHandler):
      c.commit()
     return self.sendjson({'ok':True,'limits':ai_scan_limits()})
    except (ValueError,KeyError,TypeError,sqlite3.Error):return self.sendjson({'error':'Invalid AI scan limits'},400)
+  if self.path.startswith('/api/pantry/barcode?'):
+   if not self.gate():return
+   if not auth_rate_allowed(str(request_scope.user_id),'pantry-barcode',40,3600):return self.sendjson({'error':'Too many barcode lookups.'},429)
+   barcode=urllib.parse.parse_qs(urllib.parse.urlsplit(self.path).query).get('code',[''])[0].strip()
+   if not re.fullmatch(r'[0-9]{8,14}',barcode):return self.sendjson({'error':'Enter an 8 to 14 digit barcode.'},400)
+   try:
+    url='https://world.openfoodfacts.org/api/v2/product/'+barcode+'.json?fields=code,product_name,brands,quantity'
+    req=urllib.request.Request(url,headers={'User-Agent':'HelloGroceries/1.0','Accept':'application/json'})
+    with urllib.request.urlopen(req,timeout=12) as response:data=json.load(response)
+    product=data.get('product') or {}
+    if data.get('status')!=1:return self.sendjson({'found':False,'barcode':barcode})
+    brand=str(product.get('brands') or '').split(',')[0].strip()[:65]
+    name=str(product.get('product_name') or '').strip()[:100]
+    size=str(product.get('quantity') or '').strip()[:32]
+    if not name:return self.sendjson({'found':False,'barcode':barcode})
+    if brand and not name.lower().startswith(brand.lower()):name=brand+' '+name
+    if size and size.lower() not in name.lower():name+=' '+size
+    return self.sendjson({'found':True,'barcode':barcode,'item':{'name':name[:140],'quantity':1,'unit':'count','confidence':'high','brand':brand,'package_size':size,'source':'Open Food Facts'}})
+   except (urllib.error.URLError,TimeoutError,ValueError,TypeError,KeyError):
+    return self.sendjson({'error':'Product catalog unavailable. Enter item manually.'},502)
   if self.path=='/api/pantry/scan':
    if not self.gate(write=True):return
    if not auth_rate_allowed(str(request_scope.user_id),'pantry-scan',15,3600):
