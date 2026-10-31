@@ -531,29 +531,4 @@ document.getElementById('ai-usage-refresh').onclick=refreshAiUsage;
 refreshAiUsage();
 refreshAnalytics();
 })();
-</script></body></html>+Number(data.month_estimated_usd).toFixed(4)+' estimated';
-  if(document.activeElement!==document.getElementById('ai-budget'))document.getElementById('ai-budget').value=data.limits.monthly_budget_usd;
-  if(document.activeElement!==document.getElementById('ai-user-limit'))document.getElementById('ai-user-limit').value=data.limits.user_monthly_scans;
-  const scans=users.reduce((n,u)=>n+u.scans,0);
-  const total=users.reduce((n,u)=>n+u.estimated_usd,0);
-  const usd=String.fromCharCode(36);
-  summary.textContent=scans+' scans · '+usd+total.toFixed(4)+' estimated API cost (30 days)';
-  target.replaceChildren();
-  if(!users.length){target.textContent='No AI scans recorded yet. New scans will appear here.';return}
-  const table=document.createElement('table');table.style.width='100%';
-  const head=document.createElement('tr');
-  for(const title of ['User','Scans','Input tokens','Output tokens','Estimated cost']){const th=document.createElement('th');th.textContent=title;head.append(th)}
-  table.append(head);
-  for(const user of users){
-   const row=document.createElement('tr');
-   for(const value of [user.user,user.scans,user.input_tokens,user.output_tokens,usd+user.estimated_usd.toFixed(4)+(user.unpriced_scans?' (some unpriced)':'')]){const td=document.createElement('td');td.textContent=String(value);td.style.padding='8px';row.append(td)}
-   table.append(row);
-  }
-  target.append(table);
- }catch(e){summary.textContent=e.message;target.replaceChildren()}
-}
-document.getElementById('ai-usage-refresh').onclick=refreshAiUsage;
-refreshAiUsage();
-refreshAnalytics();
-})();
 </script></body></html>
