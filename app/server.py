@@ -408,6 +408,30 @@ def read():
   else:
    row=c.execute('SELECT payload FROM state WHERE id=1').fetchone()
  return json.loads(row[0]) if row else default()
+def pantry_audit(before,after):
+ """Record changed household pantry items, never infer historical ownership."""
+ user_id=getattr(request_scope,'user_id',None)
+ hid=getattr(request_scope,'household_id',None)
+ if user_id is None or hid is None:return
+ old=set(str(x) for x in before.get('pantry',[]) if isinstance(x,str))
+ new=set(str(x) for x in after.get('pantry',[]) if isinstance(x,str))
+ changes=[('added',name,None,None) for name in sorted(new-old)]+[('removed',name,None,None) for name in sorted(old-new)]
+ old_inv=before.get('pantry_inventory',{}) or {}
+ new_inv=after.get('pantry_inventory',{}) or {}
+ for key in sorted(set(old_inv)|set(new_inv)):
+  previous=old_inv.get(key,0);current=new_inv.get(key,0)
+  if previous!=current:
+   changes.append(('quantity_changed',key,str(previous),str(current)))
+ if not changes:return
+ with db() as c:
+  c.execute("""CREATE TABLE IF NOT EXISTS hg_pantry_audit (
+   id INTEGER PRIMARY KEY AUTOINCREMENT,household_id INTEGER NOT NULL,
+   user_id INTEGER NOT NULL,occurred_at TEXT NOT NULL DEFAULT (datetime('now')),
+   action TEXT NOT NULL,item TEXT NOT NULL,previous_value TEXT,new_value TEXT)""")
+  c.executemany("INSERT INTO hg_pantry_audit(household_id,user_id,action,item,previous_value,new_value) VALUES(?,?,?,?,?,?)",
+   [(hid,user_id,action,item,previous,current) for action,item,previous,current in changes])
+  c.execute("DELETE FROM hg_pantry_audit WHERE occurred_at < datetime('now','-90 days')")
+
 def save(state):
  hid=getattr(request_scope,'household_id',None)
  with db() as c:
@@ -1414,6 +1438,19 @@ class Handler(SimpleHTTPRequestHandler):
   if self.path=='/api/pricing-visibility':
    if not self.gate():return
    return self.sendjson({'visibility':pricing_visibility(),'is_admin':bool(getattr(request_scope,'admin',False))})
+  if self.path=='/api/admin/pantry-activity':
+   if not self.gate():return
+   if not getattr(request_scope,'admin',False):return self.sendjson({'error':'Administrator required'},403)
+   with db() as c:
+    c.execute("""CREATE TABLE IF NOT EXISTS hg_pantry_audit (
+     id INTEGER PRIMARY KEY AUTOINCREMENT,household_id INTEGER NOT NULL,
+     user_id INTEGER NOT NULL,occurred_at TEXT NOT NULL DEFAULT (datetime('now')),
+     action TEXT NOT NULL,item TEXT NOT NULL,previous_value TEXT,new_value TEXT)""")
+    rows=c.execute("""SELECT a.occurred_at,u.email,h.name,a.action,a.item,a.previous_value,a.new_value
+     FROM hg_pantry_audit a LEFT JOIN hg_users u ON u.id=a.user_id
+     LEFT JOIN hg_households h ON h.id=a.household_id
+     ORDER BY a.id DESC LIMIT 100""").fetchall()
+   return self.sendjson({'entries':[{'at':x[0],'user':x[1] or 'Deleted account','household':x[2] or 'Unknown','action':x[3],'item':x[4],'before':x[5],'after':x[6]} for x in rows]})
   if self.path=='/api/admin/analytics':
    if not self.gate():return
    if not getattr(request_scope,'admin',False):return self.sendjson({'error':'Administrator required'},403)
@@ -1829,6 +1866,7 @@ class Handler(SimpleHTTPRequestHandler):
     return self.sendjson({'ok':True,'recipe':recipe})
    with lock:
     state=read()
+    pantry_before={'pantry':list(state.get('pantry',[])),'pantry_inventory':dict(state.get('pantry_inventory',{}))}
     if action=='select':
      rid=str(int(p['id']));servings=float(p.get('servings',1))
      if not (0<servings<=20):raise ValueError('Serving multiplier must be 0–20')
@@ -1901,6 +1939,7 @@ class Handler(SimpleHTTPRequestHandler):
     else:raise ValueError('Unknown action')
     if action=='preview_grocery':return self.sendjson({'items':state['list']})
     state['revision']+=1;save(state)
+    pantry_audit(pantry_before,state)
    return self.sendjson(state)
   except (ValueError,KeyError,TypeError,json.JSONDecodeError) as e:return self.sendjson({'error':str(e)},400)
 if __name__=='__main__':
