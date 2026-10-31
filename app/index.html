@@ -449,6 +449,30 @@ html[data-theme="dark"] .mobile-more-logout{color:#ff8989!important;border-color
 .pantry-scan-box #pantry-scan-start,.pantry-scan-box #pantry-scan-receipt{width:100%;min-width:0;padding:12px 8px;font-size:16px!important;white-space:normal;line-height:1.3}
 .pantry-scan-box #pantry-scan-start,.pantry-scan-box #pantry-scan-receipt{background:transparent!important;color:var(--text,#e9f0eb)!important;border:1px solid #23875e!important}
 @media(max-width:420px){.pantry-scan-box>.actions:has(#pantry-scan-start){gap:8px!important}.pantry-scan-box #pantry-scan-start,.pantry-scan-box #pantry-scan-receipt{font-size:14px!important}}
+
+/* Desktop refinement: spacious content, compact one-line tabs and a useful recipe grid.
+   Mobile styles and page switching remain unchanged. */
+@media(min-width:1051px){
+ main{max-width:1440px!important;padding:24px 30px 44px!important}
+ header{padding-left:max(30px,calc((100vw - 1380px)/2))!important;padding-right:max(30px,calc((100vw - 1380px)/2))!important}
+ .shopping-view-toolbar{display:flex!important;flex-wrap:nowrap!important;gap:6px!important;overflow-x:auto;scrollbar-width:thin;padding:3px 0 12px;margin-bottom:18px!important}
+ .shopping-view-toolbar .page-nav-button{flex:0 0 auto!important;white-space:nowrap!important;padding:10px 12px!important;font-size:13px!important;border-radius:10px!important}
+ .layout{grid-template-columns:minmax(0,1.55fr) minmax(340px,1fr);gap:22px}
+ .layout>section{min-width:0;padding:24px;border-radius:18px}
+ .recipe-browser{grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
+ .recipe-card>img,.recipe-card>.photo-placeholder{height:165px}
+ .recipe-card-body{padding:14px}
+ .filters{grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+ .filters select{padding:10px 12px}
+ .recipes-topbar{margin-bottom:16px}
+ .single-page .layout{grid-template-columns:minmax(0,1fr)}
+ .single-page .recipe-browser{grid-template-columns:repeat(auto-fill,minmax(220px,1fr))}
+}
+@media(min-width:751px) and (max-width:1050px){
+ main{max-width:100%;padding:20px}
+ .shopping-view-toolbar{display:flex!important;flex-wrap:nowrap!important;overflow-x:auto;gap:7px!important}
+ .shopping-view-toolbar .page-nav-button{width:auto!important;white-space:nowrap!important;flex:0 0 auto!important}
+}
 </style><script>
 (function(){const originalFetch=window.fetch;window.fetch=function(input,init){const opts=init?{...init}:{};const method=(opts.method||'GET').toUpperCase();const url=typeof input==='string'?input:input.url;if(method!=='GET'&&method!=='HEAD'&&url.startsWith('/api/')){const match=document.cookie.match(/(?:^|; )hg_csrf=([^;]+)/);opts.headers={...opts.headers,'X-HG-CSRF':match?match[1]:''}}return originalFetch.call(this,input,opts)};})();
 </script>
