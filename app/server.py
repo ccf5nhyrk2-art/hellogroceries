@@ -1647,6 +1647,15 @@ class Handler(SimpleHTTPRequestHandler):
      if name and '|' not in name and 0<quantity<=100000:
       items.append({'name':name,'quantity':quantity,'unit':unit if unit in allowed else 'count','confidence':str(item.get('confidence','low')) if item.get('confidence') in ('high','medium','low') else 'low'})
     return self.sendjson({'items':items,'requires_review':True})
+   except urllib.error.HTTPError as exc:
+    status=exc.code
+    # Log only the upstream status, never provider bodies or credentials.
+    print('Pantry scan OpenAI HTTP status:',status,flush=True)
+    if status==401:return self.sendjson({'error':'OpenAI rejected the API key (401). Check the saved key in Admin settings.'},502)
+    if status==403:return self.sendjson({'error':'OpenAI denied access (403). Check project permissions and model access.'},502)
+    if status==429:return self.sendjson({'error':'OpenAI rate or billing limit reached (429). Check API billing, credits, and usage limits.'},502)
+    if status==400:return self.sendjson({'error':'OpenAI rejected the scan request (400). The scanner request format may need updating.'},502)
+    return self.sendjson({'error':'OpenAI request failed (HTTP '+str(status)+'). Check API status and server logs.'},502)
    except (ValueError,TypeError,KeyError,IndexError,UnicodeError) as exc:return self.sendjson({'error':str(exc)[:180]},400)
    except Exception as exc:
     print('Pantry scan provider failed:',type(exc).__name__,flush=True)
