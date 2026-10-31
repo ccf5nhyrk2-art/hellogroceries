@@ -2569,7 +2569,7 @@ body:has(#hg-tour-overlay:not([hidden])) #hg-tour-replay{display:none!important}
   if(highlighted){highlighted.classList.add('hg-tour-highlight');if(!highlighted.closest('.mobile-bottom-nav'))highlighted.scrollIntoView({block:'nearest',behavior:'instant'});}
   hint.textContent=highlighted?'Tap the glowing button to continue. You can also use Next.':'Tap Next to continue.';
   if(step===5)hint.textContent='Generating changes your shopping list. Tap Next to continue safely.';
-  if(step===7&&!highlighted)hint.textContent='Open More to find nearby stores, or tap Next.';
+  if(step===7&&!highlighted)hint.textContent='Nearby stores is available in More. Tap Next to continue.';
   next.textContent=step===8?'Get started':'Next';
  }
  function update(){
@@ -2578,8 +2578,15 @@ body:has(#hg-tour-overlay:not([hidden])) #hg-tour-replay{display:none!important}
   if(!Number.isFinite(n))return;
   if(n!==step){
    step=n;
-   if(step===2)page('recipes');
-   if(step===5)page('shopping');
+   const destinations={1:'recipes',2:'recipes',3:'planner',4:'shopping',5:'shopping',6:'pantry',7:'stores'};
+   const destination=destinations[step];
+   if(destination&&document.body.dataset.activePage!==destination){
+    page(destination);
+   }
+   if(step===2){
+    const panel=document.getElementById('manage-collections-panel');
+    if(panel)panel.open=true;
+   }
   }
   requestAnimationFrame(position);
  }
