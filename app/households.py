@@ -304,6 +304,14 @@ def issue_registration_verification(conn,email):
         (request_id,token_hash(token),expiry(24),now()))
     return token
 
+def release_failed_verification(conn,email,token):
+    """Allow immediate retry if the provider rejected the send; never expose token."""
+    email=validate_email(email)
+    conn.execute("""UPDATE hg_email_verifications SET sent_at='1970-01-01T00:00:00+00:00'
+      WHERE request_id IN (SELECT id FROM hg_registration_requests WHERE email=? AND status='pending')
+      AND token_hash=?""",(email,token_hash(token)))
+    conn.commit()
+
 def activate_verified_registration(conn,token):
     if not isinstance(token,str) or len(token)>256 or len(token)<30:raise ValueError("Invalid verification link")
     conn.execute("BEGIN IMMEDIATE")
