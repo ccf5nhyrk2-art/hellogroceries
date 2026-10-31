@@ -104,6 +104,8 @@
 }
 body[data-active-page="shopping"] main .layout > section[hidden]{display:none!important}
 body[data-active-page="shopping"] #shopping-page-section{grid-column:1/-1;min-width:0}
+/* Shop contains no recipe recommendation feed, even if a legacy renderer moves it. */
+body[data-active-page="shopping"] #ingredient-suggestions{display:none!important}
 /* Independent Shop page shell: hide all non-Shop sections regardless of legacy
    inline display state, DOM nesting, or scroll position. */
 body[data-active-page="shopping"] main .layout > section:not(#shopping-page-section){display:none!important;visibility:hidden!important}
@@ -472,6 +474,10 @@ let recipes=[],state={selected:{},list:[]};const $=id=>document.getElementById(i
 const STORE_ZIP_KEY='hellogroceries-store-zip';
 const SHOPPING_FOCUS_KEY='hellogroceries-shopping-only';
 const PAGE_VIEW_KEY='hellogroceries-active-page-v1';
+// Recipe recommendations belong on Recipes, not underneath the shopping list.
+const ingredientSuggestions=document.getElementById('ingredient-suggestions');
+const recipesSection=document.querySelector('main .layout > section:first-child');
+if(ingredientSuggestions&&recipesSection)recipesSection.appendChild(ingredientSuggestions);
 const layout=document.querySelector('main .layout');
 const first=layout.querySelector('section:first-child'),second=layout.querySelector('section:last-child');
  // Fail closed: Shop must never expose unrelated panels, even if the legacy
