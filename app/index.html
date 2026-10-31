@@ -2680,24 +2680,37 @@ body:has(#hg-tour-overlay:not([hidden])) #hg-tour-replay{display:none!important}
  const obs=new MutationObserver(update);
  obs.observe(progress,{childList:true,subtree:true});
  obs.observe(overlay,{attributes:true,attributeFilter:['hidden']});
- // Delegate clicks to the actual navigation action instead of relying on
- // the highlighted DOM node (mobile navigation can re-render or wrap it).
- document.addEventListener('click',event=>{
-  if(overlay.hidden||advancing||step<1||step>7||step===2||!event.isTrusted)return;
-  const clicked=event.target instanceof Element?event.target.closest('[data-page],[data-home-go],#shop-generate-tour,.mobile-more-trigger'):null;
+ // Track actual taps on highlighted controls, including iOS touch events.
+ // Never cancel the native click: navigation and menu actions must still run.
+ function completeHighlightedTap(event){
+  if(overlay.hidden||advancing||step<1||step>7||step===2)return;
+  if(event.isTrusted===false)return;
+  const source=event.target instanceof Element?event.target:null;
+  const clicked=source?.closest('[data-page],[data-home-go],#shop-generate-tour,.mobile-more-trigger');
   if(!clicked)return;
   const action=clicked.id==='shop-generate-tour'?'generate':clicked.dataset.page||clicked.dataset.homeGo||(clicked.classList.contains('mobile-more-trigger')?'more':'');
   const expected={1:'recipes',3:'planner',4:'shopping',5:'generate',6:'pantry',7:'stores'}[step];
-  if(action==='more'&&(step===6||step===7)){setTimeout(position,80);setTimeout(position,250);return}
+  if(action==='more'&&(step===6||step===7)){
+   setTimeout(position,100);return;
+  }
   if(action!==expected)return;
-  // Advance on a genuine tap; programmatic page changes never count.
+  // Require the user to tap the actual glowing control, not another shortcut.
+  if(!clicked.classList.contains('hg-tour-highlight')&&!clicked.closest('.hg-tour-highlight'))return;
   advancing=true;
-  tourCompleted.add(step);
   const current=step;
+  tourCompleted.add(current);
+  hint.textContent='Great! Moving to the next step…';
   setTimeout(()=>{
    advancing=false;
    if(!overlay.hidden&&step===current&&window.hgTourIndex?.()===current)next.click();
-  },200);
+  },450);
+ }
+ document.addEventListener('pointerup',event=>{
+  if(event.pointerType==='touch'||event.pointerType==='pen')completeHighlightedTap(event);
+ },true);
+ document.addEventListener('click',event=>{
+  // Mouse and accessibility click fallback; touch is already handled above.
+  if(event.detail===0||!window.PointerEvent)completeHighlightedTap(event);
  },true);
  // Highlighted controls remain usable; a successful tap advances the walkthrough.
  // The Next and Back buttons remain available for optional steps.
