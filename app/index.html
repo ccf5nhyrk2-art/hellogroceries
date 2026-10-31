@@ -300,6 +300,8 @@ html[data-theme="dark"] .reef-table-scroll thead th,html[data-theme="dark"] .ree
  html[data-theme="dark"] .mobile-more-close{background:#343b40!important;color:#f2f4f6!important}
 }
 
+.mobile-household-link{display:block;padding:14px 12px;margin-bottom:10px;border-radius:12px;background:#edf5ef;color:#176b49;text-align:center;font-weight:650;text-decoration:none}
+html[data-theme="dark"] .mobile-household-link{background:#293b31;color:#9fe0b5}
 .mobile-more-footer{border-top:1px solid #dce7df;margin-top:18px;padding-top:14px}
 .mobile-more-logout{width:100%;min-height:48px;border:1px solid #e6caca!important;background:transparent!important;color:#ba3b3b!important;border-radius:12px;font-weight:650}
 html[data-theme="dark"] .mobile-more-logout{color:#ff8989!important;border-color:#654343!important}
@@ -535,7 +537,7 @@ mobileNav.setAttribute('aria-label','Main navigation');
 const mobileMore=document.createElement('div');
 mobileMore.className='mobile-more-backdrop';
 mobileMore.hidden=true;
-mobileMore.innerHTML='<div class="mobile-more-sheet" role="dialog" aria-modal="true" aria-label="All HelloGroceries pages"><div class="mobile-more-heading"><strong>All pages</strong><button type="button" class="mobile-more-close" aria-label="Close menu">✕</button></div><div class="mobile-more-options"></div><div class="mobile-more-footer"><button type="button" class="mobile-more-logout" id="mobile-logout">Sign Out</button></div></div>';
+mobileMore.innerHTML='<div class="mobile-more-sheet" role="dialog" aria-modal="true" aria-label="All HelloGroceries pages"><div class="mobile-more-heading"><strong>All pages</strong><button type="button" class="mobile-more-close" aria-label="Close menu">✕</button></div><div class="mobile-more-options"></div><div class="mobile-more-footer"><a href="/household.html" class="mobile-household-link">⌂ Household & members</a><button type="button" class="mobile-more-logout" id="mobile-logout">Sign Out</button></div></div>';
 document.body.append(mobileMore);
 document.body.append(mobileNav);
 mobileNav.style.setProperty('display','grid','important');
