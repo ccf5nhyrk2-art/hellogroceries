@@ -59,6 +59,7 @@ async function initialize(){
   $('switch').hidden=mode==='setup'||mode==='redeem'||mode==='verify';
   $('password').autocomplete=mode==='login'?'current-password':'new-password';
   $('form').hidden=false;
+  $('submit').textContent=mode==='login'?'Sign In':mode==='verify'?'Verify email':'Continue';
  }catch(e){$('error').textContent='Unable to check account status'}
 }
 $('form').onsubmit=async e=>{
@@ -92,6 +93,8 @@ $('toggle').onclick=()=>{
  $('form').hidden=false;$('email').hidden=false;$('email').required=true;$('password').hidden=false;$('password').required=true;
  $('mode').textContent=mode==='register'?'Create your HelloGroceries account':'Sign in to your household';
  $('household-section').hidden=mode==='login';
+ $('submit').textContent=mode==='login'?'Sign In':'Create account';
+ $('resend-wrap').hidden=false;
  $('password').autocomplete=mode==='login'?'current-password':'new-password';
  $('toggle').textContent=mode==='login'?'Create an account':'Already have an account? Sign in';
  $('error').textContent='';$('error').style.color='#a00';
