@@ -2504,7 +2504,7 @@ html[data-theme="dark"] #hg-tour-card{background:#1b2023;color:#f0f4f2}
 const steps=[
  ['Welcome to HelloGroceries','Plan meals, manage your pantry, and build a grocery list in one place. Here’s a quick tour.'],
  ['Find recipes','Browse recipes and discover meals that work for your household.'],
- ['Organize recipe collections','Collections are your own recipe folders, such as Quick Dinners, Family Favorites, or Meal Prep. In Recipes, open Manage collections to create, rename, or delete a collection. Use Add to collection on a recipe to save it, then choose a collection from the filter to see only those recipes.'],
+ ['Create your first collection','Collections organize recipes into folders such as Quick Dinners or Family Favorites. Type a name below, then tap Create collection. You can add recipes to it afterward.'],
  ['Plan your meals','Choose dinners for the week and keep your selected meals together.'],
  ['Open your shopping list','Click Shopping List to review what you need and check off items as you shop.'],
  ['Generate your shopping list','Click Generate Shopping List in Shop to build your list from selected meals. Review your selections before generating.'],
@@ -2550,7 +2550,7 @@ body:has(#hg-tour-overlay:not([hidden])) #hg-tour-replay{display:none!important}
  const overlay=document.getElementById('hg-tour-overlay'),progress=document.getElementById('hg-tour-progress');
  const card=document.getElementById('hg-tour-card'),next=document.getElementById('hg-tour-next');
  const hint=document.createElement('div');hint.id='hg-tour-hint';card.insertBefore(hint,document.getElementById('hg-tour-actions'));
- const selectors=[null,'[data-page="recipes"]','#manage-collections-panel summary','[data-page="planner"]','[data-page="shopping"]','#shop-generate-tour','[data-page="pantry"]','[data-page="stores"]',null];
+ const selectors=[null,'[data-page="recipes"]','#new-collection','[data-page="planner"]','[data-page="shopping"]','#shop-generate-tour','[data-page="pantry"]','[data-page="stores"]',null];
  let highlighted=null,step=-1,advancing=false;
  const visible=el=>el&&el.getClientRects().length>0&&getComputedStyle(el).visibility!=='hidden';
  function clear(){if(highlighted)highlighted.classList.remove('hg-tour-highlight');highlighted=null}
@@ -2568,6 +2568,10 @@ body:has(#hg-tour-overlay:not([hidden])) #hg-tour-replay{display:none!important}
   highlighted=target(step);
   if(highlighted){highlighted.classList.add('hg-tour-highlight');if(!highlighted.closest('.mobile-bottom-nav'))highlighted.scrollIntoView({block:'nearest',behavior:'instant'});}
   hint.textContent=highlighted?'Tap the glowing button to continue. You can also use Next.':'Tap Next to continue.';
+  if(step===2){
+   hint.textContent='Enter a collection name and tap Create collection to continue.';
+   next.disabled=true;next.title='Create a collection to continue';
+  }else{next.disabled=false;next.title=''}
   if(step===5)hint.textContent='Generating changes your shopping list. Tap Next to continue safely.';
   if(step===7&&!highlighted)hint.textContent='Nearby stores is available in More. Tap Next to continue.';
   next.textContent=step===8?'Get started':'Next';
@@ -2586,6 +2590,7 @@ body:has(#hg-tour-overlay:not([hidden])) #hg-tour-replay{display:none!important}
    if(step===2){
     const panel=document.getElementById('manage-collections-panel');
     if(panel)panel.open=true;
+    setTimeout(()=>document.getElementById('new-collection')?.scrollIntoView({block:'center'}),80);
    }
   }
   requestAnimationFrame(position);
@@ -2595,11 +2600,26 @@ body:has(#hg-tour-overlay:not([hidden])) #hg-tour-replay{display:none!important}
  obs.observe(overlay,{attributes:true,attributeFilter:['hidden']});
  document.addEventListener('click',event=>{
   if(overlay.hidden||advancing||!highlighted||!highlighted.contains(event.target))return;
-  if(step===5)return; // Never generate a list merely to advance onboarding.
+  if(step===5||step===2)return; // Do not create data or advance before successful save.
   advancing=true;
   if(step===2){const details=document.getElementById('manage-collections-panel');if(details)details.open=true;}
   setTimeout(()=>{if(!overlay.hidden)next.click();advancing=false},160);
  },true);
+ const create=document.getElementById('create-collection');
+ create?.addEventListener('click',()=>{
+  if(overlay.hidden||step!==2)return;
+  const name=document.getElementById('new-collection')?.value.trim();
+  if(!name)return;
+  const option=()=>[...document.getElementById('collection-filter')?.options||[]].some(o=>o.value===name);
+  let attempts=0;
+  const check=()=>{
+   if(overlay.hidden||step!==2)return;
+   if(option()){next.disabled=false;next.click();return}
+   if(++attempts<18)setTimeout(check,180);
+   else hint.textContent='Collection not saved yet. Check for an error and try again.';
+  };
+  setTimeout(check,180);
+ });
  window.addEventListener('resize',()=>{if(!overlay.hidden)position()});
 })();
 </script></body></html>
