@@ -493,10 +493,7 @@ let recipes=[],state={selected:{},list:[]};const $=id=>document.getElementById(i
 const STORE_ZIP_KEY='hellogroceries-store-zip';
 const SHOPPING_FOCUS_KEY='hellogroceries-shopping-only';
 const PAGE_VIEW_KEY='hellogroceries-active-page-v1';
-// Recipe recommendations belong on Recipes, not underneath the shopping list.
-const ingredientSuggestions=document.getElementById('ingredient-suggestions');
-const recipesSection=document.querySelector('main .layout > section:first-child');
-if(ingredientSuggestions&&recipesSection)recipesSection.appendChild(ingredientSuggestions);
+// Keep ingredient-based recipe recommendations in the Shopping List section.
 const layout=document.querySelector('main .layout');
 const first=layout.children[0],second=layout.children[1];
  // Fail closed: Shop must never expose unrelated panels, even if the legacy
