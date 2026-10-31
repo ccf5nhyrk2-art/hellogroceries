@@ -88,7 +88,7 @@ def db():
 
 
 # Privacy-minimal product analytics: event counts and distinct users, 30-day retention.
-ANALYTICS_EVENTS={'page_recipes','page_planner','page_shopping','page_pantry','page_stores','page_selected-meals','page_my-recipes','page_imports','recipe_search','recipe_search_empty','recipe_saved','shopping_list_generated','meal_planned','price_lookup_failed'}
+ANALYTICS_EVENTS={'analytics_test','page_recipes','page_planner','page_shopping','page_pantry','page_stores','page_selected-meals','page_my-recipes','page_imports','recipe_search','recipe_search_empty','recipe_saved','shopping_list_generated','meal_planned','price_lookup_failed'}
 def analytics_record(user_id,event):
  if event not in ANALYTICS_EVENTS:return
  try:
@@ -1559,6 +1559,10 @@ class Handler(SimpleHTTPRequestHandler):
     event=json.loads(self.rfile.read(size)).get('event')
     if event not in ANALYTICS_EVENTS:raise ValueError('Invalid event')
     analytics_record(request_scope.user_id,event)
+    if event=='analytics_test':
+     with db() as c:
+      count=c.execute("SELECT count FROM hg_analytics WHERE day=date('now') AND user_id=? AND event='analytics_test'",(request_scope.user_id,)).fetchone()
+     return self.sendjson({'ok':True,'saved':bool(count),'count':count[0] if count else 0})
     return self.sendjson({'ok':True})
    except sqlite3.Error:
     return self.sendjson({'error':'Analytics storage unavailable'},503)
