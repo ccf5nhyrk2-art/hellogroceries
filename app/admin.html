@@ -497,19 +497,17 @@ async function refreshAiUsage(){
   const users=data.users||[];
   const scans=users.reduce((n,u)=>n+u.scans,0);
   const total=users.reduce((n,u)=>n+u.estimated_usd,0);
-  summary.textContent=scans+' scans · 
-</script></body></html>+total.toFixed(4)+' estimated API cost (30 days)';
+  const usd=String.fromCharCode(36);
+  summary.textContent=scans+' scans · '+usd+total.toFixed(4)+' estimated API cost (30 days)';
   target.replaceChildren();
   if(!users.length){target.textContent='No AI scans recorded yet. New scans will appear here.';return}
-  const table=document.createElement('table');
-  table.style.width='100%';
+  const table=document.createElement('table');table.style.width='100%';
   const head=document.createElement('tr');
   for(const title of ['User','Scans','Input tokens','Output tokens','Estimated cost']){const th=document.createElement('th');th.textContent=title;head.append(th)}
   table.append(head);
   for(const user of users){
    const row=document.createElement('tr');
-   for(const value of [user.user,user.scans,user.input_tokens,user.output_tokens,'
-</script></body></html>+user.estimated_usd.toFixed(4)+(user.unpriced_scans?' (some unpriced)':'')]){const td=document.createElement('td');td.textContent=String(value);td.style.padding='8px';row.append(td)}
+   for(const value of [user.user,user.scans,user.input_tokens,user.output_tokens,usd+user.estimated_usd.toFixed(4)+(user.unpriced_scans?' (some unpriced)':'')]){const td=document.createElement('td');td.textContent=String(value);td.style.padding='8px';row.append(td)}
    table.append(row);
   }
   target.append(table);
