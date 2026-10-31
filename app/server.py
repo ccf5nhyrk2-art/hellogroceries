@@ -1471,21 +1471,29 @@ class Handler(SimpleHTTPRequestHandler):
     if path=='/api/auth/register':
      if auth.instance_needs_setup(c):return self.sendjson({'error':'Administrator setup required'},403)
      if not resend_key():return self.sendjson({'error':'Email registration is temporarily unavailable'},503)
-     auth.request_registration(c,data.get('email'),data.get('password'),data.get('household'))
-     token=auth.issue_registration_verification(c,data.get('email'))
+     email=auth.validate_email(data.get('email'))
+     existing=c.execute("SELECT status FROM hg_registration_requests WHERE email=?",(email,)).fetchone()
+     if existing and existing[0]=='pending':
+      return self.sendjson({'ok':True,'pending':True,'message':'An account request for this email is waiting for verification. Use Resend verification email below. Check Spam or Promotions too.'},202)
+     auth.request_registration(c,email,data.get('password'),data.get('household'))
+     token=auth.issue_registration_verification(c,email)
      c.commit()
+     if not token:return self.sendjson({'error':'Could not prepare verification email. Please try Resend verification.'},503)
      link='https://groceries.greenlee.uk/auth.html#verify='+urllib.parse.quote(token,safe='')
-     if not resend_send_email(data.get('email'),'Verify your HelloGroceries email','Welcome to HelloGroceries! Verify your email within 24 hours:\n'+link+'\n\nIf you did not register, ignore this message.'):
-      return self.sendjson({'error':'Could not send verification email. Please use Resend verification.'},502)
-     return self.sendjson({'ok':True,'message':'Check your inbox for a verification link. The link expires in 24 hours.'},202)
+     if not resend_send_email(email,'Verify your HelloGroceries email','Welcome to HelloGroceries! Verify your email within 24 hours:\\n'+link+'\\n\\nIf you did not register, ignore this message.'):
+      return self.sendjson({'error':'Email provider did not confirm sending. Please retry shortly.'},502)
+     return self.sendjson({'ok':True,'message':'Verification email accepted by our email provider. Check your inbox, Spam and Promotions. Delivery may take a few minutes.'},202)
     if path=='/api/auth/resend-verification':
      email=auth.validate_email(data.get('email'))
-     token=auth.issue_registration_verification(c,email) if resend_key() else None
+     if not resend_key():return self.sendjson({'error':'Email delivery is temporarily unavailable. Please try later.'},503)
+     token=auth.issue_registration_verification(c,email)
      c.commit()
      if token:
       link='https://groceries.greenlee.uk/auth.html#verify='+urllib.parse.quote(token,safe='')
-      resend_send_email(email,'Verify your HelloGroceries email','Your verification link expires in 24 hours:\n'+link+'\n\nIf you did not request this, ignore this message.')
-     return self.sendjson({'ok':True,'message':'If a pending registration exists, a verification email will be sent. Please check your inbox.'})
+      if not resend_send_email(email,'Verify your HelloGroceries email','Your verification link expires in 24 hours:\\n'+link+'\\n\\nIf you did not request this, ignore this message.'):
+       return self.sendjson({'error':'Email provider did not confirm sending. Please retry shortly.'},502)
+      return self.sendjson({'ok':True,'sent':True,'message':'Verification email accepted by our provider. Check Inbox, Spam and Promotions. Delivery may take a few minutes.'})
+     return self.sendjson({'ok':True,'sent':False,'message':'No new email was sent. If you requested one recently, wait 60 seconds and try again. If the account is already verified, sign in.'})
     if path=='/api/auth/verify':
      auth.activate_verified_registration(c,data.get('token'))
      return self.sendjson({'ok':True,'message':'Email verified! You can now sign in.'})
