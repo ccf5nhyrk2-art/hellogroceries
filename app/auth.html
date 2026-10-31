@@ -66,7 +66,18 @@ $('form').onsubmit=async e=>{
  try{
   const r=await fetch(endpoint,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
   const j=await r.json();if(!r.ok)throw Error(j.error||'Unable to sign in');
-  if(mode==='register'){$('error').style.color='#176b4a';$('error').textContent=j.message;return}
+  if(mode==='register'){
+   mode='login';
+   $('mode').textContent='Sign in to your household';
+   $('household-section').hidden=true;
+   $('password').value='';
+   $('password').autocomplete='current-password';
+   $('submit').textContent='Sign In';
+   $('toggle').textContent='Request an account';
+   $('error').style.color='#176b4a';
+   $('error').textContent=(j.message||'Account request submitted.')+' You can sign in after an administrator approves your account.';
+   return;
+  }
   location.replace('/');
  }catch(e){$('error').textContent=e.message}
 };
