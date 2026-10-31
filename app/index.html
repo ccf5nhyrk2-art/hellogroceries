@@ -2622,7 +2622,7 @@ body:has(#hg-tour-overlay:not([hidden])) #hg-tour-replay{display:none!important}
    const saved=await window.hgSaveNamedCollection(name);
    if(!saved)throw new Error('Collection name is required');
    collectionStatus.textContent='✓ Collection “'+name+'” saved!';
-   tourCompleted.add(2);hint.textContent='Collection saved! Moving to Plan your week…';
+   hint.textContent='Collection saved! Moving to Plan your week…';
    collectionInput.value='';window.hgTourAdvance?.(2);
   }catch(e){collectionStatus.textContent='Could not save collection: '+(e.message||'Please try again.')}
   finally{collectionSaving=false;collectionButton.disabled=false;collectionButton.textContent='Create collection'}
