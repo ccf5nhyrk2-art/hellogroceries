@@ -363,7 +363,7 @@ html[data-theme="dark"] .reef-table-scroll thead th,html[data-theme="dark"] .ree
 /* Two clear camera actions on mobile instead of a scan-mode dropdown. */
 .pantry-scan-box>.actions:has(#pantry-scan-start){display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:10px!important}
 .pantry-scan-box #pantry-scan-start,.pantry-scan-box #pantry-scan-receipt{width:100%;min-width:0;padding:12px 8px;font-size:16px!important;white-space:normal;line-height:1.3}
-.pantry-scan-box #pantry-scan-receipt{background:transparent!important;color:var(--text,#e9f0eb)!important;border:1px solid #23875e!important}
+.pantry-scan-box #pantry-scan-start,.pantry-scan-box #pantry-scan-receipt{background:transparent!important;color:var(--text,#e9f0eb)!important;border:1px solid #23875e!important}
 @media(max-width:420px){.pantry-scan-box>.actions:has(#pantry-scan-start){gap:8px!important}.pantry-scan-box #pantry-scan-start,.pantry-scan-box #pantry-scan-receipt{font-size:14px!important}}
 </style><script>
 (function(){const originalFetch=window.fetch;window.fetch=function(input,init){const opts=init?{...init}:{};const method=(opts.method||'GET').toUpperCase();const url=typeof input==='string'?input:input.url;if(method!=='GET'&&method!=='HEAD'&&url.startsWith('/api/')){const match=document.cookie.match(/(?:^|; )hg_csrf=([^;]+)/);opts.headers={...opts.headers,'X-HG-CSRF':match?match[1]:''}}return originalFetch.call(this,input,opts)};})();
@@ -1884,7 +1884,10 @@ $('pantry-barcode-photo').addEventListener('change',async()=>{
   $('pantry-barcode-input').value=code;
   await lookupBarcode(code);
  }catch(e){
-  status.textContent='Barcode not recognized. Try a closer, well-lit photo or enter the numbers below.';
+  const reason=String(e?.message||e||'Unknown error');
+  if(/load barcode scanner|library unavailable|Failed to fetch|NetworkError/i.test(reason))status.textContent='Barcode reader could not load. Check your connection or enter the numbers below.';
+  else if(/NotFound|No MultiFormat Readers|decode|not recognized|Could not read/i.test(reason))status.textContent='No readable barcode found. Fill the frame with the barcode, avoid glare, and try again.';
+  else status.textContent='Barcode scan error: '+reason.slice(0,160)+' — enter the numbers below if needed.';
  }finally{if(url)URL.revokeObjectURL(url)}
 });
 let scannedPantryItems=[];
