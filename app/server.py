@@ -1487,6 +1487,7 @@ class Handler(SimpleHTTPRequestHandler):
      except Exception:
       auth.release_failed_verification(c,email,token)
       return self.sendjson({'error':'Verification email could not be sent. Please try Resend verification email. If this keeps happening, contact the administrator.'},502)
+     auth.confirm_verification_sent(c,email,token)
      return self.sendjson({'ok':True,'sent':True,'message':'Verification email submitted to our email provider. Check Inbox, Spam and Promotions. Delivery may take a few minutes.'},202)
     if path=='/api/auth/verify':
      auth.activate_verified_registration(c,data.get('token'))
