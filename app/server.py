@@ -925,11 +925,11 @@ def save_resend_key(key):
   try:os.unlink(path)
   except OSError:pass
   raise
-def resend_test_email(recipient):
+def resend_send_email(recipient,subject,body_text):
  recipient=auth.validate_email(recipient)
  key=resend_key()
  if not key:raise ValueError('Save a Resend API key first')
- payload=json.dumps({'from':RESEND_FROM,'to':[recipient],'subject':'HelloGroceries email test','text':'HelloGroceries email delivery is configured. This is a test message sent by an administrator.'})
+ payload=json.dumps({'from':RESEND_FROM,'to':[recipient],'subject':subject,'text':body_text})
  # Pass the secret through curl stdin, not command arguments, so it never appears in process listings.
  # curl reads the Authorization header from a temporary config passed on stdin.
  import tempfile
@@ -953,6 +953,9 @@ def resend_test_email(recipient):
  finally:
   try:os.unlink(body_path)
   except OSError:pass
+
+def resend_test_email(recipient):
+ return resend_send_email(recipient,'HelloGroceries email test','HelloGroceries email delivery is configured. This is a test message sent by an administrator.')
 
 REEF_KEY_PATH=Path('/data/reef_api_key')
 OPENAI_KEY_PATH=Path('/data/openai_api_key')
@@ -1426,7 +1429,7 @@ class Handler(SimpleHTTPRequestHandler):
    auth.ensure_schema(c)
    setup=auth.instance_needs_setup(c)
   path=urllib.parse.urlsplit(self.path).path
-  if path in ('/auth.html','/api/auth/status','/api/auth/login','/api/auth/setup','/api/auth/register'):
+  if path in ('/auth.html','/api/auth/status','/api/auth/login','/api/auth/setup','/api/auth/register','/api/auth/verify','/api/auth/resend-verification'):
    return True
   user,hid=self.identity()
   if user is None or hid is None:
@@ -1460,15 +1463,32 @@ class Handler(SimpleHTTPRequestHandler):
   size=int(self.headers.get('Content-Length','0'))
   if size<1 or size>8192:return self.sendjson({'error':'Invalid request size'},400)
   if path=='/api/auth/login' and not auth_rate_allowed(self.client_address[0], 'login', 10):return self.sendjson({'error':'Too many attempts. Try again later.'},429)
-  if path=='/api/auth/register' and not auth_rate_allowed(self.client_address[0], 'register', 4):return self.sendjson({'error':'Too many registrations. Try again later.'},429)
+  if path in ('/api/auth/register','/api/auth/resend-verification') and not auth_rate_allowed(self.client_address[0], 'register', 4):return self.sendjson({'error':'Too many registrations. Try again later.'},429)
   try:
    data=json.loads(self.rfile.read(size))
    with db() as c:
     auth.ensure_schema(c)
     if path=='/api/auth/register':
      if auth.instance_needs_setup(c):return self.sendjson({'error':'Administrator setup required'},403)
+     if not resend_key():return self.sendjson({'error':'Email registration is temporarily unavailable'},503)
      auth.request_registration(c,data.get('email'),data.get('password'),data.get('household'))
-     return self.sendjson({'ok':True,'message':'Request received. You can sign in after an administrator approves it.'},202)
+     token=auth.issue_registration_verification(c,data.get('email'))
+     c.commit()
+     link='https://groceries.greenlee.uk/auth.html#verify='+urllib.parse.quote(token,safe='')
+     if not resend_send_email(data.get('email'),'Verify your HelloGroceries email','Welcome to HelloGroceries! Verify your email within 24 hours:\\n'+link+'\\n\\nIf you did not register, ignore this message.'):
+      return self.sendjson({'error':'Could not send verification email. Please use Resend verification.'},502)
+     return self.sendjson({'ok':True,'message':'Check your inbox for a verification link. The link expires in 24 hours.'},202)
+    if path=='/api/auth/resend-verification':
+     email=auth.validate_email(data.get('email'))
+     token=auth.issue_registration_verification(c,email) if resend_key() else None
+     c.commit()
+     if token:
+      link='https://groceries.greenlee.uk/auth.html#verify='+urllib.parse.quote(token,safe='')
+      resend_send_email(email,'Verify your HelloGroceries email','Your verification link expires in 24 hours:\\n'+link+'\\n\\nIf you did not request this, ignore this message.')
+     return self.sendjson({'ok':True,'message':'If a pending registration exists, a verification email will be sent. Please check your inbox.'})
+    if path=='/api/auth/verify':
+     auth.activate_verified_registration(c,data.get('token'))
+     return self.sendjson({'ok':True,'message':'Email verified! You can now sign in.'})
     if path=='/api/auth/setup':
      verified_email=cloudflare_auth.verified_email(self.headers.get('Cf-Access-Jwt-Assertion',''))
      if not verified_email or verified_email.casefold()!=auth.validate_email(data.get('email')):
@@ -1596,7 +1616,7 @@ class Handler(SimpleHTTPRequestHandler):
   if self.path=='/api/admin/resend-key':
    if not self.gate():return
    if not getattr(request_scope,'admin',False):return self.sendjson({'error':'Administrator required'},403)
-   return self.sendjson({'configured':bool(resend_key()),'from':RESEND_FROM,'registration_mode':'manual_approval'})
+   return self.sendjson({'configured':bool(resend_key()),'from':RESEND_FROM,'registration_mode':'email_verification'})
   if self.path=='/api/admin/reef-key':
    if not self.gate():return
    if not getattr(request_scope,'admin',False):return self.sendjson({'error':'Administrator required'},403)
@@ -1936,7 +1956,7 @@ class Handler(SimpleHTTPRequestHandler):
      return self.sendjson({'ok':True,'message':'Store address geocoding started.'})
     raise ValueError('Unsupported task; use the existing nutrition or price controls')
    except (ValueError,TypeError) as exc:return self.sendjson({'error':str(exc)},400)
-  if self.path in ('/api/auth/setup','/api/auth/login','/api/auth/register'):return self.auth_post()
+  if self.path in ('/api/auth/setup','/api/auth/login','/api/auth/register','/api/auth/verify','/api/auth/resend-verification'):return self.auth_post()
   if self.path=='/api/admin/nutrition-batch':
    if not self.gate(write=True):return
    if not getattr(request_scope,'admin',False):return self.sendjson({'error':'Administrator required'},403)
