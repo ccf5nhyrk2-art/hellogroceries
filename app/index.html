@@ -2431,7 +2431,7 @@ $('recipe-review-form').addEventListener('submit',async e=>{
  state=result;$('review-status').textContent='Saved';render();
 });
 $('close-recipe').onclick=()=>$('recipe-dialog').close();
-$('create-collection').onclick=async()=>{const name=$('new-collection').value.trim();if(!name)return;const c={...(state.collections||{})};if(!c[name])c[name]=[];await preferences({collections:c});$('new-collection').value='';if(Object.hasOwn(state.collections||{},name))document.dispatchEvent(new CustomEvent('hg:collection-saved',{detail:{name}}))};
+$('create-collection').onclick=async()=>{const name=$('new-collection').value.trim();if(!name)return;const c={...(state.collections||{})};if(!c[name])c[name]=[];await preferences({collections:c});$('new-collection').value=''};
 $('week-grid').addEventListener('change',async e=>{if(!e.target.dataset.week)return;const weekly={...(state.weekly||{})};weekly[e.target.dataset.week]=e.target.value?Number(e.target.value):null;await preferences({weekly})});
 $('week-apply').onclick=async()=>{previousWeek={...(state.weekly||{})};await preferences({previous_week:previousWeek});const selected={};for(const id of Object.values(state.weekly||{}))if(id)selected[String(id)]=1;for(const [id,scale] of Object.entries(state.selected||{}))if(!Object.hasOwn(selected,id))await action({action:'select',id:Number(id),checked:false,servings:1});for(const id of Object.keys(selected))await action({action:'select',id:Number(id),checked:true,servings:1});await action({action:'generate'})};
 $('week-copy').onclick=async()=>{const last=state.previous_week||previousWeek;if(!Object.keys(last).length){$('error').textContent='Apply a week first, then you can copy it again';return}await preferences({weekly:last})};
@@ -2692,17 +2692,22 @@ body:has(#hg-tour-overlay:not([hidden])) #hg-tour-replay{display:none!important}
  },true);
  // Highlighted controls remain usable; a successful tap advances the walkthrough.
  // The Next and Back buttons remain available for optional steps.
- // Advance only after the application confirms the collection was saved.
- document.addEventListener('hg:collection-saved',event=>{
-  if(overlay.hidden||step!==2||window.hgTourIndex?.()!==2)return;
-  const name=event.detail?.name||'Your collection';
-  tourCompleted.add(2);
-  collectionStatus.textContent='✓ Collection “'+name+'” saved successfully.';
-  hint.textContent='Collection saved! Moving to Plan your week.';
-  collectionButton.disabled=false;
-  collectionInput.value='';
-  next.disabled=false;
-  next.click();
+ // Highlighted controls remain usable; a successful tap advances the walkthrough.
+ // The Next and Back buttons remain available for optional steps.
+ const create=document.getElementById('create-collection');
+ create?.addEventListener('click',()=>{
+  if(overlay.hidden||step!==2)return;
+  const name=document.getElementById('new-collection')?.value.trim();
+  if(!name)return;
+  const option=()=>[...document.getElementById('collection-filter')?.options||[]].some(o=>o.value===name);
+  let attempts=0;
+  const check=()=>{
+   if(overlay.hidden||step!==2)return;
+   if(option()){tourCompleted.add(2);collectionStatus.textContent='✓ Collection “'+name+'” saved successfully. Moving to Plan your week…';hint.textContent='Collection saved! Next up: plan your week.';collectionButton.disabled=false;next.disabled=false;collectionInput.value='';setTimeout(()=>{if(!overlay.hidden&&step===2&&window.hgTourIndex?.()===2)next.click()},950);return}
+   if(++attempts<18)setTimeout(check,180);
+   else {hint.textContent='Collection not saved yet. Check for an error and try again.';collectionStatus.textContent='Unable to confirm the collection was saved.';collectionButton.disabled=false;}
+  };
+  setTimeout(check,180);
  });
  window.addEventListener('resize',()=>{if(!overlay.hidden)position()});
  function fitKeyboard(){
