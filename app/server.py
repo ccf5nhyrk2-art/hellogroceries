@@ -1698,6 +1698,38 @@ class Handler(SimpleHTTPRequestHandler):
     with urllib.request.urlopen(req,timeout=45) as response:result=json.load(response)
     record_scan_usage(request_scope.user_id,payload['model'],result.get('usage') or {})
     parsed=json.loads(result['choices'][0]['message']['content'])
+    # When the first pass sees only generic label text, inspect the image a second time.
+    # Never use a product-name guess as evidence: a missing brand remains missing.
+    initial=parsed.get('items',[])
+    if mode=='groceries' and isinstance(initial,list) and len(initial)==1 and isinstance(initial[0],dict):
+     candidate=initial[0]
+     brand_hint=str(candidate.get('brand') or '').strip().lower()
+     product_hint=str(candidate.get('product') or candidate.get('name') or '').strip().lower()
+     ambiguous=(brand_hint in ('','lite','light','original','classic','premium','fresh') or product_hint in ('beer','lite beer','a fine pilsner','lite a fine pilsner','can','drink','beverage'))
+     if ambiguous:
+      try:
+       verification_prompt=('Independently inspect this grocery package photo for small print and logos, not just the largest lettering. '
+        'Identify the actual printed brand/manufacturer, canonical product name and printed package size. '
+        'Marketing slogans are not product names. Do NOT assume a particular brand from the style or from prior examples. '
+        'If the brand is not readable, leave brand empty and confidence low. If size is not readable, leave package_size empty. '
+        'Return JSON with one item containing brand, product, package_size, confidence, quantity and unit. '
+        'Be conservative: no guesses.')
+       verify_payload={'model':payload['model'],'response_format':{'type':'json_object'},'messages':[{'role':'user','content':[{'type':'text','text':verification_prompt},{'type':'image_url','image_url':{'url':'data:'+mime+';base64,'+photo,'detail':'high'}}]}],'max_tokens':350}
+       verify_req=urllib.request.Request('https://api.openai.com/v1/chat/completions',data=json.dumps(verify_payload).encode(),headers={'Authorization':'Bearer '+key,'Content-Type':'application/json'},method='POST')
+       with urllib.request.urlopen(verify_req,timeout=45) as verify_response:verification=json.load(verify_response)
+       record_scan_usage(request_scope.user_id,payload['model'],verification.get('usage') or {})
+       verified=json.loads(verification['choices'][0]['message']['content']).get('items',[])
+       if isinstance(verified,list) and len(verified)==1 and isinstance(verified[0],dict):
+        second=verified[0]
+        second_brand=str(second.get('brand') or '').strip()
+        second_product=str(second.get('product') or '').strip()
+        if second_product:
+         candidate['product']=second_product
+         candidate['brand']=second_brand
+         candidate['package_size']=str(second.get('package_size') or '').strip()
+         candidate['confidence']=second.get('confidence','low')
+      except (urllib.error.URLError,TimeoutError,ValueError,KeyError,TypeError,IndexError):
+       pass  # Keep the initial result if the optional verification is unavailable.
     allowed={'count','can','package','bag','pound','ounce','gram','kilogram','liter','milliliter','cup','bunch','head','loaf','dozen'}
     items=[]
     for item in parsed.get('items',[])[:40]:
