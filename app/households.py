@@ -53,6 +53,15 @@ CREATE TABLE IF NOT EXISTS hg_registration_requests (
  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
  reviewed_at TEXT
 );
+CREATE TABLE IF NOT EXISTS hg_join_requests (
+ id INTEGER PRIMARY KEY AUTOINCREMENT,
+ household_id INTEGER NOT NULL REFERENCES hg_households(id),
+ user_id INTEGER NOT NULL REFERENCES hg_users(id),
+ invited_by INTEGER NOT NULL REFERENCES hg_users(id),
+ status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','accepted','declined')),
+ created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS hg_join_requests_user ON hg_join_requests(user_id,status);
 CREATE TABLE IF NOT EXISTS hg_sessions (
  token_hash TEXT PRIMARY KEY,
  user_id INTEGER NOT NULL REFERENCES hg_users(id) ON DELETE CASCADE,
