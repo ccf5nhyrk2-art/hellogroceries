@@ -1480,7 +1480,7 @@ class Handler(SimpleHTTPRequestHandler):
      c.commit()
      if not token:return self.sendjson({'error':'Could not prepare verification email. Please try Resend verification.'},503)
      link='https://groceries.greenlee.uk/auth.html#verify='+urllib.parse.quote(token,safe='')
-     if not resend_send_email(email,'Verify your HelloGroceries email','Welcome to HelloGroceries! Verify your email within 24 hours:\\n'+link+'\\n\\nIf you did not register, ignore this message.'):
+     if not resend_send_email(email,'Verify your HelloGroceries email','Welcome to HelloGroceries! Verify your email within 24 hours:\n'+link+'\n\nIf you did not register, ignore this message.'):
       return self.sendjson({'error':'Email provider did not confirm sending. Please retry shortly.'},502)
      return self.sendjson({'ok':True,'message':'Verification email accepted by our email provider. Check your inbox, Spam and Promotions. Delivery may take a few minutes.'},202)
     if path=='/api/auth/resend-verification':
@@ -1490,7 +1490,7 @@ class Handler(SimpleHTTPRequestHandler):
      c.commit()
      if token:
       link='https://groceries.greenlee.uk/auth.html#verify='+urllib.parse.quote(token,safe='')
-      if not resend_send_email(email,'Verify your HelloGroceries email','Your verification link expires in 24 hours:\\n'+link+'\\n\\nIf you did not request this, ignore this message.'):
+      if not resend_send_email(email,'Verify your HelloGroceries email','Your verification link expires in 24 hours:\n'+link+'\n\nIf you did not request this, ignore this message.'):
        return self.sendjson({'error':'Email provider did not confirm sending. Please retry shortly.'},502)
       return self.sendjson({'ok':True,'sent':True,'message':'Verification email accepted by our provider. Check Inbox, Spam and Promotions. Delivery may take a few minutes.'})
      return self.sendjson({'ok':True,'sent':False,'message':'No new email was sent. If you requested one recently, wait 60 seconds and try again. If the account is already verified, sign in.'})
