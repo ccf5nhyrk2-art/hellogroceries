@@ -2492,6 +2492,32 @@ html[data-theme="dark"] #hg-tour-card{background:#1b2023;color:#f0f4f2}
 #hg-tour-actions button,#hg-tour-replay{cursor:pointer;border-radius:12px;padding:11px 14px;border:1px solid #687d70;background:transparent;color:inherit;font:600 14px system-ui}
 #hg-tour-next{background:#176b4a!important;color:white!important;border-color:#176b4a!important}
 #hg-tour-replay{position:fixed;bottom:16px;right:16px;z-index:100;background:#176b4a;color:#fff;border:0;font-size:12px;padding:8px 12px}
+#hg-tour-card{max-height:calc(100dvh - 32px);overflow-y:auto;overscroll-behavior:contain}
+#hg-tour-collection{margin-top:12px}
+#hg-tour-collection[hidden]{display:none!important}
+#hg-tour-collection-name{width:100%;min-height:44px}
+#hg-tour-create-collection{min-height:44px}
+#hg-tour-collection-status:empty{display:none}
+@media(max-width:600px){
+ #hg-tour-overlay{padding:12px;align-items:center}
+ #hg-tour-card{width:100%;padding:18px 18px 16px;border-radius:18px;max-height:calc(100dvh - 24px)}
+ #hg-tour-card h2{font-size:21px;margin:8px 0}
+ #hg-tour-card p{font-size:14px;line-height:1.4;margin:8px 0}
+ #hg-tour-progress{font-size:12px}
+ #hg-tour-collection{margin-top:8px}
+ #hg-tour-collection label{margin:4px 0!important}
+ #hg-tour-collection-name{padding:10px!important}
+ #hg-tour-create-collection{margin-top:8px!important;padding:10px!important}
+ #hg-tour-actions{margin-top:14px;gap:6px}
+ #hg-tour-actions button{padding:10px;font-size:13px;min-height:44px}
+}
+@media(max-height:550px){
+ #hg-tour-overlay{align-items:start;padding:8px}
+ #hg-tour-card{max-height:calc(100dvh - 16px);padding:12px 16px}
+ #hg-tour-card h2{font-size:19px}
+ #hg-tour-card p{margin:5px 0;line-height:1.3}
+ #hg-tour-actions{margin-top:8px}
+}
 </style>
 <div id="hg-tour-overlay" hidden role="dialog" aria-modal="true" aria-labelledby="hg-tour-title">
  <div id="hg-tour-card">
