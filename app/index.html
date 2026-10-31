@@ -102,6 +102,8 @@
  body[data-active-page="recipes"] #my-recipes,
  body[data-active-page="recipes"] #selected-plan{display:none!important}
 }
+body[data-active-page="shopping"] main .layout > section[hidden]{display:none!important}
+body[data-active-page="shopping"] #shopping-page-section{grid-column:1/-1;min-width:0}
 /* Independent Shop page shell: hide all non-Shop sections regardless of legacy
    inline display state, DOM nesting, or scroll position. */
 body[data-active-page="shopping"] main .layout > section:not(#shopping-page-section){display:none!important;visibility:hidden!important}
@@ -617,6 +619,21 @@ function showPage(key){
  moreTab.setAttribute('aria-expanded','false');
  document.body.classList.toggle('single-page',key!=='all');
  document.body.dataset.activePage=key;
+ // Enforce section visibility at the DOM level, not merely by scroll position.
+ const shopSection=document.getElementById('shopping-page-section');
+ if(shopSection){
+  for(const section of layout.querySelectorAll(':scope > section')){
+   const hide=key==='shopping'&&section!==shopSection;
+   section.hidden=hide;
+   if(hide)section.style.setProperty('display','none','important');
+   else if(section===shopSection)section.style.removeProperty('display');
+  }
+ }
+ // Visible build marker confirms the browser actually loaded this navigation fix.
+ let version=document.getElementById('hg-shop-build');
+ if(!version){version=document.createElement('small');version.id='hg-shop-build';version.style.cssText='display:block;text-align:center;font-size:11px;opacity:.65;padding:4px';shopSection?.prepend(version);}
+ if(version)version.textContent='Shop layout v2026.10.30.4';
+
  syncShoppingShortcut();
  for(const tab of mobileNav.querySelectorAll('.mobile-tab[data-page]')){
   const active=tab.dataset.page===key;
