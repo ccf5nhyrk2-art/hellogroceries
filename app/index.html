@@ -33,6 +33,7 @@
 /* Mobile-first app shell; desktop keeps the complete top navigation. */
 .mobile-bottom-nav,.mobile-more-backdrop{display:none}
 .mobile-more-backdrop[hidden]{display:none!important}
+@media(max-width:750px){body.mobile-menu-open > header{visibility:hidden!important}}
 @media(max-width:750px){
  html{scroll-padding-top:12px}
  body{padding-bottom:calc(76px + env(safe-area-inset-bottom,0px))}
@@ -2321,7 +2322,10 @@ const days=['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunda
 let previousWeek={};
 async function preferences(update){
  const next={favorites:state.favorites||[],collections:state.collections||{},weekly:state.weekly||{},pantry:state.pantry||[],manual:state.manual||[],previous_week:state.previous_week||{},...update};
- await action({action:'set_preferences',...next});
+ const response=await fetch('/api/action',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'set_preferences',...next})});
+ const result=await response.json();
+ if(!response.ok||result.error)throw new Error(result.error||'Unable to save preferences');
+ state=result;render();
 }
 function updateEnhancements(){
  const current=$('collection-filter').value;
@@ -2552,6 +2556,7 @@ const next=document.getElementById('hg-tour-next');
 const back=document.getElementById('hg-tour-back');
 const skip=document.getElementById('hg-tour-skip');
 let index=0,key='',previousFocus=null;window.hgTourIndex=()=>index;
+window.hgTourAdvance=(expected)=>{if(overlay.hidden||index!==expected)return false;if(index===steps.length-1)close();else{index++;render()}return true};
 function render(){document.getElementById('hg-tour-progress').textContent=(index+1)+' of '+steps.length;document.getElementById('hg-tour-title').textContent=steps[index][0];document.getElementById('hg-tour-description').textContent=steps[index][1];back.hidden=index===0;next.textContent=index===steps.length-1?'Start planning':'Next';if(index===0||index===steps.length-1)next.focus()}
 function close(){overlay.hidden=true;document.activeElement?.blur?.();try{if(key)localStorage.setItem(key,'done')}catch(e){}previousFocus?.focus?.()}
 function open(){previousFocus=document.activeElement;index=0;tourCompleted.clear();overlay.hidden=false;render()}
@@ -2616,7 +2621,7 @@ body:has(#hg-tour-overlay:not([hidden])) #hg-tour-replay{display:none!important}
    await saveNamedCollection(name);
    // hg:collection-saved advances the tour only after persistence succeeds.
   }catch(e){
-   collectionStatus.textContent='Could not save collection. Please try again.';
+   collectionStatus.textContent='Could not save collection: '+(e.message||'Please try again.');
    collectionButton.disabled=false;
   }
  });
@@ -2710,12 +2715,15 @@ body:has(#hg-tour-overlay:not([hidden])) #hg-tour-replay{display:none!important}
   // Advance by the canonical tour index, independent of highlight rerenders.
   setTimeout(()=>{
    advancing=false;
-   if(!overlay.hidden&&window.hgTourIndex?.()===current)next.click();
+   if(!overlay.hidden)window.hgTourAdvance?.(current);
   },220);
  }
  document.addEventListener('pointerdown',event=>{
   if(event.pointerType==='touch'||event.pointerType==='pen')completeHighlightedTap(event);
  },true);
+ document.addEventListener('touchstart',event=>{
+  if(event.touches.length===1)completeHighlightedTap(event);
+ },{capture:true,passive:true});
  document.addEventListener('click',event=>completeHighlightedTap(event),true);
  // Highlighted controls remain usable; a successful tap advances the walkthrough.
  // The Next and Back buttons remain available for optional steps.
@@ -2730,7 +2738,7 @@ body:has(#hg-tour-overlay:not([hidden])) #hg-tour-replay{display:none!important}
   hint.textContent='Collection saved! Moving to Plan your week…';
   collectionButton.disabled=false;
   collectionInput.value='';
-  setTimeout(()=>{if(!overlay.hidden&&window.hgTourIndex?.()===2)next.click()},450);
+  setTimeout(()=>{if(!overlay.hidden)window.hgTourAdvance?.(2)},450);
  });
  window.addEventListener('resize',()=>{if(!overlay.hidden)position()});
  function fitKeyboard(){
