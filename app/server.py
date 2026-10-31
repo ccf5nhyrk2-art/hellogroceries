@@ -934,7 +934,17 @@ def resend_test_email(recipient):
  try:
   with urllib.request.urlopen(req,timeout=15) as response:return bool(json.load(response).get('id'))
  except urllib.error.HTTPError as exc:
-  raise ValueError('Resend rejected the test email (HTTP '+str(exc.code)+'). Check the key, domain, and recipient.') from None
+  # Resend returns a structured error body. Show only its safe message, never request headers or keys.
+  detail=''
+  try:
+   payload=json.loads(exc.read(8192).decode('utf-8','replace'))
+   if isinstance(payload,dict):
+    detail=str(payload.get('message') or payload.get('error') or '')[:350]
+  except (ValueError,UnicodeError,OSError):
+   pass
+  detail=re.sub(r're_[A-Za-z0-9_-]{12,}', '[redacted API key]', detail)
+  detail=re.sub(r'[\\r\\n\\t]+',' ',detail).strip()
+  raise ValueError('Resend rejected the test email (HTTP '+str(exc.code)+')'+(': '+detail if detail else '. Check the key, domain, and recipient.')) from None
 
 REEF_KEY_PATH=Path('/data/reef_api_key')
 OPENAI_KEY_PATH=Path('/data/openai_api_key')
