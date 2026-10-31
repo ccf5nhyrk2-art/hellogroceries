@@ -606,7 +606,7 @@ mobileNav.setAttribute('aria-label','Main navigation');
 const mobileMore=document.createElement('div');
 mobileMore.className='mobile-more-backdrop';
 mobileMore.hidden=true;
-mobileMore.innerHTML='<div class="mobile-more-sheet" role="dialog" aria-modal="true" aria-label="All HelloGroceries pages"><div class="mobile-more-heading"><strong>All pages</strong><button type="button" class="mobile-more-close" aria-label="Close menu">✕</button></div><div class="mobile-more-options"></div><div class="mobile-more-footer"><a href="/household.html" class="mobile-household-link">⌂ Household & members</a><button type="button" class="mobile-more-logout" id="mobile-logout">Sign Out</button></div></div>';
+mobileMore.innerHTML='<div class="mobile-more-sheet" role="dialog" aria-modal="true" aria-label="All HelloGroceries pages"><div class="mobile-more-heading"><strong>All pages</strong><button type="button" class="mobile-more-close" aria-label="Close menu">✕</button></div><div class="mobile-more-options"></div><div class="mobile-more-footer"><button type="button" id="mobile-replay-tour" class="mobile-household-link" style="width:100%;text-align:left;cursor:pointer">↻ Replay walkthrough</button><a href="/household.html" class="mobile-household-link">⌂ Household & members</a><button type="button" class="mobile-more-logout" id="mobile-logout">Sign Out</button></div></div>';
 document.body.append(mobileMore);
 document.body.append(mobileNav);
 mobileNav.style.setProperty('display','grid','important');
@@ -2553,7 +2553,7 @@ overlay.addEventListener('keydown',e=>{if(e.key==='Escape'){e.preventDefault();c
 fetch('/api/auth/status',{credentials:'same-origin',cache:'no-store'}).then(r=>r.json()).then(status=>{
  if(!status.authenticated||!status.email)return;
  key='hg-onboarding-v1:'+status.email.toLowerCase();
- const replay=document.createElement('button');replay.id='hg-tour-replay';replay.type='button';replay.textContent='Replay walkthrough';replay.addEventListener('click',open);document.body.appendChild(replay);
+ const replay=document.getElementById('mobile-replay-tour');if(replay){replay.addEventListener('click',()=>{const sheet=document.querySelector('.mobile-more-backdrop');if(sheet){sheet.hidden=true;sheet.classList.remove('open','active','show');}open()});}
  try{if(localStorage.getItem(key)!=='done')setTimeout(open,550)}catch(e){/* Storage unavailable; manual replay still works */}
 }).catch(()=>{});
 })();
@@ -2564,7 +2564,7 @@ body:not([data-active-page="shopping"]) #shop-generate-tour{display:none!importa
 #hg-tour-overlay{pointer-events:none!important;background:rgba(0,0,0,.57)!important}
 body:has(#hg-tour-overlay:not([hidden])) #hg-tour-replay{display:none!important}
 @media(max-width:750px){#hg-tour-replay{bottom:calc(env(safe-area-inset-bottom,0px) + 88px)!important;right:12px!important;font-size:11px!important}}
-#hg-tour-card{pointer-events:auto!important;position:fixed;bottom:calc(env(safe-area-inset-bottom,0px) + 105px);left:50%;transform:translateX(-50%);max-height:min(43vh,340px);overflow:auto;padding:20px!important}
+#hg-tour-card{pointer-events:auto!important;position:fixed;bottom:calc(env(safe-area-inset-bottom,0px) + 105px);left:50%;transform:translateX(-50%);max-height:min(55dvh,480px);overflow:auto;padding:20px!important}#hg-tour-card:has(#hg-tour-collection:not([hidden])){max-height:min(65dvh,540px)}@media(max-height:600px){#hg-tour-card{bottom:8px;max-height:calc(100dvh - 16px)!important}}
 #hg-tour-card h2{font-size:21px!important;margin:7px 0!important}#hg-tour-card p{font-size:14px!important;line-height:1.45!important;margin:8px 0!important}
 #hg-tour-actions{margin-top:14px!important}#hg-tour-hint{font-size:12px;font-weight:700;color:#50c987;margin-top:10px}
 @media(min-width:751px){#hg-tour-card{bottom:24px;max-height:45vh}}
