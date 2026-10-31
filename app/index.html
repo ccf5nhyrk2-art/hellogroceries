@@ -1954,10 +1954,16 @@ document.addEventListener('click',e=>{
 
 emit('page_recipes');
 // Record genuine recipe searches, without recording their text.
-let searchTimer;
-document.getElementById('search')?.addEventListener('input',()=>{
- clearTimeout(searchTimer);
- searchTimer=setTimeout(()=>{if(document.getElementById('search').value.trim())emit('recipe_search')},900);
+// Count one search per typing session immediately, so mobile navigation
+// or backgrounding the tab cannot cancel the analytics event.
+let searchSessionRecorded=false;
+let searchSessionReset;
+document.getElementById('search')?.addEventListener('input',event=>{
+ const hasQuery=!!event.target.value.trim();
+ if(!hasQuery){searchSessionRecorded=false;clearTimeout(searchSessionReset);return;}
+ if(!searchSessionRecorded){searchSessionRecorded=true;emit('recipe_search');}
+ clearTimeout(searchSessionReset);
+ searchSessionReset=setTimeout(()=>{searchSessionRecorded=false;},30000);
 });
 document.addEventListener('click',e=>{
  const id=e.target.closest('button')?.id;
