@@ -907,6 +907,35 @@ def free_community_prices(items):
 # Operator-supplied retailer catalog feed. No API key or subscription is required.
 # Each row must be a verifiable price from a specific retailer location.
 RETAIL_PRICE_PATH=Path('/data/retailer_prices.json')
+RESEND_KEY_PATH=Path('/data/resend_api_key')
+RESEND_FROM='HelloGroceries <accounts@greenlee.uk>'
+def resend_key():
+ try:return RESEND_KEY_PATH.read_text().strip() or os.environ.get('RESEND_API_KEY','').strip()
+ except OSError:return os.environ.get('RESEND_API_KEY','').strip()
+def save_resend_key(key):
+ if not isinstance(key,str) or not re.fullmatch(r're_[A-Za-z0-9_-]{12,500}',key):raise ValueError('Enter a valid Resend API key')
+ RESEND_KEY_PATH.parent.mkdir(parents=True,exist_ok=True)
+ import tempfile
+ fd,path=tempfile.mkstemp(prefix='.resend-key-',dir=str(RESEND_KEY_PATH.parent))
+ try:
+  os.fchmod(fd,0o600)
+  with os.fdopen(fd,'w') as out:out.write(key)
+  os.replace(path,RESEND_KEY_PATH)
+ except BaseException:
+  try:os.unlink(path)
+  except OSError:pass
+  raise
+def resend_test_email(recipient):
+ recipient=auth.validate_email(recipient)
+ key=resend_key()
+ if not key:raise ValueError('Save a Resend API key first')
+ payload=json.dumps({'from':RESEND_FROM,'to':[recipient],'subject':'HelloGroceries email test','text':'HelloGroceries email delivery is configured. This is a test message sent by an administrator.'}).encode()
+ req=urllib.request.Request('https://api.resend.com/emails',data=payload,headers={'Authorization':'Bearer '+key,'Content-Type':'application/json'},method='POST')
+ try:
+  with urllib.request.urlopen(req,timeout=15) as response:return bool(json.load(response).get('id'))
+ except urllib.error.HTTPError as exc:
+  raise ValueError('Resend rejected the test email (HTTP '+str(exc.code)+'). Check the key, domain, and recipient.') from None
+
 REEF_KEY_PATH=Path('/data/reef_api_key')
 OPENAI_KEY_PATH=Path('/data/openai_api_key')
 def openai_scan_key():
@@ -1546,6 +1575,10 @@ class Handler(SimpleHTTPRequestHandler):
    if not self.gate():return
    if not getattr(request_scope,'admin',False):return self.sendjson({'error':'Administrator required'},403)
    return self.sendjson({'configured':bool(openai_scan_key())})
+  if self.path=='/api/admin/resend-key':
+   if not self.gate():return
+   if not getattr(request_scope,'admin',False):return self.sendjson({'error':'Administrator required'},403)
+   return self.sendjson({'configured':bool(resend_key()),'from':RESEND_FROM,'registration_mode':'manual_approval'})
   if self.path=='/api/admin/reef-key':
    if not self.gate():return
    if not getattr(request_scope,'admin',False):return self.sendjson({'error':'Administrator required'},403)
@@ -1963,6 +1996,22 @@ class Handler(SimpleHTTPRequestHandler):
      OPENAI_KEY_PATH.unlink(missing_ok=True)
      return self.sendjson({'ok':True,'configured':bool(openai_scan_key())})
     save_openai_scan_key(data.get('key'))
+    return self.sendjson({'ok':True,'configured':True})
+   except (ValueError,TypeError,OSError) as exc:return self.sendjson({'error':str(exc)},400)
+  if self.path in ('/api/admin/resend-key','/api/admin/resend-test'):
+   if not self.gate(write=True):return
+   if not getattr(request_scope,'admin',False):return self.sendjson({'error':'Administrator required'},403)
+   try:
+    size=int(self.headers.get('Content-Length','0'))
+    if not 0<size<=2048:raise ValueError('Invalid request size')
+    data=json.loads(self.rfile.read(size))
+    if self.path=='/api/admin/resend-test':
+     if not resend_test_email(data.get('email')):raise ValueError('Resend did not confirm the email')
+     return self.sendjson({'ok':True,'message':'Test email accepted by Resend. Check the inbox.'})
+    if data.get('remove') is True:
+     RESEND_KEY_PATH.unlink(missing_ok=True)
+     return self.sendjson({'ok':True,'configured':bool(resend_key())})
+    save_resend_key(data.get('key'))
     return self.sendjson({'ok':True,'configured':True})
    except (ValueError,TypeError,OSError) as exc:return self.sendjson({'error':str(exc)},400)
   if self.path=='/api/admin/reef-key':
