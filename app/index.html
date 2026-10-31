@@ -1849,7 +1849,7 @@ $('pantry-scan-file').addEventListener('change',async()=>{
    unit.value=item.unit;unit.onchange=()=>{item.unit=unit.value;updateDuplicate()};
    const detail=document.createElement('small');detail.className='pantry-scan-detail';
    const labels=[item.brand,item.package_size].filter(Boolean);
-   detail.textContent=labels.length?'Recognized: '+labels.join(' · '):'Check product details before adding';
+   detail.textContent=item.confidence==='low'?'⚠️ Product uncertain — verify the brand and size before adding.':(labels.length?'Recognized: '+labels.join(' · '):'Check product details before adding');
    const warning=document.createElement('small');warning.className='muted pantry-scan-duplicate';
    function updateDuplicate(){
     const key=item.name.trim().toLowerCase()+'|'+item.unit;
