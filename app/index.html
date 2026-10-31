@@ -525,6 +525,7 @@ function syncShoppingShortcut(){
 }
 
 // Mobile app navigation: primary bottom tabs and a sheet for every other section.
+// Keep bottom navigation available even if a later page-render step fails.
 const mobileNav=document.createElement('nav');
 mobileNav.className='mobile-bottom-nav';
 mobileNav.setAttribute('aria-label','Main navigation');
@@ -534,6 +535,7 @@ mobileMore.hidden=true;
 mobileMore.innerHTML='<div class="mobile-more-sheet" role="dialog" aria-modal="true" aria-label="All HelloGroceries pages"><div class="mobile-more-heading"><strong>All pages</strong><button type="button" class="mobile-more-close" aria-label="Close menu">✕</button></div><div class="mobile-more-options"></div></div>';
 document.body.append(mobileMore);
 document.body.append(mobileNav);
+mobileNav.style.setProperty('display','grid','important');
 const mobileTabs=[['all','⌂','Home'],['recipes','▤','Recipes'],['planner','▦','Plan'],['shopping','☷','Shop']];
 function closeMobileMore(){mobileMore.hidden=true;document.body.classList.remove('mobile-menu-open')}
 function openMobileMore(){mobileMore.hidden=false;document.body.classList.add('mobile-menu-open');mobileMore.querySelector('.mobile-more-close').focus()}
@@ -668,7 +670,8 @@ function showPage(key){
 }
 let initialPage='all';
 try{initialPage=localStorage.getItem(PAGE_VIEW_KEY)||(localStorage.getItem('hellogroceries-shopping-only')==='1'?'shopping':'all')}catch(e){}
-showPage(initialPage);document.getElementById('mobile-recipe-filter-toggle')?.addEventListener('click',function(){const el=document.getElementById('mobile-recipe-filters');const open=el.classList.toggle('is-open');this.setAttribute('aria-expanded',String(open));this.textContent=open?'☷ Hide filters':'☷ Filters';});
+try{showPage(initialPage)}catch(error){console.error('Page navigation initialization failed',error);document.body.dataset.activePage='all';}
+document.getElementById('mobile-recipe-filter-toggle')?.addEventListener('click',function(){const el=document.getElementById('mobile-recipe-filters');const open=el.classList.toggle('is-open');this.setAttribute('aria-expanded',String(open));this.textContent=open?'☷ Hide filters':'☷ Filters';});
 // Reuse the same page navigation as the mobile bottom tabs.
 document.querySelectorAll('.mobile-home-dashboard [data-home-go]').forEach(button=>{
  button.addEventListener('click',event=>{
