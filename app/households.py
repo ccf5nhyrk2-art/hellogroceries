@@ -278,7 +278,13 @@ def request_registration(conn, email, password, household_name):
         assert_registration_allowed(conn,email)
         if conn.execute("SELECT 1 FROM hg_users WHERE email=?", (email,)).fetchone():
             raise ValueError("Registration cannot be completed for this email")
-        row=conn.execute("SELECT status FROM hg_registration_requests WHERE email=?", (email,)).fetchone()
+        row=conn.execute("SELECT id,status FROM hg_registration_requests WHERE email=?", (email,)).fetchone()
+        if row and row[1]=='approved':
+            # A deleted account can leave an approved historical registration.
+            # A new signup must supply a new password and verify email ownership.
+            conn.execute("DELETE FROM hg_email_verifications WHERE request_id=?",(row[0],))
+            conn.execute("DELETE FROM hg_registration_requests WHERE id=?",(row[0],))
+            row=None
         if row:
             raise ValueError("Registration request already received")
         conn.execute("INSERT INTO hg_registration_requests(email,password_hash,household_name) VALUES(?,?,?)",
@@ -295,7 +301,7 @@ def issue_registration_verification(conn,email):
     if not row: return None
     request_id=row[0]
     last=conn.execute("SELECT sent_at FROM hg_email_verifications WHERE request_id=?",(request_id,)).fetchone()
-    if last and (datetime.datetime.now(datetime.timezone.utc)-datetime.datetime.fromisoformat(last[0])).total_seconds()<60:
+    if last and last[0] and (datetime.datetime.now(datetime.timezone.utc)-datetime.datetime.fromisoformat(last[0])).total_seconds()<60:
         return None
     token=secrets.token_urlsafe(32)
     conn.execute("""INSERT INTO hg_email_verifications(request_id,token_hash,expires_at,sent_at)
@@ -411,6 +417,9 @@ def remove_account(conn, admin_id, user_id, block_future=False):
             conn.execute("DELETE FROM hg_invitations WHERE email=?",(row[1],))
         # Do not cascade-delete household state: removing a login must not destroy
         # someone's grocery lists, pantry or other household data.
+        # Prevent deleted accounts from retaining an approved signup record.
+        conn.execute("DELETE FROM hg_email_verifications WHERE request_id IN (SELECT id FROM hg_registration_requests WHERE email=?)",(row[1],))
+        conn.execute("DELETE FROM hg_registration_requests WHERE email=?",(row[1],))
         conn.execute("DELETE FROM hg_memberships WHERE user_id=?",(user_id,))
         conn.execute("DELETE FROM hg_sessions WHERE user_id=?",(user_id,))
         conn.execute("DELETE FROM hg_invitations WHERE invited_by=?",(user_id,))
