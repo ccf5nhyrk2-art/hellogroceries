@@ -2536,6 +2536,8 @@ fetch('/api/auth/status',{credentials:'same-origin',cache:'no-store'}).then(r=>r
 body:not([data-active-page="shopping"]) #shop-generate-tour{display:none!important}
 .hg-tour-highlight{position:relative!important;z-index:2147483002!important;outline:4px solid #63e6a0!important;outline-offset:4px!important;box-shadow:0 0 0 8px #16764c99,0 0 22px #63e6a0!important;border-radius:10px!important;pointer-events:auto!important}
 #hg-tour-overlay{pointer-events:none!important;background:rgba(0,0,0,.57)!important}
+body:has(#hg-tour-overlay:not([hidden])) #hg-tour-replay{display:none!important}
+@media(max-width:750px){#hg-tour-replay{bottom:calc(env(safe-area-inset-bottom,0px) + 88px)!important;right:12px!important;font-size:11px!important}}
 #hg-tour-card{pointer-events:auto!important;position:fixed;bottom:calc(env(safe-area-inset-bottom,0px) + 105px);left:50%;transform:translateX(-50%);max-height:min(43vh,340px);overflow:auto;padding:20px!important}
 #hg-tour-card h2{font-size:21px!important;margin:7px 0!important}#hg-tour-card p{font-size:14px!important;line-height:1.45!important;margin:8px 0!important}
 #hg-tour-actions{margin-top:14px!important}#hg-tour-hint{font-size:12px;font-weight:700;color:#50c987;margin-top:10px}
@@ -2558,14 +2560,16 @@ body:not([data-active-page="shopping"]) #shop-generate-tour{display:none!importa
  }
  function target(n){
   const sel=selectors[n];if(!sel)return null;
-  return [...document.querySelectorAll(sel)].find(visible)||null;
+  const candidates=[...document.querySelectorAll(sel)];
+  return candidates.find(el=>visible(el)&&el.closest('.mobile-bottom-nav'))||candidates.find(visible)||null;
  }
  function position(){
   clear();if(overlay.hidden)return;
   highlighted=target(step);
-  if(highlighted){highlighted.classList.add('hg-tour-highlight');highlighted.scrollIntoView({block:'nearest',behavior:'instant'});}
+  if(highlighted){highlighted.classList.add('hg-tour-highlight');if(!highlighted.closest('.mobile-bottom-nav'))highlighted.scrollIntoView({block:'nearest',behavior:'instant'});}
   hint.textContent=highlighted?'Tap the glowing button to continue. You can also use Next.':'Tap Next to continue.';
-  if(step===5)hint.textContent='This button generates a real list. Tap Next to continue without changing your list.';
+  if(step===5)hint.textContent='Generating changes your shopping list. Tap Next to continue safely.';
+  if(step===7&&!highlighted)hint.textContent='Open More to find nearby stores, or tap Next.';
   next.textContent=step===8?'Get started':'Next';
  }
  function update(){
@@ -2576,7 +2580,6 @@ body:not([data-active-page="shopping"]) #shop-generate-tour{display:none!importa
    step=n;
    if(step===2)page('recipes');
    if(step===5)page('shopping');
-   if(step===7)page('stores');
   }
   requestAnimationFrame(position);
  }
