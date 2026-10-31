@@ -1881,7 +1881,7 @@ $('pantry-barcode-save').onclick=async()=>{
 };
 $('pantry-barcode-lookup').onclick=()=>lookupBarcode($('pantry-barcode-input').value.trim());
 $('pantry-barcode-close').onclick=async()=>{await stopBarcodeCamera();$('pantry-barcode-panel').hidden=true};
-$('pantry-barcode-open').onclick=()=>{ $('pantry-barcode-photo').value=''; };
+// The native label activates the camera input without a JavaScript click handler.
 async function decodeBarcodeWithRotations(file,reader,status){
  const image=await new Promise((resolve,reject)=>{
   const img=new Image(),url=URL.createObjectURL(file);
@@ -1944,9 +1944,10 @@ $('pantry-barcode-photo').addEventListener('change',async()=>{
 });
 let scannedPantryItems=[];
 const scanStatus=$('pantry-scan-status');
-function openPantryCamera(mode){$('pantry-scan-mode').value=mode;$('pantry-scan-file').value='';}
-$('pantry-scan-start').onclick=()=>openPantryCamera('groceries');
-$('pantry-scan-receipt').onclick=()=>openPantryCamera('receipt');
+// Set the mode before Safari performs the native label-to-file-input activation.
+// Never reset the input during the click: doing so can suppress the iOS camera picker.
+$('pantry-scan-start').addEventListener('pointerdown',()=>{$('pantry-scan-mode').value='groceries'});
+$('pantry-scan-receipt').addEventListener('pointerdown',()=>{$('pantry-scan-mode').value='receipt'});
 $('pantry-scan-file').addEventListener('change',async()=>{
  const file=$('pantry-scan-file').files?.[0];
  if(!file){scanStatus.textContent='Choose or take a photo first.';return;}
