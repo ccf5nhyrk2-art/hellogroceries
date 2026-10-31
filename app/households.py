@@ -290,6 +290,7 @@ def list_accounts(conn, admin_id):
         GROUP BY u.id
         ORDER BY u.is_instance_admin DESC,u.created_at,u.id
     """).fetchall()
+    last_activity={row[0]:row[1] for row in conn.execute("SELECT user_id,MAX(day) FROM hg_analytics GROUP BY user_id").fetchall()} if conn.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='hg_analytics'").fetchone() else {}
     active=conn.execute("""
         SELECT user_id, COUNT(*), MAX(created_at), MAX(expires_at)
         FROM hg_sessions WHERE expires_at>? GROUP BY user_id
@@ -297,7 +298,7 @@ def list_accounts(conn, admin_id):
     by_user={row[0]:row for row in active}
     return [dict(id=r[0],email=r[1],admin=bool(r[2]),created_at=r[3],
                  last_login_at=r[4],households=r[5] or '',
-                 active_sessions=by_user[r[0]][1] if r[0] in by_user else 0,
+                 last_active_at=last_activity.get(r[0]),active_sessions=by_user[r[0]][1] if r[0] in by_user else 0,
                  session_started_at=by_user[r[0]][2] if r[0] in by_user else None,
                  session_expires_at=by_user[r[0]][3] if r[0] in by_user else None) for r in rows]
 
