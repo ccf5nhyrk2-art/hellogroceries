@@ -1588,6 +1588,48 @@ class Handler(SimpleHTTPRequestHandler):
   super().end_headers()
  def do_POST(self):
   request_scope.household_id=None
+  if self.path=='/api/pantry/scan':
+   if not self.gate(write=True):return
+   if not auth_rate_allowed(str(request_scope.user_id),'pantry-scan',15,3600):
+    return self.sendjson({'error':'Scan limit reached. Try again later.'},429)
+   key=os.environ.get('OPENAI_API_KEY','').strip()
+   if not key:return self.sendjson({'error':'AI scanning is not configured. Set OPENAI_API_KEY on the server.'},503)
+   try:
+    size=int(self.headers.get('Content-Length','0'))
+    if not 0<size<=8500000:raise ValueError('Photo too large (maximum 6 MB)')
+    data=json.loads(self.rfile.read(size))
+    mime=data.get('mime','')
+    photo=data.get('image','')
+    mode=data.get('mode','groceries')
+    if mime not in ('image/jpeg','image/png','image/webp') or mode not in ('groceries','receipt') or not isinstance(photo,str) or len(photo)>8400000:
+     raise ValueError('Choose a JPEG, PNG, or WebP photo')
+    import base64
+    binary=base64.b64decode(photo,validate=True)
+    if not 0<len(binary)<=6000000:raise ValueError('Photo too large (maximum 6 MB)')
+    if mime=='image/jpeg' and not binary.startswith(b'\\xff\\xd8'):raise ValueError('Invalid JPEG')
+    if mime=='image/png' and not binary.startswith(b'\\x89PNG'):raise ValueError('Invalid PNG')
+    if mime=='image/webp' and binary[:4]!=b'RIFF':raise ValueError('Invalid WebP')
+    instruction=('Read the grocery receipt and extract purchased food and pantry items; ignore taxes, totals, discounts, fees and non-food purchases.' if mode=='receipt' else 'Identify grocery and pantry products actually visible in this photograph.')
+    prompt=instruction+' Return JSON object with items array; each item must have name (plain ingredient name), quantity (positive number), unit (one of count, can, package, bag, pound, ounce, gram, kilogram, liter, milliliter, cup, bunch, head, loaf, dozen), confidence (high, medium, low). Do not guess invisible items or uncertain quantities. Use quantity 1 and unit count when unknown. No more than 40 distinct items. Exclude personal information.'
+    payload={'model':os.environ.get('PANTRY_SCAN_MODEL','gpt-4.1-mini'),'response_format':{'type':'json_object'},'messages':[{'role':'user','content':[{'type':'text','text':prompt},{'type':'image_url','image_url':{'url':'data:'+mime+';base64,'+photo,'detail':'high'}}]}],'max_tokens':1800}
+    req=urllib.request.Request('https://api.openai.com/v1/chat/completions',data=json.dumps(payload).encode(),headers={'Authorization':'Bearer '+key,'Content-Type':'application/json'},method='POST')
+    with urllib.request.urlopen(req,timeout=45) as response:result=json.load(response)
+    parsed=json.loads(result['choices'][0]['message']['content'])
+    allowed={'count','can','package','bag','pound','ounce','gram','kilogram','liter','milliliter','cup','bunch','head','loaf','dozen'}
+    items=[]
+    for item in parsed.get('items',[])[:40]:
+     if not isinstance(item,dict):continue
+     name=str(item.get('name','')).strip()[:140]
+     try:quantity=float(item.get('quantity',1))
+     except (ValueError,TypeError):quantity=1
+     unit=str(item.get('unit','count')).lower()
+     if name and '|' not in name and 0<quantity<=100000:
+      items.append({'name':name,'quantity':quantity,'unit':unit if unit in allowed else 'count','confidence':str(item.get('confidence','low')) if item.get('confidence') in ('high','medium','low') else 'low'})
+    return self.sendjson({'items':items,'requires_review':True})
+   except (ValueError,TypeError,KeyError,IndexError,UnicodeError) as exc:return self.sendjson({'error':str(exc)[:180]},400)
+   except Exception as exc:
+    print('Pantry scan provider failed:',type(exc).__name__,flush=True)
+    return self.sendjson({'error':'Scanner unavailable. Please try again later.'},502)
   if self.path=='/api/analytics/event':
    if not self.gate(write=True):return
    try:
@@ -1915,6 +1957,23 @@ class Handler(SimpleHTTPRequestHandler):
      else:reviews.pop(str(rid),None)
     elif action in ('generate','preview_grocery'):
      rebuild_grocery_list(state)
+    elif action=='pantry_scan_apply':
+     items=p.get('items',[])
+     if not isinstance(items,list) or not 0<len(items)<=40:raise ValueError('Select up to 40 items')
+     inventory=state.setdefault('pantry_inventory',{})
+     pantry=state.setdefault('pantry',[])
+     allowed={'count','can','package','bag','pound','ounce','gram','kilogram','liter','milliliter','cup','bunch','head','loaf','dozen'}
+     validated=[]
+     for item in items:
+      if not isinstance(item,dict):raise ValueError('Invalid scanned item')
+      name=item.get('name','');unit=item.get('unit','count');quantity=item.get('quantity')
+      if not isinstance(name,str) or not name.strip() or len(name)>140 or '|' in name or not isinstance(unit,str) or unit not in allowed or type(quantity) not in (int,float) or not 0<quantity<=100000:raise ValueError('Invalid scanned item')
+      validated.append((name.strip(),unit,float(quantity)))
+     if len(inventory)+len(validated)>1040 or len(pantry)+len(validated)>540:raise ValueError('Pantry capacity reached')
+     for name,unit,quantity in validated:
+      key=name.casefold()+'|'+unit
+      inventory[key]=round(float(inventory.get(key,0))+quantity,4)
+      if not any(x.casefold()==name.casefold() for x in pantry if isinstance(x,str)):pantry.append(name)
     elif action=='set_pantry_inventory':
      name=p.get('name');unit=p.get('unit','');amount=p.get('amount')
      allowed={'','count','teaspoon','tablespoon','cup','ounce','pound','gram','kilogram','milliliter','liter','clove','bunch','head','stalk','slice','piece','pinch','can','package','bag'}
