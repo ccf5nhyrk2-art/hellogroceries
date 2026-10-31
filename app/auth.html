@@ -38,21 +38,25 @@ html[data-theme="dark"] .mobile-bottom-nav .mobile-tab-active{background:#30363b
 html[data-theme="dark"] .button-secondary,html[data-theme="dark"] button.clear,html[data-theme="dark"] .photo-edit{background:#30363b!important;color:#f0f4f5!important;border-color:#535b62!important}
 html[data-theme="dark"] #hg-theme-toggle{background:#30363b!important;border-color:#59636a!important;color:#f2f4f5!important}
 </style><script>(function(){try{var t=localStorage.getItem('hg-theme');document.documentElement.dataset.theme=t==='dark'||(t!=='light'&&matchMedia('(prefers-color-scheme: dark)').matches)?'dark':'light'}catch(e){document.documentElement.dataset.theme='light'}})();</script></head>
-<body><main><h1>HelloGroceries</h1><p id="mode">Checking your account…</p><form id="form" hidden><input type="email" id="email" placeholder="Email" autocomplete="email" required><input type="password" id="password" placeholder="Password (12+ characters)" autocomplete="new-password" required minlength="12"><section id="household-section" hidden><input id="household" placeholder="Household name" maxlength="80"></section><button id="submit">Continue</button></form><p id="error" role="alert"></p><p id="switch" hidden><button type="button" id="toggle">Request an account</button></p></main>
+<body><main><h1>HelloGroceries</h1><p id="mode">Checking your account…</p><form id="form" hidden><input type="email" id="email" placeholder="Email" autocomplete="email" required><input type="password" id="password" placeholder="Password (12+ characters)" autocomplete="new-password" required minlength="12"><section id="household-section" hidden><input id="household" placeholder="Household name" maxlength="80"></section><button id="submit">Continue</button></form><p id="error" role="alert"></p><p id="resend-wrap" hidden><button type="button" id="resend">Resend verification email</button></p><p id="switch" hidden><button type="button" id="toggle">Request an account</button></p></main>
 <script>
 const $=id=>document.getElementById(id);
 const fragment=new URLSearchParams(location.hash.slice(1));
 const invite=fragment.get('invite');
+const verification=fragment.get('verify');
 history.replaceState(null,'',location.pathname+location.search);
 let mode='login';
 async function initialize(){
  try{
   const r=await fetch('/api/auth/status',{cache:'no-store'}),s=await r.json();
   if(s.authenticated){location.replace('/');return}
-  mode=invite?'redeem':s.setup_required?'setup':'login';
-  $('mode').textContent={redeem:'Accept your household invitation',setup:'Create the first administrator account',login:'Sign in to your household'}[mode];
-  $('household-section').hidden=mode==='login';
-  $('switch').hidden=mode==='setup'||mode==='redeem';
+  mode=verification?'verify':invite?'redeem':s.setup_required?'setup':'login';
+  $('mode').textContent={verify:'Verify your email address',redeem:'Accept your household invitation',setup:'Create the first administrator account',login:'Sign in to your household'}[mode];
+  $('household-section').hidden=mode==='login'||mode==='verify';
+  $('password').hidden=mode==='verify';$('password').required=mode!=='verify';$('email').hidden=mode==='verify';$('email').required=mode!=='verify';
+  $('submit').textContent=mode==='verify'?'Verify email':'Continue';
+  $('resend-wrap').hidden=mode==='setup'||mode==='redeem'||mode==='verify';
+  $('switch').hidden=mode==='setup'||mode==='redeem'||mode==='verify';
   $('password').autocomplete=mode==='login'?'current-password':'new-password';
   $('form').hidden=false;
  }catch(e){$('error').textContent='Unable to check account status'}
@@ -62,10 +66,12 @@ $('form').onsubmit=async e=>{
  const data={email:$('email').value,password:$('password').value};
  if(mode!=='login')data.household=$('household').value;
  if(mode==='redeem')data.token=invite;
- const endpoint={redeem:'/api/auth/redeem',setup:'/api/auth/setup',login:'/api/auth/login',register:'/api/auth/register'}[mode];
+ if(mode==='verify')data.token=verification;
+ const endpoint={redeem:'/api/auth/redeem',setup:'/api/auth/setup',login:'/api/auth/login',register:'/api/auth/register',verify:'/api/auth/verify'}[mode];
  try{
   const r=await fetch(endpoint,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
   const j=await r.json();if(!r.ok)throw Error(j.error||'Unable to sign in');
+  if(mode==='verify'){$('mode').textContent='Email verified';$('form').hidden=true;$('error').style.color='#176b4a';$('error').textContent=j.message||'You can now sign in.';$('switch').hidden=false;$('toggle').textContent='Sign in';return;}
   if(mode==='register'){
    mode='login';
    $('mode').textContent='Sign in to your household';
@@ -73,9 +79,9 @@ $('form').onsubmit=async e=>{
    $('password').value='';
    $('password').autocomplete='current-password';
    $('submit').textContent='Sign In';
-   $('toggle').textContent='Request an account';
+   $('toggle').textContent='Create an account';
    $('error').style.color='#176b4a';
-   $('error').textContent=(j.message||'Account request submitted.')+' You can sign in after an administrator approves your account.';
+   $('error').textContent=j.message||'Check your inbox to verify your email.';
    return;
   }
   location.replace('/');
@@ -83,11 +89,13 @@ $('form').onsubmit=async e=>{
 };
 $('toggle').onclick=()=>{
  mode=mode==='login'?'register':'login';
- $('mode').textContent=mode==='register'?'Request an account (administrator approval required)':'Sign in to your household';
+ $('form').hidden=false;$('email').hidden=false;$('email').required=true;$('password').hidden=false;$('password').required=true;
+ $('mode').textContent=mode==='register'?'Create your HelloGroceries account':'Sign in to your household';
  $('household-section').hidden=mode==='login';
  $('password').autocomplete=mode==='login'?'current-password':'new-password';
- $('toggle').textContent=mode==='login'?'Request an account':'Already have an account? Sign in';
+ $('toggle').textContent=mode==='login'?'Create an account':'Already have an account? Sign in';
  $('error').textContent='';$('error').style.color='#a00';
 };
+$('resend').onclick=async()=>{const email=$('email').value.trim();if(!email){$('error').textContent='Enter your email address first.';return}try{const r=await fetch('/api/auth/resend-verification',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email})});const j=await r.json();if(!r.ok)throw Error(j.error||'Unable to resend');$('error').style.color='#176b4a';$('error').textContent=j.message}catch(e){$('error').textContent=e.message}};
 initialize();
 </script><script>(function(){const b=document.createElement('button');b.id='hg-theme-toggle';b.type='button';b.setAttribute('aria-label','Toggle light and dark mode');function sync(){const dark=document.documentElement.dataset.theme==='dark';b.textContent=dark?'☀ Light mode':'☾ Dark mode';b.setAttribute('aria-pressed',String(dark))}b.addEventListener('click',()=>{const theme=document.documentElement.dataset.theme==='dark'?'light':'dark';document.documentElement.dataset.theme=theme;try{localStorage.setItem('hg-theme',theme)}catch(e){}sync()});document.body.appendChild(b);sync()})()</script></body></html>
