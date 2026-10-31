@@ -2607,6 +2607,15 @@ body:has(#hg-tour-overlay:not([hidden])) #hg-tour-replay{display:none!important}
   collectionStatus.textContent='Saving collection…';collectionStatus.setAttribute('aria-live','polite');collectionButton.disabled=true;original.value=name;save.click();
   setTimeout(()=>{collectionButton.disabled=false;if(step===2&&overlay.hidden===false&&next.disabled)collectionStatus.textContent='Still waiting for the collection to save. Please retry.'},3800);
  });
+ // On iOS Safari the first tap while the keyboard is open can only blur the input.
+ // Handle the touch at pointer-down so the save runs on the first intentional tap.
+ collectionButton.addEventListener('pointerdown',e=>{
+  if(e.pointerType!=='touch'||overlay.hidden||step!==2||collectionButton.disabled)return;
+  if(document.activeElement===collectionInput){
+   e.preventDefault();
+   collectionButton.click();
+  }
+ });
  collectionInput.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();collectionButton.click()}});
  const selectors=[null,'[data-page="recipes"]','#new-collection','[data-page="planner"]','[data-page="shopping"]','#shop-generate-tour','[data-page="pantry"]','[data-page="stores"]',null];
  let highlighted=null,step=-1,advancing=false;
