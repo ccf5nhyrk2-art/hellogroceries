@@ -467,6 +467,15 @@ const SHOPPING_FOCUS_KEY='hellogroceries-shopping-only';
 const PAGE_VIEW_KEY='hellogroceries-active-page-v1';
 const layout=document.querySelector('main .layout');
 const first=layout.querySelector('section:first-child'),second=layout.querySelector('section:last-child');
+// Explicitly mark only the shopping heading and its following tools as Shop content.
+const shoppingHeading=[...second.children].find(el=>el.tagName==='H2'&&el.textContent.trim()==='Shopping list');
+if(shoppingHeading){
+ let inShop=false;
+ for(const el of [...second.children]){
+  if(el===shoppingHeading)inShop=true;
+  el.classList.toggle('shop-page-content',inShop);
+ }
+}
 const pageSpecs=[
  ['all','Show all pages',null],
  ['recipes','Recipes',first],
@@ -478,15 +487,6 @@ const pageSpecs=[
  ['pantry','Pantry',document.getElementById('pantry-items')?.closest('.enhance-panel')],
  ['shopping','Shopping list',shoppingHeading]
 ];
-// Explicitly mark only the shopping heading and its following tools as Shop content.
-const shoppingHeading=[...second.children].find(el=>el.tagName==='H2'&&el.textContent.trim()==='Shopping list');
-if(shoppingHeading){
- let inShop=false;
- for(const el of [...second.children]){
-  if(el===shoppingHeading)inShop=true;
-  el.classList.toggle('shop-page-content',inShop);
- }
-}
 const toolbar=document.querySelector('.shopping-view-toolbar');
 const previousButton=document.getElementById('shopping-focus-toggle');
 // The legacy shopping shortcut remains functional alongside the page tabs.
