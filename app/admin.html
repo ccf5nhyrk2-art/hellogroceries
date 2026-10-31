@@ -437,7 +437,7 @@ $('logout').onclick=async()=>{await fetch('/api/auth/logout',{method:'POST',head
 (function(){
 const $=id=>document.getElementById(id);
 async function post(action,extra={}){
- const r=await fetch('/api/action',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action,...extra})});
+ const r=await fetch('/api/action',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json','X-HG-CSRF':document.cookie.split('; ').find(x=>x.startsWith('hg_csrf='))?.slice(8)||''},body:JSON.stringify({action,...extra})});
  const j=await r.json();if(!r.ok)throw Error(j.error||'Request failed');return j;
 }
 async function checkBulk(){try{const r=await fetch('/api/bulk-status',{cache:'no-store'});if(!r.ok)throw Error('HTTP '+r.status);const j=await r.json();$('bulkstatus').textContent=`${j.message} — ${j.processed}/${j.discovered} checked, ${j.imported} added, ${j.skipped} skipped, ${j.errors} unavailable`;}catch(e){$('bulkstatus').textContent=e.message}}
