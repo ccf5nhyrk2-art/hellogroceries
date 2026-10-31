@@ -607,7 +607,7 @@ mobileNav.setAttribute('aria-label','Main navigation');
 const mobileMore=document.createElement('div');
 mobileMore.className='mobile-more-backdrop';
 mobileMore.hidden=true;
-mobileMore.innerHTML='<div class="mobile-more-sheet" role="dialog" aria-modal="true" aria-label="All HelloGroceries pages"><div class="mobile-more-heading"><strong>All pages</strong><button type="button" class="mobile-more-close" aria-label="Close menu">✕</button></div><div class="mobile-more-options"></div><div class="mobile-more-footer"><button type="button" id="mobile-replay-tour" class="mobile-household-link" style="width:100%;text-align:left;cursor:pointer">↻ Replay walkthrough</button><a href="/household.html" class="mobile-household-link">⌂ Household & members</a><button type="button" class="mobile-more-logout" id="mobile-logout">Sign Out</button></div></div>';
+mobileMore.innerHTML='<div class="mobile-more-sheet" role="dialog" aria-modal="true" aria-label="All HelloGroceries pages"><div class="mobile-more-heading"><strong>More</strong><button type="button" class="mobile-more-close" aria-label="Close menu">✕</button></div><div class="mobile-more-options"></div><div class="mobile-more-footer"><button type="button" id="mobile-replay-tour" class="mobile-household-link" style="width:100%;text-align:left;cursor:pointer">↻ Replay walkthrough</button><a href="/household.html" class="mobile-household-link">⌂ Household & members</a><button type="button" class="mobile-more-logout" id="mobile-logout">Sign Out</button></div></div>';
 document.body.append(mobileMore);
 document.body.append(mobileNav);
 mobileNav.style.setProperty('display','grid','important');
@@ -2498,6 +2498,10 @@ document.addEventListener('click',e=>{
 </script><style>
 #hg-tour-overlay{position:fixed;inset:0;z-index:2147483000;background:rgba(0,0,0,.68);display:grid;place-items:center;padding:20px}
 #hg-tour-overlay[hidden]{display:none!important}
+/* Let highlighted navigation controls receive real taps through the tour backdrop. */
+#hg-tour-overlay{pointer-events:none}
+#hg-tour-card{pointer-events:auto}
+
 #hg-tour-card{box-sizing:border-box;width:min(100%,430px);padding:28px;border-radius:22px;background:#fff;color:#17251c;box-shadow:0 22px 70px #0005;font:16px system-ui}
 html[data-theme="dark"] #hg-tour-card{background:#1b2023;color:#f0f4f2}
 #hg-tour-card h2{margin:12px 0;font-size:24px}#hg-tour-card p{line-height:1.55}
