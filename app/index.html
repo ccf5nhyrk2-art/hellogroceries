@@ -2706,7 +2706,6 @@ body:has(#hg-tour-overlay:not([hidden])) #hg-tour-replay{display:none!important}
   if(action==='more'&&(current===6||current===7)){setTimeout(position,80);return}
   if(action!==expected)return;
   advancing=true;
-  tourCompleted.add(current);
   hint.textContent='Great! Moving to the next step…';
   setTimeout(()=>{advancing=false;window.hgTourAdvance?.(current)},120);
  }
