@@ -749,11 +749,7 @@ function showPage(key){
    else if(section===shopSection)section.style.removeProperty('display');
   }
  }
- // Visible build marker confirms the browser actually loaded this navigation fix.
- let version=document.getElementById('hg-shop-build');
- if(!version){version=document.createElement('small');version.id='hg-shop-build';version.style.cssText='display:block;text-align:center;font-size:11px;opacity:.65;padding:4px';shopSection?.prepend(version);}
- if(version)version.textContent='Shop layout v2026.10.30.4';
-
+ document.getElementById('hg-shop-build')?.remove();
  syncShoppingShortcut();
  for(const tab of mobileNav.querySelectorAll('.mobile-tab[data-page]')){
   const active=tab.dataset.page===key;
@@ -2550,7 +2546,7 @@ const steps=[
  ['Organize your recipes','Name a collection below, such as Family Favorites. You can save recipes to it later.'],
  ['Plan your week','Open Plan and choose meals for the days you want to cook.'],
  ['Your shopping list','Open Shop to see your list and check off items as you shop.'],
- ['Build your grocery list','When your meals are ready, use Generate Shopping List. This changes your list, so it is optional.'],
+ ['Build your grocery list','This button creates a shopping list from your planned meals. Tap the highlighted button to continue. Your current list stays unchanged during the tour.'],
  ['Check your pantry','Track ingredients you already have to keep your shopping organized.'],
  ['Compare store prices','Explore available store prices before shopping. Prices and availability can change.'],
  ['You’re ready!','You explored recipes, learned how to organize collections, plan meals, build a shopping list, check your pantry, and compare stores. Optional steps can be completed anytime. Replay this walkthrough from More.']
@@ -2609,7 +2605,7 @@ body:has(#hg-tour-overlay:not([hidden])) #hg-tour-replay{display:none!important}
  const shopSlot=document.createElement('div');shopSlot.id='hg-tour-generate-slot';shopSlot.hidden=true;cardPlacementPending();
  function cardPlacementPending(){}
  // The tour previews the action without running a destructive list regeneration.
- shop?.addEventListener('click',event=>{if(!overlay.hidden){event.preventDefault();event.stopImmediatePropagation();hint.textContent='This button generates a list from your selected meals. Finish the tour before using it.';return}document.getElementById('generate-grocery')?.click()});
+ shop?.addEventListener('click',event=>{if(!overlay.hidden){event.preventDefault();event.stopImmediatePropagation();hint.textContent='This creates a shopping list from your planned meals. Your list was not changed.';return}document.getElementById('generate-grocery')?.click()});
  const overlay=document.getElementById('hg-tour-overlay'),progress=document.getElementById('hg-tour-progress');
  const card=document.getElementById('hg-tour-card'),next=document.getElementById('hg-tour-next');
  card.insertBefore(shopSlot,document.getElementById('hg-tour-actions'));
@@ -2662,7 +2658,7 @@ body:has(#hg-tour-overlay:not([hidden])) #hg-tour-replay{display:none!important}
    hint.textContent='Optional: create a collection now, or tap Next to do it later.';
    next.disabled=false;next.title='Continue without creating a collection';
   }else{next.disabled=false;next.title=''}
-  if(step===5)hint.textContent='Here is the Generate Shopping List button. Tap it to learn what it does, or tap Next to continue. Your existing list stays unchanged.';
+  if(step===5)hint.textContent='Tap the highlighted button to continue. This is only a demonstration; your shopping list will not change.';
   if(step===6)hint.textContent=highlighted?.getAttribute('data-page')==='pantry'?'Tap Pantry to view your ingredients.':'Tap More first, then Pantry to view your ingredients.';
   if(step===7)hint.textContent=highlighted?.getAttribute('data-page')==='stores'?'Tap Nearby stores to explore store pricing.':'Tap More first, then Nearby stores. Store availability varies.';
   if(step===8)hint.textContent='Tap Start planning to finish, or Back to revisit a step.';
