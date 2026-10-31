@@ -755,7 +755,7 @@ def merge_store_results(*groups):
  return sorted(result,key=lambda x:float(x.get('distance_miles') or 999))[:60]
 
 def nearby_stores(zipcode,radius=10):
- if radius not in (10,15,20,25):raise ValueError('Choose a radius of 10, 15, 20, or 25 miles')
+ if radius not in (5,10,15,20,25):raise ValueError('Choose a radius of 5, 10, 15, 20, or 25 miles')
  if not re.fullmatch(r'[0-9]{5}',zipcode):raise ValueError('Enter a valid five-digit US ZIP code')
  cache_key=zipcode+'-'+str(radius)
  with STORE_CACHE_LOCK:cached=STORE_CACHE.get(cache_key)
