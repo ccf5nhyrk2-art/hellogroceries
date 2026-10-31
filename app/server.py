@@ -2,6 +2,7 @@ from http.server import ThreadingHTTPServer,SimpleHTTPRequestHandler
 from pathlib import Path
 from http.cookies import SimpleCookie
 import households as auth
+import household_sharing as sharing
 import secrets
 import cloudflare_auth
 import os,math,json,sqlite3,threading,re,html,io,zipfile,datetime,urllib.request,urllib.parse,urllib.robotparser,xml.etree.ElementTree as ET,time,subprocess,sys,fcntl,os,ipaddress,socket
@@ -1500,13 +1501,8 @@ class Handler(SimpleHTTPRequestHandler):
    if not self.gate():return
    with db() as c:
     auth.ensure_schema(c)
-    hid=request_scope.household_id
-    uid=request_scope.user_id
-    household=c.execute('SELECT name FROM hg_households WHERE id=?',(hid,)).fetchone()
-    members=c.execute('SELECT u.email,m.role FROM hg_memberships m JOIN hg_users u ON u.id=m.user_id WHERE m.household_id=? ORDER BY u.email',(hid,)).fetchall()
-    pending=c.execute("SELECT r.id,h.name FROM hg_join_requests r JOIN hg_households h ON h.id=r.household_id WHERE r.user_id=? AND r.status='pending'",(uid,)).fetchall()
-    role=c.execute('SELECT role FROM hg_memberships WHERE household_id=? AND user_id=?',(hid,uid)).fetchone()
-   return self.sendjson({'name':household[0],'role':role[0],'members':[{'email':a,'role':b} for a,b in members],'pending':[{'id':a,'name':b} for a,b in pending]})
+    result=sharing.details(c,request_scope.user_id,request_scope.household_id)
+   return self.sendjson(result)
   if self.path=='/api/pricing-visibility':
    if not self.gate():return
    return self.sendjson({'visibility':pricing_visibility(),'is_admin':bool(getattr(request_scope,'admin',False))})
@@ -1668,6 +1664,23 @@ class Handler(SimpleHTTPRequestHandler):
   super().end_headers()
  def do_POST(self):
   request_scope.household_id=None
+  if self.path in ('/api/household/invite','/api/household/respond'):
+   if not self.gate(write=True):return
+   try:
+    size=int(self.headers.get('Content-Length','0'))
+    if not 0<size<=4096:raise ValueError('Invalid request size')
+    data=json.loads(self.rfile.read(size))
+    with db() as c:
+     auth.ensure_schema(c)
+     if self.path.endswith('/invite'):
+      sharing.invite(c,request_scope.user_id,request_scope.household_id,auth.validate_email(data.get('email')))
+      c.commit()
+     else:
+      if data.get('decision') not in ('accept','decline'):raise ValueError('Invalid response')
+      sharing.respond(c,request_scope.user_id,int(data.get('id')),data['decision']=='accept')
+   except (ValueError,TypeError,KeyError,sqlite3.Error) as exc:return self.sendjson({'error':str(exc)},400)
+   except PermissionError as exc:return self.sendjson({'error':str(exc)},403)
+   return self.sendjson({'ok':True})
   if self.path=='/api/admin/ai-settings':
    if not self.gate(write=True):return
    if not getattr(request_scope,'admin',False):return self.sendjson({'error':'Administrator required'},403)
