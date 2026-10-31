@@ -534,6 +534,17 @@ html[data-theme="dark"] .recipe-dialog{background:#20272a;color:#edf0f2;border-c
 .recipe-dialog #close-recipe{position:sticky;top:0;float:right;z-index:2;display:grid;place-items:center;width:34px;height:34px;min-width:34px;padding:0;margin:-8px -8px 4px 12px;border-radius:50%;background:#69736f30;color:inherit;font-size:25px;font-weight:400;line-height:1;box-shadow:none}
 .recipe-dialog #close-recipe:hover{background:#69736f55}
 .recipe-dialog #close-recipe:focus-visible{outline:2px solid #37a876;outline-offset:2px}
+
+/* Compact desktop recipe cards while keeping each row's controls aligned. */
+@media(min-width:751px){
+ .recipe-card-body{gap:6px;padding:10px}
+ .recipe-card-title{min-height:0;line-height:1.3}
+ .recipe-card-body>.actions{margin-top:auto;margin-bottom:0;gap:5px}
+ .recipe-card-body>.actions>button{padding-top:9px;padding-bottom:9px}
+ .recipe-card-body>.actions>select{margin:0}
+ .recipe-card-bottom{margin-top:4px}
+ .recipe-card .photo-edit{margin-top:0;padding:5px 8px}
+}
 </style><script>
 (function(){const originalFetch=window.fetch;window.fetch=function(input,init){const opts=init?{...init}:{};const method=(opts.method||'GET').toUpperCase();const url=typeof input==='string'?input:input.url;if(method!=='GET'&&method!=='HEAD'&&url.startsWith('/api/')){const match=document.cookie.match(/(?:^|; )hg_csrf=([^;]+)/);opts.headers={...opts.headers,'X-HG-CSRF':match?match[1]:''}}return originalFetch.call(this,input,opts)};})();
 </script>
