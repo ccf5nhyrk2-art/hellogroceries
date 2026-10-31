@@ -100,6 +100,27 @@ def analytics_record(user_id,event):
  except sqlite3.Error as exc:
   print('Analytics database write failed:',repr(exc),file=sys.stderr)
   raise
+def record_scan_usage(user_id,model,usage):
+ try:
+  input_tokens=int(usage.get('prompt_tokens',0))
+  output_tokens=int(usage.get('completion_tokens',0))
+  if input_tokens<0 or output_tokens<0:return
+  # USD per million tokens, model-specific published list prices.
+  rates={'gpt-4.1-mini':(0.40,1.60)}
+  rate=rates.get(model)
+  cost_micro=round(input_tokens*rate[0]+output_tokens*rate[1]) if rate else None
+  with db() as c:
+   c.execute('CREATE TABLE IF NOT EXISTS hg_ai_usage (id INTEGER PRIMARY KEY AUTOINCREMENT,at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,user_id INTEGER NOT NULL,model TEXT NOT NULL,input_tokens INTEGER NOT NULL,output_tokens INTEGER NOT NULL,cost_micro_usd INTEGER)')
+   c.execute('INSERT INTO hg_ai_usage(user_id,model,input_tokens,output_tokens,cost_micro_usd) VALUES (?,?,?,?,?)',(user_id,model,input_tokens,output_tokens,cost_micro))
+   c.commit()
+ except Exception as exc:print('AI usage tracking failed:',type(exc).__name__,flush=True)
+
+def scan_usage_summary():
+ with db() as c:
+  c.execute('CREATE TABLE IF NOT EXISTS hg_ai_usage (id INTEGER PRIMARY KEY AUTOINCREMENT,at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,user_id INTEGER NOT NULL,model TEXT NOT NULL,input_tokens INTEGER NOT NULL,output_tokens INTEGER NOT NULL,cost_micro_usd INTEGER)')
+  rows=c.execute("SELECT u.user_id,COALESCE(a.email,'Deleted account'),COUNT(*),SUM(u.input_tokens),SUM(u.output_tokens),SUM(u.cost_micro_usd),SUM(CASE WHEN u.cost_micro_usd IS NULL THEN 1 ELSE 0 END) FROM hg_ai_usage u LEFT JOIN hg_users a ON a.id=u.user_id WHERE u.at>=datetime('now','-30 days') GROUP BY u.user_id ORDER BY SUM(u.cost_micro_usd) DESC").fetchall()
+  return {'period_days':30,'users':[{'user_id':r[0],'user':r[1],'scans':r[2],'input_tokens':r[3],'output_tokens':r[4],'estimated_usd':round((r[5] or 0)/1000000,6),'unpriced_scans':r[6]} for r in rows]}
+
 def analytics_summary():
  with db() as c:
   c.execute('CREATE TABLE IF NOT EXISTS hg_analytics (day TEXT NOT NULL,user_id INTEGER NOT NULL,event TEXT NOT NULL,count INTEGER NOT NULL DEFAULT 1,PRIMARY KEY(day,user_id,event))')
@@ -1468,6 +1489,10 @@ class Handler(SimpleHTTPRequestHandler):
      LEFT JOIN hg_households h ON h.id=a.household_id
      ORDER BY a.id DESC LIMIT 100""").fetchall()
    return self.sendjson({'entries':[{'at':x[0],'user':x[1] or 'Deleted account','household':x[2] or 'Unknown','action':x[3],'item':x[4],'before':x[5],'after':x[6]} for x in rows]})
+  if self.path=='/api/admin/ai-usage':
+   if not self.gate():return
+   if not getattr(request_scope,'admin',False):return self.sendjson({'error':'Administrator required'},403)
+   return self.sendjson(scan_usage_summary())
   if self.path=='/api/admin/analytics':
    if not self.gate():return
    if not getattr(request_scope,'admin',False):return self.sendjson({'error':'Administrator required'},403)
@@ -1635,6 +1660,7 @@ class Handler(SimpleHTTPRequestHandler):
     payload={'model':os.environ.get('PANTRY_SCAN_MODEL','gpt-4.1-mini'),'response_format':{'type':'json_object'},'messages':[{'role':'user','content':[{'type':'text','text':prompt},{'type':'image_url','image_url':{'url':'data:'+mime+';base64,'+photo,'detail':'high'}}]}],'max_tokens':1800}
     req=urllib.request.Request('https://api.openai.com/v1/chat/completions',data=json.dumps(payload).encode(),headers={'Authorization':'Bearer '+key,'Content-Type':'application/json'},method='POST')
     with urllib.request.urlopen(req,timeout=45) as response:result=json.load(response)
+    record_scan_usage(request_scope.user_id,payload['model'],result.get('usage') or {})
     parsed=json.loads(result['choices'][0]['message']['content'])
     allowed={'count','can','package','bag','pound','ounce','gram','kilogram','liter','milliliter','cup','bunch','head','loaf','dozen'}
     items=[]
