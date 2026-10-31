@@ -104,7 +104,9 @@ def analytics_summary():
   rows=c.execute("SELECT day,event,SUM(count),COUNT(DISTINCT user_id) FROM hg_analytics WHERE day>=date('now','-29 days') GROUP BY day,event").fetchall()
   registered=c.execute('SELECT COUNT(*) FROM hg_users').fetchone()[0]
   active=c.execute("SELECT COUNT(DISTINCT user_id) FROM hg_analytics WHERE day>=date('now','-29 days')").fetchone()[0]
-  return {'total_users':registered,'active_30d':active,'events':[{'day':r[0],'event':r[1],'count':r[2],'users':r[3]} for r in rows],'retention_days':30}
+  daily=c.execute("SELECT day,COUNT(DISTINCT user_id) FROM hg_analytics WHERE day>=date('now','-29 days') GROUP BY day ORDER BY day").fetchall()
+  weekly=c.execute("SELECT COUNT(DISTINCT user_id) FROM hg_analytics WHERE day>=date('now','-6 days')").fetchone()[0]
+  return {'total_users':registered,'active_30d':active,'active_7d':weekly,'daily_active':[{'day':d,'users':n} for d,n in daily],'events':[{'day':r[0],'event':r[1],'count':r[2],'users':r[3]} for r in rows],'retention_days':30}
 
 def pricing_visibility():
  with db() as c:
