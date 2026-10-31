@@ -78,6 +78,12 @@ def ensure_schema(conn: sqlite3.Connection) -> None:
     conn.execute("PRAGMA foreign_keys=ON")
     conn.executescript(SCHEMA)
     conn.execute("CREATE TABLE IF NOT EXISTS hg_settings (key TEXT PRIMARY KEY, value TEXT NOT NULL)")
+    conn.execute("""CREATE TABLE IF NOT EXISTS hg_email_verifications (
+        request_id INTEGER PRIMARY KEY REFERENCES hg_registration_requests(id) ON DELETE CASCADE,
+        token_hash TEXT NOT NULL UNIQUE,
+        expires_at TEXT NOT NULL,
+        sent_at TEXT NOT NULL
+    )""")
     # Additive migration: older installations already have hg_users.
     if not any(row[1] == "last_login_at" for row in conn.execute("PRAGMA table_info(hg_users)")):
         conn.execute("ALTER TABLE hg_users ADD COLUMN last_login_at TEXT")
@@ -256,6 +262,43 @@ def request_registration(conn, email, password, household_name):
         conn.execute("INSERT INTO hg_registration_requests(email,password_hash,household_name) VALUES(?,?,?)",
                      (email,hashed,household_name.strip()))
         conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+
+def issue_registration_verification(conn,email):
+    email=validate_email(email)
+    row=conn.execute("SELECT id FROM hg_registration_requests WHERE email=? AND status='pending'",(email,)).fetchone()
+    if not row: return None
+    request_id=row[0]
+    last=conn.execute("SELECT sent_at FROM hg_email_verifications WHERE request_id=?",(request_id,)).fetchone()
+    if last and (datetime.datetime.now(datetime.timezone.utc)-datetime.datetime.fromisoformat(last[0])).total_seconds()<60:
+        return None
+    token=secrets.token_urlsafe(32)
+    conn.execute("""INSERT INTO hg_email_verifications(request_id,token_hash,expires_at,sent_at)
+        VALUES(?,?,?,?) ON CONFLICT(request_id) DO UPDATE SET
+        token_hash=excluded.token_hash,expires_at=excluded.expires_at,sent_at=excluded.sent_at""",
+        (request_id,token_hash(token),expiry(24),now()))
+    return token
+
+def activate_verified_registration(conn,token):
+    if not isinstance(token,str) or len(token)>256 or len(token)<30:raise ValueError("Invalid verification link")
+    conn.execute("BEGIN IMMEDIATE")
+    try:
+        row=conn.execute("""SELECT r.id,r.email,r.password_hash,r.household_name
+            FROM hg_email_verifications v JOIN hg_registration_requests r ON r.id=v.request_id
+            WHERE v.token_hash=? AND v.expires_at>? AND r.status='pending'""",(token_hash(token),now())).fetchone()
+        if not row:raise ValueError("Verification link expired or already used. Request another email.")
+        if conn.execute("SELECT 1 FROM hg_users WHERE email=?",(row[1],)).fetchone():
+            raise ValueError("Account already exists")
+        uid=conn.execute("INSERT INTO hg_users(email,password_hash) VALUES(?,?)",(row[1],row[2])).lastrowid
+        hid=conn.execute("INSERT INTO hg_households(name) VALUES(?)",(row[3],)).lastrowid
+        conn.execute("INSERT INTO hg_memberships(user_id,household_id,role) VALUES(?,?,'owner')",(uid,hid))
+        conn.execute("INSERT INTO hg_household_state(household_id,payload) VALUES(?,?)",(hid,'{"selected":{},"list":[],"revision":0}'))
+        conn.execute("UPDATE hg_registration_requests SET status='approved',reviewed_at=?,password_hash='' WHERE id=?",(now(),row[0]))
+        conn.execute("DELETE FROM hg_email_verifications WHERE request_id=?",(row[0],))
+        conn.commit()
+        return uid
     except Exception:
         conn.rollback()
         raise
