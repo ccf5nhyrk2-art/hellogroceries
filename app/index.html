@@ -1767,14 +1767,27 @@ $('pantry-scan-start').onclick=async()=>{
  $('pantry-scan-results').hidden=true;
  scanStatus.textContent='Reading photo…';
  try{
-  const bitmap=await createImageBitmap(file);
-  const scale=Math.min(1,1600/Math.max(bitmap.width,bitmap.height));
-  const canvas=document.createElement('canvas');
-  canvas.width=Math.max(1,Math.round(bitmap.width*scale));
-  canvas.height=Math.max(1,Math.round(bitmap.height*scale));
-  canvas.getContext('2d').drawImage(bitmap,0,0,canvas.width,canvas.height);
-  bitmap.close();
-  const dataUrl=canvas.toDataURL('image/jpeg',0.8);
+  // Safari on iOS can reject createImageBitmap(File) for valid camera images.
+  // Decode through an HTML image, then normalize to JPEG before upload.
+  const objectUrl=URL.createObjectURL(file);
+  let photo;
+  try{
+   photo=await new Promise((resolve,reject)=>{
+    const img=new Image();
+    img.onload=()=>resolve(img);
+    img.onerror=()=>reject(new Error('This photo could not be opened. Try a JPEG or PNG image.'));
+    img.src=objectUrl;
+   });
+   const scale=Math.min(1,1600/Math.max(photo.naturalWidth,photo.naturalHeight));
+   const canvas=document.createElement('canvas');
+   canvas.width=Math.max(1,Math.round(photo.naturalWidth*scale));
+   canvas.height=Math.max(1,Math.round(photo.naturalHeight*scale));
+   const ctx=canvas.getContext('2d');
+   if(!ctx)throw new Error('Photo processing is unavailable in this browser.');
+   ctx.drawImage(photo,0,0,canvas.width,canvas.height);
+   var dataUrl=canvas.toDataURL('image/jpeg',0.8);
+   if(!dataUrl.startsWith('data:image/jpeg;base64,'))throw new Error('Could not prepare photo for scanning.');
+  }finally{URL.revokeObjectURL(objectUrl);}
   const token=document.cookie.match(/(?:^|; )hg_csrf=([^;]*)/);
   scanStatus.textContent='Identifying items…';
   const response=await fetch('/api/pantry/scan',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json','X-HG-CSRF':token?decodeURIComponent(token[1]):''},body:JSON.stringify({mode:$('pantry-scan-mode').value,mime:'image/jpeg',image:dataUrl.split(',')[1]})});
@@ -1794,7 +1807,7 @@ $('pantry-scan-start').onclick=async()=>{
   }
   $('pantry-scan-results').hidden=!scannedPantryItems.length;
   scanStatus.textContent=scannedPantryItems.length?scannedPantryItems.length+' items found. Review and confirm below.':'No items detected. Try a clearer photo.';
- }catch(error){scanStatus.textContent=error.message}
+ }catch(error){scanStatus.textContent=error instanceof TypeError?'Could not contact the scanner. Check your connection and try again.':(error.message||'Unable to scan this photo. Please try again.')}
  finally{$('pantry-scan-start').disabled=false}
 };
 $('pantry-scan-cancel').onclick=()=>{$('pantry-scan-results').hidden=true;scannedPantryItems=[];scanStatus.textContent='Scan cancelled.'};
