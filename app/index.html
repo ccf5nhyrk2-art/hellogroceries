@@ -381,10 +381,10 @@ const pageSpecs=[
  ['my-recipes','My Recipes',document.getElementById('my-recipes')],
  ['selected-meals','Selected Meals',document.getElementById('selected-plan')],
  ['imports','Import recipes',second.querySelector('.import-tools')],
- ['planner','Weekly planner',second.querySelector('.enhance-panel:has(#week-grid)')],
- ['pantry','Pantry',second.querySelector('.enhance-panel:has(#pantry-items)')],
- ['shopping','Shopping list',second.querySelector('h2')&&[...second.children].find(x=>x.tagName==='H2'&&x.textContent.trim()==='Shopping list')]
-].filter(([key,label,node])=>key==='all'||node);
+ ['planner','Weekly planner',document.getElementById('week-grid')?.closest('.enhance-panel')],
+ ['pantry','Pantry',document.getElementById('pantry-items')?.closest('.enhance-panel')],
+ ['shopping','Shopping list',[...second.querySelectorAll('h2')].find(x=>x.textContent.trim()==='Shopping list')]
+];
 const toolbar=document.querySelector('.shopping-view-toolbar');
 const previousButton=document.getElementById('shopping-focus-toggle');
 // The legacy shopping shortcut remains functional alongside the page tabs.
