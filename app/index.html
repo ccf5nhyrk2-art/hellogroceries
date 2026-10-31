@@ -2528,15 +2528,15 @@ html[data-theme="dark"] #hg-tour-card{background:#1b2023;color:#f0f4f2}
 <script>
 (function(){
 const steps=[
- ['Welcome to HelloGroceries','Plan meals, manage your pantry, and build a grocery list in one place. Here’s a quick tour.'],
- ['Find recipes','Browse recipes and discover meals that work for your household.'],
- ['Create your first collection','Collections organize recipes into folders such as Quick Dinners or Family Favorites. Type a name below, then tap Create collection. You can add recipes to it afterward.'],
- ['Plan your meals','Choose dinners for the week and keep your selected meals together.'],
- ['Open your shopping list','Click Shopping List to review what you need and check off items as you shop.'],
- ['Generate your shopping list','Click Generate Shopping List in Shop to build your list from selected meals. Review your selections before generating.'],
- ['Keep your pantry updated','Add ingredients you already have so your grocery planning stays organized.'],
- ['Compare grocery prices','Check available store pricing to help plan your shopping. Prices and availability can vary.'],
- ['You’re ready!','Start with recipes or your weekly plan. You can replay this walkthrough anytime.']
+ ['Welcome to HelloGroceries','Set up your household in a few quick steps. You can skip any optional step.'],
+ ['Explore recipes','Tap Recipes below to explore meals your household might enjoy.'],
+ ['Organize your recipes','Name a collection below, such as Family Favorites. You can save recipes to it later.'],
+ ['Plan your week','Open Plan and choose meals for the days you want to cook.'],
+ ['Your shopping list','Open Shop to see your list and check off items as you shop.'],
+ ['Build your grocery list','When your meals are ready, use Generate Shopping List. This changes your list, so it is optional.'],
+ ['Check your pantry','Track ingredients you already have to keep your shopping organized.'],
+ ['Compare store prices','Explore available store prices before shopping. Prices and availability can change.'],
+ ['You’re ready!','✓ Explore recipes  ✓ Organize collections  ✓ Plan meals  ✓ Shop smarter. Find this tour again in More → Replay walkthrough.']
 ];
 const overlay=document.getElementById('hg-tour-overlay');
 const next=document.getElementById('hg-tour-next');
@@ -2552,9 +2552,9 @@ skip.addEventListener('click',close);
 overlay.addEventListener('keydown',e=>{if(e.key==='Escape'){e.preventDefault();close()}if(e.key==='Tab'){const controls=[skip,...(back.hidden?[]:[back]),next];const i=controls.indexOf(document.activeElement);if(e.shiftKey&&i===0){e.preventDefault();next.focus()}else if(!e.shiftKey&&i===controls.length-1){e.preventDefault();skip.focus()}}});
 fetch('/api/auth/status',{credentials:'same-origin',cache:'no-store'}).then(r=>r.json()).then(status=>{
  if(!status.authenticated||!status.email)return;
- key='hg-onboarding-v1:'+status.email.toLowerCase();
+ key='hg-onboarding-v2:'+status.email.toLowerCase();
  const replay=document.getElementById('mobile-replay-tour');if(replay){replay.addEventListener('click',()=>{const sheet=document.querySelector('.mobile-more-backdrop');if(sheet){sheet.hidden=true;sheet.classList.remove('open','active','show');}open()});}
- try{if(localStorage.getItem(key)!=='done')setTimeout(open,550)}catch(e){/* Storage unavailable; manual replay still works */}
+ try{if(localStorage.getItem(key)!=='done')setTimeout(()=>{if(overlay.hidden)open()},850)}catch(e){setTimeout(()=>{if(overlay.hidden)open()},850)}
 }).catch(()=>{});
 })();
 </script><style>
@@ -2609,13 +2609,13 @@ body:has(#hg-tour-overlay:not([hidden])) #hg-tour-replay{display:none!important}
   hint.textContent=highlighted?'Tap the glowing button to continue. You can also use Next.':'Tap Next to continue.';
   collectionForm.hidden=step!==2;
   if(step===2){
-   hint.textContent='Create a collection here, or continue if you already have one.';
+   hint.textContent='Create a collection to try it, or tap Next if you already have one.';
    const hasCollections=document.getElementById('collection-filter')?.options.length>1;
    next.disabled=!hasCollections;next.title=hasCollections?'Continue with your existing collection':'Create a collection to continue';
   }else{next.disabled=false;next.title=''}
-  if(step===5)hint.textContent='Generating changes your shopping list. Tap Next to continue safely.';
-  if(step===7&&!highlighted)hint.textContent='Nearby stores is available in More. Tap Next to continue.';
-  next.textContent=step===8?'Get started':'Next';
+  if(step===5)hint.textContent='Optional: review your meals first. Tap Next without generating anything.';
+  if(step===7&&!highlighted)hint.textContent='Find store comparisons under More. Tap Next to continue.';
+  next.textContent=step===8?'Start planning':step===2&&next.disabled?'Create collection first':'Next';
  }
  function update(){
   if(overlay.hidden){clear();return}
