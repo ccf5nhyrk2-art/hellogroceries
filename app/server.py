@@ -97,7 +97,9 @@ def analytics_record(user_id,event):
    c.execute("DELETE FROM hg_analytics WHERE day < date('now','-30 days')")
    c.execute("INSERT INTO hg_analytics(day,user_id,event,count) VALUES (date('now'),?,?,1) ON CONFLICT(day,user_id,event) DO UPDATE SET count=count+1",(user_id,event))
    c.commit()
- except sqlite3.Error:pass
+ except sqlite3.Error as exc:
+  print('Analytics database write failed:',repr(exc),file=sys.stderr)
+  raise
 def analytics_summary():
  with db() as c:
   c.execute('CREATE TABLE IF NOT EXISTS hg_analytics (day TEXT NOT NULL,user_id INTEGER NOT NULL,event TEXT NOT NULL,count INTEGER NOT NULL DEFAULT 1,PRIMARY KEY(day,user_id,event))')
@@ -1558,6 +1560,8 @@ class Handler(SimpleHTTPRequestHandler):
     if event not in ANALYTICS_EVENTS:raise ValueError('Invalid event')
     analytics_record(request_scope.user_id,event)
     return self.sendjson({'ok':True})
+   except sqlite3.Error:
+    return self.sendjson({'error':'Analytics storage unavailable'},503)
    except (ValueError,TypeError,AttributeError):return self.sendjson({'error':'Invalid event'},400)
   if self.path=='/api/admin/pricing-visibility':
    if not self.gate(write=True):return
