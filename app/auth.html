@@ -38,7 +38,7 @@ html[data-theme="dark"] .mobile-bottom-nav .mobile-tab-active{background:#30363b
 html[data-theme="dark"] .button-secondary,html[data-theme="dark"] button.clear,html[data-theme="dark"] .photo-edit{background:#30363b!important;color:#f0f4f5!important;border-color:#535b62!important}
 html[data-theme="dark"] #hg-theme-toggle{background:#30363b!important;border-color:#59636a!important;color:#f2f4f5!important}
 </style><script>(function(){try{var t=localStorage.getItem('hg-theme');document.documentElement.dataset.theme=t==='dark'||(t!=='light'&&matchMedia('(prefers-color-scheme: dark)').matches)?'dark':'light'}catch(e){document.documentElement.dataset.theme='light'}})();</script></head>
-<body><main><h1>HelloGroceries</h1><p id="mode">Checking your account…</p><form id="form" hidden><input type="email" id="email" placeholder="Email" autocomplete="email" required><input type="password" id="password" placeholder="Password (12+ characters)" autocomplete="new-password" required minlength="12"><section id="household-section" hidden><input id="household" placeholder="Household name" maxlength="80"></section><button id="submit">Continue</button></form><p id="error" role="alert"></p><p id="switch" hidden><button type="button" id="toggle">Request an account</button></p></main>
+<body><main><h1>HelloGroceries</h1><p id="mode">Checking your account…</p><form id="form" hidden><input type="email" id="email" placeholder="Email" autocomplete="email" required><input type="password" id="password" placeholder="Password (12+ characters)" autocomplete="new-password" required minlength="12"><section id="household-section" hidden><input id="household" placeholder="Household name" maxlength="80"></section><section id="setup-token-section" hidden><input type="password" id="setup-token" placeholder="One-time setup token" autocomplete="off" minlength="32"><small>Enter the private HG_SETUP_TOKEN configured in your staging Docker Compose.</small></section><button id="submit">Continue</button></form><p id="error" role="alert"></p><p id="switch" hidden><button type="button" id="toggle">Request an account</button></p></main>
 <script>
 const $=id=>document.getElementById(id);
 const fragment=new URLSearchParams(location.hash.slice(1));
@@ -52,6 +52,8 @@ async function initialize(){
   mode=invite?'redeem':s.setup_required?'setup':'login';
   $('mode').textContent={redeem:'Accept your household invitation',setup:'Create the first administrator account',login:'Sign in to your household'}[mode];
   $('household-section').hidden=mode==='login';
+  $('setup-token-section').hidden=mode!=='setup';
+  $('setup-token').required=mode==='setup';
   $('switch').hidden=mode==='setup'||mode==='redeem';
   $('password').autocomplete=mode==='login'?'current-password':'new-password';
   $('form').hidden=false;
@@ -62,6 +64,7 @@ $('form').onsubmit=async e=>{
  const data={email:$('email').value,password:$('password').value};
  if(mode!=='login')data.household=$('household').value;
  if(mode==='redeem')data.token=invite;
+ if(mode==='setup')data.setup_token=$('setup-token').value;
  const endpoint={redeem:'/api/auth/redeem',setup:'/api/auth/setup',login:'/api/auth/login',register:'/api/auth/register'}[mode];
  try{
   const r=await fetch(endpoint,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
