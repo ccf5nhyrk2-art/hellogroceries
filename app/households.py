@@ -84,9 +84,28 @@ def ensure_schema(conn: sqlite3.Connection) -> None:
         expires_at TEXT NOT NULL,
         sent_at TEXT NOT NULL
     )""")
+    conn.execute("CREATE TABLE IF NOT EXISTS hg_blocked_emails (email TEXT PRIMARY KEY COLLATE NOCASE, blocked_at TEXT NOT NULL, blocked_by INTEGER)")
     # Additive migration: older installations already have hg_users.
     if not any(row[1] == "last_login_at" for row in conn.execute("PRAGMA table_info(hg_users)")):
         conn.execute("ALTER TABLE hg_users ADD COLUMN last_login_at TEXT")
+
+def assert_registration_allowed(conn,email):
+    email=validate_email(email)
+    if conn.execute("SELECT 1 FROM hg_blocked_emails WHERE email=?",(email,)).fetchone():
+        raise ValueError("Registration is unavailable for this email")
+    return email
+
+def blocked_emails(conn,admin_id):
+    if not conn.execute("SELECT 1 FROM hg_users WHERE id=? AND is_instance_admin=1",(admin_id,)).fetchone():
+        raise PermissionError("Administrator required")
+    return [dict(email=r[0],blocked_at=r[1]) for r in conn.execute("SELECT email,blocked_at FROM hg_blocked_emails ORDER BY blocked_at DESC")]
+
+def unblock_email(conn,admin_id,email):
+    email=validate_email(email)
+    if not conn.execute("SELECT 1 FROM hg_users WHERE id=? AND is_instance_admin=1",(admin_id,)).fetchone():
+        raise PermissionError("Administrator required")
+    conn.execute("DELETE FROM hg_blocked_emails WHERE email=?",(email,))
+    conn.commit()
 
 def instance_needs_setup(conn: sqlite3.Connection) -> bool:
     ensure_schema(conn)
@@ -205,6 +224,7 @@ def household_access(conn, user_id, household_id):
 
 def issue_invite(conn, admin_id, email, household_id=None):
     email = validate_email(email)
+    assert_registration_allowed(conn,email)
     admin = conn.execute("SELECT is_instance_admin FROM hg_users WHERE id=?", (admin_id,)).fetchone()
     if not admin or not admin[0]:
         raise PermissionError("Only an instance administrator may invite")
@@ -224,6 +244,7 @@ def redeem_invite(conn, token, email, password, new_household=None):
             SELECT id,household_id,email FROM hg_invitations
             WHERE token_hash=? AND redeemed_at IS NULL AND revoked_at IS NULL AND expires_at>?
         """, (token_hash(token), now())).fetchone()
+        assert_registration_allowed(conn,email)
         if not invite or invite[2] != email:
             raise ValueError("Invalid, expired or already-used invitation")
         if conn.execute("SELECT 1 FROM hg_users WHERE email=?", (email,)).fetchone():
@@ -254,6 +275,7 @@ def request_registration(conn, email, password, household_name):
     hashed = password_hash(password)
     conn.execute("BEGIN IMMEDIATE")
     try:
+        assert_registration_allowed(conn,email)
         if conn.execute("SELECT 1 FROM hg_users WHERE email=?", (email,)).fetchone():
             raise ValueError("Registration cannot be completed for this email")
         row=conn.execute("SELECT status FROM hg_registration_requests WHERE email=?", (email,)).fetchone()
@@ -268,6 +290,7 @@ def request_registration(conn, email, password, household_name):
 
 def issue_registration_verification(conn,email):
     email=validate_email(email)
+    if conn.execute("SELECT 1 FROM hg_blocked_emails WHERE email=?",(email,)).fetchone():return None
     row=conn.execute("SELECT id FROM hg_registration_requests WHERE email=? AND status='pending'",(email,)).fetchone()
     if not row: return None
     request_id=row[0]
@@ -289,6 +312,7 @@ def activate_verified_registration(conn,token):
             FROM hg_email_verifications v JOIN hg_registration_requests r ON r.id=v.request_id
             WHERE v.token_hash=? AND v.expires_at>? AND r.status='pending'""",(token_hash(token),now())).fetchone()
         if not row:raise ValueError("Verification link expired or already used. Request another email.")
+        assert_registration_allowed(conn,row[1])
         if conn.execute("SELECT 1 FROM hg_users WHERE email=?",(row[1],)).fetchone():
             raise ValueError("Account already exists")
         uid=conn.execute("INSERT INTO hg_users(email,password_hash) VALUES(?,?)",(row[1],row[2])).lastrowid
@@ -354,18 +378,22 @@ def list_accounts(conn, admin_id):
                  session_started_at=by_user[r[0]][2] if r[0] in by_user else None,
                  session_expires_at=by_user[r[0]][3] if r[0] in by_user else None) for r in rows]
 
-def remove_account(conn, admin_id, user_id):
-    if type(user_id) is not int or user_id < 1:
-        raise ValueError("Invalid account ID")
+def remove_account(conn, admin_id, user_id, block_future=False):
+    if type(user_id) is not int or user_id < 1 or type(block_future) is not bool:
+        raise ValueError("Invalid account removal request")
     conn.execute("BEGIN IMMEDIATE")
     try:
         if not conn.execute("SELECT 1 FROM hg_users WHERE id=? AND is_instance_admin=1",(admin_id,)).fetchone():
             raise PermissionError("Administrator required")
         if user_id == admin_id:
             raise ValueError("You cannot remove your own administrator account")
-        row=conn.execute("SELECT is_instance_admin FROM hg_users WHERE id=?",(user_id,)).fetchone()
+        row=conn.execute("SELECT is_instance_admin,email FROM hg_users WHERE id=?",(user_id,)).fetchone()
         if row is None:raise ValueError("Account not found")
         if row[0]:raise ValueError("The instance administrator cannot be removed")
+        if block_future:
+            conn.execute("INSERT OR REPLACE INTO hg_blocked_emails(email,blocked_at,blocked_by) VALUES(?,?,?)",(row[1],now(),admin_id))
+            conn.execute("DELETE FROM hg_registration_requests WHERE email=?",(row[1],))
+            conn.execute("DELETE FROM hg_invitations WHERE email=?",(row[1],))
         # Do not cascade-delete household state: removing a login must not destroy
         # someone's grocery lists, pantry or other household data.
         conn.execute("DELETE FROM hg_memberships WHERE user_id=?",(user_id,))
