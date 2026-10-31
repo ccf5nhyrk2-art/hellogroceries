@@ -1,0 +1,17 @@
+# Staging only. Run from a separate checkout of the develop branch.
+# Never point this volume at production's ./data or /data directory.
+services:
+  hellogroceries-staging:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: hellogroceries:staging-local
+    container_name: hellogroceries-staging
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${STAGING_HOST_PORT:-8089}:8080"
+    environment:
+      OPENAI_API_KEY: ${STAGING_OPENAI_API_KEY:-}
+      PANTRY_SCAN_MODEL: ${PANTRY_SCAN_MODEL:-gpt-4.1-mini}
+    volumes:
+      - ./staging-data:/data
