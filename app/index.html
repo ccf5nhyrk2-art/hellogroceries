@@ -1767,27 +1767,28 @@ $('pantry-scan-start').onclick=async()=>{
  $('pantry-scan-results').hidden=true;
  scanStatus.textContent='Reading photo…';
  try{
-  // Safari on iOS can reject createImageBitmap(File) for valid camera images.
-  // Decode through an HTML image, then normalize to JPEG before upload.
-  const objectUrl=URL.createObjectURL(file);
-  let photo;
-  try{
-   photo=await new Promise((resolve,reject)=>{
-    const img=new Image();
-    img.onload=()=>resolve(img);
-    img.onerror=()=>reject(new Error('This photo could not be opened. Try a JPEG or PNG image.'));
-    img.src=objectUrl;
-   });
-   const scale=Math.min(1,1600/Math.max(photo.naturalWidth,photo.naturalHeight));
-   const canvas=document.createElement('canvas');
-   canvas.width=Math.max(1,Math.round(photo.naturalWidth*scale));
-   canvas.height=Math.max(1,Math.round(photo.naturalHeight*scale));
-   const ctx=canvas.getContext('2d');
-   if(!ctx)throw new Error('Photo processing is unavailable in this browser.');
-   ctx.drawImage(photo,0,0,canvas.width,canvas.height);
-   var dataUrl=canvas.toDataURL('image/jpeg',0.8);
-   if(!dataUrl.startsWith('data:image/jpeg;base64,'))throw new Error('Could not prepare photo for scanning.');
-  }finally{URL.revokeObjectURL(objectUrl);}
+  const source=await new Promise((resolve,reject)=>{
+   const reader=new FileReader();
+   reader.onload=()=>resolve(reader.result);
+   reader.onerror=()=>reject(new Error('Unable to read this photo.'));
+   reader.readAsDataURL(file);
+  });
+  if(typeof source!=='string'||!source.startsWith('data:image/'))throw new Error('Choose a supported image file.');
+  const photo=await new Promise((resolve,reject)=>{
+   const img=new Image();
+   img.onload=()=>resolve(img);
+   img.onerror=()=>reject(new Error('This photo could not be opened. Try a JPEG or PNG image.'));
+   img.src=source;
+  });
+  const scale=Math.min(1,1600/Math.max(photo.naturalWidth,photo.naturalHeight));
+  const canvas=document.createElement('canvas');
+  canvas.width=Math.max(1,Math.round(photo.naturalWidth*scale));
+  canvas.height=Math.max(1,Math.round(photo.naturalHeight*scale));
+  const ctx=canvas.getContext('2d');
+  if(!ctx)throw new Error('Photo processing is unavailable in this browser.');
+  ctx.drawImage(photo,0,0,canvas.width,canvas.height);
+  const dataUrl=canvas.toDataURL('image/jpeg',0.8);
+  if(!dataUrl.startsWith('data:image/jpeg;base64,'))throw new Error('Could not prepare photo for scanning.');
   const token=document.cookie.match(/(?:^|; )hg_csrf=([^;]*)/);
   scanStatus.textContent='Identifying items…';
   const response=await fetch('/api/pantry/scan',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json','X-HG-CSRF':token?decodeURIComponent(token[1]):''},body:JSON.stringify({mode:$('pantry-scan-mode').value,mime:'image/jpeg',image:dataUrl.split(',')[1]})});
