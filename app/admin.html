@@ -186,12 +186,15 @@ function renderAccounts(){
   tag.textContent=account.admin?'Administrator':account.last_login_at?'Member':'Not signed in yet';badges.append(tag);if(account.active_sessions){const live=document.createElement('span');live.className='tag admin';live.textContent='Signed in ('+account.active_sessions+')';badges.append(live)}
   main.append(email,meta,badges);card.append(main);
   if(!account.admin){
+   const blockLabel=document.createElement('label');blockLabel.style.cssText='display:flex;align-items:center;gap:8px;font-size:13px;margin:8px 0';
+   const blockCheck=document.createElement('input');blockCheck.type='checkbox';blockCheck.style.width='auto';blockLabel.append(blockCheck,document.createTextNode('Block future registration with this email'));
+   card.append(blockLabel);
    const remove=document.createElement('button');remove.type='button';remove.className='button-danger';remove.textContent='Remove account';remove.setAttribute('aria-label','Remove '+account.email);
    remove.onclick=async()=>{
-    if(!confirm('Remove '+account.email+'? Active sessions will be revoked; household data will be retained.'))return;
+    if(!confirm('Remove '+account.email+'? Active sessions will be revoked; household data will be retained.'+(blockCheck.checked?' This email will also be blocked from future registration and invitations.':'')))return;
     remove.disabled=true;
     try{
-     const response=await fetch('/api/auth/remove-account',{method:'POST',headers:{'Content-Type':'application/json','X-HG-CSRF':csrf()},body:JSON.stringify({id:account.id})});
+     const response=await fetch('/api/auth/remove-account',{method:'POST',headers:{'Content-Type':'application/json','X-HG-CSRF':csrf()},body:JSON.stringify({id:account.id,block_future:blockCheck.checked})});
      const result=await response.json();if(!response.ok)throw Error(result.error||'Unable to remove account');
      await loadAccounts();
     }catch(e){alert(e.message);remove.disabled=false}
@@ -201,6 +204,30 @@ function renderAccounts(){
   el.append(card);
  }
 }
+async function loadBlockedEmails(){
+ const host=document.getElementById('blocked-email-list');if(!host)return;
+ try{
+  const response=await fetch('/api/auth/blocked-emails',{cache:'no-store'}),data=await response.json();
+  if(!response.ok)throw Error(data.error||'Unable to load blocked emails');
+  host.replaceChildren();
+  if(!data.blocked?.length){host.textContent='No blocked email addresses.';return}
+  for(const entry of data.blocked){
+   const row=document.createElement('div');row.style.cssText='display:flex;gap:10px;align-items:center;justify-content:space-between;margin:8px 0';
+   const name=document.createElement('span');name.textContent=entry.email;
+   const button=document.createElement('button');button.type='button';button.textContent='Unblock';button.className='clear';
+   button.onclick=async()=>{
+    if(!confirm('Allow '+entry.email+' to register again?'))return;
+    button.disabled=true;
+    try{
+     const response=await fetch('/api/auth/unblock-email',{method:'POST',headers:{'Content-Type':'application/json','X-HG-CSRF':csrf()},body:JSON.stringify({email:entry.email})});
+     const result=await response.json();if(!response.ok)throw Error(result.error||'Unable to unblock');
+     await loadBlockedEmails();
+    }catch(e){alert(e.message);button.disabled=false}
+   };
+   row.append(name,button);host.append(row);
+  }
+ }catch(e){host.textContent=e.message}
+}
 async function loadAccounts(){
  const el=document.getElementById('accounts');
  try{
@@ -208,6 +235,7 @@ async function loadAccounts(){
   if(!response.ok)throw Error(data.error||'Unable to load accounts');
   cachedAccounts=Array.isArray(data.accounts)?data.accounts:[];
   renderAccounts();
+  await loadBlockedEmails();
  }catch(e){el.textContent=e.message;$('account-count').textContent=''}
 }
 $('account-search').addEventListener('input',renderAccounts);
