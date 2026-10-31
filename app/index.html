@@ -2443,7 +2443,8 @@ async function saveNamedCollection(name){
  document.dispatchEvent(new CustomEvent('hg:collection-saved',{detail:{name}}));
  return true;
 }
-$('create-collection').onclick=async()=>{try{await saveNamedCollection($('new-collection').value)}catch(e){$('error').textContent='Could not save collection: '+(e.message||e)}};
+window.hgSaveNamedCollection=saveNamedCollection;
+ $('create-collection').onclick=async()=>{try{await saveNamedCollection($('new-collection').value)}catch(e){$('error').textContent='Could not save collection: '+(e.message||e)}};
 $('week-grid').addEventListener('change',async e=>{if(!e.target.dataset.week)return;const weekly={...(state.weekly||{})};weekly[e.target.dataset.week]=e.target.value?Number(e.target.value):null;await preferences({weekly})});
 $('week-apply').onclick=async()=>{previousWeek={...(state.weekly||{})};await preferences({previous_week:previousWeek});const selected={};for(const id of Object.values(state.weekly||{}))if(id)selected[String(id)]=1;for(const [id,scale] of Object.entries(state.selected||{}))if(!Object.hasOwn(selected,id))await action({action:'select',id:Number(id),checked:false,servings:1});for(const id of Object.keys(selected))await action({action:'select',id:Number(id),checked:true,servings:1});await action({action:'generate'})};
 $('week-copy').onclick=async()=>{const last=state.previous_week||previousWeek;if(!Object.keys(last).length){$('error').textContent='Apply a week first, then you can copy it again';return}await preferences({weekly:last})};
@@ -2611,30 +2612,23 @@ body:has(#hg-tour-overlay:not([hidden])) #hg-tour-replay{display:none!important}
  function placeGenerate(active){if(!shop||!shopHome)return;if(active){shopSlot.hidden=false;if(shop.parentNode!==shopSlot)shopSlot.appendChild(shop)}else{shopSlot.hidden=true;if(shop.parentNode===shopSlot)shopHome.insertBefore(shop,shopNext)}}
  const hint=document.createElement('div');hint.id='hg-tour-hint';card.insertBefore(hint,document.getElementById('hg-tour-actions'));
  const collectionForm=document.getElementById('hg-tour-collection'),collectionInput=document.getElementById('hg-tour-collection-name'),collectionButton=document.getElementById('hg-tour-create-collection'),collectionStatus=document.getElementById('hg-tour-collection-status');
- collectionButton.addEventListener('click',async()=>{
-  if(overlay.hidden||window.hgTourIndex?.()!==2||collectionButton.disabled)return;
+ let collectionSaving=false;
+ async function submitTourCollection(){
+  if(overlay.hidden||window.hgTourIndex?.()!==2||collectionSaving)return;
   const name=collectionInput.value.trim();
   if(!name){collectionStatus.textContent='Enter a collection name first.';collectionInput.focus();return}
-  collectionButton.disabled=true;
-  collectionStatus.textContent='Saving collection…';
+  collectionSaving=true;collectionButton.disabled=true;collectionButton.textContent='Creating…';collectionStatus.textContent='Saving collection…';
   try{
-   await saveNamedCollection(name);
-   // hg:collection-saved advances the tour only after persistence succeeds.
-  }catch(e){
-   collectionStatus.textContent='Could not save collection: '+(e.message||'Please try again.');
-   collectionButton.disabled=false;
-  }
- });
- // On iOS Safari the first tap while the keyboard is open can only blur the input.
- // Handle the touch at pointer-down so the save runs on the first intentional tap.
- collectionButton.addEventListener('pointerdown',e=>{
-  if(e.pointerType!=='touch'||overlay.hidden||step!==2||collectionButton.disabled)return;
-  if(document.activeElement===collectionInput){
-   e.preventDefault();
-   collectionButton.click();
-  }
- });
- collectionInput.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();collectionButton.click()}});
+   const saved=await window.hgSaveNamedCollection(name);
+   if(!saved)throw new Error('Collection name is required');
+   collectionStatus.textContent='✓ Collection “'+name+'” saved!';
+   tourCompleted.add(2);hint.textContent='Collection saved! Moving to Plan your week…';
+   collectionInput.value='';window.hgTourAdvance?.(2);
+  }catch(e){collectionStatus.textContent='Could not save collection: '+(e.message||'Please try again.')}
+  finally{collectionSaving=false;collectionButton.disabled=false;collectionButton.textContent='Create collection'}
+ }
+ collectionButton.addEventListener('click',submitTourCollection);
+ collectionInput.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();submitTourCollection()}});
  const selectors=[null,'[data-page="recipes"]','#new-collection','[data-page="planner"]','[data-page="shopping"]','#shop-generate-tour','[data-page="pantry"]','[data-page="stores"]',null];
  let highlighted=null,step=-1,advancing=false;
  const visible=el=>el&&el.getClientRects().length>0&&getComputedStyle(el).visibility!=='hidden';
@@ -2729,17 +2723,6 @@ body:has(#hg-tour-overlay:not([hidden])) #hg-tour-replay{display:none!important}
  // The Next and Back buttons remain available for optional steps.
  // Highlighted controls remain usable; a successful tap advances the walkthrough.
  // The Next and Back buttons remain available for optional steps.
- // Advance only when the real save promise has completed.
- document.addEventListener('hg:collection-saved',event=>{
-  if(overlay.hidden||window.hgTourIndex?.()!==2)return;
-  const name=event.detail?.name||'Your collection';
-  tourCompleted.add(2);
-  collectionStatus.textContent='✓ Collection “'+name+'” saved!';
-  hint.textContent='Collection saved! Moving to Plan your week…';
-  collectionButton.disabled=false;
-  collectionInput.value='';
-  setTimeout(()=>{if(!overlay.hidden)window.hgTourAdvance?.(2)},450);
- });
  window.addEventListener('resize',()=>{if(!overlay.hidden)position()});
  function fitKeyboard(){
   if(overlay.hidden){card.style.removeProperty('bottom');card.style.removeProperty('max-height');return}
