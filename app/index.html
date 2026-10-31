@@ -619,7 +619,9 @@ function renderStoreResults(data){
  const root=$('store-results'),stores=data.stores||[],preferred=getPreferredStore();
  nearbyStoreResults=stores;
  const header='<div class="muted store-finder-intro" style="margin:10px 0">Select a store to make it your preferred location. Check weekly ads for local offers.</div>';
- const ordered=stores.map((store,i)=>({store,i})).sort((a,b)=>Number(!!(preferred&&storeKey(preferred)===storeKey(b.store)))-Number(!!(preferred&&storeKey(preferred)===storeKey(a.store)))).slice(0,5);
+ const radius=Number(data.radius_miles||$('store-radius').value||5);
+ const limit=radius<=5?5:radius<=10?10:radius<=15?15:radius<=20?20:25;
+ const ordered=stores.map((store,i)=>({store,i})).sort((a,b)=>Number(!!(preferred&&storeKey(preferred)===storeKey(b.store)))-Number(!!(preferred&&storeKey(preferred)===storeKey(a.store)))).slice(0,limit);
  root.innerHTML=header+(stores.length?ordered.map(({store:x,i})=>{
   const selected=preferred&&storeKey(preferred)===storeKey(x);
   const address=x.address||'';
@@ -636,7 +638,7 @@ function renderStoreResults(data){
  }).join(''):'No matching stores found within the selected distance. Store directory coverage may be incomplete.');
  const boundary=stores.filter(x=>x.outside_radius).length;
  const status=$('store-status');
- status.textContent=(stores.length?Math.min(stores.length,5)+' of '+stores.length:0)+' grocery stores shown near '+data.zip+' · '+(data.radius_miles||10)+'-mile search'+(boundary?' · '+boundary+' near boundary':'')+(data.stale?' · saved results':'');
+ status.textContent=(stores.length?Math.min(stores.length,limit)+' of '+stores.length:0)+' grocery stores shown near '+data.zip+' · '+(data.radius_miles||10)+'-mile search'+(boundary?' · '+boundary+' near boundary':'')+(data.stale?' · saved results':'');
  let diagnostics=document.getElementById('store-diagnostics');
  if(!diagnostics){
   diagnostics=document.createElement('details');
