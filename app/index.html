@@ -91,6 +91,17 @@
  #store-results .store-location-links a{padding:7px 9px!important}
  #store-results .store-location-card>button{min-height:38px!important;padding:8px 10px!important;font-size:12px!important}
 }
+/* Keep standalone sections out of unrelated mobile tabs. */
+@media(max-width:750px){
+ body[data-active-page="shopping"] #shop-sales,
+ body[data-active-page="shopping"] #my-recipes,
+ body[data-active-page="shopping"] #selected-plan,
+ body[data-active-page="shopping"] #week-grid,
+ body[data-active-page="shopping"] #pantry-items,
+ body[data-active-page="recipes"] #shop-sales,
+ body[data-active-page="recipes"] #my-recipes,
+ body[data-active-page="recipes"] #selected-plan{display:none!important}
+}
 /* Shopping price summary belongs to Shopping, never the Pantry view. */
 body[data-active-page="pantry"] #shopping-price-summary{display:none!important}
 /* Role-based shopping simplification: pricing data remains untouched. */
@@ -551,7 +562,24 @@ function showPage(key){
    }
   }
   for(const child of main.children)if(child!==toolbar&&!path.has(child))conceal(child);
-  // Recipes targets the whole first section; explicitly hide nested store tools.
+  // Enforce page boundaries even when sections contain legacy tools and dynamic content.
+ // The shopping page starts at its Shopping list heading; preceding panels belong to other pages.
+ if(key==='shopping'){
+  conceal(first);
+  const heading=target;
+  if(heading){
+   let beforeShopping=true;
+   for(const child of [...second.children]){
+    if(child===heading){beforeShopping=false;continue}
+    if(beforeShopping)conceal(child);
+   }
+  }
+ }
+ // The Recipes page must never contain standalone store, pantry, or planner panels.
+ if(key==='recipes'){
+  for(const panel of first.querySelectorAll('#shop-sales,#my-recipes,#selected-plan'))conceal(panel);
+ }
+ // Recipes targets the whole first section; explicitly hide nested store tools.
   if(key==='recipes'){
    // These panels live inside the Recipes section but have dedicated tabs.
    for(const id of ['shop-sales','my-recipes','selected-plan'])conceal(document.getElementById(id));
