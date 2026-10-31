@@ -1819,8 +1819,23 @@ function renderPantryScanReview(){
   $('pantry-scan-results').hidden=!scannedPantryItems.length;
 
 }
+let barcodeLibraryPromise=null;
+function loadBarcodeLibrary(){
+ if(window.ZXingBrowser?.BrowserMultiFormatReader)return Promise.resolve();
+ if(barcodeLibraryPromise)return barcodeLibraryPromise;
+ barcodeLibraryPromise=new Promise((resolve,reject)=>{
+  const script=document.createElement('script');
+  script.src='https://cdn.jsdelivr.net/npm/@zxing/browser@0.1.5/umd/zxing-browser.min.js';
+  script.onload=()=>window.ZXingBrowser?.BrowserMultiFormatReader?resolve():reject(new Error('Barcode scanner library unavailable'));
+  script.onerror=()=>reject(new Error('Unable to load barcode scanner'));
+  document.head.append(script);
+ }).catch(error=>{barcodeLibraryPromise=null;throw error});
+ return barcodeLibraryPromise;
+}
+let barcodeReaderControls=null;
 let barcodeStream=null,barcodeTimer=null,barcodeBusy=false;
 async function stopBarcodeCamera(){
+ if(barcodeReaderControls){barcodeReaderControls.stop();barcodeReaderControls=null}
  if(barcodeTimer){clearInterval(barcodeTimer);barcodeTimer=null}
  if(barcodeStream){barcodeStream.getTracks().forEach(t=>t.stop());barcodeStream=null}
  const video=$('pantry-barcode-video');video.pause();video.srcObject=null;video.hidden=true;
@@ -1849,22 +1864,24 @@ $('pantry-barcode-close').onclick=async()=>{await stopBarcodeCamera();$('pantry-
 $('pantry-barcode-open').onclick=async()=>{
  const panel=$('pantry-barcode-panel');panel.hidden=false;
  const status=$('pantry-barcode-status');
- if(!navigator.mediaDevices?.getUserMedia||!('BarcodeDetector' in window)){
-  status.textContent='Camera barcode detection is unavailable in this browser. Enter the barcode numbers below.';return;
+ if(!navigator.mediaDevices?.getUserMedia){
+  status.textContent='Camera access is unavailable. Enter the barcode numbers below.';return;
  }
  try{
-  const formats=await BarcodeDetector.getSupportedFormats();
-  const supported=['ean_13','ean_8','upc_a','upc_e'].filter(f=>formats.includes(f));
-  if(!supported.length)throw Error('Barcode detection is not supported here.');
-  const detector=new BarcodeDetector({formats:supported});
-  barcodeStream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'}},audio:false});
-  const video=$('pantry-barcode-video');video.hidden=false;video.srcObject=barcodeStream;await video.play();
-  status.textContent='Hold the barcode inside the camera view.';
-  barcodeTimer=setInterval(async()=>{
-   if(barcodeBusy||video.readyState<2)return;
-   try{const codes=await detector.detect(video);const code=codes.find(x=>/^[0-9]{8,14}$/.test(x.rawValue||''));if(code){clearInterval(barcodeTimer);barcodeTimer=null;await lookupBarcode(code.rawValue)}}catch(_){}
-  },550);
- }catch(e){await stopBarcodeCamera();status.textContent='Camera scanner unavailable. Enter the barcode numbers below.'}
+  status.textContent='Opening camera…';
+  await loadBarcodeLibrary();
+  const video=$('pantry-barcode-video');video.hidden=false;
+  const reader=new window.ZXingBrowser.BrowserMultiFormatReader();
+  barcodeReaderControls=await reader.decodeFromConstraints({video:{facingMode:{ideal:'environment'}},audio:false},video,(result,error,controls)=>{
+   if(!result||barcodeBusy)return;
+   const code=result.getText();
+   if(!/^[0-9]{8,14}$/.test(code))return;
+   controls.stop();barcodeReaderControls=null;
+   $('pantry-barcode-input').value=code;
+   lookupBarcode(code);
+  });
+  status.textContent='Point your camera at the barcode.';
+ }catch(e){await stopBarcodeCamera();status.textContent='Camera scanner unavailable. Enter barcode numbers below.'}
 };
 let scannedPantryItems=[];
 const scanStatus=$('pantry-scan-status');
