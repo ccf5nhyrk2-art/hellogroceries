@@ -56,6 +56,30 @@
 .shopping-department .grocery-item-wrap > details.grocery-breakdown{display:block;margin:0 0 5px 37px!important;padding:0!important;background:transparent!important}
 .shopping-department .grocery-item-wrap > details.grocery-breakdown > .grocery-breakdown-content{margin-top:7px}
 .source-correct{font-size:12px!important;padding:5px 8px!important;margin-top:5px;background:#e6f2e9!important;color:#176b4a!important}.grocery-source small{overflow-wrap:anywhere}.inventory-form{display:grid;grid-template-columns:2fr 1fr 1fr auto;gap:7px}.inventory-form input,.inventory-form select{min-width:0;max-width:100%}@media(max-width:750px){.inventory-form{grid-template-columns:1fr 1fr}.inventory-form input:first-child{grid-column:1/-1}}[data-admin-only],body:not(.is-instance-admin) [data-page="backup"]{display:none!important}body.is-instance-admin [data-admin-only]{display:revert!important}
+/* iOS-style nearby store finder on iPhone */
+@media(max-width:750px){
+ #shop-sales{padding:18px 14px!important;border-radius:22px!important;box-shadow:none!important}
+ #shop-sales>h3{font-size:23px!important;letter-spacing:-.5px;line-height:1.2;margin:2px 0 8px}
+ #shop-sales>p.muted{font-size:14px;line-height:1.45;margin:0 0 18px}
+ #store-lookup-form{display:grid!important;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:10px!important;align-items:end;margin:0 0 12px!important}
+ #store-lookup-form #store-zip,#store-lookup-form #store-radius{width:100%!important;max-width:none!important;min-width:0!important;height:49px!important;min-height:49px!important;margin:0!important;padding:10px 13px!important;border-radius:13px!important;font-size:16px!important}
+ #store-lookup-form label[for="store-radius"]{grid-column:2;grid-row:1;font-size:12px;color:#aab5bd;align-self:start;margin:0 0 -3px 3px}
+ #store-lookup-form #store-zip{grid-column:1;grid-row:1/3;align-self:end}
+ #store-lookup-form #store-radius{grid-column:2;grid-row:2}
+ #store-lookup-form button[type="submit"]{grid-column:1/-1;width:100%;min-height:49px!important;border-radius:13px!important;font-size:16px!important}
+ #store-status{font-size:13px!important;line-height:1.4;margin:10px 0!important}
+ #store-results>.store-finder-intro{font-size:13px!important;line-height:1.4;margin:12px 0!important;color:#aeb8bf}
+ #store-results>.store-location-card{display:flex!important;align-items:flex-start!important;flex-wrap:wrap;gap:12px!important;padding:16px 14px!important;margin:10px 0!important;border:1px solid #353d43!important;border-radius:17px!important;background:#20252a!important}
+ #store-results .store-location-name{font-size:16px;line-height:1.3;font-weight:700}
+ #store-results .store-location-address{font-size:13px;line-height:1.45;margin-top:5px}
+ #store-results .store-location-links{gap:8px!important;margin-top:12px!important}
+ #store-results .store-location-links a{display:inline-flex;align-items:center;justify-content:center;text-decoration:none!important;font-size:12px!important;font-weight:600;padding:8px 10px;border-radius:10px;background:#30383d;color:#a5e7c6!important}
+ #store-results .store-location-card>button{border-radius:12px!important;min-height:42px!important;padding:9px 13px!important;font-size:13px!important;flex-shrink:0}
+ #store-results .store-location-card>button[aria-pressed="true"]{background:#176b4a!important;color:white!important}
+ html[data-theme="light"] #store-results>.store-location-card{background:#f8faf9!important;border-color:#dae5de!important}
+ html[data-theme="light"] #store-results .store-location-links a{background:#eaf3ed;color:#176b4a!important}
+ html[data-theme="light"] #store-results>.store-finder-intro{color:#64766b}
+}
 /* Shopping price summary belongs to Shopping, never the Pantry view. */
 body[data-active-page="pantry"] #shopping-price-summary{display:none!important}
 /* Role-based shopping simplification: pricing data remains untouched. */
@@ -583,7 +607,7 @@ window.addEventListener('storage',e=>{if(e.key===PREFERRED_STORE_KEY)updateHeade
 function renderStoreResults(data){
  const root=$('store-results'),stores=data.stores||[],preferred=getPreferredStore();
  nearbyStoreResults=stores;
- const header='<div class="muted" style="margin:10px 0">Choose a preferred store. Compare nearby locations below. Open each retailer’s weekly ad to verify offers for the exact location; automatic store-specific pricing is not connected yet.</div>';
+ const header='<div class="muted store-finder-intro" style="margin:10px 0">Choose a preferred store. Compare nearby locations below. Open each retailer’s weekly ad to verify offers for the exact location; automatic store-specific pricing is not connected yet.</div>';
  const ordered=stores.map((store,i)=>({store,i})).sort((a,b)=>Number(!!(preferred&&storeKey(preferred)===storeKey(b.store)))-Number(!!(preferred&&storeKey(preferred)===storeKey(a.store))));
  root.innerHTML=header+(stores.length?ordered.map(({store:x,i})=>{
   const selected=preferred&&storeKey(preferred)===storeKey(x);
@@ -595,7 +619,7 @@ function renderStoreResults(data){
   const weeklyAd=adLinks[x.chain]||'';
   const adHtml=weeklyAd?' <a href="'+weeklyAd+'" target="_blank" rel="noopener noreferrer" title="Choose this location on the retailer website to confirm local offers">Weekly ad ↗</a>':'';
 
-  return '<div class="row" style="align-items:flex-start;gap:12px"><div style="flex:1;min-width:0"><strong>'+esc(x.chain)+'</strong> — '+esc(x.name)+'<div class="muted">'+esc(address||'Address unavailable')+' · '+(x.distance_approximate?'~':'')+esc(x.distance_miles)+' miles'+(x.distance_approximate?' (ZIP-based estimate)':'')+(x.outside_radius?' (near radius boundary)':'')+'</div><div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:6px"><a href="'+google+'" target="_blank" rel="noopener noreferrer">Google Maps</a><a href="'+apple+'" target="_blank" rel="noopener noreferrer">Apple Maps</a>'+adHtml+'</div></div><button type="button" data-preferred-store="'+i+'" aria-pressed="'+(selected?'true':'false')+'">'+(selected?'✓ Preferred':'Select store')+'</button></div>';
+  return '<div class="row store-location-card" style="align-items:flex-start;gap:12px"><div style="flex:1;min-width:0"><strong class="store-location-name">'+esc(x.chain)+'</strong> — '+esc(x.name)+'<div class="muted store-location-address">'+esc(address||'Address unavailable')+' · '+(x.distance_approximate?'~':'')+esc(x.distance_miles)+' miles'+(x.distance_approximate?' (ZIP-based estimate)':'')+(x.outside_radius?' (near radius boundary)':'')+'</div><div class="store-location-links" style="display:flex;gap:12px;flex-wrap:wrap;margin-top:6px"><a href="'+google+'" target="_blank" rel="noopener noreferrer">Google Maps</a><a href="'+apple+'" target="_blank" rel="noopener noreferrer">Apple Maps</a>'+adHtml+'</div></div><button type="button" data-preferred-store="'+i+'" aria-pressed="'+(selected?'true':'false')+'">'+(selected?'✓ Preferred':'Select store')+'</button></div>';
  }).join(''):'No matching stores found within 10 miles. Store directory coverage may be incomplete.');
  const boundary=stores.filter(x=>x.outside_radius).length;
  const status=$('store-status');
