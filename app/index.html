@@ -2542,7 +2542,7 @@ html[data-theme="dark"] #hg-tour-card{background:#1b2023;color:#f0f4f2}
 (function(){
 const steps=[
  ['Welcome to HelloGroceries','Set up your household in a few quick steps. You can skip any optional step.'],
- ['Explore recipes','Tap Recipes below to explore meals your household might enjoy.'],
+ ['Explore recipes','Select Recipes to browse meals your household might enjoy.'],
  ['Organize your recipes','Name a collection below, such as Family Favorites. You can save recipes to it later.'],
  ['Plan your week','Open Plan and choose meals for the days you want to cook.'],
  ['Your shopping list','Open Shop to see your list and check off items as you shop.'],
@@ -2646,7 +2646,9 @@ body:has(#hg-tour-overlay:not([hidden])) #hg-tour-replay{display:none!important}
   clear();placeGenerate(!overlay.hidden&&step===5);document.body.classList.toggle('hg-tour-generate-step',!overlay.hidden&&step===5);if(overlay.hidden)return;
   highlighted=(step===6||step===7)&&window.matchMedia('(max-width:750px)').matches?([...document.querySelectorAll('.mobile-more-backdrop [data-page="'+(step===6?'pantry':'stores')+'"]')].find(el=>visible(el)&&!el.closest('[hidden]'))||[...document.querySelectorAll('.mobile-more-trigger,.mobile-bottom-nav [data-page="more"]')].find(visible)||null):target(step);
   if(highlighted){highlighted.classList.add('hg-tour-highlight');if(!highlighted.closest('.mobile-bottom-nav')&&step!==5)highlighted.scrollIntoView({block:'nearest',behavior:'instant'});}
-  hint.textContent=highlighted?'Tap the glowing button to continue. You can also use Next.':'Tap Next to continue.';
+  const desktop=window.matchMedia('(min-width:751px)').matches;
+  hint.textContent=highlighted?(desktop?'Click the highlighted button above to continue automatically.':'Tap the highlighted button to continue automatically.'):'Select Next to continue.';
+  if(step===1&&desktop)document.getElementById('hg-tour-description').textContent='Click the highlighted Recipes tab above to browse meals your household might enjoy. The tour advances automatically.';
   collectionForm.hidden=step!==2;
   if(step===8){
    const done=[...tourCompleted].sort((a,b)=>a-b);
@@ -2659,8 +2661,8 @@ body:has(#hg-tour-overlay:not([hidden])) #hg-tour-replay{display:none!important}
    next.disabled=false;next.title='Continue without creating a collection';
   }else{next.disabled=false;next.title=''}
   if(step===5)hint.textContent='Tap the highlighted button to continue. This is only a demonstration; your shopping list will not change.';
-  if(step===6)hint.textContent=highlighted?.getAttribute('data-page')==='pantry'?'Tap Pantry to see and manage ingredients you already have.':'Tap More, then Pantry to see and manage ingredients you already have.';
-  if(step===7)hint.textContent=highlighted?.getAttribute('data-page')==='stores'?'Tap Nearby stores to explore store pricing.':'Tap More first, then Nearby stores. Store availability varies.';
+  if(step===6)hint.textContent=desktop?'Click the highlighted Pantry tab above to continue.':'Tap More, then Pantry to see and manage ingredients you already have.';
+  if(step===7)hint.textContent=desktop?'Click the highlighted Nearby stores tab above to continue.':'Tap More, then Nearby stores to explore pricing. Store availability varies.';
   if(step===8)hint.textContent='Tap Start planning to finish, or Back to revisit a step.';
   next.textContent=step===8?'Start planning':'Next';
  }
