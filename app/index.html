@@ -511,6 +511,16 @@ html[data-theme="dark"] .mobile-more-logout{color:#ff8989!important;border-color
  #recipes .photo-placeholder:after{content:"Photo unavailable";font-size:13px;font-weight:600;letter-spacing:.02em}
  html[data-theme="dark"] #recipes .photo-placeholder{background:linear-gradient(135deg,#25352c,#34473a);color:#c0d8c7}
 }
+
+/* Desktop recipe details overlay keeps cards aligned. */
+.recipe-dialog{width:min(680px,calc(100vw - 32px));max-height:min(85dvh,850px);overflow-y:auto;box-sizing:border-box;border:1px solid #52675b;border-radius:16px;padding:24px;background:#fff;color:#183329;box-shadow:0 24px 80px #0008}
+.recipe-dialog::backdrop{background:rgba(0,0,0,.68)}
+.recipe-dialog #recipe-detail{overflow-wrap:anywhere;line-height:1.5}
+.recipe-dialog #recipe-detail ul,.recipe-dialog #recipe-detail ol{padding-left:24px}
+.recipe-dialog #recipe-review-form{display:grid;gap:10px;margin-top:20px}
+.recipe-dialog textarea{width:100%;box-sizing:border-box;min-height:90px}
+html[data-theme="dark"] .recipe-dialog{background:#20272a;color:#edf0f2;border-color:#465650}
+@media(max-width:600px){.recipe-dialog{width:calc(100vw - 20px);max-height:90dvh;padding:16px}}
 </style><script>
 (function(){const originalFetch=window.fetch;window.fetch=function(input,init){const opts=init?{...init}:{};const method=(opts.method||'GET').toUpperCase();const url=typeof input==='string'?input:input.url;if(method!=='GET'&&method!=='HEAD'&&url.startsWith('/api/')){const match=document.cookie.match(/(?:^|; )hg_csrf=([^;]+)/);opts.headers={...opts.headers,'X-HG-CSRF':match?match[1]:''}}return originalFetch.call(this,input,opts)};})();
 </script>
@@ -2348,24 +2358,13 @@ $('recipes').addEventListener('click',async e=>{
   const entries=Object.entries(r.ingredients||{});
   $('recipe-detail').innerHTML='<h2>'+esc(cleanRecipeName(r.name))+'</h2><p class="muted">'+esc(r.country||'')+'</p>'+nutritionDetails(r)+'<h3>Ingredients</h3><ul>'+entries.map(([k,v])=>'<li>'+esc(k)+' — '+esc(v)+'</li>').join('')+'</ul>'+(Array.isArray(r.instructions)&&r.instructions.length?'<h3>Cooking steps</h3><ol>'+r.instructions.map(step=>'<li>'+esc(typeof step==='string'?step:JSON.stringify(step))+'</li>').join('')+'</ol>':'<p class="muted">Cooking instructions are not stored for this recipe. Use the original recipe page.</p>')+(r.url?'<a href="'+esc(r.url)+'" target="_blank" rel="noopener noreferrer">Open original recipe</a>':'');
   const review=(state.recipe_reviews||{})[String(r.id)]||{};$('recipe-review-id').value=String(r.id);$('recipe-rating').value=String(review.rating||0);$('recipe-note').value=review.note||'';$('review-status').textContent='';
-  // Display details in the recipe card itself so they remain visible even if Safari blocks a dialog.
-  const card=detail.closest('.recipe-card');
-  if(card){
-   const existing=card.querySelector('.recipe-inline-detail');
-   if(existing){existing.remove();detail.setAttribute('aria-expanded','false');return;}
-   document.querySelectorAll('.recipe-inline-detail').forEach(el=>el.remove());
-   document.querySelectorAll('[data-detail]').forEach(el=>el.setAttribute('aria-expanded','false'));
-   const panel=document.createElement('div');
-   panel.className='recipe-inline-detail';
-   panel.style.cssText='margin:14px 0 0;padding:16px;border:1px solid #718678;border-radius:12px;background:var(--panel,#20282a);color:inherit;overflow-wrap:anywhere';
-   const saved=(state.recipe_reviews||{})[String(r.id)]||{};
-   panel.innerHTML=$('recipe-detail').innerHTML+'<form data-inline-review="'+esc(String(r.id))+'"><h3>Your rating &amp; cooking notes</h3><label>Rating <select name="rating">'+[0,1,2,3,4,5].map(n=>'<option value="'+n+'"'+(Number(saved.rating||0)===n?' selected':'')+'>'+(n?n+' stars':'Not rated')+'</option>').join('')+'</select></label><label>Cooking notes<textarea name="note" maxlength="2000" rows="4">'+esc(saved.note||'')+'</textarea></label><button type="submit">Save rating &amp; notes</button><small data-review-feedback class="muted"></small></form><button type="button" class="clear" data-close-inline-detail>Close details</button>';
-   card.querySelector('.recipe-card-body').appendChild(panel);
-   detail.setAttribute('aria-expanded','true');
-   panel.scrollIntoView({block:'nearest'});
-  }else{
-   const dialog=$('recipe-dialog');if(!dialog.open)dialog.showModal();
+  // Keep recipe cards aligned by displaying details in the existing dialog.
+  const dialog=$('recipe-dialog');
+  if(!dialog.open){
+   try{dialog.showModal();}catch(err){dialog.setAttribute('open','');}
   }
+  $('close-recipe').focus();
+
 
 
  }
