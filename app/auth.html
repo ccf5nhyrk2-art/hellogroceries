@@ -44,7 +44,7 @@ const $=id=>document.getElementById(id);
 const fragment=new URLSearchParams(location.hash.slice(1));
 const invite=fragment.get('invite');
 const verification=fragment.get('verify');
-history.replaceState(null,'',location.pathname+location.search);
+if(location.hash && (invite || verification)){try{history.replaceState(null,'',location.pathname+location.search)}catch(e){/* Safari may reject URL history updates; verification still works. */}}
 let mode='login';
 async function initialize(){
  try{
@@ -86,7 +86,7 @@ $('form').onsubmit=async e=>{
    return;
   }
   location.replace('/');
- }catch(e){$('error').textContent=e.message}
+ }catch(e){$('error').style.color='#ffaaa7';$('error').textContent=e instanceof TypeError?'Unable to reach HelloGroceries. Please try again.':(e.message||'Unable to complete your request.')}
 };
 $('toggle').onclick=()=>{
  mode=mode==='login'?'register':'login';
@@ -99,6 +99,6 @@ $('toggle').onclick=()=>{
  $('toggle').textContent=mode==='login'?'Create an account':'Already have an account? Sign in';
  $('error').textContent='';$('error').style.color='#a00';
 };
-$('resend').onclick=async()=>{const email=$('email').value.trim();if(!email){$('error').textContent='Enter your email address first.';return}try{const r=await fetch('/api/auth/resend-verification',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email})});const j=await r.json();if(!r.ok)throw Error(j.error||'Unable to resend');$('error').style.color='#176b4a';$('error').textContent=j.message}catch(e){$('error').textContent=e.message}};
+$('resend').onclick=async()=>{const email=$('email').value.trim();if(!email){$('error').textContent='Enter your email address first.';return}try{const r=await fetch('/api/auth/resend-verification',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email})});const j=await r.json();if(!r.ok)throw Error(j.error||'Unable to resend');$('error').style.color='#176b4a';$('error').textContent=j.message}catch(e){$('error').style.color='#ffaaa7';$('error').textContent=e instanceof TypeError?'Unable to reach HelloGroceries. Check your connection and try again.':(e.message||'Unable to send verification email. Please try again.')}};
 initialize();
 </script><script>(function(){const b=document.createElement('button');b.id='hg-theme-toggle';b.type='button';b.setAttribute('aria-label','Toggle light and dark mode');function sync(){const dark=document.documentElement.dataset.theme==='dark';b.textContent=dark?'☀ Light mode':'☾ Dark mode';b.setAttribute('aria-pressed',String(dark))}b.addEventListener('click',()=>{const theme=document.documentElement.dataset.theme==='dark'?'light':'dark';document.documentElement.dataset.theme=theme;try{localStorage.setItem('hg-theme',theme)}catch(e){}sync()});document.body.appendChild(b);sync()})()</script></body></html>
