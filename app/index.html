@@ -328,6 +328,8 @@ html[data-theme="dark"] .reef-table-scroll thead th,html[data-theme="dark"] .ree
   box-shadow:inset 0 0 0 1px #75bc95!important;
  }
 }
+
+@media (max-width:750px){body[data-active-page]:not([data-active-page="all"]) .mobile-home-dashboard{display:none!important}}
 </style><script>
 (function(){const originalFetch=window.fetch;window.fetch=function(input,init){const opts=init?{...init}:{};const method=(opts.method||'GET').toUpperCase();const url=typeof input==='string'?input:input.url;if(method!=='GET'&&method!=='HEAD'&&url.startsWith('/api/')){const match=document.cookie.match(/(?:^|; )hg_csrf=([^;]+)/);opts.headers={...opts.headers,'X-HG-CSRF':match?match[1]:''}}return originalFetch.call(this,input,opts)};})();
 </script>
@@ -503,7 +505,19 @@ function showPage(key){
 let initialPage='all';
 try{initialPage=localStorage.getItem(PAGE_VIEW_KEY)||(localStorage.getItem('hellogroceries-shopping-only')==='1'?'shopping':'all')}catch(e){}
 showPage(initialPage);document.getElementById('mobile-recipe-filter-toggle')?.addEventListener('click',function(){const el=document.getElementById('mobile-recipe-filters');const open=el.classList.toggle('is-open');this.setAttribute('aria-expanded',String(open));this.textContent=open?'☷ Hide filters':'☷ Filters';});
-document.querySelectorAll('[data-home-go]').forEach(button=>button.addEventListener('click',()=>{const page=button.dataset.homeGo;showPage(page);if(page==='shopping')refreshShopFromServer()}));
+// Home shortcuts use the same page router as the bottom navigation.
+document.querySelectorAll('.mobile-home-dashboard [data-home-go]').forEach(button=>{
+ button.addEventListener('click',event=>{
+  event.preventDefault();
+  const page=button.dataset.homeGo;
+  try{
+   const spec=pageSpecs.find(item=>item[0]===page);
+   if(!spec || !spec[2])throw new Error('Page target unavailable: '+page);
+   showPage(page);
+   if(page==='shopping')Promise.resolve(refreshShopFromServer()).catch(console.error);
+  }catch(error){console.error('Home shortcut navigation failed',error);alert('Unable to open this section. Please refresh and try again.')}
+ });
+});
 
 const PREFERRED_STORE_KEY='hellogroceries-preferred-store-v1';
 function getPreferredStore(){try{return JSON.parse(localStorage.getItem(PREFERRED_STORE_KEY)||'null')}catch(e){return null}}
