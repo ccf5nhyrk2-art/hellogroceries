@@ -1606,8 +1606,8 @@ class Handler(SimpleHTTPRequestHandler):
     import base64
     binary=base64.b64decode(photo,validate=True)
     if not 0<len(binary)<=6000000:raise ValueError('Photo too large (maximum 6 MB)')
-    if mime=='image/jpeg' and not binary.startswith(b'\\xff\\xd8'):raise ValueError('Invalid JPEG')
-    if mime=='image/png' and not binary.startswith(b'\\x89PNG'):raise ValueError('Invalid PNG')
+    if mime=='image/jpeg' and not binary[:2]==bytes((255,216)):raise ValueError('Invalid JPEG')
+    if mime=='image/png' and not binary[:4]==bytes((137,80,78,71)):raise ValueError('Invalid PNG')
     if mime=='image/webp' and binary[:4]!=b'RIFF':raise ValueError('Invalid WebP')
     instruction=('Read the grocery receipt and extract purchased food and pantry items; ignore taxes, totals, discounts, fees and non-food purchases.' if mode=='receipt' else 'Identify grocery and pantry products actually visible in this photograph.')
     prompt=instruction+' Return JSON object with items array; each item must have name (plain ingredient name), quantity (positive number), unit (one of count, can, package, bag, pound, ounce, gram, kilogram, liter, milliliter, cup, bunch, head, loaf, dozen), confidence (high, medium, low). Do not guess invisible items or uncertain quantities. Use quantity 1 and unit count when unknown. No more than 40 distinct items. Exclude personal information.'
