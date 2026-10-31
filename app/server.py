@@ -929,22 +929,30 @@ def resend_test_email(recipient):
  recipient=auth.validate_email(recipient)
  key=resend_key()
  if not key:raise ValueError('Save a Resend API key first')
- payload=json.dumps({'from':RESEND_FROM,'to':[recipient],'subject':'HelloGroceries email test','text':'HelloGroceries email delivery is configured. This is a test message sent by an administrator.'}).encode()
- req=urllib.request.Request('https://api.resend.com/emails',data=payload,headers={'Authorization':'Bearer '+key,'Content-Type':'application/json'},method='POST')
+ payload=json.dumps({'from':RESEND_FROM,'to':[recipient],'subject':'HelloGroceries email test','text':'HelloGroceries email delivery is configured. This is a test message sent by an administrator.'})
+ # Pass the secret through curl stdin, not command arguments, so it never appears in process listings.
+ # curl reads the Authorization header from a temporary config passed on stdin.
+ import tempfile
+ fd,body_path=tempfile.mkstemp(prefix='.resend-body-',dir='/tmp')
  try:
-  with urllib.request.urlopen(req,timeout=15) as response:return bool(json.load(response).get('id'))
- except urllib.error.HTTPError as exc:
-  # Resend returns a structured error body. Show only its safe message, never request headers or keys.
-  detail=''
-  try:
-   payload=json.loads(exc.read(8192).decode('utf-8','replace'))
-   if isinstance(payload,dict):
-    detail=str(payload.get('message') or payload.get('error') or '')[:350]
-  except (ValueError,UnicodeError,OSError):
-   pass
-  detail=re.sub(r're_[A-Za-z0-9_-]{12,}', '[redacted API key]', detail)
+  os.fchmod(fd,0o600)
+  with os.fdopen(fd,'w') as out:out.write(payload)
+  config='header = "Authorization: Bearer '+key+'"'+'\nheader = "Content-Type: application/json"\n'
+  result=subprocess.run(['curl','--silent','--show-error','--max-time','20','--config','-','--request','POST','--data-binary','@'+body_path,'--write-out','\\n%{http_code}','https://api.resend.com/emails'],input=config,text=True,capture_output=True,timeout=25)
+  if result.returncode!=0:raise ValueError('Resend connection failed. Check server network and try again.')
+  response,separator,status=result.stdout.rpartition('\n')
+  if not separator or not status.isdigit():raise ValueError('Unexpected response from Resend')
+  try:body=json.loads(response)
+  except ValueError:body={}
+  if 200<=int(status)<300:return bool(isinstance(body,dict) and body.get('id'))
+  detail=str(body.get('message') or body.get('error') or '')[:350] if isinstance(body,dict) else ''
+  detail=re.sub(r're_[A-Za-z0-9_-]{12,}','[redacted API key]',detail)
   detail=re.sub(r'[\\r\\n\\t]+',' ',detail).strip()
-  raise ValueError('Resend rejected the test email (HTTP '+str(exc.code)+')'+(': '+detail if detail else '. Check the key, domain, and recipient.')) from None
+  raise ValueError('Resend rejected the test email (HTTP '+status+')'+(': '+detail if detail else '. Check the key, domain, and recipient.'))
+ except subprocess.TimeoutExpired:raise ValueError('Resend request timed out') from None
+ finally:
+  try:os.unlink(body_path)
+  except OSError:pass
 
 REEF_KEY_PATH=Path('/data/reef_api_key')
 OPENAI_KEY_PATH=Path('/data/openai_api_key')
