@@ -2126,7 +2126,7 @@ class Handler(SimpleHTTPRequestHandler):
     if action=='select':
      rid=str(int(p['id']));servings=float(p.get('servings',1))
      if not (0<servings<=20):raise ValueError('Serving multiplier must be 0–20')
-     if rid not in {str(r['id']) for r in allrecipes()}:raise ValueError('Unknown recipe')
+     if p.get('checked') and rid not in {str(r['id']) for r in allrecipes()}:raise ValueError('Unknown recipe')
      if p.get('checked'):
       state['selected'][rid]=servings
      else:state['selected'].pop(rid,None)
