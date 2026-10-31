@@ -2725,4 +2725,39 @@ body:has(#hg-tour-overlay:not([hidden])) #hg-tour-replay{display:none!important}
  collectionInput.addEventListener('blur',()=>setTimeout(fitKeyboard,200));
  obs.observe(overlay,{attributes:true,attributeFilter:['hidden']});
 })();
+</script><style>
+#hg-tap-debug-panel{position:fixed;top:calc(env(safe-area-inset-top,0px) + 8px);right:8px;z-index:2147483647;max-width:min(86vw,340px);background:#101b17ed;color:#fff;border:1px solid #67d89b;border-radius:12px;padding:10px;font:12px/1.4 system-ui;box-shadow:0 5px 24px #0008;pointer-events:none}
+#hg-tap-debug-panel[hidden]{display:none!important}
+#hg-tap-debug-panel strong{color:#8ff0b7}
+.hg-tap-debug-dot{position:fixed;z-index:2147483647;width:24px;height:24px;border:3px solid #faff60;border-radius:50%;background:#faff6055;box-sizing:border-box;pointer-events:none;transform:translate(-50%,-50%);animation:hgTapFade .9s ease-out forwards}
+@keyframes hgTapFade{0%{opacity:1;scale:.6}40%{opacity:1;scale:1.2}100%{opacity:0;scale:1.5}}
+</style>
+<script>
+(function(){
+ const panel=document.createElement('div');panel.id='hg-tap-debug-panel';panel.hidden=true;panel.setAttribute('role','status');panel.setAttribute('aria-live','off');document.body.appendChild(panel);
+ let enabled=false,last='',count=0;
+ function render(message){panel.innerHTML='<strong>Tour Tap Debug · ON</strong><div>'+message+'</div><div style="opacity:.75;margin-top:5px">Tap #'+count+' · Disable: add ?tourdebug=0 to URL</div>'}
+ function setEnabled(on){enabled=on;panel.hidden=!on;try{localStorage.setItem('hg-tour-tap-debug',on?'1':'0')}catch(e){}if(on)render('Waiting for a tap…')}
+ const query=new URLSearchParams(location.search).get('tourdebug');
+ if(query==='1')setEnabled(true);else if(query==='0')setEnabled(false);else{try{setEnabled(localStorage.getItem('hg-tour-tap-debug')==='1')}catch(e){}}
+ function showTap(e){
+  if(!enabled)return;
+  const dot=document.createElement('div');dot.className='hg-tap-debug-dot';dot.style.left=e.clientX+'px';dot.style.top=e.clientY+'px';document.body.appendChild(dot);setTimeout(()=>dot.remove(),950);
+  const target=e.target instanceof Element?e.target:null;
+  const control=target?.closest('button,a,[role="button"],[data-page],[data-home-go],input,select')||target;
+  const action=control?.getAttribute('data-page')||control?.getAttribute('data-home-go')||control?.id||control?.getAttribute('aria-label')||control?.textContent?.trim().slice(0,42)||control?.tagName||'unknown';
+  const progress=document.getElementById('hg-tour-progress')?.textContent||'not loaded';
+  const tour=document.getElementById('hg-tour-overlay');
+  const active=!!tour&&!tour.hidden;
+  count++;last=String(action).replace(/[<>]/g,'');
+  const safe=last.replace(/&/g,'&amp;').replace(/</g,'&lt;');
+  render('Detected: <strong>'+safe+'</strong><div>Tour: '+(active?'open':'closed')+' · Step: '+progress+'</div><div>Page: '+(document.body.dataset.activePage||'unknown')+'</div>');
+  if(active){
+   const before=progress;
+   setTimeout(()=>{if(!enabled)return;const after=document.getElementById('hg-tour-progress')?.textContent||'?';if(after!==before)render('Last: <strong>'+safe+'</strong><div>Advanced: '+before+' → '+after+'</div><div>Page: '+(document.body.dataset.activePage||'unknown')+'</div>');else render('Last: <strong>'+safe+'</strong><div>Did NOT advance from '+before+'</div><div>Page: '+(document.body.dataset.activePage||'unknown')+'</div>')},500);
+  }
+ }
+ document.addEventListener('pointerdown',showTap,true);
+ window.hgSetTourTapDebug=setEnabled;
+})();
 </script></body></html>
