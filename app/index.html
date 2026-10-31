@@ -119,7 +119,7 @@ body[data-active-page="shopping"] #shopping-page-section{grid-column:1/-1;min-wi
 body[data-active-page="shopping"] .layout > section:not(#shopping-page-section){display:none!important}
 body[data-active-page="shopping"] .layout > #shopping-page-section{display:block!important;grid-column:1/-1}
 /* Shop contains no recipe recommendation feed, even if a legacy renderer moves it. */
-body[data-active-page="shopping"] #ingredient-suggestions{display:none!important}
+/* Ingredient suggestions remain visible on the Shopping page. */
 /* Independent Shop page shell: hide all non-Shop sections regardless of legacy
    inline display state, DOM nesting, or scroll position. */
 body[data-active-page="shopping"] main .layout > section:not(#shopping-page-section){display:none!important;visibility:hidden!important}
