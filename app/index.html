@@ -602,6 +602,12 @@ for(const [key,label] of pageSpecs){
 }
 function showPage(key){
  if(!pageButtons.has(key))key='all';
+ if(key==='selected-meals'){
+  const panel=document.getElementById('selected-plan');
+  const toggle=document.getElementById('show-selected-meals');
+  if(panel)panel.hidden=false;
+  if(toggle)toggle.setAttribute('aria-expanded','true');
+ }
  const target=pageSpecs.find(x=>x[0]===key)?.[2];
  const main=document.querySelector('main');
  // Restore previous view before calculating the next one.
