@@ -2482,4 +2482,51 @@ document.addEventListener('click',e=>{
  if(id==='week-apply')emit('meal_planned');
 });
 })();
+</script><style>
+#hg-tour-overlay{position:fixed;inset:0;z-index:2147483000;background:rgba(0,0,0,.68);display:grid;place-items:center;padding:20px}
+#hg-tour-overlay[hidden]{display:none!important}
+#hg-tour-card{box-sizing:border-box;width:min(100%,430px);padding:28px;border-radius:22px;background:#fff;color:#17251c;box-shadow:0 22px 70px #0005;font:16px system-ui}
+html[data-theme="dark"] #hg-tour-card{background:#1b2023;color:#f0f4f2}
+#hg-tour-card h2{margin:12px 0;font-size:24px}#hg-tour-card p{line-height:1.55}
+#hg-tour-progress{font-size:13px;opacity:.75}#hg-tour-actions{display:flex;gap:8px;align-items:center;justify-content:space-between;margin-top:24px}
+#hg-tour-actions button,#hg-tour-replay{cursor:pointer;border-radius:12px;padding:11px 14px;border:1px solid #687d70;background:transparent;color:inherit;font:600 14px system-ui}
+#hg-tour-next{background:#176b4a!important;color:white!important;border-color:#176b4a!important}
+#hg-tour-replay{position:fixed;bottom:16px;right:16px;z-index:100;background:#176b4a;color:#fff;border:0;font-size:12px;padding:8px 12px}
+</style>
+<div id="hg-tour-overlay" hidden role="dialog" aria-modal="true" aria-labelledby="hg-tour-title">
+ <div id="hg-tour-card">
+  <div id="hg-tour-progress"></div><h2 id="hg-tour-title"></h2><p id="hg-tour-description"></p>
+  <div id="hg-tour-actions"><button id="hg-tour-skip" type="button">Skip tour</button><button id="hg-tour-back" type="button">Back</button><button id="hg-tour-next" type="button">Next</button></div>
+ </div>
+</div>
+<script>
+(function(){
+const steps=[
+ ['Welcome to HelloGroceries','Plan meals, manage your pantry, and build a grocery list in one place. Here’s a quick tour.'],
+ ['Find recipes','Browse recipes and discover meals that work for your household.'],
+ ['Plan your meals','Choose dinners for the week and keep your selected meals together.'],
+ ['Build a shopping list','Generate a grocery list from your meal plan, then check off items as you shop.'],
+ ['Keep your pantry updated','Add ingredients you already have so your grocery planning stays organized.'],
+ ['Compare grocery prices','Check available store pricing to help plan your shopping. Prices and availability can vary.'],
+ ['You’re ready!','Start with recipes or your weekly plan. You can replay this walkthrough anytime.']
+];
+const overlay=document.getElementById('hg-tour-overlay');
+const next=document.getElementById('hg-tour-next');
+const back=document.getElementById('hg-tour-back');
+const skip=document.getElementById('hg-tour-skip');
+let index=0,key='',previousFocus=null;
+function render(){document.getElementById('hg-tour-progress').textContent=(index+1)+' of '+steps.length;document.getElementById('hg-tour-title').textContent=steps[index][0];document.getElementById('hg-tour-description').textContent=steps[index][1];back.hidden=index===0;next.textContent=index===steps.length-1?'Get started':'Next';next.focus()}
+function close(){overlay.hidden=true;try{if(key)localStorage.setItem(key,'done')}catch(e){}previousFocus?.focus?.()}
+function open(){previousFocus=document.activeElement;index=0;overlay.hidden=false;render()}
+next.addEventListener('click',()=>{if(index===steps.length-1)close();else{index++;render()}});
+back.addEventListener('click',()=>{if(index>0){index--;render()}});
+skip.addEventListener('click',close);
+overlay.addEventListener('keydown',e=>{if(e.key==='Escape'){e.preventDefault();close()}if(e.key==='Tab'){const controls=[skip,...(back.hidden?[]:[back]),next];const i=controls.indexOf(document.activeElement);if(e.shiftKey&&i===0){e.preventDefault();next.focus()}else if(!e.shiftKey&&i===controls.length-1){e.preventDefault();skip.focus()}}});
+fetch('/api/auth/status',{credentials:'same-origin',cache:'no-store'}).then(r=>r.json()).then(status=>{
+ if(!status.authenticated||!status.email)return;
+ key='hg-onboarding-v1:'+status.email.toLowerCase();
+ const replay=document.createElement('button');replay.id='hg-tour-replay';replay.type='button';replay.textContent='Replay walkthrough';replay.addEventListener('click',open);document.body.appendChild(replay);
+ try{if(localStorage.getItem(key)!=='done')setTimeout(open,550)}catch(e){/* Storage unavailable; manual replay still works */}
+}).catch(()=>{});
+})();
 </script></body></html>
