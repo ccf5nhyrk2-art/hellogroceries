@@ -79,8 +79,8 @@ def respond(conn, uid, request_id, accept):
             if len(memberships)!=1:raise ValueError("Contact the administrator: multiple households need review")
             old,role=memberships[0]
             if old!=target:
-                if role=="owner" and conn.execute("SELECT COUNT(*) FROM hg_memberships WHERE household_id=?",(old,)).fetchone()[0]>1:
-                    raise ValueError("Transfer ownership of your existing household before leaving")
+                if conn.execute("SELECT COUNT(*) FROM hg_memberships WHERE household_id=?",(old,)).fetchone()[0]>1:
+                    raise ValueError("Your current household has other members. Its data cannot be merged without their consent")
                 source=conn.execute("SELECT payload FROM hg_household_state WHERE household_id=?",(old,)).fetchone()
                 destination=conn.execute("SELECT payload FROM hg_household_state WHERE household_id=?",(target,)).fetchone()
                 if not source or not destination:raise ValueError("Household data missing; no changes made")
