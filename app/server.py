@@ -868,6 +868,23 @@ def free_community_prices(items):
 # Each row must be a verifiable price from a specific retailer location.
 RETAIL_PRICE_PATH=Path('/data/retailer_prices.json')
 REEF_KEY_PATH=Path('/data/reef_api_key')
+OPENAI_KEY_PATH=Path('/data/openai_api_key')
+def openai_scan_key():
+ try:return OPENAI_KEY_PATH.read_text().strip() or os.environ.get('OPENAI_API_KEY','').strip()
+ except OSError:return os.environ.get('OPENAI_API_KEY','').strip()
+def save_openai_scan_key(key):
+ if not isinstance(key,str) or not 20<=len(key)<=512 or any(c.isspace() for c in key):raise ValueError('Enter a valid OpenAI API key')
+ import tempfile
+ fd,path=tempfile.mkstemp(prefix='.openai-key-',dir=str(OPENAI_KEY_PATH.parent))
+ try:
+  os.fchmod(fd,0o600)
+  with os.fdopen(fd,'w') as out:out.write(key)
+  os.replace(path,OPENAI_KEY_PATH)
+ except BaseException:
+  try:os.unlink(path)
+  except OSError:pass
+  raise
+
 def reef_key_configured():
  try:return bool(REEF_KEY_PATH.read_text().strip())
  except OSError:return bool(os.environ.get('REEF_API_KEY','').strip())
@@ -1470,6 +1487,10 @@ class Handler(SimpleHTTPRequestHandler):
    q=urllib.parse.parse_qs(urllib.parse.urlsplit(self.path).query)
    try:return self.sendjson(reef_test_search(q.get('zip',[''])[0],q.get('item',[''])[0]))
    except ValueError as exc:return self.sendjson({'error':str(exc)},400)
+  if self.path=='/api/admin/openai-key':
+   if not self.gate():return
+   if not getattr(request_scope,'admin',False):return self.sendjson({'error':'Administrator required'},403)
+   return self.sendjson({'configured':bool(openai_scan_key())})
   if self.path=='/api/admin/reef-key':
    if not self.gate():return
    if not getattr(request_scope,'admin',False):return self.sendjson({'error':'Administrator required'},403)
@@ -1592,7 +1613,7 @@ class Handler(SimpleHTTPRequestHandler):
    if not self.gate(write=True):return
    if not auth_rate_allowed(str(request_scope.user_id),'pantry-scan',15,3600):
     return self.sendjson({'error':'Scan limit reached. Try again later.'},429)
-   key=os.environ.get('OPENAI_API_KEY','').strip()
+   key=openai_scan_key()
    if not key:return self.sendjson({'error':'AI scanning is not configured. Set OPENAI_API_KEY on the server.'},503)
    try:
     size=int(self.headers.get('Content-Length','0'))
@@ -1750,6 +1771,19 @@ class Handler(SimpleHTTPRequestHandler):
     if not 0<size<=4096:raise ValueError('Invalid request size')
     data=json.loads(self.rfile.read(size))
     return self.sendjson(reef_refresh_batch(data.get('zip',''),data.get('items',[])))
+   except (ValueError,TypeError,OSError) as exc:return self.sendjson({'error':str(exc)},400)
+  if self.path=='/api/admin/openai-key':
+   if not self.gate(write=True):return
+   if not getattr(request_scope,'admin',False):return self.sendjson({'error':'Administrator required'},403)
+   try:
+    size=int(self.headers.get('Content-Length','0'))
+    if not 0<size<=2048:raise ValueError('Invalid request size')
+    data=json.loads(self.rfile.read(size))
+    if data.get('remove') is True:
+     OPENAI_KEY_PATH.unlink(missing_ok=True)
+     return self.sendjson({'ok':True,'configured':bool(openai_scan_key())})
+    save_openai_scan_key(data.get('key'))
+    return self.sendjson({'ok':True,'configured':True})
    except (ValueError,TypeError,OSError) as exc:return self.sendjson({'error':str(exc)},400)
   if self.path=='/api/admin/reef-key':
    if not self.gate(write=True):return
