@@ -2674,21 +2674,23 @@ body:has(#hg-tour-overlay:not([hidden])) #hg-tour-replay{display:none!important}
  const obs=new MutationObserver(update);
  obs.observe(progress,{childList:true,subtree:true});
  obs.observe(overlay,{attributes:true,attributeFilter:['hidden']});
- // Advance only for a real tap on the currently highlighted tour action.
- // Programmatic page switches and other clicks must not skip steps.
+ // Delegate clicks to the actual navigation action instead of relying on
+ // the highlighted DOM node (mobile navigation can re-render or wrap it).
  document.addEventListener('click',event=>{
-  if(overlay.hidden||!event.isTrusted||advancing)return;
-  if(step===2||step<1||step>7)return; // Collections advance only after a confirmed save.
-  const selected=highlighted;
-  if(!selected||!(event.target instanceof Node)||!selected.contains(event.target))return;
-  if((step===6||step===7)&&(selected.classList.contains('mobile-more-trigger')||selected.getAttribute('data-page')==='more')){setTimeout(position,180);return;}
+  if(overlay.hidden||advancing||step<1||step>7||step===2)return;
+  const clicked=event.target instanceof Element?event.target.closest('[data-page],[data-home-go],#shop-generate-tour,.mobile-more-trigger'):null;
+  if(!clicked)return;
+  const action=clicked.id==='shop-generate-tour'?'generate':clicked.dataset.page||clicked.dataset.homeGo||(clicked.classList.contains('mobile-more-trigger')?'more':'');
+  const expected={1:'recipes',3:'planner',4:'shopping',5:'generate',6:'pantry',7:'stores'}[step];
+  if(action==='more'&&(step===6||step===7)){setTimeout(position,200);return}
+  if(action!==expected)return;
   advancing=true;
   tourCompleted.add(step);
-  // Let the page navigation handler finish before changing the tour step.
+  const current=step;
   setTimeout(()=>{
    advancing=false;
-   if(!overlay.hidden&&window.hgTourIndex?.()===step)next.click();
-  },120);
+   if(!overlay.hidden&&step===current&&window.hgTourIndex?.()===current)next.click();
+  },200);
  },true);
  // Highlighted controls remain usable; a successful tap advances the walkthrough.
  // The Next and Back buttons remain available for optional steps.
