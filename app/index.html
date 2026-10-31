@@ -2547,7 +2547,7 @@ const steps=[
  ['Plan your week','Open Plan and choose meals for the days you want to cook.'],
  ['Your shopping list','Open Shop to see your list and check off items as you shop.'],
  ['Build your grocery list','This button creates a shopping list from your planned meals. Tap the highlighted button to continue. Your current list stays unchanged during the tour.'],
- ['Check your pantry','Track ingredients you already have to keep your shopping organized.'],
+ ['Check your pantry','Your pantry is where you keep track of ingredients you already have at home. Add items and update their quantities as you use them. This helps you see what is on hand before shopping, so you can avoid buying duplicates.'],
  ['Compare store prices','Explore available store prices before shopping. Prices and availability can change.'],
  ['You’re ready!','You explored recipes, learned how to organize collections, plan meals, build a shopping list, check your pantry, and compare stores. Optional steps can be completed anytime. Replay this walkthrough from More.']
 ];
@@ -2659,7 +2659,7 @@ body:has(#hg-tour-overlay:not([hidden])) #hg-tour-replay{display:none!important}
    next.disabled=false;next.title='Continue without creating a collection';
   }else{next.disabled=false;next.title=''}
   if(step===5)hint.textContent='Tap the highlighted button to continue. This is only a demonstration; your shopping list will not change.';
-  if(step===6)hint.textContent=highlighted?.getAttribute('data-page')==='pantry'?'Tap Pantry to view your ingredients.':'Tap More first, then Pantry to view your ingredients.';
+  if(step===6)hint.textContent=highlighted?.getAttribute('data-page')==='pantry'?'Tap Pantry to see and manage ingredients you already have.':'Tap More, then Pantry to see and manage ingredients you already have.';
   if(step===7)hint.textContent=highlighted?.getAttribute('data-page')==='stores'?'Tap Nearby stores to explore store pricing.':'Tap More first, then Nearby stores. Store availability varies.';
   if(step===8)hint.textContent='Tap Start planning to finish, or Back to revisit a step.';
   next.textContent=step===8?'Start planning':'Next';
