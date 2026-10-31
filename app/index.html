@@ -2569,7 +2569,9 @@ body.hg-tour-generate-step[data-active-page="shopping"] #shopping-focus-toggle{d
 body:has(#hg-tour-overlay:not([hidden])) .mobile-bottom-nav{z-index:2147483003!important;isolation:isolate!important}
 body:has(#hg-tour-overlay:not([hidden])) .mobile-bottom-nav .mobile-tab.hg-tour-highlight{z-index:2147483004!important;touch-action:manipulation!important}
 body:has(#hg-tour-overlay:not([hidden])) #hg-tour-card{z-index:2147483005!important}
-body:has(#hg-tour-overlay:not([hidden])) .mobile-more-backdrop:not([hidden]){z-index:2147483003!important}
+body:has(#hg-tour-overlay:not([hidden])) .mobile-more-backdrop:not([hidden]){z-index:2147483007!important;pointer-events:auto!important}
+body:has(#hg-tour-overlay:not([hidden])) .mobile-more-backdrop:not([hidden]) .mobile-more-sheet{position:relative;z-index:2147483008!important}
+body:has(#hg-tour-overlay:not([hidden])) .mobile-more-backdrop:not([hidden]) [data-page]{pointer-events:auto!important}
 body:has(#hg-tour-overlay:not([hidden])) .mobile-more-backdrop:not([hidden]) [data-page].hg-tour-highlight{z-index:2147483004!important}
 body:has(#hg-tour-overlay:not([hidden])) #hg-tour-overlay{z-index:2147483002!important}
 .hg-tour-highlight{position:relative!important;z-index:2147483002!important;outline:4px solid #63e6a0!important;outline-offset:4px!important;box-shadow:0 0 0 8px #16764c99,0 0 22px #63e6a0!important;border-radius:10px!important;pointer-events:auto!important}
@@ -2660,8 +2662,12 @@ body:has(#hg-tour-overlay:not([hidden])) #hg-tour-replay{display:none!important}
    step=n;
    const destinations={1:'recipes',2:'recipes',3:'planner',4:'shopping',5:'shopping',6:'pantry',7:'stores'};
    const destination=destinations[step];
-   if(destination&&document.body.dataset.activePage!==destination&&!(window.matchMedia('(max-width:750px)').matches&&(step===6||step===7))){
+   if(destination&&[2,5].includes(step)&&document.body.dataset.activePage!==destination){
     page(destination);
+   }
+   if((step===6||step===7)&&window.matchMedia('(max-width:750px)').matches){
+    const sheet=document.querySelector('.mobile-more-backdrop');
+    if(sheet?.hidden)document.querySelector('.mobile-more-trigger')?.click();
    }
    if(step===2){
     const panel=document.getElementById('manage-collections-panel');
@@ -2677,13 +2683,14 @@ body:has(#hg-tour-overlay:not([hidden])) #hg-tour-replay{display:none!important}
  // Delegate clicks to the actual navigation action instead of relying on
  // the highlighted DOM node (mobile navigation can re-render or wrap it).
  document.addEventListener('click',event=>{
-  if(overlay.hidden||advancing||step<1||step>7||step===2)return;
+  if(overlay.hidden||advancing||step<1||step>7||step===2||!event.isTrusted)return;
   const clicked=event.target instanceof Element?event.target.closest('[data-page],[data-home-go],#shop-generate-tour,.mobile-more-trigger'):null;
   if(!clicked)return;
   const action=clicked.id==='shop-generate-tour'?'generate':clicked.dataset.page||clicked.dataset.homeGo||(clicked.classList.contains('mobile-more-trigger')?'more':'');
   const expected={1:'recipes',3:'planner',4:'shopping',5:'generate',6:'pantry',7:'stores'}[step];
-  if(action==='more'&&(step===6||step===7)){setTimeout(position,120);setTimeout(position,350);return}
+  if(action==='more'&&(step===6||step===7)){setTimeout(position,80);setTimeout(position,250);return}
   if(action!==expected)return;
+  // Advance on a genuine tap; programmatic page changes never count.
   advancing=true;
   tourCompleted.add(step);
   const current=step;
