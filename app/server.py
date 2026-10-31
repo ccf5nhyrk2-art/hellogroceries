@@ -1507,22 +1507,6 @@ class Handler(SimpleHTTPRequestHandler):
      LEFT JOIN hg_households h ON h.id=a.household_id
      ORDER BY a.id DESC LIMIT 100""").fetchall()
    return self.sendjson({'entries':[{'at':x[0],'user':x[1] or 'Deleted account','household':x[2] or 'Unknown','action':x[3],'item':x[4],'before':x[5],'after':x[6]} for x in rows]})
-  if self.path=='/api/admin/ai-settings':
-   if not self.gate(write=True):return
-   if not getattr(request_scope,'admin',False):return self.sendjson({'error':'Administrator required'},403)
-   try:
-    size=int(self.headers.get('Content-Length','0'))
-    if not 0<size<=1024:raise ValueError('Invalid settings')
-    data=json.loads(self.rfile.read(size))
-    budget=float(data['monthly_budget_usd'])
-    scans=int(data['user_monthly_scans'])
-    if not math.isfinite(budget) or budget<0 or budget>100000 or scans<0 or scans>100000:raise ValueError('Invalid limits')
-    with db() as c:
-     c.execute('CREATE TABLE IF NOT EXISTS admin_preferences (key TEXT PRIMARY KEY,value TEXT NOT NULL)')
-     c.executemany('INSERT INTO admin_preferences(key,value) VALUES (?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value',[('ai_monthly_budget_usd',str(budget)),('ai_user_monthly_scans',str(scans))])
-     c.commit()
-    return self.sendjson({'ok':True,'limits':ai_scan_limits()})
-   except (ValueError,KeyError,TypeError,sqlite3.Error):return self.sendjson({'error':'Invalid AI scan limits'},400)
   if self.path=='/api/admin/ai-usage':
    if not self.gate():return
    if not getattr(request_scope,'admin',False):return self.sendjson({'error':'Administrator required'},403)
@@ -1668,6 +1652,22 @@ class Handler(SimpleHTTPRequestHandler):
   super().end_headers()
  def do_POST(self):
   request_scope.household_id=None
+  if self.path=='/api/admin/ai-settings':
+   if not self.gate(write=True):return
+   if not getattr(request_scope,'admin',False):return self.sendjson({'error':'Administrator required'},403)
+   try:
+    size=int(self.headers.get('Content-Length','0'))
+    if not 0<size<=1024:raise ValueError('Invalid settings')
+    data=json.loads(self.rfile.read(size))
+    budget=float(data['monthly_budget_usd'])
+    scans=int(data['user_monthly_scans'])
+    if not math.isfinite(budget) or budget<0 or budget>100000 or scans<0 or scans>100000:raise ValueError('Invalid limits')
+    with db() as c:
+     c.execute('CREATE TABLE IF NOT EXISTS admin_preferences (key TEXT PRIMARY KEY,value TEXT NOT NULL)')
+     c.executemany('INSERT INTO admin_preferences(key,value) VALUES (?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value',[('ai_monthly_budget_usd',str(budget)),('ai_user_monthly_scans',str(scans))])
+     c.commit()
+    return self.sendjson({'ok':True,'limits':ai_scan_limits()})
+   except (ValueError,KeyError,TypeError,sqlite3.Error):return self.sendjson({'error':'Invalid AI scan limits'},400)
   if self.path=='/api/pantry/scan':
    if not self.gate(write=True):return
    if not auth_rate_allowed(str(request_scope.user_id),'pantry-scan',15,3600):
