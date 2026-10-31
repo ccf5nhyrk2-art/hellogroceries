@@ -1475,7 +1475,7 @@ class Handler(SimpleHTTPRequestHandler):
      token=auth.issue_registration_verification(c,data.get('email'))
      c.commit()
      link='https://groceries.greenlee.uk/auth.html#verify='+urllib.parse.quote(token,safe='')
-     if not resend_send_email(data.get('email'),'Verify your HelloGroceries email','Welcome to HelloGroceries! Verify your email within 24 hours:\\n'+link+'\\n\\nIf you did not register, ignore this message.'):
+     if not resend_send_email(data.get('email'),'Verify your HelloGroceries email','Welcome to HelloGroceries! Verify your email within 24 hours:\n'+link+'\n\nIf you did not register, ignore this message.'):
       return self.sendjson({'error':'Could not send verification email. Please use Resend verification.'},502)
      return self.sendjson({'ok':True,'message':'Check your inbox for a verification link. The link expires in 24 hours.'},202)
     if path=='/api/auth/resend-verification':
@@ -1484,7 +1484,7 @@ class Handler(SimpleHTTPRequestHandler):
      c.commit()
      if token:
       link='https://groceries.greenlee.uk/auth.html#verify='+urllib.parse.quote(token,safe='')
-      resend_send_email(email,'Verify your HelloGroceries email','Your verification link expires in 24 hours:\\n'+link+'\\n\\nIf you did not request this, ignore this message.')
+      resend_send_email(email,'Verify your HelloGroceries email','Your verification link expires in 24 hours:\n'+link+'\n\nIf you did not request this, ignore this message.')
      return self.sendjson({'ok':True,'message':'If a pending registration exists, a verification email will be sent. Please check your inbox.'})
     if path=='/api/auth/verify':
      auth.activate_verified_registration(c,data.get('token'))
