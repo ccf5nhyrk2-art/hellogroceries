@@ -86,6 +86,26 @@ def db():
  c.execute('CREATE TABLE IF NOT EXISTS photos (recipe_id INTEGER PRIMARY KEY, image_url TEXT NOT NULL)')
  return c
 
+
+# Privacy-minimal product analytics: event counts and distinct users, 30-day retention.
+ANALYTICS_EVENTS={'page_recipes','page_planner','page_shopping','page_pantry','page_stores','page_selected-meals','page_my-recipes','page_imports','recipe_search','recipe_search_empty','recipe_saved','shopping_list_generated','meal_planned','price_lookup_failed'}
+def analytics_record(user_id,event):
+ if event not in ANALYTICS_EVENTS:return
+ try:
+  with db() as c:
+   c.execute('CREATE TABLE IF NOT EXISTS hg_analytics (day TEXT NOT NULL,user_id INTEGER NOT NULL,event TEXT NOT NULL,count INTEGER NOT NULL DEFAULT 1,PRIMARY KEY(day,user_id,event))')
+   c.execute("DELETE FROM hg_analytics WHERE day < date('now','-30 days')")
+   c.execute("INSERT INTO hg_analytics(day,user_id,event,count) VALUES (date('now'),?,?,1) ON CONFLICT(day,user_id,event) DO UPDATE SET count=count+1",(user_id,event))
+   c.commit()
+ except sqlite3.Error:pass
+def analytics_summary():
+ with db() as c:
+  c.execute('CREATE TABLE IF NOT EXISTS hg_analytics (day TEXT NOT NULL,user_id INTEGER NOT NULL,event TEXT NOT NULL,count INTEGER NOT NULL DEFAULT 1,PRIMARY KEY(day,user_id,event))')
+  rows=c.execute("SELECT day,event,SUM(count),COUNT(DISTINCT user_id) FROM hg_analytics WHERE day>=date('now','-29 days') GROUP BY day,event").fetchall()
+  registered=c.execute('SELECT COUNT(*) FROM hg_users').fetchone()[0]
+  active=c.execute("SELECT COUNT(DISTINCT user_id) FROM hg_analytics WHERE day>=date('now','-29 days')").fetchone()[0]
+  return {'total_users':registered,'active_30d':active,'events':[{'day':r[0],'event':r[1],'count':r[2],'users':r[3]} for r in rows],'retention_days':30}
+
 def pricing_visibility():
  with db() as c:
   c.execute('CREATE TABLE IF NOT EXISTS admin_preferences (key TEXT PRIMARY KEY,value TEXT NOT NULL)')
@@ -1390,6 +1410,10 @@ class Handler(SimpleHTTPRequestHandler):
   if self.path=='/api/pricing-visibility':
    if not self.gate():return
    return self.sendjson({'visibility':pricing_visibility(),'is_admin':bool(getattr(request_scope,'admin',False))})
+  if self.path=='/api/admin/analytics':
+   if not self.gate():return
+   if not getattr(request_scope,'admin',False):return self.sendjson({'error':'Administrator required'},403)
+   return self.sendjson(analytics_summary())
   if self.path=='/api/admin/tasks':
    if not self.gate():return
    if not getattr(request_scope,'admin',False):return self.sendjson({'error':'Administrator required'},403)
@@ -1523,6 +1547,16 @@ class Handler(SimpleHTTPRequestHandler):
   super().end_headers()
  def do_POST(self):
   request_scope.household_id=None
+  if self.path=='/api/analytics/event':
+   if not self.gate(write=True):return
+   try:
+    size=int(self.headers.get('Content-Length','0'))
+    if not 0<size<=256:raise ValueError('Invalid event')
+    event=json.loads(self.rfile.read(size)).get('event')
+    if event not in ANALYTICS_EVENTS:raise ValueError('Invalid event')
+    analytics_record(request_scope.user_id,event)
+    return self.sendjson({'ok':True})
+   except (ValueError,TypeError,AttributeError):return self.sendjson({'error':'Invalid event'},400)
   if self.path=='/api/admin/pricing-visibility':
    if not self.gate(write=True):return
    if not getattr(request_scope,'admin',False):return self.sendjson({'error':'Administrator required'},403)
