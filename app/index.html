@@ -102,6 +102,11 @@
  body[data-active-page="recipes"] #my-recipes,
  body[data-active-page="recipes"] #selected-plan{display:none!important}
 }
+/* Independent Shop page shell: hide all non-Shop sections regardless of legacy
+   inline display state, DOM nesting, or scroll position. */
+body[data-active-page="shopping"] main .layout > section:not(#shopping-page-section){display:none!important;visibility:hidden!important}
+body[data-active-page="shopping"] main .layout > #shopping-page-section{display:block!important;visibility:visible!important}
+body[data-active-page="shopping"] main > .mobile-home-dashboard{display:none!important}
 /* Strict Shop view: first section is Recipes, and everything before Shopping list in
    the second section belongs to another page. Do not rely on inline JS hiding. */
 body[data-active-page="shopping"] main .layout > section:not(#shopping-page-section){display:none!important}
@@ -490,7 +495,7 @@ const pageSpecs=[
  ['imports','Import recipes',second.querySelector('.import-tools')],
  ['planner','Weekly planner',document.getElementById('week-grid')?.closest('.enhance-panel')],
  ['pantry','Pantry',document.getElementById('pantry-items')?.closest('.enhance-panel')],
- ['shopping','Shopping list',shoppingHeading]
+ ['shopping','Shopping list',document.getElementById('shopping-page-section')]
 ];
 const toolbar=document.querySelector('.shopping-view-toolbar');
 const previousButton=document.getElementById('shopping-focus-toggle');
@@ -625,14 +630,8 @@ function showPage(key){
   button.classList.toggle('page-nav-active',id===key);
  }
  try{localStorage.setItem(PAGE_VIEW_KEY,key);localStorage.removeItem('hellogroceries-shopping-only')}catch(e){}
- if(key==='shopping'){
-  // The generated list is below the optional shopping tools; land on the list itself.
-  requestAnimationFrame(()=>{
-   const list=document.getElementById('items');
-   if(list && list.getClientRects().length)list.scrollIntoView({block:'start',behavior:'instant'});
-   else target?.scrollIntoView({block:'start',behavior:'instant'});
-  });
- }else window.scrollTo(0,0);
+ // Every page starts at the top. Never scroll Shop into the middle of the document.
+ window.scrollTo(0,0);
 }
 let initialPage='all';
 try{initialPage=localStorage.getItem(PAGE_VIEW_KEY)||(localStorage.getItem('hellogroceries-shopping-only')==='1'?'shopping':'all')}catch(e){}
