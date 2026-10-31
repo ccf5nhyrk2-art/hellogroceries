@@ -1789,11 +1789,15 @@ $('pantry-scan-start').onclick=async()=>{
   ctx.drawImage(photo,0,0,canvas.width,canvas.height);
   const dataUrl=canvas.toDataURL('image/jpeg',0.8);
   if(!dataUrl.startsWith('data:image/jpeg;base64,'))throw new Error('Could not prepare photo for scanning.');
-  const token=document.cookie.match(/(?:^|; )hg_csrf=([^;]*)/);
   scanStatus.textContent='Identifying items…';
-  const response=await fetch('/api/pantry/scan',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json','X-HG-CSRF':token?decodeURIComponent(token[1]):''},body:JSON.stringify({mode:$('pantry-scan-mode').value,mime:'image/jpeg',image:dataUrl.split(',')[1]})});
-  const data=await response.json();
-  if(!response.ok)throw Error(data.error||'Scan failed');
+  const token=document.cookie.match(/(?:^|; )hg_csrf=([^;]*)/);
+  const headers={'Content-Type':'application/json'};
+  if(token)headers['X-HG-CSRF']=token[1];
+  const response=await fetch('/api/pantry/scan',{method:'POST',credentials:'same-origin',headers,body:JSON.stringify({mode:$('pantry-scan-mode').value,mime:'image/jpeg',image:dataUrl.split(',')[1]})});
+  const raw=await response.text();
+  let data;
+  try{data=JSON.parse(raw)}catch(_){throw new Error('Scanner returned an unexpected response (HTTP '+response.status+').')}
+  if(!response.ok)throw Error(data.error||'Scanner request failed (HTTP '+response.status+').');
   scannedPantryItems=(data.items||[]).map(x=>({...x,selected:x.confidence!=='low'}));
   const rows=$('pantry-scan-rows');rows.replaceChildren();
   for(const [index,item] of scannedPantryItems.entries()){
@@ -1808,7 +1812,7 @@ $('pantry-scan-start').onclick=async()=>{
   }
   $('pantry-scan-results').hidden=!scannedPantryItems.length;
   scanStatus.textContent=scannedPantryItems.length?scannedPantryItems.length+' items found. Review and confirm below.':'No items detected. Try a clearer photo.';
- }catch(error){scanStatus.textContent=error instanceof TypeError?'Could not contact the scanner. Check your connection and try again.':(error.message||'Unable to scan this photo. Please try again.')}
+ }catch(error){scanStatus.textContent='Scan failed: '+(error.message||'Unknown error')+' (stage: '+(scanStatus.textContent==='Identifying items…'?'request':'photo')+').'}
  finally{$('pantry-scan-start').disabled=false}
 };
 $('pantry-scan-cancel').onclick=()=>{$('pantry-scan-results').hidden=true;scannedPantryItems=[];scanStatus.textContent='Scan cancelled.'};
