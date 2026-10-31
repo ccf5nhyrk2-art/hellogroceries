@@ -104,8 +104,8 @@
 }
 /* Strict Shop view: first section is Recipes, and everything before Shopping list in
    the second section belongs to another page. Do not rely on inline JS hiding. */
-body[data-active-page="shopping"] main .layout > section:first-child{display:none!important}
-body[data-active-page="shopping"] main .layout > section:last-child > :not(.shop-page-content){display:none!important}
+body[data-active-page="shopping"] main .layout > section:not(#shopping-page-section){display:none!important}
+body[data-active-page="shopping"] #shopping-page-section{display:block!important}
 /* Page ownership fallback: never show legacy planner or pantry cards in Shop. */
 body[data-active-page="shopping"] #smart-tools .ios-tool-card{display:none!important}
 /* Shopping price summary belongs to Shopping, never the Pantry view. */
@@ -467,14 +467,19 @@ const SHOPPING_FOCUS_KEY='hellogroceries-shopping-only';
 const PAGE_VIEW_KEY='hellogroceries-active-page-v1';
 const layout=document.querySelector('main .layout');
 const first=layout.querySelector('section:first-child'),second=layout.querySelector('section:last-child');
-// Explicitly mark only the shopping heading and its following tools as Shop content.
+// Give Shop its own actual section instead of depending on scrolling past
+// hidden planner, pantry and import panels inside the same section.
 const shoppingHeading=[...second.children].find(el=>el.tagName==='H2'&&el.textContent.trim()==='Shopping list');
 if(shoppingHeading){
- let inShop=false;
- for(const el of [...second.children]){
-  if(el===shoppingHeading)inShop=true;
-  el.classList.toggle('shop-page-content',inShop);
+ const shopSection=document.createElement('section');
+ shopSection.id='shopping-page-section';
+ let node=shoppingHeading;
+ while(node){
+  const next=node.nextElementSibling;
+  shopSection.appendChild(node);
+  node=next;
  }
+ second.insertAdjacentElement('afterend',shopSection);
 }
 const pageSpecs=[
  ['all','Show all pages',null],
@@ -581,14 +586,7 @@ function showPage(key){
  // The shopping page starts at its Shopping list heading; preceding panels belong to other pages.
  if(key==='shopping'){
   conceal(first);
-  const heading=target;
-  if(heading){
-   let beforeShopping=true;
-   for(const child of [...second.children]){
-    if(child===heading){beforeShopping=false;continue}
-    if(beforeShopping)conceal(child);
-   }
-  }
+  conceal(second);
  }
  // Guard against legacy planner/pantry cards being left inside Shop.
  if(key==='shopping'){
