@@ -2701,7 +2701,7 @@ body:has(#hg-tour-overlay:not([hidden])) #hg-tour-replay{display:none!important}
   let attempts=0;
   const check=()=>{
    if(overlay.hidden||step!==2)return;
-   if(option()){tourCompleted.add(2);collectionStatus.textContent='✓ Collection “'+name+'” saved successfully.';hint.textContent='Your collection is ready. Tap Next to continue.';collectionButton.disabled=false;next.disabled=false;collectionInput.value='';return}
+   if(option()){tourCompleted.add(2);collectionStatus.textContent='✓ Collection “'+name+'” saved successfully. Moving to Plan your week…';hint.textContent='Collection saved! Next up: plan your week.';collectionButton.disabled=false;next.disabled=false;collectionInput.value='';setTimeout(()=>{if(!overlay.hidden&&step===2&&window.hgTourIndex?.()===2)next.click()},950);return}
    if(++attempts<18)setTimeout(check,180);
    else {hint.textContent='Collection not saved yet. Check for an error and try again.';collectionStatus.textContent='Unable to confirm the collection was saved.';collectionButton.disabled=false;}
   };
