@@ -1922,7 +1922,7 @@ fetch('/api/auth/status',{cache:'no-store'}).then(r=>r.json()).then(status=>{
 </script><script>if('serviceWorker' in navigator)navigator.serviceWorker.getRegistrations().then(rs=>rs.forEach(r=>{if(r.active&&r.active.scriptURL.endsWith('/sw.js'))r.unregister()})).catch(()=>{});</script><script>(function(){const b=document.createElement('button');b.id='hg-theme-toggle';b.type='button';b.setAttribute('aria-label','Toggle light and dark mode');function sync(){const dark=document.documentElement.dataset.theme==='dark';b.textContent=dark?'☀ Light mode':'☾ Dark mode';b.setAttribute('aria-pressed',String(dark))}b.addEventListener('click',()=>{const theme=document.documentElement.dataset.theme==='dark'?'light':'dark';document.documentElement.dataset.theme=theme;try{localStorage.setItem('hg-theme',theme)}catch(e){}sync()});(document.querySelector('header')||document.body).appendChild(b);sync()})()</script><script>
 (function(){
 const csrf=()=>{const m=document.cookie.match(/(?:^|; )hg_csrf=([^;]*)/);return m?decodeURIComponent(m[1]):''};
-const emit=event=>{fetch('/api/analytics/event',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json','X-HG-CSRF':csrf()},body:JSON.stringify({event})}).catch(()=>{})};
+const emit=event=>{fetch('/api/analytics/event',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json','X-HG-CSRF':csrf()},body:JSON.stringify({event})}).then(async r=>{if(!r.ok)console.warn('Analytics event rejected:',r.status,(await r.text()).slice(0,160))}).catch(e=>console.warn('Analytics event failed:',e))};
 document.addEventListener('click',e=>{
  const tab=e.target.closest('.page-nav-button,.mobile-tab,.mobile-more-option,[data-home-go]');
  if(tab){const key=tab.dataset.page||tab.dataset.homeGo||({Recipes:'recipes','Weekly planner':'planner','Shopping list':'shopping',Pantry:'pantry','Nearby stores':'stores','Selected Meals':'selected-meals','My Recipes':'my-recipes','Import recipes':'imports'})[tab.textContent.trim()];if(key)emit('page_'+key)}
@@ -1931,6 +1931,7 @@ document.addEventListener('click',e=>{
  if(id==='generate'||id==='generate-list')emit('shopping_list_generated');
 });
 
+emit('page_recipes');
 // Record genuine recipe searches, without recording their text.
 let searchTimer;
 document.getElementById('search')?.addEventListener('input',()=>{
