@@ -2694,39 +2694,24 @@ body:has(#hg-tour-overlay:not([hidden])) #hg-tour-replay{display:none!important}
  const obs=new MutationObserver(update);
  obs.observe(progress,{childList:true,subtree:true});
  obs.observe(overlay,{attributes:true,attributeFilter:['hidden']});
- // Track actual taps on highlighted controls, including iOS touch events.
- // Never cancel the native click: navigation and menu actions must still run.
+ // Advance the tour on the highlighted control's actual click.
  function completeHighlightedTap(event){
   const current=window.hgTourIndex?.();
   if(overlay.hidden||advancing||current<1||current>7||current===2)return;
-  if(event.isTrusted===false)return;
   const source=event.target instanceof Element?event.target:null;
   const clicked=source?.closest('[data-page],[data-home-go],#shop-generate-tour,.mobile-more-trigger');
   if(!clicked)return;
   const action=clicked.id==='shop-generate-tour'?'generate':clicked.dataset.page||clicked.dataset.homeGo||(clicked.classList.contains('mobile-more-trigger')?'more':'');
   const expected={1:'recipes',3:'planner',4:'shopping',5:'generate',6:'pantry',7:'stores'}[current];
-  if(action==='more'&&(current===6||current===7)){setTimeout(position,100);return}
+  if(action==='more'&&(current===6||current===7)){setTimeout(position,80);return}
   if(action!==expected)return;
   advancing=true;
   tourCompleted.add(current);
   hint.textContent='Great! Moving to the next step…';
-  // Advance by the canonical tour index, independent of highlight rerenders.
-  setTimeout(()=>{
-   advancing=false;
-   if(!overlay.hidden)window.hgTourAdvance?.(current);
-  },220);
+  setTimeout(()=>{advancing=false;window.hgTourAdvance?.(current)},120);
  }
- document.addEventListener('pointerdown',event=>{
-  if(event.pointerType==='touch'||event.pointerType==='pen')completeHighlightedTap(event);
- },true);
- document.addEventListener('touchstart',event=>{
-  if(event.touches.length===1)completeHighlightedTap(event);
- },{capture:true,passive:true});
- document.addEventListener('click',event=>completeHighlightedTap(event),true);
- // Highlighted controls remain usable; a successful tap advances the walkthrough.
- // The Next and Back buttons remain available for optional steps.
- // Highlighted controls remain usable; a successful tap advances the walkthrough.
- // The Next and Back buttons remain available for optional steps.
+ document.addEventListener('click',completeHighlightedTap,true);
+ // Next remains available for optional steps.
  window.addEventListener('resize',()=>{if(!overlay.hidden)position()});
  function fitKeyboard(){
   if(overlay.hidden){card.style.removeProperty('bottom');card.style.removeProperty('max-height');return}
