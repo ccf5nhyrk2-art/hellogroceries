@@ -1474,7 +1474,7 @@ class Handler(SimpleHTTPRequestHandler):
      email=auth.validate_email(data.get('email'))
      if path=='/api/auth/register':
       existing=c.execute("SELECT status FROM hg_registration_requests WHERE email=?",(email,)).fetchone()
-      if not existing:
+      if not existing or (existing[0]=='approved' and not c.execute("SELECT 1 FROM hg_users WHERE email=?",(email,)).fetchone()):
        auth.request_registration(c,email,data.get('password'),data.get('household'))
      token=auth.issue_registration_verification(c,email)
      c.commit()
