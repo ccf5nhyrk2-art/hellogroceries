@@ -2560,6 +2560,8 @@ fetch('/api/auth/status',{credentials:'same-origin',cache:'no-store'}).then(r=>r
 </script><style>
 #shop-generate-tour{background:#123d2a;color:#fff;border:1px solid #61b78a;border-radius:11px;padding:11px 14px;font-weight:700;cursor:pointer}
 body:not([data-active-page="shopping"]) #shop-generate-tour{display:none!important}
+#shop-generate-tour{display:none!important}
+body.hg-tour-generate-step[data-active-page="shopping"] #shop-generate-tour{display:block!important;position:relative!important;z-index:2147483002!important;margin:8px 12px!important}
 .hg-tour-highlight{position:relative!important;z-index:2147483002!important;outline:4px solid #63e6a0!important;outline-offset:4px!important;box-shadow:0 0 0 8px #16764c99,0 0 22px #63e6a0!important;border-radius:10px!important;pointer-events:auto!important}
 #hg-tour-overlay{pointer-events:none!important;background:rgba(0,0,0,.57)!important}
 body:has(#hg-tour-overlay:not([hidden])) #hg-tour-replay{display:none!important}
@@ -2573,7 +2575,8 @@ body:has(#hg-tour-overlay:not([hidden])) #hg-tour-replay{display:none!important}
 <script>
 (function(){
  const shop=document.getElementById('shop-generate-tour');
- shop?.addEventListener('click',()=>document.getElementById('generate-grocery')?.click());
+ // The tour previews the action without running a destructive list regeneration.
+ shop?.addEventListener('click',event=>{if(!overlay.hidden){event.preventDefault();event.stopImmediatePropagation();hint.textContent='This button generates a list from your selected meals. Finish the tour before using it.';return}document.getElementById('generate-grocery')?.click()});
  const overlay=document.getElementById('hg-tour-overlay'),progress=document.getElementById('hg-tour-progress');
  const card=document.getElementById('hg-tour-card'),next=document.getElementById('hg-tour-next');
  const hint=document.createElement('div');hint.id='hg-tour-hint';card.insertBefore(hint,document.getElementById('hg-tour-actions'));
@@ -2604,7 +2607,7 @@ body:has(#hg-tour-overlay:not([hidden])) #hg-tour-replay{display:none!important}
   return candidates.find(el=>visible(el)&&el.closest('.mobile-bottom-nav'))||candidates.find(visible)||null;
  }
  function position(){
-  clear();if(overlay.hidden)return;
+  clear();document.body.classList.toggle('hg-tour-generate-step',!overlay.hidden&&step===5);if(overlay.hidden)return;
   highlighted=target(step);
   if(highlighted){highlighted.classList.add('hg-tour-highlight');if(!highlighted.closest('.mobile-bottom-nav'))highlighted.scrollIntoView({block:'nearest',behavior:'instant'});}
   hint.textContent=highlighted?'Tap the glowing button to continue. You can also use Next.':'Tap Next to continue.';
