@@ -56,6 +56,8 @@
 .shopping-department .grocery-item-wrap > details.grocery-breakdown{display:block;margin:0 0 5px 37px!important;padding:0!important;background:transparent!important}
 .shopping-department .grocery-item-wrap > details.grocery-breakdown > .grocery-breakdown-content{margin-top:7px}
 .source-correct{font-size:12px!important;padding:5px 8px!important;margin-top:5px;background:#e6f2e9!important;color:#176b4a!important}.grocery-source small{overflow-wrap:anywhere}.inventory-form{display:grid;grid-template-columns:2fr 1fr 1fr auto;gap:7px}.inventory-form input,.inventory-form select{min-width:0;max-width:100%}@media(max-width:750px){.inventory-form{grid-template-columns:1fr 1fr}.inventory-form input:first-child{grid-column:1/-1}}[data-admin-only],body:not(.is-instance-admin) [data-page="backup"]{display:none!important}body.is-instance-admin [data-admin-only]{display:revert!important}
+/* Shopping price summary belongs to Shopping, never the Pantry view. */
+body[data-active-page="pantry"] #shopping-price-summary{display:none!important}
 /* Role-based shopping simplification: pricing data remains untouched. */
 html.hg-hide-pricing #store-sales-comparison,
 html.hg-hide-pricing #shopping-price-summary,
