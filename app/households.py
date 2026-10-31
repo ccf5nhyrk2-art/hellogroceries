@@ -299,10 +299,17 @@ def issue_registration_verification(conn,email):
         return None
     token=secrets.token_urlsafe(32)
     conn.execute("""INSERT INTO hg_email_verifications(request_id,token_hash,expires_at,sent_at)
-        VALUES(?,?,?,?) ON CONFLICT(request_id) DO UPDATE SET
-        token_hash=excluded.token_hash,expires_at=excluded.expires_at,sent_at=excluded.sent_at""",
-        (request_id,token_hash(token),expiry(24),now()))
+        VALUES(?,?,?,NULL) ON CONFLICT(request_id) DO UPDATE SET
+        token_hash=excluded.token_hash,expires_at=excluded.expires_at,sent_at=NULL""",
+        (request_id,token_hash(token),expiry(24)))
     return token
+
+def confirm_verification_sent(conn,email,token):
+    email=validate_email(email)
+    conn.execute("""UPDATE hg_email_verifications SET sent_at=?
+        WHERE request_id IN (SELECT id FROM hg_registration_requests WHERE email=? AND status='pending')
+        AND token_hash=?""",(now(),email,token_hash(token)))
+    conn.commit()
 
 def release_failed_verification(conn,email,token):
     """Allow immediate retry if the provider rejected the send; never expose token."""
