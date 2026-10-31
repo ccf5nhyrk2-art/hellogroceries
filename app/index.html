@@ -102,6 +102,8 @@
  body[data-active-page="recipes"] #my-recipes,
  body[data-active-page="recipes"] #selected-plan{display:none!important}
 }
+/* Page ownership fallback: never show legacy planner or pantry cards in Shop. */
+body[data-active-page="shopping"] #smart-tools .ios-tool-card{display:none!important}
 /* Shopping price summary belongs to Shopping, never the Pantry view. */
 body[data-active-page="pantry"] #shopping-price-summary{display:none!important}
 /* Role-based shopping simplification: pricing data remains untouched. */
@@ -572,6 +574,16 @@ function showPage(key){
    for(const child of [...second.children]){
     if(child===heading){beforeShopping=false;continue}
     if(beforeShopping)conceal(child);
+   }
+  }
+ }
+ // Guard against legacy planner/pantry cards being left inside Shop.
+ if(key==='shopping'){
+  const shopTools=document.getElementById('smart-tools');
+  if(shopTools){
+   for(const card of shopTools.querySelectorAll('.ios-tool-card')){
+    const label=card.querySelector('summary')?.textContent.trim();
+    if(['Pantry inventory','Plan dinners','Cooking mode'].includes(label))conceal(card);
    }
   }
  }
