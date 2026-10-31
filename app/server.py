@@ -1692,7 +1692,7 @@ class Handler(SimpleHTTPRequestHandler):
     if mime=='image/png' and not binary[:4]==bytes((137,80,78,71)):raise ValueError('Invalid PNG')
     if mime=='image/webp' and binary[:4]!=b'RIFF':raise ValueError('Invalid WebP')
     instruction=('Read the grocery receipt and extract purchased food and pantry items; ignore taxes, totals, discounts, fees and non-food purchases.' if mode=='receipt' else 'Identify grocery and pantry products actually visible in this photograph.')
-    prompt=instruction+' Return JSON object with items array; each item must have name (include the exact readable brand, product variant and package size when visible (for example, Miller Lite 12 oz); otherwise use a plain descriptive grocery name; never invent brands, sizes or variants; avoid repeating the unit in the name unless it is part of the printed product label), quantity (positive number), unit (one of count, can, package, bag, pound, ounce, gram, kilogram, liter, milliliter, cup, bunch, head, loaf, dozen), confidence (high, medium, low). For receipts, interpret common abbreviated item names conservatively. Do not guess invisible items or uncertain quantities. Use quantity 1 and unit count when unknown. No more than 40 distinct items. Exclude personal information.'
+    prompt=instruction+' Return a JSON object with an items array. For each item return brand (visible brand or empty string), product (specific product/variant or plain food name), package_size (exact printed size such as 12 oz, 500 mL, or empty string if unreadable), name (optional fallback), quantity (positive number), unit (one of count, can, package, bag, pound, ounce, gram, kilogram, liter, milliliter, cup, bunch, head, loaf, dozen), confidence (high, medium, low). Transcribe the actual readable brand, variant and size carefully; never infer size from typical packaging. Do not include packaging words like can in the product field when unit is can. For receipts, interpret abbreviations conservatively. Do not invent invisible items or personal information. Use quantity 1 and unit count if unknown. Maximum 40 distinct items.'
     payload={'model':os.environ.get('PANTRY_SCAN_MODEL','gpt-4.1-mini'),'response_format':{'type':'json_object'},'messages':[{'role':'user','content':[{'type':'text','text':prompt},{'type':'image_url','image_url':{'url':'data:'+mime+';base64,'+photo,'detail':'high'}}]}],'max_tokens':1800}
     req=urllib.request.Request('https://api.openai.com/v1/chat/completions',data=json.dumps(payload).encode(),headers={'Authorization':'Bearer '+key,'Content-Type':'application/json'},method='POST')
     with urllib.request.urlopen(req,timeout=45) as response:result=json.load(response)
@@ -1702,12 +1702,18 @@ class Handler(SimpleHTTPRequestHandler):
     items=[]
     for item in parsed.get('items',[])[:40]:
      if not isinstance(item,dict):continue
-     name=str(item.get('name','')).strip()[:140]
+     brand=str(item.get('brand') or '').strip()[:65]
+     product=str(item.get('product') or item.get('name') or '').strip()[:100]
+     package_size=str(item.get('package_size') or '').strip()[:32]
+     # Compose a readable pantry name while preserving printed package size.
+     name=' '.join(part for part in (brand,product,package_size) if part).strip()[:140]
+     if brand and product.lower().startswith(brand.lower()+' '):name=' '.join(part for part in (product,package_size) if part)[:140]
+     if not name:name=str(item.get('name') or '').strip()[:140]
      try:quantity=float(item.get('quantity',1))
      except (ValueError,TypeError):quantity=1
      unit=str(item.get('unit','count')).lower()
      if name and '|' not in name and 0<quantity<=100000:
-      items.append({'name':name,'quantity':quantity,'unit':unit if unit in allowed else 'count','confidence':str(item.get('confidence','low')) if item.get('confidence') in ('high','medium','low') else 'low'})
+      items.append({'name':name,'quantity':quantity,'unit':unit if unit in allowed else 'count','confidence':str(item.get('confidence','low')) if item.get('confidence') in ('high','medium','low') else 'low','brand':brand,'product':product,'package_size':package_size})
     return self.sendjson({'items':items,'requires_review':True})
    except urllib.error.HTTPError as exc:
     status=exc.code
