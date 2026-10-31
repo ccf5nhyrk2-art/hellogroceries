@@ -100,8 +100,7 @@
  body[data-active-page="shopping"] #week-grid,
  body[data-active-page="shopping"] #pantry-items,
  body[data-active-page="recipes"] #shop-sales,
- body[data-active-page="recipes"] #my-recipes,
- body[data-active-page="recipes"] #selected-plan{display:none!important}
+ body[data-active-page="recipes"] #my-recipes{display:none!important}
 }
 body[data-active-page="shopping"] main .layout > section[hidden]{display:none!important}
 body[data-active-page="shopping"] #shopping-page-section{grid-column:1/-1;min-width:0}
@@ -1074,10 +1073,10 @@ selectedMealsToggle.addEventListener('click',()=>{
 function renderSelectedPlan(){
   const chosen=state.selected||{};
   const byId=new Map(recipes.map(r=>[String(r.id),r]));
-  const entries=Object.entries(chosen).map(([id,scale])=>({id,scale,recipe:byId.get(id)})).filter(x=>x.recipe);
+  const entries=Object.entries(chosen).map(([id,scale])=>({id,scale,recipe:byId.get(id)}));
   $('selected-plan-count').textContent=`(${entries.length})`;
   $('selected-meals-button-count').textContent=entries.length?`(${entries.length})`:'';
-  $('selected-plan-list').innerHTML=entries.length?entries.map(x=>`<div class="selected-meal"><span>${esc(cleanRecipeName(x.recipe.name))}${/^https:\/\//i.test(String(x.recipe.url||''))?`<a class="selected-recipe-link" href="${esc(x.recipe.url)}" target="_blank" rel="noopener noreferrer">View recipe ↗</a>`:''}</span><select aria-label="Servings for ${esc(cleanRecipeName(x.recipe.name))}" data-plan-scale="${esc(x.id)}">${[0.5,1,1.5,2,3,4,5,6].map(v=>`<option value="${v}" ${Number(x.scale)===v?'selected':''}>${v}×</option>`).join('')}</select><button type="button" data-remove-meal="${esc(x.id)}" aria-label="Remove ${esc(cleanRecipeName(x.recipe.name))}">Remove</button></div>`).join(''):'<p class="muted">No meals selected yet. Choose “Add to plan” on a recipe.</p>';
+  $('selected-plan-list').innerHTML=entries.length?entries.map(x=>`<div class="selected-meal"><span>${esc(x.recipe?cleanRecipeName(x.recipe.name):'Recipe unavailable (ID '+x.id+')')}${/^https:\/\//i.test(String(x.recipe?.url||''))?`<a class="selected-recipe-link" href="${esc(x.recipe?.url||'')}" target="_blank" rel="noopener noreferrer">View recipe ↗</a>`:''}</span><select aria-label="Servings for ${esc(x.recipe?cleanRecipeName(x.recipe.name):'Recipe unavailable (ID '+x.id+')')}" data-plan-scale="${esc(x.id)}">${[0.5,1,1.5,2,3,4,5,6].map(v=>`<option value="${v}" ${Number(x.scale)===v?'selected':''}>${v}×</option>`).join('')}</select><button type="button" data-remove-meal="${esc(x.id)}" aria-label="Remove ${esc(x.recipe?cleanRecipeName(x.recipe.name):'Recipe unavailable (ID '+x.id+')')}">Remove</button></div>`).join(''):'<p class="muted">No meals selected yet. Choose “Add to plan” on a recipe.</p>';
 }
 $('selected-plan-list').addEventListener('click',e=>{
   const id=e.target.dataset.removeMeal;
@@ -1745,7 +1744,7 @@ function renderIngredientSuggestions(){
   suggestions.push({recipe,matches,extra:ingredients.length-matches.length,score:matches.length/Math.sqrt(ingredients.length)});
  }
  suggestions.sort((a,b)=>b.score-a.score||b.matches.length-a.matches.length||a.extra-b.extra||cleanRecipeName(a.recipe.name).localeCompare(cleanRecipeName(b.recipe.name)));
- root.innerHTML=suggestions.length?suggestions.slice(0,8).map(x=>`<div class="ingredient-suggestion"><div><strong>${esc(cleanRecipeName(x.recipe.name))}</strong><div class="muted">${x.matches.length} shared ingredients · ${x.extra} other ingredients</div><small>Already on your list: ${esc(x.matches.slice(0,5).join(', '))}${x.matches.length>5?'…':''}</small></div><button type="button" data-suggest-add="${esc(x.recipe.id)}">Add meal</button></div>`).join(''):'<p class="muted">No strong ingredient matches yet. Try adding more meals to your shopping list.</p>';
+ root.innerHTML=suggestions.length?suggestions.slice(0,8).map(x=>`<div class="ingredient-suggestion"><div><strong>${esc(x.recipe?cleanRecipeName(x.recipe.name):'Recipe unavailable (ID '+x.id+')')}</strong><div class="muted">${x.matches.length} shared ingredients · ${x.extra} other ingredients</div><small>Already on your list: ${esc(x.matches.slice(0,5).join(', '))}${x.matches.length>5?'…':''}</small></div><button type="button" data-suggest-add="${esc(x.recipe.id)}">Add meal</button></div>`).join(''):'<p class="muted">No strong ingredient matches yet. Try adding more meals to your shopping list.</p>';
 }
 
 
