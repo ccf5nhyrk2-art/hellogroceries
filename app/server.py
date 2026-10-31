@@ -115,11 +115,29 @@ def record_scan_usage(user_id,model,usage):
    c.commit()
  except Exception as exc:print('AI usage tracking failed:',type(exc).__name__,flush=True)
 
+def ai_scan_limits():
+ with db() as c:
+  c.execute('CREATE TABLE IF NOT EXISTS admin_preferences (key TEXT PRIMARY KEY,value TEXT NOT NULL)')
+  values=dict(c.execute("SELECT key,value FROM admin_preferences WHERE key IN ('ai_monthly_budget_usd','ai_user_monthly_scans')"))
+ return {'monthly_budget_usd':float(values.get('ai_monthly_budget_usd','0')),'user_monthly_scans':int(values.get('ai_user_monthly_scans','0'))}
+
+def ai_scan_allowed(user_id):
+ limits=ai_scan_limits()
+ with db() as c:
+  c.execute('CREATE TABLE IF NOT EXISTS hg_ai_usage (id INTEGER PRIMARY KEY AUTOINCREMENT,at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,user_id INTEGER NOT NULL,model TEXT NOT NULL,input_tokens INTEGER NOT NULL,output_tokens INTEGER NOT NULL,cost_micro_usd INTEGER)')
+  used=c.execute("SELECT COUNT(*) FROM hg_ai_usage WHERE user_id=? AND at>=strftime('%Y-%m-01','now')",(user_id,)).fetchone()[0]
+  spent=c.execute("SELECT COALESCE(SUM(cost_micro_usd),0) FROM hg_ai_usage WHERE at>=strftime('%Y-%m-01','now')").fetchone()[0]/1000000
+ if limits['user_monthly_scans'] and used>=limits['user_monthly_scans']:return 'Your monthly AI scan allowance has been reached.'
+ if limits['monthly_budget_usd'] and spent>=limits['monthly_budget_usd']:return 'The monthly AI scanning budget has been reached.'
+ return None
+
 def scan_usage_summary():
  with db() as c:
   c.execute('CREATE TABLE IF NOT EXISTS hg_ai_usage (id INTEGER PRIMARY KEY AUTOINCREMENT,at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,user_id INTEGER NOT NULL,model TEXT NOT NULL,input_tokens INTEGER NOT NULL,output_tokens INTEGER NOT NULL,cost_micro_usd INTEGER)')
   rows=c.execute("SELECT u.user_id,COALESCE(a.email,'Deleted account'),COUNT(*),SUM(u.input_tokens),SUM(u.output_tokens),SUM(u.cost_micro_usd),SUM(CASE WHEN u.cost_micro_usd IS NULL THEN 1 ELSE 0 END) FROM hg_ai_usage u LEFT JOIN hg_users a ON a.id=u.user_id WHERE u.at>=datetime('now','-30 days') GROUP BY u.user_id ORDER BY SUM(u.cost_micro_usd) DESC").fetchall()
-  return {'period_days':30,'users':[{'user_id':r[0],'user':r[1],'scans':r[2],'input_tokens':r[3],'output_tokens':r[4],'estimated_usd':round((r[5] or 0)/1000000,6),'unpriced_scans':r[6]} for r in rows]}
+  month=c.execute("SELECT COUNT(*),COALESCE(SUM(cost_micro_usd),0) FROM hg_ai_usage WHERE at>=strftime('%Y-%m-01','now')").fetchone()
+  limits=ai_scan_limits()
+  return {'month_scans':month[0],'month_estimated_usd':round(month[1]/1000000,6),'limits':limits,'period_days':30,'users':[{'user_id':r[0],'user':r[1],'scans':r[2],'input_tokens':r[3],'output_tokens':r[4],'estimated_usd':round((r[5] or 0)/1000000,6),'unpriced_scans':r[6]} for r in rows]}
 
 def analytics_summary():
  with db() as c:
@@ -1489,6 +1507,22 @@ class Handler(SimpleHTTPRequestHandler):
      LEFT JOIN hg_households h ON h.id=a.household_id
      ORDER BY a.id DESC LIMIT 100""").fetchall()
    return self.sendjson({'entries':[{'at':x[0],'user':x[1] or 'Deleted account','household':x[2] or 'Unknown','action':x[3],'item':x[4],'before':x[5],'after':x[6]} for x in rows]})
+  if self.path=='/api/admin/ai-settings':
+   if not self.gate(write=True):return
+   if not getattr(request_scope,'admin',False):return self.sendjson({'error':'Administrator required'},403)
+   try:
+    size=int(self.headers.get('Content-Length','0'))
+    if not 0<size<=1024:raise ValueError('Invalid settings')
+    data=json.loads(self.rfile.read(size))
+    budget=float(data['monthly_budget_usd'])
+    scans=int(data['user_monthly_scans'])
+    if not math.isfinite(budget) or budget<0 or budget>100000 or scans<0 or scans>100000:raise ValueError('Invalid limits')
+    with db() as c:
+     c.execute('CREATE TABLE IF NOT EXISTS admin_preferences (key TEXT PRIMARY KEY,value TEXT NOT NULL)')
+     c.executemany('INSERT INTO admin_preferences(key,value) VALUES (?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value',[('ai_monthly_budget_usd',str(budget)),('ai_user_monthly_scans',str(scans))])
+     c.commit()
+    return self.sendjson({'ok':True,'limits':ai_scan_limits()})
+   except (ValueError,KeyError,TypeError,sqlite3.Error):return self.sendjson({'error':'Invalid AI scan limits'},400)
   if self.path=='/api/admin/ai-usage':
    if not self.gate():return
    if not getattr(request_scope,'admin',False):return self.sendjson({'error':'Administrator required'},403)
@@ -1638,6 +1672,8 @@ class Handler(SimpleHTTPRequestHandler):
    if not self.gate(write=True):return
    if not auth_rate_allowed(str(request_scope.user_id),'pantry-scan',15,3600):
     return self.sendjson({'error':'Scan limit reached. Try again later.'},429)
+   denied=ai_scan_allowed(request_scope.user_id)
+   if denied:return self.sendjson({'error':denied},429)
    key=openai_scan_key()
    if not key:return self.sendjson({'error':'AI scanning is not configured. Set OPENAI_API_KEY on the server.'},503)
    try:
@@ -1656,7 +1692,7 @@ class Handler(SimpleHTTPRequestHandler):
     if mime=='image/png' and not binary[:4]==bytes((137,80,78,71)):raise ValueError('Invalid PNG')
     if mime=='image/webp' and binary[:4]!=b'RIFF':raise ValueError('Invalid WebP')
     instruction=('Read the grocery receipt and extract purchased food and pantry items; ignore taxes, totals, discounts, fees and non-food purchases.' if mode=='receipt' else 'Identify grocery and pantry products actually visible in this photograph.')
-    prompt=instruction+' Return JSON object with items array; each item must have name (use a readable brand and product name when clearly visible, otherwise a plain descriptive grocery name; do not invent brands), quantity (positive number), unit (one of count, can, package, bag, pound, ounce, gram, kilogram, liter, milliliter, cup, bunch, head, loaf, dozen), confidence (high, medium, low). For receipts, interpret common abbreviated item names conservatively. Do not guess invisible items or uncertain quantities. Use quantity 1 and unit count when unknown. No more than 40 distinct items. Exclude personal information.'
+    prompt=instruction+' Return JSON object with items array; each item must have name (include the exact readable brand, product variant and package size when visible (for example, Miller Lite 12 oz); otherwise use a plain descriptive grocery name; never invent brands, sizes or variants; avoid repeating the unit in the name unless it is part of the printed product label), quantity (positive number), unit (one of count, can, package, bag, pound, ounce, gram, kilogram, liter, milliliter, cup, bunch, head, loaf, dozen), confidence (high, medium, low). For receipts, interpret common abbreviated item names conservatively. Do not guess invisible items or uncertain quantities. Use quantity 1 and unit count when unknown. No more than 40 distinct items. Exclude personal information.'
     payload={'model':os.environ.get('PANTRY_SCAN_MODEL','gpt-4.1-mini'),'response_format':{'type':'json_object'},'messages':[{'role':'user','content':[{'type':'text','text':prompt},{'type':'image_url','image_url':{'url':'data:'+mime+';base64,'+photo,'detail':'high'}}]}],'max_tokens':1800}
     req=urllib.request.Request('https://api.openai.com/v1/chat/completions',data=json.dumps(payload).encode(),headers={'Authorization':'Bearer '+key,'Content-Type':'application/json'},method='POST')
     with urllib.request.urlopen(req,timeout=45) as response:result=json.load(response)
