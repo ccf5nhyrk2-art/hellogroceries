@@ -1423,9 +1423,11 @@ class Handler(SimpleHTTPRequestHandler):
      auth.request_registration(c,data.get('email'),data.get('password'),data.get('household'))
      return self.sendjson({'ok':True,'message':'Request received. You can sign in after an administrator approves it.'},202)
     if path=='/api/auth/setup':
-     verified_email=cloudflare_auth.verified_email(self.headers.get('Cf-Access-Jwt-Assertion',''))
-     if not verified_email or verified_email.casefold()!=auth.validate_email(data.get('email')):
-      return self.sendjson({'error':'Verified Cloudflare identity must match account email'},403)
+     if not auth_rate_allowed(self.client_address[0], 'setup', 5, 3600):return self.sendjson({'error':'Too many setup attempts. Try again later.'},429)
+     expected=os.environ.get('HG_SETUP_TOKEN','')
+     provided=data.get('setup_token','')
+     if len(expected)<32 or not isinstance(provided,str) or not secrets.compare_digest(provided,expected):
+      return self.sendjson({'error':'Invalid setup token. Configure HG_SETUP_TOKEN in staging Docker Compose (32+ characters).'},403)
      uid,hid=auth.create_first_admin(c,data.get('email'),data.get('password'),data.get('household','My Household'))
     elif path=='/api/auth/login':
      uid=auth.authenticate(c,data.get('email'),data.get('password'))
@@ -2218,7 +2220,7 @@ class Handler(SimpleHTTPRequestHandler):
 if __name__=='__main__':
  with db() as c:
   if auth.instance_needs_setup(c):
-   print('HelloGroceries: first administrator setup requires a verified Cloudflare Access session.',flush=True)
+   print('HelloGroceries: first administrator setup requires HG_SETUP_TOKEN (32+ characters) in the container environment.',flush=True)
  if BULK_RECOVER:
   job.update(running=True,paused=False,processed=0,discovered=0,imported=0,skipped=0,errors=0,message='Recovering interrupted import; saved recipes will be skipped')
   threading.Thread(target=bulk_worker,args=(job.get('country','US'),int(job.get('limit',0))),daemon=True).start()
