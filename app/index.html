@@ -2495,7 +2495,7 @@ html[data-theme="dark"] #hg-tour-card{background:#1b2023;color:#f0f4f2}
 </style>
 <div id="hg-tour-overlay" hidden role="dialog" aria-modal="true" aria-labelledby="hg-tour-title">
  <div id="hg-tour-card">
-  <div id="hg-tour-progress"></div><h2 id="hg-tour-title"></h2><p id="hg-tour-description"></p>
+  <div id="hg-tour-progress"></div><h2 id="hg-tour-title"></h2><p id="hg-tour-description"></p><div id="hg-tour-collection" hidden><label for="hg-tour-collection-name" style="display:block;font-weight:600;font-size:13px;margin:8px 0">Collection name</label><input id="hg-tour-collection-name" type="text" maxlength="60" placeholder="e.g. Family Favorites" style="box-sizing:border-box;width:100%;padding:11px;border-radius:10px;border:1px solid #82968b;background:transparent;color:inherit;font-size:16px"><button id="hg-tour-create-collection" type="button" style="margin-top:10px;padding:11px 14px;border:0;border-radius:10px;background:#176b4a;color:white;font-weight:700;width:100%">Create collection</button><p id="hg-tour-collection-status" role="status" style="font-size:12px;margin:7px 0"></p></div>
   <div id="hg-tour-actions"><button id="hg-tour-skip" type="button">Skip tour</button><button id="hg-tour-back" type="button">Back</button><button id="hg-tour-next" type="button">Next</button></div>
  </div>
 </div>
@@ -2550,6 +2550,19 @@ body:has(#hg-tour-overlay:not([hidden])) #hg-tour-replay{display:none!important}
  const overlay=document.getElementById('hg-tour-overlay'),progress=document.getElementById('hg-tour-progress');
  const card=document.getElementById('hg-tour-card'),next=document.getElementById('hg-tour-next');
  const hint=document.createElement('div');hint.id='hg-tour-hint';card.insertBefore(hint,document.getElementById('hg-tour-actions'));
+ const collectionForm=document.getElementById('hg-tour-collection'),collectionInput=document.getElementById('hg-tour-collection-name'),collectionButton=document.getElementById('hg-tour-create-collection'),collectionStatus=document.getElementById('hg-tour-collection-status');
+ collectionButton.addEventListener('click',()=>{
+  if(overlay.hidden||step!==2)return;
+  const name=collectionInput.value.trim();
+  if(!name){collectionStatus.textContent='Enter a collection name first.';collectionInput.focus();return}
+  const existing=[...document.getElementById('collection-filter')?.options||[]].some(o=>o.value===name);
+  if(existing){collectionStatus.textContent='This collection already exists. Continuing…';next.disabled=false;next.click();return}
+  const original=document.getElementById('new-collection'),save=document.getElementById('create-collection');
+  if(!original||!save){collectionStatus.textContent='Collection controls are unavailable. Please try again.';return}
+  collectionStatus.textContent='Saving collection…';collectionButton.disabled=true;original.value=name;save.click();
+  setTimeout(()=>{collectionButton.disabled=false;if(step===2&&overlay.hidden===false&&next.disabled)collectionStatus.textContent='Still waiting for the collection to save. Please retry.'},3800);
+ });
+ collectionInput.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();collectionButton.click()}});
  const selectors=[null,'[data-page="recipes"]','#new-collection','[data-page="planner"]','[data-page="shopping"]','#shop-generate-tour','[data-page="pantry"]','[data-page="stores"]',null];
  let highlighted=null,step=-1,advancing=false;
  const visible=el=>el&&el.getClientRects().length>0&&getComputedStyle(el).visibility!=='hidden';
@@ -2568,9 +2581,11 @@ body:has(#hg-tour-overlay:not([hidden])) #hg-tour-replay{display:none!important}
   highlighted=target(step);
   if(highlighted){highlighted.classList.add('hg-tour-highlight');if(!highlighted.closest('.mobile-bottom-nav'))highlighted.scrollIntoView({block:'nearest',behavior:'instant'});}
   hint.textContent=highlighted?'Tap the glowing button to continue. You can also use Next.':'Tap Next to continue.';
+  collectionForm.hidden=step!==2;
   if(step===2){
-   hint.textContent='Enter a collection name and tap Create collection to continue.';
-   next.disabled=true;next.title='Create a collection to continue';
+   hint.textContent='Create a collection here, or continue if you already have one.';
+   const hasCollections=document.getElementById('collection-filter')?.options.length>1;
+   next.disabled=!hasCollections;next.title=hasCollections?'Continue with your existing collection':'Create a collection to continue';
   }else{next.disabled=false;next.title=''}
   if(step===5)hint.textContent='Generating changes your shopping list. Tap Next to continue safely.';
   if(step===7&&!highlighted)hint.textContent='Nearby stores is available in More. Tap Next to continue.';
@@ -2614,9 +2629,9 @@ body:has(#hg-tour-overlay:not([hidden])) #hg-tour-replay{display:none!important}
   let attempts=0;
   const check=()=>{
    if(overlay.hidden||step!==2)return;
-   if(option()){next.disabled=false;next.click();return}
+   if(option()){collectionStatus.textContent='Collection created!';next.disabled=false;next.click();return}
    if(++attempts<18)setTimeout(check,180);
-   else hint.textContent='Collection not saved yet. Check for an error and try again.';
+   else {hint.textContent='Collection not saved yet. Check for an error and try again.';collectionStatus.textContent='Unable to confirm the collection was saved.';collectionButton.disabled=false;}
   };
   setTimeout(check,180);
  });
