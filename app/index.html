@@ -2536,16 +2536,17 @@ const steps=[
  ['Build your grocery list','When your meals are ready, use Generate Shopping List. This changes your list, so it is optional.'],
  ['Check your pantry','Track ingredients you already have to keep your shopping organized.'],
  ['Compare store prices','Explore available store prices before shopping. Prices and availability can change.'],
- ['You’re ready!','✓ Explore recipes  ✓ Organize collections  ✓ Plan meals  ✓ Shop smarter. Find this tour again in More → Replay walkthrough.']
+ ['You’re ready!','You explored recipes, learned how to organize collections, plan meals, build a shopping list, check your pantry, and compare stores. Optional steps can be completed anytime. Replay this walkthrough from More.']
 ];
 const overlay=document.getElementById('hg-tour-overlay');
+const tourCompleted=new Set();
 const next=document.getElementById('hg-tour-next');
 const back=document.getElementById('hg-tour-back');
 const skip=document.getElementById('hg-tour-skip');
 let index=0,key='',previousFocus=null;window.hgTourIndex=()=>index;
 function render(){document.getElementById('hg-tour-progress').textContent=(index+1)+' of '+steps.length;document.getElementById('hg-tour-title').textContent=steps[index][0];document.getElementById('hg-tour-description').textContent=steps[index][1];back.hidden=index===0;next.textContent=index===steps.length-1?'Start planning':'Next';if(index===0||index===steps.length-1)next.focus()}
 function close(){overlay.hidden=true;document.activeElement?.blur?.();try{if(key)localStorage.setItem(key,'done')}catch(e){}previousFocus?.focus?.()}
-function open(){previousFocus=document.activeElement;index=0;overlay.hidden=false;render()}
+function open(){previousFocus=document.activeElement;index=0;tourCompleted.clear();overlay.hidden=false;render()}
 next.addEventListener('click',()=>{if(index===steps.length-1)close();else{index++;render()}});
 back.addEventListener('click',()=>{if(index>0){index--;render()}});
 skip.addEventListener('click',close);
@@ -2626,6 +2627,12 @@ body:has(#hg-tour-overlay:not([hidden])) #hg-tour-replay{display:none!important}
   if(highlighted){highlighted.classList.add('hg-tour-highlight');if(!highlighted.closest('.mobile-bottom-nav')&&step!==5)highlighted.scrollIntoView({block:'nearest',behavior:'instant'});}
   hint.textContent=highlighted?'Tap the glowing button to continue. You can also use Next.':'Tap Next to continue.';
   collectionForm.hidden=step!==2;
+  if(step===8){
+   const done=[...tourCompleted].sort((a,b)=>a-b);
+   const optional=done.length?(' You completed '+done.length+' interactive step'+(done.length===1?'':'s')+' during this walkthrough.'):' You can return to any feature when you are ready.';
+   document.getElementById('hg-tour-description').textContent=steps[8][1]+optional;
+   hint.textContent='Tap Start planning to finish, or Back to revisit a step.';
+  }
   if(step===2){
    hint.textContent='Optional: create a collection now, or tap Next to do it later.';
    next.disabled=false;next.title='Continue without creating a collection';
@@ -2633,6 +2640,7 @@ body:has(#hg-tour-overlay:not([hidden])) #hg-tour-replay{display:none!important}
   if(step===5)hint.textContent='Here is the Generate Shopping List button. Tap it to learn what it does, or tap Next to continue. Your existing list stays unchanged.';
   if(step===6)hint.textContent=highlighted?.getAttribute('data-page')==='pantry'?'Tap Pantry to view your ingredients.':'Tap More first, then Pantry to view your ingredients.';
   if(step===7)hint.textContent=highlighted?.getAttribute('data-page')==='stores'?'Tap Nearby stores to explore store pricing.':'Tap More first, then Nearby stores. Store availability varies.';
+  if(step===8)hint.textContent='Tap Start planning to finish, or Back to revisit a step.';
   next.textContent=step===8?'Start planning':'Next';
  }
  function update(){
@@ -2666,6 +2674,7 @@ body:has(#hg-tour-overlay:not([hidden])) #hg-tour-replay{display:none!important}
   if(!selected||!(event.target instanceof Node)||!selected.contains(event.target))return;
   if((step===6||step===7)&&(selected.classList.contains('mobile-more-trigger')||selected.getAttribute('data-page')==='more')){setTimeout(position,180);return;}
   advancing=true;
+  tourCompleted.add(step);
   // Let the page navigation handler finish before changing the tour step.
   setTimeout(()=>{
    advancing=false;
@@ -2683,7 +2692,7 @@ body:has(#hg-tour-overlay:not([hidden])) #hg-tour-replay{display:none!important}
   let attempts=0;
   const check=()=>{
    if(overlay.hidden||step!==2)return;
-   if(option()){collectionStatus.textContent='✓ Collection “'+name+'” saved successfully.';hint.textContent='Your collection is ready. Tap Next to continue.';collectionButton.disabled=false;next.disabled=false;collectionInput.value='';return}
+   if(option()){tourCompleted.add(2);collectionStatus.textContent='✓ Collection “'+name+'” saved successfully.';hint.textContent='Your collection is ready. Tap Next to continue.';collectionButton.disabled=false;next.disabled=false;collectionInput.value='';return}
    if(++attempts<18)setTimeout(check,180);
    else {hint.textContent='Collection not saved yet. Check for an error and try again.';collectionStatus.textContent='Unable to confirm the collection was saved.';collectionButton.disabled=false;}
   };
@@ -2695,7 +2704,7 @@ body:has(#hg-tour-overlay:not([hidden])) #hg-tour-replay{display:none!important}
   const viewport=window.visualViewport;
   if(!viewport)return;
   const keyboard=Math.max(0,window.innerHeight-viewport.height-viewport.offsetTop);
-  if(keyboard>100){card.style.setProperty('bottom',Math.ceil(keyboard+12)+'px','important');card.style.setProperty('max-height',Math.max(160,Math.floor(viewport.height-28))+'px','important');}
+  if(keyboard>100){card.style.setProperty('bottom',Math.ceil(keyboard+12)+'px','important');card.style.setProperty('max-height',Math.max(160,Math.floor(viewport.height-28))+'px','important');card.scrollTop=0;}
   else{card.style.removeProperty('bottom');card.style.removeProperty('max-height');}
  }
  if(window.visualViewport){window.visualViewport.addEventListener('resize',()=>{fitKeyboard();if(!overlay.hidden)position()});window.visualViewport.addEventListener('scroll',fitKeyboard);}
