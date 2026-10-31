@@ -290,8 +290,16 @@ def list_accounts(conn, admin_id):
         GROUP BY u.id
         ORDER BY u.is_instance_admin DESC,u.created_at,u.id
     """).fetchall()
+    active=conn.execute("""
+        SELECT user_id, COUNT(*), MAX(created_at), MAX(expires_at)
+        FROM hg_sessions WHERE expires_at>? GROUP BY user_id
+    """,(now(),)).fetchall()
+    by_user={row[0]:row for row in active}
     return [dict(id=r[0],email=r[1],admin=bool(r[2]),created_at=r[3],
-                 last_login_at=r[4],households=r[5] or '') for r in rows]
+                 last_login_at=r[4],households=r[5] or '',
+                 active_sessions=by_user[r[0]][1] if r[0] in by_user else 0,
+                 session_started_at=by_user[r[0]][2] if r[0] in by_user else None,
+                 session_expires_at=by_user[r[0]][3] if r[0] in by_user else None) for r in rows]
 
 def remove_account(conn, admin_id, user_id):
     if type(user_id) is not int or user_id < 1:
