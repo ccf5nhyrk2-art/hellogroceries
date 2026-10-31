@@ -2542,9 +2542,9 @@ const overlay=document.getElementById('hg-tour-overlay');
 const next=document.getElementById('hg-tour-next');
 const back=document.getElementById('hg-tour-back');
 const skip=document.getElementById('hg-tour-skip');
-let index=0,key='',previousFocus=null;
-function render(){document.getElementById('hg-tour-progress').textContent=(index+1)+' of '+steps.length;document.getElementById('hg-tour-title').textContent=steps[index][0];document.getElementById('hg-tour-description').textContent=steps[index][1];back.hidden=index===0;next.textContent=index===steps.length-1?'Get started':'Next';next.focus()}
-function close(){overlay.hidden=true;try{if(key)localStorage.setItem(key,'done')}catch(e){}previousFocus?.focus?.()}
+let index=0,key='',previousFocus=null;window.hgTourIndex=()=>index;
+function render(){document.getElementById('hg-tour-progress').textContent=(index+1)+' of '+steps.length;document.getElementById('hg-tour-title').textContent=steps[index][0];document.getElementById('hg-tour-description').textContent=steps[index][1];back.hidden=index===0;next.textContent=index===steps.length-1?'Start planning':'Next';if(index===0||index===steps.length-1)next.focus()}
+function close(){overlay.hidden=true;document.activeElement?.blur?.();try{if(key)localStorage.setItem(key,'done')}catch(e){}previousFocus?.focus?.()}
 function open(){previousFocus=document.activeElement;index=0;overlay.hidden=false;render()}
 next.addEventListener('click',()=>{if(index===steps.length-1)close();else{index++;render()}});
 back.addEventListener('click',()=>{if(index>0){index--;render()}});
@@ -2568,6 +2568,7 @@ body:has(#hg-tour-overlay:not([hidden])) #hg-tour-replay{display:none!important}
 #hg-tour-card h2{font-size:21px!important;margin:7px 0!important}#hg-tour-card p{font-size:14px!important;line-height:1.45!important;margin:8px 0!important}
 #hg-tour-actions{margin-top:14px!important}#hg-tour-hint{font-size:12px;font-weight:700;color:#50c987;margin-top:10px}
 @media(min-width:751px){#hg-tour-card{bottom:24px;max-height:45vh}}
+@media(max-width:750px){#hg-tour-card{width:calc(100% - 28px)!important;box-sizing:border-box!important;padding:14px!important;max-height:min(42dvh,350px)!important;bottom:calc(env(safe-area-inset-bottom,0px) + 88px)!important}#hg-tour-card:has(#hg-tour-collection:not([hidden])){max-height:min(58dvh,480px)!important}#hg-tour-card h2{font-size:18px!important}#hg-tour-card p{font-size:13px!important}#hg-tour-overlay{background:rgba(0,0,0,.36)!important}#hg-tour-card:focus-within:has(#hg-tour-collection-name:focus){bottom:calc(env(safe-area-inset-bottom,0px) + 8px)!important;max-height:55dvh!important}#hg-tour-actions button{min-height:44px!important}}
 </style>
 <script>
 (function(){
@@ -2609,21 +2610,20 @@ body:has(#hg-tour-overlay:not([hidden])) #hg-tour-replay{display:none!important}
   hint.textContent=highlighted?'Tap the glowing button to continue. You can also use Next.':'Tap Next to continue.';
   collectionForm.hidden=step!==2;
   if(step===2){
-   hint.textContent='Create a collection to try it, or tap Next if you already have one.';
-   const hasCollections=document.getElementById('collection-filter')?.options.length>1;
-   next.disabled=!hasCollections;next.title=hasCollections?'Continue with your existing collection':'Create a collection to continue';
+   hint.textContent='Optional: create a collection now, or tap Next to do it later.';
+   next.disabled=false;next.title='Continue without creating a collection';
   }else{next.disabled=false;next.title=''}
   if(step===5)hint.textContent='Optional: review your meals first. Tap Next without generating anything.';
-  if(step===7&&!highlighted)hint.textContent='Find store comparisons under More. Tap Next to continue.';
-  next.textContent=step===8?'Start planning':step===2&&next.disabled?'Create collection first':'Next';
+  if(step===7){hint.textContent='Store availability varies. Choose your store when ready, or tap Next.';}
+  next.textContent=step===8?'Start planning':'Next';
  }
  function update(){
   if(overlay.hidden){clear();return}
-  const n=parseInt(progress.textContent,10)-1;
+  const n=window.hgTourIndex?window.hgTourIndex():parseInt(progress.textContent,10)-1;
   if(!Number.isFinite(n))return;
   if(n!==step){
    step=n;
-   const destinations={1:'recipes',2:'recipes',3:'planner',4:'shopping',5:'shopping',6:'pantry',7:'stores'};
+   const destinations={1:'recipes',2:'recipes',3:'planner',4:'shopping',5:'shopping',6:'pantry'};
    const destination=destinations[step];
    if(destination&&document.body.dataset.activePage!==destination){
     page(destination);
@@ -2639,13 +2639,8 @@ body:has(#hg-tour-overlay:not([hidden])) #hg-tour-replay{display:none!important}
  const obs=new MutationObserver(update);
  obs.observe(progress,{childList:true,subtree:true});
  obs.observe(overlay,{attributes:true,attributeFilter:['hidden']});
- document.addEventListener('click',event=>{
-  if(overlay.hidden||advancing||!highlighted||!highlighted.contains(event.target))return;
-  if(step===5||step===2)return; // Do not create data or advance before successful save.
-  advancing=true;
-  if(step===2){const details=document.getElementById('manage-collections-panel');if(details)details.open=true;}
-  setTimeout(()=>{if(!overlay.hidden)next.click();advancing=false},160);
- },true);
+ // Highlighted controls remain usable; only Next/Back change the tour step.
+ // This prevents page clicks from unexpectedly skipping or reordering steps.
  const create=document.getElementById('create-collection');
  create?.addEventListener('click',()=>{
   if(overlay.hidden||step!==2)return;
@@ -2662,5 +2657,6 @@ body:has(#hg-tour-overlay:not([hidden])) #hg-tour-replay{display:none!important}
   setTimeout(check,180);
  });
  window.addEventListener('resize',()=>{if(!overlay.hidden)position()});
+ if(window.visualViewport){window.visualViewport.addEventListener('resize',()=>{if(!overlay.hidden)position()});}
 })();
 </script></body></html>
