@@ -305,8 +305,8 @@ def issue_registration_verification(conn,email):
         return None
     token=secrets.token_urlsafe(32)
     conn.execute("""INSERT INTO hg_email_verifications(request_id,token_hash,expires_at,sent_at)
-        VALUES(?,?,?,NULL) ON CONFLICT(request_id) DO UPDATE SET
-        token_hash=excluded.token_hash,expires_at=excluded.expires_at,sent_at=NULL""",
+        VALUES(?,?,?,'1970-01-01T00:00:00+00:00') ON CONFLICT(request_id) DO UPDATE SET
+        token_hash=excluded.token_hash,expires_at=excluded.expires_at,sent_at='1970-01-01T00:00:00+00:00'""",
         (request_id,token_hash(token),expiry(24)))
     return token
 
