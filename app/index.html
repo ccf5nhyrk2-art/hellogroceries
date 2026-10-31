@@ -474,6 +474,25 @@ const SHOPPING_FOCUS_KEY='hellogroceries-shopping-only';
 const PAGE_VIEW_KEY='hellogroceries-active-page-v1';
 const layout=document.querySelector('main .layout');
 const first=layout.querySelector('section:first-child'),second=layout.querySelector('section:last-child');
+ // Fail closed: Shop must never expose unrelated panels, even if the legacy
+ // showPage routine fails midway through an update.
+ const enforceShopView=()=>{
+  if(document.body.dataset.activePage!=='shopping')return;
+  const shop=document.getElementById('shopping-page-section');
+  if(!shop)return;
+  for(const child of layout.children){
+   if(child===shop){child.style.removeProperty('display');child.hidden=false;}
+   else {child.hidden=true;child.style.setProperty('display','none','important');}
+  }
+ };
+ document.addEventListener('click',event=>{
+  const tab=event.target.closest?.('[data-page="shopping"],[data-home-go="shopping"]');
+  if(!tab)return;
+  document.body.dataset.activePage='shopping';
+  enforceShopView();
+  requestAnimationFrame(()=>{enforceShopView();window.scrollTo(0,0)});
+ },true);
+
 // Give Shop its own actual section instead of depending on scrolling past
 // hidden planner, pantry and import panels inside the same section.
 const shoppingHeading=[...second.children].find(el=>el.tagName==='H2'&&el.textContent.trim()==='Shopping list');
@@ -620,6 +639,7 @@ function showPage(key){
  document.body.classList.toggle('single-page',key!=='all');
  document.body.dataset.activePage=key;
  // Enforce section visibility at the DOM level, not merely by scroll position.
+ enforceShopView();
  const shopSection=document.getElementById('shopping-page-section');
  if(shopSection){
   for(const section of layout.querySelectorAll(':scope > section')){
