@@ -1791,6 +1791,34 @@ $('preview-grocery').onclick=async()=>{
  }catch(e){$('error').textContent=e.message}
 };
 // Mobile-friendly pantry image and receipt scanner. Nothing is saved until review.
+function renderPantryScanReview(){
+  const rows=$('pantry-scan-rows');rows.replaceChildren();
+  for(const item of scannedPantryItems){
+   const line=document.createElement('div');
+   line.className='pantry-scan-item';
+   const check=document.createElement('input');check.type='checkbox';check.checked=item.selected;check.setAttribute('aria-label','Include '+item.name);check.onchange=()=>item.selected=check.checked;
+   const name=document.createElement('input');name.value=item.name;name.maxLength=140;name.setAttribute('aria-label','Ingredient name');name.oninput=()=>{item.name=name.value;updateDuplicate()};
+   const qty=document.createElement('input');qty.type='number';qty.min='0.01';qty.max='100000';qty.step='any';qty.value=item.quantity;qty.setAttribute('aria-label','Quantity');qty.oninput=()=>item.quantity=Number(qty.value);
+   const unit=document.createElement('select');unit.setAttribute('aria-label','Unit');
+   for(const u of ['count','can','package','bag','pound','ounce','gram','kilogram','liter','milliliter','cup','bunch','head','loaf','dozen']){const option=document.createElement('option');option.value=u;option.textContent=u;unit.append(option)}
+   unit.value=item.unit;unit.onchange=()=>{item.unit=unit.value;updateDuplicate()};
+   const detail=document.createElement('small');detail.className='pantry-scan-detail';
+   const labels=[item.brand,item.package_size].filter(Boolean);
+   detail.textContent=item.confidence==='low'?'⚠️ Product uncertain — verify the brand and size before adding.':(labels.length?'Recognized: '+labels.join(' · '):'Check product details before adding');
+   const warning=document.createElement('small');warning.className='muted pantry-scan-duplicate';
+   function updateDuplicate(){
+    const key=item.name.trim().toLowerCase()+'|'+item.unit;
+    const inventory=state?.pantry_inventory||{};
+    const exists=Object.prototype.hasOwnProperty.call(inventory,key);
+    warning.textContent=exists?'Already in pantry — adding will increase its quantity.':'';
+    warning.hidden=!exists;
+   }
+   const fields=document.createElement('div');fields.className='pantry-scan-fields';fields.append(name,qty,unit);
+   line.append(check,fields,detail,warning);rows.append(line);updateDuplicate();
+  }
+  $('pantry-scan-results').hidden=!scannedPantryItems.length;
+
+}
 let barcodeStream=null,barcodeTimer=null,barcodeBusy=false;
 async function stopBarcodeCamera(){
  if(barcodeTimer){clearInterval(barcodeTimer);barcodeTimer=null}
@@ -1884,32 +1912,7 @@ $('pantry-scan-file').addEventListener('change',async()=>{
   if(!response.ok)throw Error(data.error||'Scanner request failed (HTTP '+response.status+').');
   const incoming=(data.items||[]).map(x=>({...x,selected:x.confidence!=='low'}));
   for(const item of incoming){const existing=scannedPantryItems.find(x=>x.name.trim().toLowerCase()===item.name.trim().toLowerCase()&&x.unit===item.unit);if(existing){existing.quantity=Number(existing.quantity)+Number(item.quantity)}else scannedPantryItems.push(item)}
-  const rows=$('pantry-scan-rows');rows.replaceChildren();
-  for(const item of scannedPantryItems){
-   const line=document.createElement('div');
-   line.className='pantry-scan-item';
-   const check=document.createElement('input');check.type='checkbox';check.checked=item.selected;check.setAttribute('aria-label','Include '+item.name);check.onchange=()=>item.selected=check.checked;
-   const name=document.createElement('input');name.value=item.name;name.maxLength=140;name.setAttribute('aria-label','Ingredient name');name.oninput=()=>{item.name=name.value;updateDuplicate()};
-   const qty=document.createElement('input');qty.type='number';qty.min='0.01';qty.max='100000';qty.step='any';qty.value=item.quantity;qty.setAttribute('aria-label','Quantity');qty.oninput=()=>item.quantity=Number(qty.value);
-   const unit=document.createElement('select');unit.setAttribute('aria-label','Unit');
-   for(const u of ['count','can','package','bag','pound','ounce','gram','kilogram','liter','milliliter','cup','bunch','head','loaf','dozen']){const option=document.createElement('option');option.value=u;option.textContent=u;unit.append(option)}
-   unit.value=item.unit;unit.onchange=()=>{item.unit=unit.value;updateDuplicate()};
-   const detail=document.createElement('small');detail.className='pantry-scan-detail';
-   const labels=[item.brand,item.package_size].filter(Boolean);
-   detail.textContent=item.confidence==='low'?'⚠️ Product uncertain — verify the brand and size before adding.':(labels.length?'Recognized: '+labels.join(' · '):'Check product details before adding');
-   const warning=document.createElement('small');warning.className='muted pantry-scan-duplicate';
-   function updateDuplicate(){
-    const key=item.name.trim().toLowerCase()+'|'+item.unit;
-    const inventory=state?.pantry_inventory||{};
-    const exists=Object.prototype.hasOwnProperty.call(inventory,key);
-    warning.textContent=exists?'Already in pantry — adding will increase its quantity.':'';
-    warning.hidden=!exists;
-   }
-   const fields=document.createElement('div');fields.className='pantry-scan-fields';fields.append(name,qty,unit);
-   line.append(check,fields,detail,warning);rows.append(line);updateDuplicate();
-  }
-  $('pantry-scan-results').hidden=!scannedPantryItems.length;
-  scanStatus.textContent=scannedPantryItems.length?scannedPantryItems.length+' '+(scannedPantryItems.length===1?'item':'items')+' found. Review below.':'No items detected. Try a clearer photo.';
+  renderPantryScanReview();
  }catch(error){scanStatus.textContent='Scan failed: '+(error.message||'Unknown error')+' (stage: '+(scanStatus.textContent==='Identifying items…'?'request':'photo')+').'}
  finally{$('pantry-scan-start').disabled=false;$('pantry-scan-receipt').disabled=false}
 });
