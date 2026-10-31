@@ -443,7 +443,7 @@ document.getElementById('analytics-refresh').onclick=refreshAnalytics;
 document.getElementById('analytics-test').onclick=async()=>{
  const status=document.getElementById('analytics-test-status');status.textContent=' Testing…';
  try{
-  const r=await fetch('/api/analytics/event',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({event:'analytics_test'})});
+  const r=await fetch('/api/analytics/event',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json','X-HG-CSRF':csrf()},body:JSON.stringify({event:'analytics_test'})});
   const j=await r.json();if(!r.ok||!j.saved)throw Error((j.error||'Event was not saved')+' (HTTP '+r.status+')');
   status.textContent=' Tracking works — test event saved ('+j.count+').';await refreshAnalytics();
  }catch(e){status.textContent=' Tracking failed: '+e.message}
