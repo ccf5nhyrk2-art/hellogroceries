@@ -505,17 +505,16 @@ function showPage(key){
 let initialPage='all';
 try{initialPage=localStorage.getItem(PAGE_VIEW_KEY)||(localStorage.getItem('hellogroceries-shopping-only')==='1'?'shopping':'all')}catch(e){}
 showPage(initialPage);document.getElementById('mobile-recipe-filter-toggle')?.addEventListener('click',function(){const el=document.getElementById('mobile-recipe-filters');const open=el.classList.toggle('is-open');this.setAttribute('aria-expanded',String(open));this.textContent=open?'☷ Hide filters':'☷ Filters';});
-// Home shortcuts use the same page router as the bottom navigation.
+// Reuse the same page navigation as the mobile bottom tabs.
 document.querySelectorAll('.mobile-home-dashboard [data-home-go]').forEach(button=>{
  button.addEventListener('click',event=>{
   event.preventDefault();
   const page=button.dataset.homeGo;
-  try{
-   const spec=pageSpecs.find(item=>item[0]===page);
-   if(!spec || !spec[2])throw new Error('Page target unavailable: '+page);
-   showPage(page);
-   if(page==='shopping')Promise.resolve(refreshShopFromServer()).catch(console.error);
-  }catch(error){console.error('Home shortcut navigation failed',error);alert('Unable to open this section. Please refresh and try again.')}
+  const navButton=mobileNav.querySelector('[data-page="'+page+'"]');
+  const desktopButton=pageButtons.get(page);
+  if(navButton){navButton.click();return;}
+  if(desktopButton){desktopButton.click();return;}
+  console.error('Missing navigation destination',page);
  });
 });
 
