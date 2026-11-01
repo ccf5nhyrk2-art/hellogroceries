@@ -351,6 +351,26 @@ def recipe_country_from_url(url):
   if host==domain or host.endswith('.'+domain):return code
  return 'other'
 
+def validate_import_recipe(recipe):
+ """Reject obvious catalog products before storing them as recipes."""
+ title=str(recipe.get('name','')).lower().strip()
+ if not title:raise ValueError('Recipe title missing')
+ product_patterns=(
+  r'\\b(?:factor(?:75)?|factor form)\\b.*\\b(?:box|kit|trial|greens|creatine|supplement|ready.made)\\b',
+  r'\\b(?:greens\\s*(?:trial|powder|kit)|creatine\\s*\\+?\\s*(?:kit|powder|supplement)|protein\\s*(?:powder|shake|supplement)|dietary\\s*supplement|supplement\\s*(?:kit|pack))\\b',
+  r'\\b(?:ready.made|prepared)\\s*meal\\s*(?:box|pack)\\b',
+  r'\\b(?:pet(?:s)?\\s*(?:food|table)|dog\\s*(?:food|treats?)|cat\\s*(?:food|treats?)|kibble)\\b',
+  r'\\b(?:air.dried|freeze.dried)\\s*(?:beef|chicken|turkey|salmon)\\b.*\\b(?:box|pack|bag|lb|lbs)\\b',
+  r'\\b(?:variety|assortment|bulk)\\s*(?:box|pack)\\b',
+ )
+ if any(re.search(pattern,title) for pattern in product_patterns):
+  raise ValueError('Skipped non-recipe product listing')
+ if re.search(r'\\b\\d+\\s*(?:lb|lbs|oz|kg)\\b',title) and re.search(r'\\b(?:box|pack|case|bundle)\\b',title):
+  raise ValueError('Skipped bulk product listing')
+ if len(recipe.get('ingredients') or {})<2:
+  raise ValueError('Skipped listing without a usable ingredient list')
+ return recipe
+
 def recipe_from_url(url):
  if not allowed_url(url):raise ValueError('Only public HTTPS HelloFresh recipe URLs are supported')
  req=urllib.request.Request(url,headers={'User-Agent':'Mozilla/5.0 (compatible; PersonalRecipeImporter/1.0)'})
@@ -402,7 +422,7 @@ def recipe_from_url(url):
    if isinstance(entry,str):
     label=allowed.get(entry.rsplit('/',1)[-1])
     if label and label not in diet_labels:diet_labels.append(label)
- return {'name':name,'country':recipe_country_from_url(url),'url':url,'image':str(photo),'ingredients':ingredients,'ingredient_text':items,'source':'HelloFresh page','instructions_url':url,'nutrition':nutrition,'dietary_labels':diet_labels}
+ return validate_import_recipe({'name':name,'country':recipe_country_from_url(url),'url':url,'image':str(photo),'ingredients':ingredients,'ingredient_text':items,'source':'HelloFresh page','instructions_url':url,'nutrition':nutrition,'dietary_labels':diet_labels})
 
 def discover_sitemap(country,limit):
  roots={'US':'https://www.hellofresh.com/sitemap_recipe_pages.xml','UK':'https://www.hellofresh.co.uk/sitemap.xml','AU':'https://www.hellofresh.com.au/sitemap.xml','CA':'https://www.hellofresh.ca/sitemap.xml','DE':'https://www.hellofresh.de/sitemap.xml','NL':'https://www.hellofresh.nl/sitemap.xml'}
@@ -480,6 +500,9 @@ def bulk_worker(country,limit):
        c.execute('UPDATE imported SET payload=? WHERE url=?',(json.dumps(recipe),url))
        job['imported']+=1
       else:job['skipped']+=1
+   except ValueError as exc:
+    if str(exc).startswith('Skipped '):job['skipped']+=1
+    else:job['errors']+=1
    except Exception:job['errors']+=1
    job['processed']+=1
    save_bulk()
