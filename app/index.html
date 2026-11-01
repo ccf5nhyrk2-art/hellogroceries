@@ -2037,6 +2037,12 @@ $('smart-cook-open').onclick=()=>{
 };
 // Hide obvious merchandise/promotional listings from the recipe browser without deleting data.
 function isNonRecipeListing(r){
+ const title=String(r.name||'').toLowerCase().trim();
+ // Product listings occasionally appear in imported HelloFresh catalogs.
+ // Keep them stored, but exclude them from browsing and recommendations.
+ if(/\\b(?:factor(?:75)?|factor form)\\b/.test(title)&&/\\b(?:box|kit|trial|greens|creatine|supplement|ready.made|meal plan|meals?\\s*(?:box|pack))\\b/.test(title))return true;
+ if(/\\b(?:greens\\s*(?:trial|powder|kit)|creatine\\s*\\+?\\s*(?:kit|powder|supplement)|protein\\s*(?:powder|shake|supplement)|dietary\\s*supplement|vitamin\\s*(?:bundle|pack)|supplement\\s*(?:kit|pack)|ready.made\\s*meal\\s*(?:box|pack)|prepared\\s*meal\\s*(?:box|pack))\\b/.test(title))return true;
+ if(/\\b(?:\\d+[- ]day|\\d+[- ]meal|\\d+\\s+ready.made\\s+meal)\\b/.test(title)&&/\\b(?:trial\\s*kit|subscription|supplement|box|greens|creatine|ready.made)\\b/.test(title))return true;
  const name=String(r.name||'').trim();
  return /(?:\b(?:bundle|gift\s*(?:box|card|set)|merchandise|subscription|promo(?:tional)?\s*(?:box|offer)|sampler\s*(?:pack|box)|variety\s*pack)\b.*\b(?:order|ship(?:s|ping)?|deliver(?:y|ed)?|items?|box|pack)\b|\b(?:order\s+ships?|arrives?\s+separately|\d+\s+items?\s*$))/i.test(name)
   && !Object.keys(r.ingredients||{}).some(k=>/\b(?:chicken|beef|pork|fish|salmon|rice|pasta|flour|onion|garlic|tomato|potato)\b/i.test(k));
