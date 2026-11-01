@@ -1469,26 +1469,52 @@ def rebuild_grocery_list(state):
    sources.setdefault(name,[]).append({'recipe':'Manually added','contribution':1})
  def pantry_match_name(value):
   value=str(value).strip().casefold()
-  # Imported recipe labels may contain amounts and units before the ingredient name.
-  value=re.sub(r'^(?:(?:\\d+(?:[.,]\\d+)?|\\d+/\\d+|[¼½¾⅓⅔])\\s+)?(?:(?:tsp|tbsp|teaspoons?|tablespoons?|cups?|oz|ounces?|lbs?|pounds?|grams?|g|kg|ml|liters?|l|pieces?|units?|pick|cloves?)\\s+)?', '', value)
-  return re.sub(r'\\s+',' ',value).strip()
+  value=re.sub(r'^(?:\\d+(?:[.,]\\d+)?|\\d+/\\d+|[¼½¾⅓⅔])\\s+', '', value)
+  value=re.sub(r'^(?:tsp|tbsp|teaspoons?|tablespoons?|cups?|oz|ounces?|lbs?|pounds?|grams?|kg|ml|liters?|pieces?|units?|pick|cloves?)\\s+', '', value)
+  value=re.sub(r'\\s+',' ',value).strip()
+  if value.endswith('s') and not value.endswith('ss') and len(value)>3:value=value[:-1]
+  return value
  pantry={pantry_match_name(x) for x in state.get('pantry',[]) if isinstance(x,str) and x.strip()}
- # Also recognize tracked inventory ingredients, including entries saved by scanner.
- pantry.update(pantry_match_name(key.rsplit('|',1)[0]) for key,amount in state.get('pantry_inventory',{}).items() if isinstance(key,str) and type(amount) in (int,float) and amount>0)
- # Merge only user-verified ingredient names with identical measurement units.
+ inventory=state.get('pantry_inventory',{})
+ for key,amount in inventory.items():
+  if isinstance(key,str) and type(amount) in (int,float) and amount>0:pantry.add(pantry_match_name(key.rsplit('|',1)[0]))
+ # Corrected recipe ingredients use verified quantities and exact measurement units.
  for key in list(totals):
   if not key.startswith('__corrected__|'):continue
   _,unit,ingredient=key.split('|',2)
   quantity=totals.pop(key)
-  available=state.get('pantry_inventory',{}).get(ingredient+'|'+unit,0)
+  available=inventory.get(ingredient+'|'+unit,0)
   if type(available) not in (int,float) or not 0<=available<=100000:available=0
   quantity=max(0,quantity-available)
+  original_sources=sources.pop(key,[])
   if quantity<=0:continue
   label=(str(round(quantity,3)).rstrip('0').rstrip('.') if quantity%1 else str(int(quantity)))+' '+(unit+' ' if unit and unit!='count' else '')+ingredient
   totals[label]=totals.get(label,0)+1
-  sources.setdefault(label,[]).extend(sources.pop(key,[]))
+  sources.setdefault(label,[]).extend(original_sources)
+ # Countable pantry items: deduct tracked counts from shopping requirements.
+ # Do not treat a known count as an unlimited pantry exclusion.
+ for label in list(totals):
+  if label.startswith('__corrected__|'):continue
+  matched=pantry_match_name(label)
+  count_keys=[k for k in inventory if isinstance(k,str) and k.endswith('|count') and pantry_match_name(k.rsplit('|',1)[0])==matched]
+  if not count_keys:continue
+  available=sum(float(inventory[k]) for k in count_keys if type(inventory[k]) in (int,float) and inventory[k]>=0)
+  match=re.match(r'^([0-9]+(?:\\.[0-9]+)?)\\s+(?:(?:pick|unit|piece|pieces|count)\\s+)?(.+)$',label,re.I)
+  if match:
+   needed=float(match.group(1))*totals[label]
+   remaining=max(0,needed-available)
+   if remaining<=0:
+    totals.pop(label,None)
+   elif remaining<needed:
+    original_sources=sources.pop(label,[])
+    totals.pop(label,None)
+    new_label=(str(int(remaining)) if remaining.is_integer() else str(round(remaining,3)))+' '+match.group(2)
+    totals[new_label]=totals.get(new_label,0)+1
+    sources.setdefault(new_label,[]).extend(original_sources)
+  elif available>=totals[label]:
+   totals.pop(label,None)
  old={item['name']:item for item in state.get('list',[])}
- generated=[{'name':name,'quantity':round(qty,3),'purchased':False,'sources':sources.get(name,[])} for name,qty in sorted(totals.items()) if qty>0 and (any(src.get('corrected') for src in sources.get(name,[])) or pantry_match_name(name) not in pantry)]
+ generated=[{'name':name,'quantity':round(qty,3),'purchased':False,'sources':sources.get(name,[])} for name,qty in sorted(totals.items()) if qty>0 and (any(src.get('corrected') for src in sources.get(name,[])) or any(isinstance(k,str) and k.endswith('|count') and pantry_match_name(k.rsplit('|',1)[0])==pantry_match_name(name) for k in inventory) or pantry_match_name(name) not in pantry)]
  for item in generated:
   previous=old.get(item['name'])
   if previous and previous.get('quantity')==item['quantity']:item['purchased']=bool(previous.get('purchased'))
