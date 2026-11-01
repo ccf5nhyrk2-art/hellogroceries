@@ -2170,7 +2170,23 @@ function renderRecommendations(){
  const pageSize=5;
  const offset=pool.length?recommendationOffset%pool.length:0;
  const rotated=pool.slice(offset).concat(pool.slice(0,offset));
- const results=rotated.slice(0,pageSize);
+ // Spread recommendations across proteins instead of filling the batch
+ // with one dominant preference (often chicken). Still use the ranked
+ // order within each group and fill remaining slots when groups are scarce.
+ const groups=new Map();
+ for(const item of rotated){
+  const group=recipeGroup(item.r)||'other';
+  if(!groups.has(group))groups.set(group,[]);
+  groups.get(group).push(item);
+ }
+ const results=[];
+ while(results.length<pageSize&&groups.size){
+  for(const [group,items] of groups){
+   if(results.length>=pageSize)break;
+   results.push(items.shift());
+   if(!items.length)groups.delete(group);
+  }
+ }
  panel.innerHTML=results.length?results.map(({r,reason})=>'<article class="recommend-card">'+((r.image||r.url)?'<img class="recommend-photo" src="/api/photo/'+encodeURIComponent(r.id)+'" alt="" loading="lazy" onerror="recommendationPhotoFailed(this)">':'')+'<strong class="recommend-title">'+esc(cleanRecipeName(r.name))+'</strong><div class="muted recommend-reason" style="font-size:12px;margin:6px 0">'+(reason?esc(reason):'Discover something new')+'</div><div class="recommend-actions"><button type="button" data-recommend-detail="'+r.id+'">View recipe</button><button type="button" data-recommend-plan="'+r.id+'">Add to plan</button></div><select data-recommend-collection="'+r.id+'" aria-label="Add recommended recipe to collection" style="width:100%;margin-top:8px;min-height:40px"><option value="">Add to collection…</option>'+Object.keys(state.collections||{}).map(n=>'<option value="'+esc(n)+'">'+esc(n)+'</option>').join('')+'</select><button type="button" data-recommend-hide="'+r.id+'" class="recommend-dismiss">Not interested</button></article>').join(''):'<p class="muted">'+(terms.length?'No personalized suggestions match this search. Try a different search or clear it to see your usual recommendations.':'No suggestions available yet.')+'</p>';
  requestAnimationFrame(updateRecommendationCarousel);
 }
