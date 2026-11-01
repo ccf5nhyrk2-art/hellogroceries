@@ -396,28 +396,41 @@ def discover_sitemap(country,limit):
  root=roots[country];host=urllib.parse.urlsplit(root).hostname
  rp=urllib.robotparser.RobotFileParser();rp.set_url('https://'+host+'/robots.txt')
  try:rp.read()
- except Exception:raise ValueError('Could not check robots.txt; import aborted')
- queue=[root];seen=set();recipes=[];sitemaps=0
- while queue and (limit==0 or len(recipes)<limit) and sitemaps<30:
+ except Exception as exc:raise ValueError('Could not check robots.txt; import aborted: '+str(exc)[:160])
+ if not rp.can_fetch('PersonalRecipeImporter/1.0',root):
+  raise ValueError('Sitemap access is disallowed by robots.txt for '+host)
+ queue=[root];seen=set();recipes=[];recipe_seen=set();sitemaps=0;errors=[]
+ while queue and (limit==0 or len(recipes)<limit) and sitemaps<100:
   url=queue.pop(0)
-  if url in seen or not allowed_url(url) or not rp.can_fetch('PersonalRecipeImporter',url):continue
+  if url in seen or not allowed_url(url) or not rp.can_fetch('PersonalRecipeImporter/1.0',url):continue
   seen.add(url);sitemaps+=1
   try:
-   req=urllib.request.Request(url,headers={'User-Agent':'PersonalRecipeImporter/1.0'})
-   with urllib.request.urlopen(req,timeout=15) as resp:
-    if not allowed_url(resp.geturl()):continue
+   req=urllib.request.Request(url,headers={'User-Agent':'PersonalRecipeImporter/1.0','Accept':'application/xml,text/xml,*/*'})
+   with urllib.request.urlopen(req,timeout=20) as resp:
+    if not allowed_url(resp.geturl()):raise ValueError('Unexpected sitemap redirect')
     content=resp.read(5_000_001)
-   if len(content)>5_000_000:continue
+   if len(content)>5_000_000:raise ValueError('Sitemap exceeds size limit')
+   if content[:2]==b'\\x1f\\x8b':
+    import gzip
+    content=gzip.decompress(content)
+    if len(content)>10_000_000:raise ValueError('Uncompressed sitemap exceeds size limit')
    tree=ET.fromstring(content)
    locs=[(e.text or '').strip() for e in tree.iter() if e.tag.endswith('}loc') or e.tag=='loc']
    for loc in locs:
-    if not allowed_url(loc) or urllib.parse.urlsplit(loc).hostname!=host:continue
-    if loc.endswith('.xml'):
-     if len(queue)<100:queue.append(loc)
-    elif '/recipes/' in loc and loc not in recipes:recipes.append(loc)
+    if not allowed_url(loc):continue
+    if recipe_country_from_url(loc)!=country:continue
+    parsed=urllib.parse.urlsplit(loc)
+    if parsed.path.lower().endswith(('.xml','.xml.gz')) and len(queue)<500:
+     if loc not in seen and loc not in queue:queue.append(loc)
+    elif re.search(r'/recipes?/',parsed.path,re.I) and loc not in recipe_seen:
+     recipe_seen.add(loc);recipes.append(loc)
     if limit and len(recipes)>=limit:break
-  except Exception:pass
+  except Exception as exc:
+   errors.append(url+': '+str(exc)[:150])
   time.sleep(0.5)
+ if not recipes:
+  detail='; '.join(errors[:3]) if errors else 'No recipe URLs found in accessible sitemaps'
+  raise ValueError('No recipe URLs discovered for '+country+'. '+detail)
  return recipes,rp
 
 def bulk_worker(country,limit):
