@@ -1467,7 +1467,14 @@ def rebuild_grocery_list(state):
    name=item.strip()
    totals[name]=totals.get(name,0)+1
    sources.setdefault(name,[]).append({'recipe':'Manually added','contribution':1})
- pantry={str(x).strip().lower() for x in state.get('pantry',[])}
+ def pantry_match_name(value):
+  value=str(value).strip().casefold()
+  # Imported recipe labels may contain amounts and units before the ingredient name.
+  value=re.sub(r'^(?:(?:\\d+(?:[.,]\\d+)?|\\d+/\\d+|[¼½¾⅓⅔])\\s+)?(?:(?:tsp|tbsp|teaspoons?|tablespoons?|cups?|oz|ounces?|lbs?|pounds?|grams?|g|kg|ml|liters?|l|pieces?|units?|pick|cloves?)\\s+)?', '', value)
+  return re.sub(r'\\s+',' ',value).strip()
+ pantry={pantry_match_name(x) for x in state.get('pantry',[]) if isinstance(x,str) and x.strip()}
+ # Also recognize tracked inventory ingredients, including entries saved by scanner.
+ pantry.update(pantry_match_name(key.rsplit('|',1)[0]) for key,amount in state.get('pantry_inventory',{}).items() if isinstance(key,str) and type(amount) in (int,float) and amount>0)
  # Merge only user-verified ingredient names with identical measurement units.
  for key in list(totals):
   if not key.startswith('__corrected__|'):continue
@@ -1481,7 +1488,7 @@ def rebuild_grocery_list(state):
   totals[label]=totals.get(label,0)+1
   sources.setdefault(label,[]).extend(sources.pop(key,[]))
  old={item['name']:item for item in state.get('list',[])}
- generated=[{'name':name,'quantity':round(qty,3),'purchased':False,'sources':sources.get(name,[])} for name,qty in sorted(totals.items()) if qty>0 and name.strip().lower() not in pantry]
+ generated=[{'name':name,'quantity':round(qty,3),'purchased':False,'sources':sources.get(name,[])} for name,qty in sorted(totals.items()) if qty>0 and pantry_match_name(name) not in pantry]
  for item in generated:
   previous=old.get(item['name'])
   if previous and previous.get('quantity')==item['quantity']:item['purchased']=bool(previous.get('purchased'))
