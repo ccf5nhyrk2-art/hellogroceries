@@ -351,23 +351,29 @@ def recipe_country_from_url(url):
   if host==domain or host.endswith('.'+domain):return code
  return 'other'
 
-def validate_import_recipe(recipe):
- """Reject obvious catalog products before storing them as recipes."""
+# One classification policy for both existing catalog entries and new imports.
+NON_RECIPE_PATTERNS=(
+ r'\b(?:factor(?:75)?|factor form)\b.*\b(?:box|kit|trial|greens|creatine|supplement|ready.made)\b',
+ r'\b(?:greens\s*(?:trial|powder|kit)|creatine\s*\+?\s*(?:kit|powder|supplement)|protein\s*(?:powder|shake|supplement)|dietary\s*supplement|supplement\s*(?:kit|pack))\b',
+ r'\b(?:ready.made|prepared)\s*meal\s*(?:box|pack)\b',
+ r'\b(?:pet(?:s)?\s*(?:food|table)|dog\s*(?:food|treats?)|cat\s*(?:food|treats?)|kibble)\b',
+ r'\b(?:air.dried|freeze.dried)\s*(?:beef|chicken|turkey|salmon)\b.*\b(?:box|pack|bag|lb|lbs)\b',
+ r'\b(?:variety|assortment|bulk)\s*(?:box|pack)\b',
+ r'\b(?:ground|whole.bean|instant)\s+coffee\b.*\b(?:oz|lb|bag|roast|notes?\s+of)\b',
+)
+def non_recipe_reason(recipe):
  title=str(recipe.get('name','')).lower().strip()
- if not title:raise ValueError('Recipe title missing')
- product_patterns=(
-  r'\\b(?:factor(?:75)?|factor form)\\b.*\\b(?:box|kit|trial|greens|creatine|supplement|ready.made)\\b',
-  r'\\b(?:greens\\s*(?:trial|powder|kit)|creatine\\s*\\+?\\s*(?:kit|powder|supplement)|protein\\s*(?:powder|shake|supplement)|dietary\\s*supplement|supplement\\s*(?:kit|pack))\\b',
-  r'\\b(?:ready.made|prepared)\\s*meal\\s*(?:box|pack)\\b',
-  r'\\b(?:pet(?:s)?\\s*(?:food|table)|dog\\s*(?:food|treats?)|cat\\s*(?:food|treats?)|kibble)\\b',
-  r'\\b(?:air.dried|freeze.dried)\\s*(?:beef|chicken|turkey|salmon)\\b.*\\b(?:box|pack|bag|lb|lbs)\\b',
-  r'\\b(?:variety|assortment|bulk)\\s*(?:box|pack)\\b',
-  r'\\b(?:ground|whole.bean|instant)\\s+coffee\\b.*\\b(?:oz|lb|bag|roast|notes?\\s+of)\\b',
- )
- if any(re.search(pattern,title) for pattern in product_patterns):
-  raise ValueError('Skipped non-recipe product listing')
- if re.search(r'\\b\\d+\\s*(?:lb|lbs|oz|kg)\\b',title) and re.search(r'\\b(?:box|pack|case|bundle)\\b',title):
-  raise ValueError('Skipped bulk product listing')
+ if not title:return 'Missing recipe title'
+ if any(re.search(pattern,title) for pattern in NON_RECIPE_PATTERNS):
+  return 'Product or promotional listing'
+ if re.search(r'\b\d+\s*(?:lb|lbs|oz|kg)\b',title) and re.search(r'\b(?:box|pack|case|bundle)\b',title):
+  return 'Bulk packaged product'
+ return None
+
+def validate_import_recipe(recipe):
+ """Apply catalog policy at the import boundary; do not delete prior entries."""
+ reason=non_recipe_reason(recipe)
+ if reason:raise ValueError('Skipped non-recipe listing: '+reason)
  if len(recipe.get('ingredients') or {})<2:
   raise ValueError('Skipped listing without a usable ingredient list')
  return recipe
@@ -1784,7 +1790,7 @@ class Handler(SimpleHTTPRequestHandler):
    except Exception as error:
     print('Store lookup failed:',repr(error),flush=True)
     return self.sendjson({'error':'Store lookup could not reach the directory services. Check the HelloGroceries container logs for DNS or network errors.'},503)
-  if self.path=='/api/recipes':return self.sendjson(allrecipes())
+  if self.path=='/api/recipes':return self.sendjson([r for r in allrecipes() if not non_recipe_reason(r)])
   if self.path=='/api/state':
    with lock:
     state=read()
