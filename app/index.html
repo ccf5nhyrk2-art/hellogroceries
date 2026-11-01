@@ -603,6 +603,25 @@ html[data-theme="dark"] .recipe-dialog{background:#20272a;color:#edf0f2;border-c
  #mobile-recipe-filters .filter-actions label{padding:8px 10px!important}
  #mobile-recipe-filters .filter-actions button{padding:8px 12px!important}
 }
+
+/* Compact, swipeable recommendations on phones; retain the desktop grid. */
+#recommend-list .recommend-card{padding:12px;border:1px solid #405247;border-radius:11px;overflow:hidden;min-width:0}
+#recommend-list .recommend-photo{display:block;width:100%;height:125px;object-fit:cover;border-radius:8px;margin-bottom:9px}
+#recommend-list .recommend-title{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;line-height:1.35}
+#recommend-list .recommend-actions{display:flex;gap:7px;flex-wrap:wrap;margin-top:9px}
+#recommend-list .recommend-actions button{flex:1 1 auto;padding:10px 8px}
+#recommend-list .recommend-dismiss{display:block;margin-top:7px;padding:4px 0;background:transparent;color:inherit;text-decoration:underline;font-size:12px;font-weight:500;opacity:.8}
+@media(max-width:750px){
+ #recipe-recommendations{padding:12px!important}
+ #recipe-recommendations #recommend-heading{font-size:18px}
+ #recipe-recommendations #recommend-refresh{padding:9px 12px}
+ #recommend-list{display:flex!important;overflow-x:auto;scroll-snap-type:x mandatory;overscroll-behavior-x:contain;-webkit-overflow-scrolling:touch;gap:10px!important;padding-bottom:8px;scrollbar-width:thin}
+ #recommend-list .recommend-card{flex:0 0 min(72vw,260px);scroll-snap-align:start}
+ #recommend-list .recommend-photo{height:100px}
+ #recommend-list .recommend-title{font-size:14px;-webkit-line-clamp:2;min-height:2.7em}
+ #recommend-list .recommend-reason{font-size:11px!important;margin:5px 0!important}
+ #recommend-list .recommend-actions button{font-size:12px;padding:9px 5px}
+}
 </style><script>
 (function(){const originalFetch=window.fetch;window.fetch=function(input,init){const opts=init?{...init}:{};const method=(opts.method||'GET').toUpperCase();const url=typeof input==='string'?input:input.url;if(method!=='GET'&&method!=='HEAD'&&url.startsWith('/api/')){const match=document.cookie.match(/(?:^|; )hg_csrf=([^;]+)/);opts.headers={...opts.headers,'X-HG-CSRF':match?match[1]:''}}return originalFetch.call(this,input,opts)};})();
 </script>
@@ -2112,7 +2131,7 @@ function renderRecommendations(){
   results.push(item);usedGroups.add(group);if(results.length===4)break;
  }
  if(results.length<4)for(const item of pool.slice(offset).concat(pool.slice(0,offset))){if(!results.includes(item)){results.push(item);if(results.length===4)break}}
- panel.innerHTML=results.length?results.map(({r,reason})=>'<article style="padding:12px;border:1px solid #405247;border-radius:11px;overflow:hidden">'+((r.image||r.url)?'<img src="/api/photo/'+encodeURIComponent(r.id)+'" alt="" loading="lazy" style="width:100%;height:125px;object-fit:cover;border-radius:8px;margin-bottom:9px" onerror="this.style.display=\'none\'">':'')+'<strong>'+esc(cleanRecipeName(r.name))+'</strong><div class="muted" style="font-size:12px;margin:6px 0">'+(reason?esc(reason):'Discover something new')+'</div><div class="actions"><button type="button" data-recommend-detail="'+r.id+'">View recipe</button><button type="button" data-recommend-plan="'+r.id+'">Add to plan</button><button type="button" data-recommend-hide="'+r.id+'" class="clear">Not interested</button></div></article>').join(''):'<p class="muted">'+(terms.length?'No personalized suggestions match this search. Try a different search or clear it to see your usual recommendations.':'No suggestions available yet.')+'</p>';
+ panel.innerHTML=results.length?results.map(({r,reason})=>'<article class="recommend-card">'+((r.image||r.url)?'<img class="recommend-photo" src="/api/photo/'+encodeURIComponent(r.id)+'" alt="" loading="lazy" onerror="this.style.display=\'none\'">':'')+'<strong class="recommend-title">'+esc(cleanRecipeName(r.name))+'</strong><div class="muted recommend-reason" style="font-size:12px;margin:6px 0">'+(reason?esc(reason):'Discover something new')+'</div><div class="actions"><button type="button" data-recommend-detail="'+r.id+'">View recipe</button><button type="button" data-recommend-plan="'+r.id+'">Add to plan</button><button type="button" data-recommend-hide="'+r.id+'" class="clear">Not interested</button></div></article>').join(''):'<p class="muted">'+(terms.length?'No personalized suggestions match this search. Try a different search or clear it to see your usual recommendations.':'No suggestions available yet.')+'</p>';
 }
 $('recommend-refresh').onclick=()=>{recommendationOffset+=4;renderRecommendations()};
 $('recommend-list').addEventListener('click',async e=>{
