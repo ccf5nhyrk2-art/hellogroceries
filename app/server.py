@@ -1583,8 +1583,10 @@ def rebuild_grocery_list(state):
  totals={}
  sources={}
  for recipe in allrecipes():
-  scale=state['selected'].get(str(recipe['id']))
-  if scale is None:continue
+  servings=state['selected'].get(str(recipe['id']))
+  if servings is None:continue
+  # HelloFresh imported ingredient quantities are for the standard two-serving recipe.
+  scale=float(servings)/2.0
   ingredients=recipe.get('ingredients')
   if not isinstance(ingredients,dict):continue
   for name,qty in ingredients.items():
@@ -1616,7 +1618,7 @@ def rebuild_grocery_list(state):
     amount=quantity*float(scale)
    if not (0<amount<100000):continue
    totals[label]=totals.get(label,0)+amount
-   sources.setdefault(label,[]).append({'recipe_id':recipe['id'],'recipe':recipe['name'],'original_name':name,'corrected':bool(correction),'source_quantity':qty,'multiplier':scale,'contribution':round(amount,3)})
+   sources.setdefault(label,[]).append({'recipe_id':recipe['id'],'recipe':recipe['name'],'original_name':name,'corrected':bool(correction),'source_quantity':qty,'multiplier':scale,'servings':servings,'contribution':round(amount,3)})
  # Do not silently discard recipe ingredients with missing or malformed amounts.
  # Keep them as unverified single entries until a correction supplies a quantity.
  for recipe in allrecipes():
