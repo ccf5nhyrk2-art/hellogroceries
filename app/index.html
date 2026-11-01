@@ -2047,9 +2047,18 @@ function isNonRecipeListing(r){
 let recommendationOffset=0;
 
 
-function recommendationTokens(recipe){
- const ignore=new Set(['with','and','the','for','from','fresh','style','plus','over','served','hello','recipe','classic','creamy','crispy','easy','quick','minute','minutes']);
- return new Set(cleanRecipeName(recipe.name||'').toLowerCase().match(/[a-z]{4,}/g)?.filter(w=>!ignore.has(w))||[]);
+function recommendationFeatures(r){
+ const name=cleanRecipeName(r.name||'').toLowerCase(),features=[];
+ const protein=recipeGroup(r),cuisine=cuisineGroup(r),meal=mealGroup(r);
+ if(protein!=='other')features.push(['protein:'+protein,5,'More '+protein+' meals']);
+ if(cuisine!=='other')features.push(['cuisine:'+cuisine,4,'More '+cuisine+' flavors']);
+ if(meal!=='other')features.push(['meal:'+meal,3,'More '+meal+' recipes']);
+ const methods=[['air fryer',/air.fry/],['grilled',/grill/],['roasted',/roast/],['one pot',/one.pot|one.pan/],['slow cooker',/slow.cook/]];
+ for(const [label,pattern] of methods)if(pattern.test(name))features.push(['method:'+label,2,'More '+label+' recipes']);
+ const ingredients=['potato','mushroom','broccoli','spinach','tomato','rice','garlic','lemon','lime','avocado','chickpea','sesame','ginger','sweet potato'];
+ const ingredientText=name+' '+Object.keys(r.ingredients||{}).join(' ').toLowerCase();
+ for(const ingredient of ingredients)if(ingredientText.includes(ingredient))features.push(['ingredient:'+ingredient,1,'Recipes with '+ingredient]);
+ return features;
 }
 function renderRecommendations(){
  const panel=$('recommend-list');if(!panel)return;
@@ -2057,14 +2066,18 @@ function renderRecommendations(){
  const reviews=state.recipe_reviews||{},signals=recipes.filter(r=>picked.has(String(r.id))||fav.has(String(r.id))||Number(reviews[String(r.id)]?.rating)>=4);
  const preferences=new Map();
  for(const r of signals){
-  const weight=(picked.has(String(r.id))?3:0)+(fav.has(String(r.id))?4:0)+(Number(reviews[String(r.id)]?.rating)>=4?4:0);
-  for(const word of recommendationTokens(r))preferences.set(word,(preferences.get(word)||0)+weight);
+  const rating=Number(reviews[String(r.id)]?.rating)||0;
+  const weight=(picked.has(String(r.id))?3:0)+(fav.has(String(r.id))?4:0)+(rating>=4?rating:0);
+  for(const [key,importance] of recommendationFeatures(r))preferences.set(key,(preferences.get(key)||0)+weight*importance);
  }
  const candidates=recipes.filter(r=>!(state.recommendation_hidden||[]).includes(Number(r.id))&&!picked.has(String(r.id))&&!fav.has(String(r.id))&&!isNonRecipeListing(r)&&!isAddon(r)&&!isSideRecipe(r)&&!isWineListing(r)&&!isHolidayRecipe(r));
  const scored=candidates.map(r=>{
-  let score=0,reason='';
-  for(const word of recommendationTokens(r)){const value=preferences.get(word)||0;if(value>score){score=value;reason=word}}
-  return {r,score,reason};
+  let score=0,reason='';const matches=recommendationFeatures(r);
+  for(const [key,importance,label] of matches){
+   const value=(preferences.get(key)||0)*importance;
+   score+=value;if(value>0&&(!reason||value>reason.score))reason={label,score:value};
+  }
+  return {r,score,reason:reason?.label||''};
  }).sort((a,b)=>b.score-a.score||Number(b.r.id)-Number(a.r.id));
  const pool=signals.length?scored.filter(x=>x.score>0):scored;
  const offset=pool.length?recommendationOffset%pool.length:0;
@@ -2075,11 +2088,12 @@ function renderRecommendations(){
   results.push(item);usedGroups.add(group);if(results.length===4)break;
  }
  if(results.length<4)for(const item of pool.slice(offset).concat(pool.slice(0,offset))){if(!results.includes(item)){results.push(item);if(results.length===4)break}}
- panel.innerHTML=results.length?results.map(({r,reason})=>'<article style="padding:12px;border:1px solid #405247;border-radius:11px;overflow:hidden">'+((r.image||r.url)?'<img src="/api/photo/'+encodeURIComponent(r.id)+'" alt="" loading="lazy" style="width:100%;height:125px;object-fit:cover;border-radius:8px;margin-bottom:9px" onerror="this.style.display=\'none\'">':'')+'<strong>'+esc(cleanRecipeName(r.name))+'</strong><div class="muted" style="font-size:12px;margin:6px 0">'+(reason?'Because you enjoy '+esc(reason)+' recipes':'Discover something new')+'</div><div class="actions"><button type="button" data-recommend-detail="'+r.id+'">View recipe</button><button type="button" data-recommend-hide="'+r.id+'" class="clear">Not interested</button></div></article>').join(''):'<p class="muted">No suggestions available yet.</p>';
+ panel.innerHTML=results.length?results.map(({r,reason})=>'<article style="padding:12px;border:1px solid #405247;border-radius:11px;overflow:hidden">'+((r.image||r.url)?'<img src="/api/photo/'+encodeURIComponent(r.id)+'" alt="" loading="lazy" style="width:100%;height:125px;object-fit:cover;border-radius:8px;margin-bottom:9px" onerror="this.style.display=\'none\'">':'')+'<strong>'+esc(cleanRecipeName(r.name))+'</strong><div class="muted" style="font-size:12px;margin:6px 0">'+(reason?''+esc(reason)':'Discover something new')+'</div><div class="actions"><button type="button" data-recommend-detail="'+r.id+'">View recipe</button><button type="button" data-recommend-hide="'+r.id+'" class="clear">Not interested</button></div></article>').join(''):'<p class="muted">No suggestions available yet.</p>';
 }
 $('recommend-refresh').onclick=()=>{recommendationOffset+=4;renderRecommendations()};
 $('recommend-list').addEventListener('click',async e=>{
- const detail=e.target.closest('[data-recommend-detail]'),hide=e.target.closest('[data-recommend-hide]');
+ const detail=e.target.closest('[data-recommend-detail]'),hide=e.target.closest('[data-recommend-hide]'),plan=e.target.closest('[data-recommend-plan]');
+ if(plan){await selectMealAndRefresh(Number(plan.dataset.recommendPlan),true,2);return;}
  if(detail){const id=detail.dataset.recommendDetail;const target=document.querySelector('#recipes [data-detail="'+id+'"]');if(target)target.click();else{const trigger=document.createElement('button');trigger.type='button';trigger.dataset.detail=id;trigger.hidden=true;$('recipes').appendChild(trigger);trigger.click();trigger.remove()}}
  if(hide){const id=Number(hide.dataset.recommendHide);const hidden=[...new Set([...(state.recommendation_hidden||[]),id])];try{await preferences({recommendation_hidden:hidden})}catch(err){alert('Could not save this preference: '+err.message)}}
 });
