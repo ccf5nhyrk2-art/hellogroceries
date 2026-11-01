@@ -2171,10 +2171,19 @@ function renderRecommendations(){
   results.push(item);usedGroups.add(group);if(results.length===4)break;
  }
  if(results.length<4)for(const item of pool.slice(offset).concat(pool.slice(0,offset))){if(!results.includes(item)){results.push(item);if(results.length===4)break}}
- panel.innerHTML=results.length?results.map(({r,reason})=>'<article class="recommend-card">'+((r.image||r.url)?'<img class="recommend-photo" src="/api/photo/'+encodeURIComponent(r.id)+'" alt="" loading="lazy" onerror="this.parentElement.remove()">':'')+'<strong class="recommend-title">'+esc(cleanRecipeName(r.name))+'</strong><div class="muted recommend-reason" style="font-size:12px;margin:6px 0">'+(reason?esc(reason):'Discover something new')+'</div><div class="recommend-actions"><button type="button" data-recommend-detail="'+r.id+'">View recipe</button><button type="button" data-recommend-plan="'+r.id+'">Add to plan</button></div><button type="button" data-recommend-hide="'+r.id+'" class="recommend-dismiss">Not interested</button></article>').join(''):'<p class="muted">'+(terms.length?'No personalized suggestions match this search. Try a different search or clear it to see your usual recommendations.':'No suggestions available yet.')+'</p>';
+ panel.innerHTML=results.length?results.map(({r,reason})=>'<article class="recommend-card">'+((r.image||r.url)?'<img class="recommend-photo" src="/api/photo/'+encodeURIComponent(r.id)+'" alt="" loading="lazy" onerror="this.parentElement.remove()">':'')+'<strong class="recommend-title">'+esc(cleanRecipeName(r.name))+'</strong><div class="muted recommend-reason" style="font-size:12px;margin:6px 0">'+(reason?esc(reason):'Discover something new')+'</div><div class="recommend-actions"><button type="button" data-recommend-detail="'+r.id+'">View recipe</button><button type="button" data-recommend-plan="'+r.id+'">Add to plan</button></div><select data-recommend-collection="'+r.id+'" aria-label="Add recommended recipe to collection" style="width:100%;margin-top:8px;min-height:40px"><option value="">Add to collection…</option>'+Object.keys(state.collections||{}).map(n=>'<option value="'+esc(n)+'">'+esc(n)+'</option>').join('')+'</select><button type="button" data-recommend-hide="'+r.id+'" class="recommend-dismiss">Not interested</button></article>').join(''):'<p class="muted">'+(terms.length?'No personalized suggestions match this search. Try a different search or clear it to see your usual recommendations.':'No suggestions available yet.')+'</p>';
  requestAnimationFrame(updateRecommendationCarousel);
 }
 function updateRecommendationCarousel(){const list=$('recommend-list'),controls=$('recommend-carousel-controls'),dots=$('recommend-dots');if(!list||!controls||!dots)return;const cards=[...list.querySelectorAll('.recommend-card')];const enabled=matchMedia('(max-width:750px)').matches&&cards.length>1;controls.hidden=!enabled;if(!enabled)return;const current=cards.reduce((best,card,i)=>Math.abs(card.offsetLeft-list.offsetLeft-list.scrollLeft)<Math.abs(cards[best].offsetLeft-list.offsetLeft-list.scrollLeft)?i:best,0);dots.innerHTML=cards.map((_,i)=>'<span class="recommend-dot'+(i===current?' active':'')+'"></span>').join('')}
+$('recommend-list').addEventListener('change',async e=>{
+ const el=e.target.closest('[data-recommend-collection]');if(!el||!el.value)return;
+ const name=el.value,id=Number(el.dataset.recommendCollection),collections=structuredClone(state.collections||{});
+ collections[name]=[...new Set([...(collections[name]||[]),id])];
+ el.disabled=true;
+ try{await preferences({collections});el.value='';}
+ catch(err){alert('Could not add to collection: '+err.message)}
+ finally{el.disabled=false}
+});
 $('recommend-list').addEventListener('scroll',updateRecommendationCarousel,{passive:true});window.addEventListener('resize',updateRecommendationCarousel);
 $('recommend-refresh').onclick=()=>{recommendationOffset+=4;renderRecommendations()};
 $('recommend-list').addEventListener('click',async e=>{
