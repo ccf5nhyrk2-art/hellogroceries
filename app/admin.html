@@ -480,6 +480,15 @@ $('logout').onclick=async()=>{await fetch('/api/auth/logout',{method:'POST',head
 </script><script>(function(){const b=document.createElement('button');b.id='hg-theme-toggle';b.type='button';b.setAttribute('aria-label','Toggle light and dark mode');function sync(){const dark=document.documentElement.dataset.theme==='dark';b.textContent=dark?'☀ Light mode':'☾ Dark mode';b.setAttribute('aria-pressed',String(dark))}b.addEventListener('click',()=>{const theme=document.documentElement.dataset.theme==='dark'?'light':'dark';document.documentElement.dataset.theme=theme;try{localStorage.setItem('hg-theme',theme)}catch(e){}sync()});document.body.appendChild(b);sync()})()</script><script>
 (function(){
 const $=id=>document.getElementById(id);
+function csrfDiagnostics(){
+ const matches=document.cookie.split(';').map(x=>x.trim()).filter(x=>x.startsWith('hg_csrf='));
+ return {cookiePresent:matches.some(x=>x.length>8),cookieCount:matches.length,secureContext:location.protocol==='https:'};
+}
+function showCsrfDiagnostic(error){
+ const info=csrfDiagnostics();
+ const target=document.getElementById('bulkstatus');
+ if(target)target.textContent='Import blocked: '+(error.message||'Request failed')+'. CSRF cookie '+(info.cookiePresent?'present':'missing')+'; matching cookie entries: '+info.cookieCount+'; HTTPS: '+(info.secureContext?'yes':'no')+'. Sign out and back in if missing; contact admin if present.';
+}
 async function post(action,extra={}){
  const r=await fetch('/api/action',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json','X-HG-CSRF':document.cookie.split('; ').find(x=>x.startsWith('hg_csrf='))?.slice(8)||''},body:JSON.stringify({action,...extra})});
  const j=await r.json();if(!r.ok)throw Error(j.error||'Request failed');return j;
@@ -516,7 +525,7 @@ async function checkBulk(){try{const r=await fetch('/api/bulk-status',{cache:'no
 $('country').addEventListener('change',()=>{catalogSelected=$('country').value;if(catalogLast)renderCatalog(catalogLast)});
 async function checkUsImport(){try{const r=await fetch('/api/us-import-status',{cache:'no-store'});if(!r.ok)throw Error('HTTP '+r.status);const j=await r.json();if(!j.available){$('us-import-message').textContent=j.message||'No import data yet';return}const total=Number(j.discovered)||0,done=Number(j.processed)||0,pct=total?Math.min(100,Math.max(0,done/total*100)):0;$('us-import-bar').style.width=pct.toFixed(1)+'%';$('us-import-message').textContent=(total&&done>=total?'Last saved run reached the end':'Last saved checkpoint')+' — '+pct.toFixed(1)+'%';$('us-import-counts').textContent=`${done.toLocaleString()} / ${total.toLocaleString()} checked · ${(Number(j.imported_this_run)||0).toLocaleString()} new · ${(Number(j.skipped)||0).toLocaleString()} skipped · ${(Number(j.errors_this_run)||0).toLocaleString()} errors`;$('us-import-updated').textContent=j.updated_at?'Last updated: '+new Date(j.updated_at*1000).toLocaleString():'';}catch(e){$('us-import-message').textContent='Cannot read importer progress: '+e.message}}
 async function checkUsControl(){try{const r=await fetch('/api/us-import-control-status',{cache:'no-store'});const j=await r.json();$('start-us-import').disabled=Boolean(j.running);$('start-us-import').textContent=j.running?'Import Running…':'Start / Resume US Import';$('us-import-control').textContent=j.message||'';}catch(e){$('us-import-control').textContent=e.message}}
-$('bulk').onclick=async()=>{try{if(catalogSelected==='US'){if(!confirm('Start or resume the existing US importer?'))return;await post('start-us-import')}else await post('bulk',{country:catalogSelected,limit:Number($('bulk-limit').value)});checkBulk()}catch(e){$('bulkstatus').textContent=e.message}};
+$('bulk').onclick=async()=>{try{if(catalogSelected==='US'){if(!confirm('Start or resume the existing US importer?'))return;await post('start-us-import')}else await post('bulk',{country:catalogSelected,limit:Number($('bulk-limit').value)});checkBulk()}catch(e){if(/CSRF/i.test(e.message||''))showCsrfDiagnostic(e);else $('bulkstatus').textContent=e.message}};
 $('pause-bulk').onclick=async()=>{try{await post('pause-bulk');checkBulk()}catch(e){$('bulkstatus').textContent=e.message}};
 $('resume-bulk').onclick=async()=>{try{await post('resume-bulk',{country:catalogSelected});checkBulk()}catch(e){$('bulkstatus').textContent=e.message}};
 checkBulk();setInterval(checkBulk,5000);
