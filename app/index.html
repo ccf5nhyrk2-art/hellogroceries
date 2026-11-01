@@ -379,6 +379,15 @@ html[data-theme="dark"] .mobile-more-logout{color:#ff8989!important;border-color
  main>.layout {gap:8px!important}
  main>.layout section {margin-top:0!important}
 }
+/* Two-row mobile header: store and admin share the second row. */
+@media(max-width:750px){
+ header{grid-template-columns:minmax(0,1fr) auto!important;column-gap:9px!important;row-gap:7px!important;padding:9px 12px!important}
+ header h1{margin:0!important;font-size:19px!important;line-height:1.2!important}
+ header #hg-theme-toggle{padding:6px 8px!important;font-size:11px!important}
+ header #hg-header-store{grid-column:1!important;grid-row:2!important;width:100%!important;max-width:100%!important;min-width:0!important;min-height:36px!important;padding:6px 8px!important;font-size:11px!important;overflow:hidden}
+ header #hg-header-store span{min-width:0!important;overflow:hidden!important;text-overflow:ellipsis!important;white-space:nowrap!important}
+ header>a[data-admin-only]{grid-column:2!important;grid-row:2!important;margin:0!important;font-size:11px!important;white-space:nowrap!important;align-self:center!important}
+}
 /* Tighter mobile planner rows without sacrificing touch target size. */
 @media (max-width:700px) {
  #week-grid label {gap:4px!important;padding:7px 0!important;font-size:14px!important}
