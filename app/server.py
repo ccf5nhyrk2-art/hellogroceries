@@ -68,7 +68,8 @@ def task_overview():
   item('nutrition','Bulk recipe nutrition scan','Manual / on demand',False,None,'nutrition'),
   item('store_directory','Nationwide store directory refresh','Automatic when cache expires (7 days) or store search needs it',False,datetime.datetime.fromtimestamp(ATP_CACHE_FILE.stat().st_mtime,datetime.timezone.utc).isoformat() if ATP_CACHE_FILE.exists() else None,'store_directory'),
   item('store_geocode','Store address geocoding','Automatic during store search (only uncached addresses)',RETAILER_GEOCODE_RUNNING,datetime.datetime.fromtimestamp(Path('/data/retailer_address_coordinates.json').stat().st_mtime,datetime.timezone.utc).isoformat() if Path('/data/retailer_address_coordinates.json').exists() else None,'store_geocode'),
-  item('reef_prices','ReefAPI grocery price refresh','Manual only; cached prices expire after 365 days',False,None,None)
+  item('reef_prices','ReefAPI grocery price refresh','Manual only; cached prices expire after 365 days',False,None,None),
+  {'key':'recommendation_photos','name':'Recommendation photo caching','frequency':'Background: checks hourly; 15 seconds between downloads (target: 40 photos)','running':recommendation_photo_warmup['running'],'last_started':recommendation_photo_warmup['last_started'],'last_finished':recommendation_photo_warmup['last_finished'],'next_run':recommendation_photo_warmup['next_run'],'status':'Running' if recommendation_photo_warmup['running'] else 'Waiting for next cycle','cached':recommendation_photo_warmup['cached'],'target':40,'checked':recommendation_photo_warmup['checked'],'errors':recommendation_photo_warmup['errors'],'action':None}
  ]
 
 def us_import_running():
@@ -318,10 +319,12 @@ def resolve_photo(recipe,refresh=False):
   return None if refresh else cached_photo(rid)
 
 # Low-rate background warmup for recommendation photos; never blocks a page request.
-recommendation_photo_warmup={'last_attempt':None,'cached':0,'checked':0,'errors':0}
+recommendation_photo_warmup={'last_attempt':None,'cached':0,'checked':0,'errors':0,'running':False,'last_started':None,'last_finished':None,'next_run':None}
 def recommendation_photo_warmup_worker():
  import random
  while True:
+  recommendation_photo_warmup['running']=True
+  recommendation_photo_warmup['last_started']=datetime.datetime.now(datetime.timezone.utc).isoformat()
   try:
    recipes=[r for r in allrecipes() if r.get('image') and not non_recipe_reason(r)]
    random.shuffle(recipes)
@@ -341,6 +344,10 @@ def recommendation_photo_warmup_worker():
     time.sleep(15)
   except Exception:
    recommendation_photo_warmup['errors']+=1
+  finally:
+   recommendation_photo_warmup['running']=False
+   recommendation_photo_warmup['last_finished']=datetime.datetime.now(datetime.timezone.utc).isoformat()
+   recommendation_photo_warmup['next_run']=(datetime.datetime.now(datetime.timezone.utc)+datetime.timedelta(hours=1)).isoformat()
   time.sleep(3600)
 
 def allowed_url(url):
