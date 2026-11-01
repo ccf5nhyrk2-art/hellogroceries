@@ -2098,7 +2098,12 @@ function renderRecommendations(){
  
   recommendationRankCache={signature,pool};
  }
- const pool=recommendationRankCache.pool;
+ const query=$('search').value.toLowerCase().trim();
+ const terms=query.split(/\\s+/).filter(Boolean);
+ const pool=terms.length?recommendationRankCache.pool.filter(({r})=>{
+  const searchable=[cleanRecipeName(r.name),r.country,r.cuisine,r.description].filter(Boolean).join(' ').toLowerCase();
+  return terms.every(term=>searchable.includes(term));
+ }):recommendationRankCache.pool;
  const offset=pool.length?recommendationOffset%pool.length:0;
  const results=[],usedGroups=new Set();
  for(const item of pool.slice(offset).concat(pool.slice(0,offset))){
@@ -2107,7 +2112,7 @@ function renderRecommendations(){
   results.push(item);usedGroups.add(group);if(results.length===4)break;
  }
  if(results.length<4)for(const item of pool.slice(offset).concat(pool.slice(0,offset))){if(!results.includes(item)){results.push(item);if(results.length===4)break}}
- panel.innerHTML=results.length?results.map(({r,reason})=>'<article style="padding:12px;border:1px solid #405247;border-radius:11px;overflow:hidden">'+((r.image||r.url)?'<img src="/api/photo/'+encodeURIComponent(r.id)+'" alt="" loading="lazy" style="width:100%;height:125px;object-fit:cover;border-radius:8px;margin-bottom:9px" onerror="this.style.display=\'none\'">':'')+'<strong>'+esc(cleanRecipeName(r.name))+'</strong><div class="muted" style="font-size:12px;margin:6px 0">'+(reason?esc(reason):'Discover something new')+'</div><div class="actions"><button type="button" data-recommend-detail="'+r.id+'">View recipe</button><button type="button" data-recommend-plan="'+r.id+'">Add to plan</button><button type="button" data-recommend-hide="'+r.id+'" class="clear">Not interested</button></div></article>').join(''):'<p class="muted">No suggestions available yet.</p>';
+ panel.innerHTML=results.length?results.map(({r,reason})=>'<article style="padding:12px;border:1px solid #405247;border-radius:11px;overflow:hidden">'+((r.image||r.url)?'<img src="/api/photo/'+encodeURIComponent(r.id)+'" alt="" loading="lazy" style="width:100%;height:125px;object-fit:cover;border-radius:8px;margin-bottom:9px" onerror="this.style.display=\'none\'">':'')+'<strong>'+esc(cleanRecipeName(r.name))+'</strong><div class="muted" style="font-size:12px;margin:6px 0">'+(reason?esc(reason):'Discover something new')+'</div><div class="actions"><button type="button" data-recommend-detail="'+r.id+'">View recipe</button><button type="button" data-recommend-plan="'+r.id+'">Add to plan</button><button type="button" data-recommend-hide="'+r.id+'" class="clear">Not interested</button></div></article>').join(''):'<p class="muted">'+(terms.length?'No personalized suggestions match this search. Try a different search or clear it to see your usual recommendations.':'No suggestions available yet.')+'</p>';
 }
 $('recommend-refresh').onclick=()=>{recommendationOffset+=4;renderRecommendations()};
 $('recommend-list').addEventListener('click',async e=>{
