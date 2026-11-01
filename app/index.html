@@ -1561,7 +1561,7 @@ function shoppingDisplay(item){
  if(!Number.isFinite(qty)||qty<=0)return {name,note:''};
  const fractions={'¼':0.25,'½':0.5,'¾':0.75,'⅓':1/3,'⅔':2/3,'⅛':0.125,'⅜':0.375,'⅝':0.625,'⅞':0.875};
  const match=name.match(/^(\d+(?:\.\d+)?(?:\s+\d+\/\d+)?|\d+\/\d+|[¼½¾⅓⅔⅛⅜⅝⅞])\s+(.+)$/);
- if(!match)return {name,note:qty===1?'':groceryNumber(qty)+'× recipe amount'};
+ if(!match)return {name,note:'Source quantity needs confirmation — check recipe details'};
  const raw=match[1],rest=match[2];
  let amount;
  if(Object.hasOwn(fractions,raw))amount=fractions[raw];
@@ -2163,7 +2163,12 @@ function renderShoppingList(){
   const symbol=group==='Needs Review'?'⚠️':(shoppingDepartments.find(d=>d[0]===group)||[])[1]||'🛒';
   const rows=entries.map(x=>{
    const purchased=x.items.every(i=>i.purchased),names=x.items.map(i=>i.name),first=x.items[0];if(smartPrefs.hide&&purchased)return "";
-   const suggestion=purchaseSuggestion(x),label=suggestion?suggestion.label:x.label,note=suggestion?suggestion.note:x.note;
+   const suggestion=purchaseSuggestion(x);
+   // The shopping list leads with the total recipe requirement, not a suggested package.
+   const hasMeasuredTotal=x.knownCount&&Number.isFinite(x.amount)&&x.amount>0;
+   const label=hasMeasuredTotal?x.label:(suggestion?suggestion.label:x.label);
+   const packageNote=hasMeasuredTotal&&suggestion&&suggestion.label!==x.label?'Suggested purchase: '+suggestion.label:'';
+   const note=[x.note&& !/× recipe amount/.test(x.note)?x.note:'',packageNote,suggestion?.note||''].filter(Boolean).filter((v,i,a)=>a.indexOf(v)===i).join(' · ');
    const sourceCount=x.items.reduce((n,i)=>n+(Array.isArray(i.sources)?i.sources.length:0),0)||groceryRecipeBreakdown(x.items).length;
    const sourceText=sourceCount?sourceCount+' '+(sourceCount===1?'recipe':'recipes'):'Sources';
    const review=x.items.some(shoppingNeedsReview);
