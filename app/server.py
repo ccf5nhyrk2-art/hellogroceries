@@ -65,7 +65,7 @@ def task_overview():
  nutrition=history.get('nutrition',{})
  return [
   item('us_import','HelloFresh US recipe import','Manual / on demand',us_import_running() or (import_process is not None and import_process.poll() is None),datetime.datetime.fromtimestamp(progress.stat().st_mtime,datetime.timezone.utc).isoformat() if progress.exists() else None,'us_import'),
-  item('nutrition','Bulk recipe nutrition scan','Manual / on demand',False,None,'nutrition'),
+  {'key':'nutrition','name':'Bulk recipe nutrition scan','frequency':'Automatic initial scan; weekly thereafter (2 seconds between recipes)','running':nutrition_scan['running'],'last_started':nutrition_scan['last_started'],'last_finished':nutrition_scan['last_finished'],'next_run':nutrition_scan['next_run'],'status':'Running' if nutrition_scan['running'] else 'Waiting for next cycle','processed':nutrition_scan['processed'],'total':nutrition_scan['total'],'updated':nutrition_scan['updated'],'missing':nutrition_scan['missing'],'failed':nutrition_scan['failed'],'action':None},
   item('store_directory','Nationwide store directory refresh','Automatic when cache expires (7 days) or store search needs it',False,datetime.datetime.fromtimestamp(ATP_CACHE_FILE.stat().st_mtime,datetime.timezone.utc).isoformat() if ATP_CACHE_FILE.exists() else None,'store_directory'),
   item('store_geocode','Store address geocoding','Automatic during store search (only uncached addresses)',RETAILER_GEOCODE_RUNNING,datetime.datetime.fromtimestamp(Path('/data/retailer_address_coordinates.json').stat().st_mtime,datetime.timezone.utc).isoformat() if Path('/data/retailer_address_coordinates.json').exists() else None,'store_geocode'),
   item('reef_prices','ReefAPI grocery price refresh','Manual only; cached prices expire after 365 days',False,None,None),
@@ -352,6 +352,70 @@ def recommendation_photo_warmup_worker():
    recommendation_photo_warmup['next_run']=(datetime.datetime.now(datetime.timezone.utc)+datetime.timedelta(hours=1)).isoformat()
   recommendation_photo_wakeup.wait(3600)
   recommendation_photo_wakeup.clear()
+
+# Persistent, low-rate nutrition scan. It resumes after restarts and checks again weekly.
+NUTRITION_SCAN_FILE=Path('/data/nutrition_background.json')
+nutrition_wakeup=threading.Event()
+nutrition_scan={'running':False,'cursor':0,'total':0,'processed':0,'updated':0,'missing':0,'failed':0,'last_started':None,'last_finished':None,'next_run':None}
+def nutrition_scan_save():
+ try:
+  tmp=NUTRITION_SCAN_FILE.with_suffix('.tmp')
+  tmp.write_text(json.dumps(nutrition_scan));os.replace(tmp,NUTRITION_SCAN_FILE)
+ except OSError:pass
+def nutrition_scan_worker():
+ try:
+  saved=json.loads(NUTRITION_SCAN_FILE.read_text())
+  for key in nutrition_scan:
+   if key in saved and key!='running':nutrition_scan[key]=saved[key]
+ except (OSError,ValueError,TypeError):pass
+ while True:
+  now=datetime.datetime.now(datetime.timezone.utc)
+  due=nutrition_scan.get('next_run')
+  if due:
+   try:wait=max(0,(datetime.datetime.fromisoformat(due)-now).total_seconds())
+   except (TypeError,ValueError):wait=0
+   if wait>0:
+    nutrition_wakeup.wait(min(wait,86400))
+    if not nutrition_wakeup.is_set():continue
+    nutrition_wakeup.clear()
+  nutrition_scan['running']=True
+  nutrition_scan['last_started']=now.isoformat()
+  nutrition_scan['next_run']=None
+  nutrition_scan_save()
+  try:
+   while True:
+    with db() as conn:
+     rows=conn.execute('SELECT id,url,payload FROM imported WHERE id>? ORDER BY id LIMIT 3',(nutrition_scan['cursor'],)).fetchall()
+     nutrition_scan['total']=conn.execute('SELECT COUNT(*) FROM imported').fetchone()[0]
+    if not rows:break
+    for rid,url,payload in rows:
+     try:
+      original=json.loads(payload)
+      if not original.get('nutrition'):
+       fresh=recipe_from_url(url)
+       nutrition=fresh.get('nutrition') or {}
+       labels=fresh.get('dietary_labels') or []
+       if nutrition or labels:
+        original['nutrition']=nutrition
+        original['dietary_labels']=labels
+        with lock:
+         with db() as conn:conn.execute('UPDATE imported SET payload=? WHERE id=?',(json.dumps(original),rid))
+        nutrition_scan['updated']+=1
+       else:nutrition_scan['missing']+=1
+     except Exception:nutrition_scan['failed']+=1
+     nutrition_scan['cursor']=rid
+     nutrition_scan['processed']+=1
+     nutrition_scan_save()
+     time.sleep(2)
+   nutrition_scan['cursor']=0
+   nutrition_scan['processed']=0
+   nutrition_scan['last_finished']=datetime.datetime.now(datetime.timezone.utc).isoformat()
+   nutrition_scan['next_run']=(datetime.datetime.now(datetime.timezone.utc)+datetime.timedelta(days=7)).isoformat()
+  except Exception:
+   nutrition_scan['next_run']=(datetime.datetime.now(datetime.timezone.utc)+datetime.timedelta(hours=1)).isoformat()
+  finally:
+   nutrition_scan['running']=False
+   nutrition_scan_save()
 
 def allowed_url(url):
  u=urllib.parse.urlsplit(url)
@@ -1784,6 +1848,12 @@ class Handler(SimpleHTTPRequestHandler):
    q=urllib.parse.parse_qs(urllib.parse.urlsplit(self.path).query)
    try:return self.sendjson(reef_test_search(q.get('zip',[''])[0],q.get('item',[''])[0]))
    except ValueError as exc:return self.sendjson({'error':str(exc)},400)
+  if self.path=='/api/admin/nutrition/run':
+   if not self.gate(write=True):return
+   if not getattr(request_scope,'admin',False):return self.sendjson({'error':'Administrator required'},403)
+   if nutrition_scan['running']:return self.sendjson({'ok':True,'message':'Nutrition scan is already running.'})
+   nutrition_wakeup.set()
+   return self.sendjson({'ok':True,'message':'Nutrition scan queued.'})
   if self.path=='/api/admin/recommendation-photos/run':
    if not self.gate(write=True):return
    if not getattr(request_scope,'admin',False):return self.sendjson({'error':'Administrator required'},403)
@@ -2635,4 +2705,5 @@ if __name__=='__main__':
   job.update(running=True,paused=False,processed=0,discovered=0,imported=0,skipped=0,errors=0,message='Recovering interrupted import; saved recipes will be skipped')
   threading.Thread(target=bulk_worker,args=(job.get('country','US'),int(job.get('limit',0))),daemon=True).start()
  threading.Thread(target=recommendation_photo_warmup_worker,daemon=True,name='recommendation-photo-warmup').start()
+ threading.Thread(target=nutrition_scan_worker,daemon=True,name='nutrition-background-scan').start()
  ThreadingHTTPServer(('0.0.0.0',8080),Handler).serve_forever()
