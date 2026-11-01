@@ -616,8 +616,11 @@ html[data-theme="dark"] .recipe-dialog{background:#20272a;color:#edf0f2;border-c
  #recipe-recommendations #recommend-heading{font-size:18px}
  #recipe-recommendations #recommend-refresh{padding:9px 12px}
  #recommend-list{display:flex!important;overflow-x:auto;scroll-snap-type:x mandatory;overscroll-behavior-x:contain;-webkit-overflow-scrolling:touch;gap:10px!important;padding-bottom:8px;scrollbar-width:thin}
- #recommend-list .recommend-card{flex:0 0 min(72vw,260px);scroll-snap-align:start;align-self:flex-start}
- #recommend-list .recommend-photo{height:100px}
+ #recommend-list{align-items:stretch;max-width:100%;min-width:0}
+ #recommend-list .recommend-card{flex:0 0 min(76vw,275px);scroll-snap-align:start;display:flex;flex-direction:column;box-sizing:border-box;align-self:stretch}
+ #recommend-list .recommend-photo-placeholder{display:flex;align-items:center;justify-content:center;background:#20372c;font-size:28px}
+ #recommend-list .recommend-dismiss{margin-top:auto;padding-top:10px}
+ #recommend-list .recommend-photo{height:90px;flex-shrink:0}
  #recommend-list .recommend-title{font-size:14px;-webkit-line-clamp:2;min-height:2.7em}
  #recommend-list .recommend-reason{font-size:11px!important;margin:5px 0!important}
  #recommend-list .recommend-actions button{font-size:12px;padding:9px 5px}
@@ -2131,7 +2134,7 @@ function renderRecommendations(){
   results.push(item);usedGroups.add(group);if(results.length===4)break;
  }
  if(results.length<4)for(const item of pool.slice(offset).concat(pool.slice(0,offset))){if(!results.includes(item)){results.push(item);if(results.length===4)break}}
- panel.innerHTML=results.length?results.map(({r,reason})=>'<article class="recommend-card">'+((r.image||r.url)?'<img class="recommend-photo" src="/api/photo/'+encodeURIComponent(r.id)+'" alt="" loading="lazy" onerror="this.style.display=\'none\'">':'')+'<strong class="recommend-title">'+esc(cleanRecipeName(r.name))+'</strong><div class="muted recommend-reason" style="font-size:12px;margin:6px 0">'+(reason?esc(reason):'Discover something new')+'</div><div class="recommend-actions"><button type="button" data-recommend-detail="'+r.id+'">View recipe</button><button type="button" data-recommend-plan="'+r.id+'">Add to plan</button></div><button type="button" data-recommend-hide="'+r.id+'" class="recommend-dismiss">Not interested</button></article>').join(''):'<p class="muted">'+(terms.length?'No personalized suggestions match this search. Try a different search or clear it to see your usual recommendations.':'No suggestions available yet.')+'</p>';
+ panel.innerHTML=results.length?results.map(({r,reason})=>'<article class="recommend-card">'+((r.image||r.url)?'<img class="recommend-photo" src="/api/photo/'+encodeURIComponent(r.id)+'" alt="" loading="lazy" onerror="this.style.display=\'none\'">':'<div class="recommend-photo recommend-photo-placeholder" aria-hidden="true">🍽️</div>')+'<strong class="recommend-title">'+esc(cleanRecipeName(r.name))+'</strong><div class="muted recommend-reason" style="font-size:12px;margin:6px 0">'+(reason?esc(reason):'Discover something new')+'</div><div class="recommend-actions"><button type="button" data-recommend-detail="'+r.id+'">View recipe</button><button type="button" data-recommend-plan="'+r.id+'">Add to plan</button></div><button type="button" data-recommend-hide="'+r.id+'" class="recommend-dismiss">Not interested</button></article>').join(''):'<p class="muted">'+(terms.length?'No personalized suggestions match this search. Try a different search or clear it to see your usual recommendations.':'No suggestions available yet.')+'</p>';
 }
 $('recommend-refresh').onclick=()=>{recommendationOffset+=4;renderRecommendations()};
 $('recommend-list').addEventListener('click',async e=>{
