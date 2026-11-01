@@ -317,6 +317,32 @@ def resolve_photo(recipe,refresh=False):
    except (OSError,ValueError,TimeoutError,urllib.error.URLError):continue
   return None if refresh else cached_photo(rid)
 
+# Low-rate background warmup for recommendation photos; never blocks a page request.
+recommendation_photo_warmup={'last_attempt':None,'cached':0,'checked':0,'errors':0}
+def recommendation_photo_warmup_worker():
+ import random
+ while True:
+  try:
+   recipes=[r for r in allrecipes() if r.get('image') and not non_recipe_reason(r)]
+   random.shuffle(recipes)
+   cached=sum(1 for r in recipes if cached_photo(int(r['id'])))
+   recommendation_photo_warmup['cached']=cached
+   # Keep the warmup deliberately small and low-rate to limit external traffic.
+   for recipe in recipes:
+    if cached>=40:break
+    if cached_photo(int(recipe['id'])):continue
+    recommendation_photo_warmup['last_attempt']=int(recipe['id'])
+    recommendation_photo_warmup['checked']+=1
+    try:
+     if resolve_photo(recipe):cached+=1
+    except Exception:
+     recommendation_photo_warmup['errors']+=1
+    recommendation_photo_warmup['cached']=cached
+    time.sleep(15)
+  except Exception:
+   recommendation_photo_warmup['errors']+=1
+  time.sleep(3600)
+
 def allowed_url(url):
  u=urllib.parse.urlsplit(url)
  host=(u.hostname or '').lower()
@@ -2547,4 +2573,5 @@ if __name__=='__main__':
  if BULK_RECOVER:
   job.update(running=True,paused=False,processed=0,discovered=0,imported=0,skipped=0,errors=0,message='Recovering interrupted import; saved recipes will be skipped')
   threading.Thread(target=bulk_worker,args=(job.get('country','US'),int(job.get('limit',0))),daemon=True).start()
+ threading.Thread(target=recommendation_photo_warmup_worker,daemon=True,name='recommendation-photo-warmup').start()
  ThreadingHTTPServer(('0.0.0.0',8080),Handler).serve_forever()
