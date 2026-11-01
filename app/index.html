@@ -394,7 +394,7 @@ html[data-theme="dark"] .mobile-more-logout{color:#ff8989!important;border-color
  header h1{grid-column:1!important;grid-row:1!important}
  header #hg-header-store{grid-column:1!important;grid-row:2!important;max-width:100%!important}
  .mobile-more-footer #hg-theme-toggle{position:static!important;display:flex!important;width:100%!important;max-width:100%!important;min-height:44px!important;margin:0 0 10px!important;justify-content:flex-start!important;border-radius:12px!important;padding:10px 12px!important;box-sizing:border-box!important}
- .mobile-more-footer a[data-admin-only]{display:block;margin:0 0 10px!important;padding:11px 12px;border-radius:12px;text-decoration:none;font-weight:600;background:#eef6f0;color:#165a3d}
+ .mobile-more-footer a[data-admin-only]{display:flex!important;align-items:center;width:100%!important;min-height:44px!important;box-sizing:border-box!important;margin:0 0 10px!important;padding:10px 12px!important;border-radius:12px!important;text-decoration:none!important;font-weight:600!important;background:#2a3035!important;color:#f0f3f4!important;float:none!important;position:static!important}
  html[data-theme="dark"] .mobile-more-footer a[data-admin-only]{background:#2a3035;color:#f0f3f4!important}
 }
 /* Tighter mobile planner rows without sacrificing touch target size. */
@@ -2808,7 +2808,7 @@ fetch('/api/auth/status',{cache:'no-store'}).then(r=>r.json()).then(status=>{
  function placeSettings(){
   if(mobile.matches){
    footer.insertBefore(theme,footer.firstChild);
-   if(admin)footer.insertBefore(admin,theme.nextSibling);
+   if(admin){admin.textContent='Admin Console';footer.insertBefore(admin,theme.nextSibling);}
   }else{
    header.appendChild(theme);
    if(admin)header.appendChild(admin);
