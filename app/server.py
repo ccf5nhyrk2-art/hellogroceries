@@ -434,13 +434,20 @@ def nutrition_scan_worker():
     for rid,url,payload in rows:
      try:
       original=json.loads(payload)
-      if not original.get('nutrition'):
+      if not original.get('nutrition') or not original.get('source_servings'):
        fresh=recipe_from_url(url)
-       nutrition=fresh.get('nutrition') or {}
-       labels=fresh.get('dietary_labels') or []
-       if nutrition or labels:
-        original['nutrition']=nutrition
-        original['dietary_labels']=labels
+       changed=False
+       if not original.get('source_servings') and fresh.get('source_servings'):
+        original['source_servings']=fresh['source_servings']
+        changed=True
+       if not original.get('nutrition'):
+        nutrition=fresh.get('nutrition') or {}
+        labels=fresh.get('dietary_labels') or []
+        if nutrition or labels:
+         original['nutrition']=nutrition
+         original['dietary_labels']=labels
+         changed=True
+       if changed:
         with lock:
          with db() as conn:conn.execute('UPDATE imported SET payload=? WHERE id=?',(json.dumps(original),rid))
         nutrition_scan['updated']+=1
@@ -2383,6 +2390,7 @@ class Handler(SimpleHTTPRequestHandler):
     original=json.loads(row[1])
     original['nutrition']=updated.get('nutrition',{})
     original['dietary_labels']=updated.get('dietary_labels',[])
+    if updated.get('source_servings'):original['source_servings']=updated['source_servings']
     with lock:
      with db() as c:c.execute('UPDATE imported SET payload=? WHERE id=?',(json.dumps(original),rid-1000000))
     return self.sendjson({'ok':True,'nutrition':original['nutrition'],'dietary_labels':original['dietary_labels']})
