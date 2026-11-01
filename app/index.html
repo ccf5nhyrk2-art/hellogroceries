@@ -1512,6 +1512,11 @@ function shoppingDepartment(name){
  if(/\b(?:peanut|almond|cashew|sunflower) butter\b/i.test(value))return 'Pantry & Seasonings';
  if(/\b(?:pepper|fruit|onion|tomato|chili|chilli)\s+(?:jam|jelly|preserves?|chutney|relish)\b/i.test(value))return 'Pantry & Seasonings';
  if(/\b(?:crushed|diced|canned|tinned|whole peeled)\s+tomatoes?\b/i.test(value))return 'Pantry & Seasonings';
+ // Prioritize prepared, packaged and frozen foods over their ingredient names.
+ if(/\b(?:frozen|ice cream|frozen vegetables?|frozen fruit)\b/i.test(value))return 'Frozen';
+ if(/\b(?:tomato|pepper|onion|garlic|herb|fruit)\s+(?:sauce|paste|jam|jelly|relish|chutney|powder|seasoning)\b/i.test(value))return 'Pantry & Seasonings';
+ if(/\b(?:bread|buns?|brioche|baguette|pita|tortilla|naan|flatbread|croissant|rolls?)\b/i.test(value))return 'Bakery & Bread';
+
  if(/\b(?:bananas?|strawberries|blueberries|raspberries|grapes|peaches|pears|pineapples|watermelons|cantaloupes)\b/i.test(value))return 'Produce';
  if(/\b(?:coleslaw\s+mix|slaw\s+mix|shredded\s+cabbage)\b/i.test(value))return 'Produce';
  if(/^\s*(?:(?:\d+(?:\.\d+)?\s+)?(?:pick|unit)\s+)?garlic\s*$/i.test(value))return 'Produce';
@@ -1613,18 +1618,28 @@ function consolidatedShoppingRows(items){
   const ingredient=unitSource?unitSource[2].trim():match?match[3].trim():implicitCount?label.trim():'';
   const canonical=ingredient.toLowerCase().replace(/^(?:roma|cherry|grape|heirloom|plum|beefsteak)\s+(?=tomatoes?\b)/,'').replace(/\b(tomatoes|potatoes)\b/g,m=>m==='tomatoes'?'tomato':'potato').replace(/s$/,'');
 
+  // Bare imported names have no verified piece count; group them with a matching
+  // counted ingredient for display, but never silently add an assumed quantity.
+  const bareProduce=!override.display&&isWholeProduce&&!match&&!unitSource&&!implicitCount;
   const valid=Number.isFinite(amount)&&amount>0&&(unit||countable.test(ingredient)||countable.test(canonical));
   const conversion=conversions[unit]||[unit,1];
   const normalizedIngredient=canonical.replace(/\s+/g,' ');
-  const key=valid?conversion[0]+'|'+normalizedIngredient:null;
+  const bareKey=bareProduce?'|'+label.trim().toLowerCase().replace(/\b(tomatoes|potatoes)\b/g,m=>m==='tomatoes'?'tomato':'potato').replace(/s$/,''):null;
+  const key=valid?conversion[0]+'|'+normalizedIngredient:bareKey;
   if(key&&seen.has(key)){
-   const row=seen.get(key);row.amount+=amount*conversion[1];row.items.push(item);continue;
+   const row=seen.get(key);
+   if(valid)row.amount+=amount*conversion[1];
+   else row.missingCount=true;
+   row.items.push(item);
+   if(valid&&(!Number.isFinite(row.amount)||row.amount<=0)){row.amount=amount*conversion[1];row.ingredient=ingredient;row.baseUnit=conversion[0];row.unit=unit;}
+   continue;
   }
-  const row={items:[item],label,amount:amount*conversion[1],unit,ingredient,note:override.display?'':shoppingDisplay(item).note,baseUnit:conversion[0],missingCount:!override.display&&isWholeProduce&&!implicitCount&&!match&&!unitSource};
+  const row={items:[item],label,amount:valid?amount*conversion[1]:NaN,unit,ingredient:bareProduce?label.trim():ingredient,note:override.display?'':shoppingDisplay(item).note,baseUnit:conversion[0],missingCount:bareProduce,knownCount:valid};
   rows.push(row);if(key)seen.set(key,row);
  }
  for(const row of rows){
   if(row.items.length<2)continue;
+  if(!Number.isFinite(row.amount)||row.amount<=0){row.missingCount=true;continue;}
   let amount=row.amount,unit=row.baseUnit;
   if(unit==='teaspoon'&&amount>=48&&Math.abs(amount/48-Math.round(amount/48*8)/8)<0.002){amount/=48;unit='cup'}
   else if(unit==='teaspoon'&&amount>=3&&Math.abs(amount/3-Math.round(amount/3*8)/8)<0.002){amount/=3;unit='tablespoon'}
@@ -1632,13 +1647,13 @@ function consolidatedShoppingRows(items){
   else if(unit==='gram'&&amount>=1000){amount/=1000;unit='kilogram'}
   else if(unit==='milliliter'&&amount>=1000){amount/=1000;unit='liter'}
   row.label=groceryNumber(amount)+(unit?' '+ingredientPluralUnit(unit,amount):'')+' '+row.ingredient;
-  row.note='';
+  row.note=row.missingCount?'At least one recipe has no verified quantity · check recipe source':'';
  }
  return rows;
 }
 // Display conservative shopping-package suggestions without changing recipe quantities.
 function purchaseSuggestion(row){
- if(row.missingCount)return {label:row.label,note:'Quantity missing from recipe · check source or correct recipe quantity'};
+ if(row.missingCount)return {label:row.label,note:row.note||'Quantity missing from recipe · check source or correct recipe quantity'};
  const name=String(row.ingredient||'').trim(),lower=name.toLowerCase(),unit=row.baseUnit,amount=row.amount;
  const count=(capacity)=>Math.ceil((amount-1e-8)/capacity);
  const item=(quantity,size,kind,description,note)=>({label:quantity+' × '+size+' '+description+' '+(quantity===1?kind:kind+'s'),note});
