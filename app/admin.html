@@ -467,7 +467,11 @@ async function loadTasks(){
    const meta=document.createElement('div');meta.className='account-meta';
    const fmt=value=>value?new Date(value).toLocaleString():'Not recorded';
    meta.textContent='Frequency: '+task.frequency+' · Last started/activity: '+fmt(task.last_started)+' · Last finished: '+fmt(task.last_finished)+' · Status: '+(task.running?'Running':task.status);
-   if(task.key==='nutrition'){
+   if(task.key==='us_import'){
+    const progress=document.createElement('div');progress.className='account-meta';
+    progress.textContent='Next catalog check: '+fmt(task.next_run)+(task.status&&task.status.startsWith('Error:')?' · '+task.status:'');
+    info.append(title,meta,progress);
+   }else if(task.key==='nutrition'){
     const progress=document.createElement('div');progress.className='account-meta';
     progress.textContent='Scanned this cycle: '+(task.processed||0)+' / '+(task.total||0)+' · Nutrition added: '+(task.updated||0)+' · Source unavailable: '+(task.missing||0)+' · Errors: '+(task.failed||0)+' · Next check: '+fmt(task.next_run);
     info.append(title,meta,progress);
