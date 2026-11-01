@@ -2461,7 +2461,7 @@ const sort=$('sort').value;if(sort==='name')filtered.sort((a,b)=>cleanRecipeName
   chip.addEventListener('click',()=>{el.value='all';recipePage=0;render()});
   chipBox.appendChild(chip);
  }
-renderRecommendations();hfUpdatePhotoAudit();const pageRecipes=filtered.slice(recipePage*PAGE_SIZE,(recipePage+1)*PAGE_SIZE);$('pageinfo').textContent=`Page ${recipePage+1} of ${pages}`;$('prevpage').disabled=recipePage===0;$('nextpage').disabled=recipePage>=pages-1;
+renderRecommendations();hfUpdatePhotoAudit();filtered=filtered.filter(r=>!hfBrokenPhotos.has(String(r.id)));const pageRecipes=filtered.slice(recipePage*PAGE_SIZE,(recipePage+1)*PAGE_SIZE);$('pageinfo').textContent=`Page ${recipePage+1} of ${pages}`;$('prevpage').disabled=recipePage===0;$('nextpage').disabled=recipePage>=pages-1;
 $('recipes').innerHTML=pageRecipes.map(r=>{let checked=Object.hasOwn(selected,String(r.id));let photo=(r.image||r.url)?`<img class="recipe-photo" src="/api/photo/${r.id}" alt="${esc(cleanRecipeName(r.name))}" loading="lazy" referrerpolicy="no-referrer" onerror="hfImageFailed(this,${r.id})" onload="hfImageLoaded(this,${r.id})" data-original-image="${esc(r.image||'')}">`:'';return `<article class="recipe-card">${photo}<div class="photo-placeholder" style="${photo?'display:none':''}">🍽️</div><div class="recipe-card-body"><strong class="recipe-card-title">${esc(cleanRecipeName(r.name))}</strong>${r.country?`<small class="muted">${esc(r.country)}</small>`:''}${nutritionSummary(r)}${r.url?`<a href="${esc(r.url)}" target="_blank" rel="noopener noreferrer">View cooking steps</a>`:''}<div class="actions"><button type="button" class="favorite-btn" data-favorite="${r.id}">${(state.favorites||[]).includes(r.id)?"♥ Favorited":"♡ Favorite"}</button><button type="button" data-detail="${r.id}">Cook / Details${(state.recipe_reviews||{})[String(r.id)]?.rating?" · ★"+(state.recipe_reviews||{})[String(r.id)].rating:""}</button><select data-collection-add="${r.id}" aria-label="Add recipe to collection"><option value="">Add to collection…</option>${Object.keys(state.collections||{}).map(n=>`<option value="${esc(n)}">${esc(n)}</option>`).join("")}</select></div><div class="recipe-card-bottom"><label class="recipe-plan-action"><input aria-label="Select ${esc(cleanRecipeName(r.name))}" type="checkbox" data-id="${r.id}" ${checked?'checked':''}> <span class="recipe-plan-label">${checked?'✓ Added to plan':'Add to plan'}</span></label><div class="recipe-serving-row"><span>Servings</span><select aria-label="Serving multiplier" data-scale="${r.id}">${[0.5,1,1.5,2,3,4,5,6].map(v=>`<option value="${v}" ${(selected[r.id]??1)==v?'selected':''}>${v}×</option>`).join('')}</select></div></div></div></article>`}).join('')||'<p class="muted">No recipes match these filters.</p>';let n=state.list.filter(x=>x.purchased).length;$('summary').textContent=state.list.length?`${n} of ${state.list.length} purchased`:'No generated list yet';renderSelectedPlan();renderShoppingList();renderIngredientSuggestions();renderSmartPrefs();renderSalesComparison()}for(const id of ['recipe-country','protein','cuisine','meal','sort','selectedonly','fullmeals','quickmeals','favorite-filter','collection-filter','ingredient-filter','included-side','diet-filter','rating-filter'])$(id).addEventListener('change',()=>{recipePage=0;render()});$('resetfilters').onclick=()=>{for(const id of ['protein','cuisine','meal','diet-filter','rating-filter'])$(id).value='all';$('recipe-country').value='all';$('included-side').value='all';$('sort').value='name';$('selectedonly').checked=false;$('fullmeals').checked=true;$('quickmeals').checked=false;$('search').value='';recipePage=0;render()};function navigateRecipePage(direction){
  recipePage=Math.max(0,recipePage+direction);
  render();
@@ -2871,10 +2871,20 @@ function hfImageLoaded(img,id){
    hfBrokenPhotos.set(String(id),{id:String(id),name:(recipes.find(r=>String(r.id)===String(id))||{}).name||'',url:img.src,reason:'Generic HelloFresh logo'});
    img.style.display='none';
    const placeholder=img.parentElement?.querySelector('.photo-placeholder');
-  if(placeholder)placeholder.style.display='grid';
+  hfHideBrokenCatalogCard(img,id);
    hfUpdatePhotoAudit();
   }
  }catch(err){/* Keep images if the browser cannot inspect them. */}
+}
+let hfCatalogPhotoRefresh=null;
+function hfHideBrokenCatalogCard(img,id){
+ const card=img.closest('.recipe-card');
+ if(card)card.style.display='none';
+ if(hfCatalogPhotoRefresh!==null)return;
+ hfCatalogPhotoRefresh=setTimeout(()=>{
+  hfCatalogPhotoRefresh=null;
+  render();
+ },350);
 }
 function hfImageFailed(img,id){
   const key=String(id), original=img.getAttribute('data-original-image')||img.src;
@@ -2885,7 +2895,7 @@ function hfImageFailed(img,id){
   }
   hfBrokenPhotos.set(key,{id:key,name:(recipes.find(r=>String(r.id)===key)||{}).name||'',url:original});
   img.style.display='none';
-  if(img.nextElementSibling)img.nextElementSibling.style.display='grid';
+  hfHideBrokenCatalogCard(img,id);
   hfUpdatePhotoAudit();
 }
 function hfUpdatePhotoAudit(){
