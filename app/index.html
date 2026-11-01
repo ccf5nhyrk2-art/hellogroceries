@@ -707,6 +707,12 @@ html[data-theme="dark"] .recipe-dialog{background:#20272a;color:#edf0f2;border-c
 /* Prevent Safari from showing both a custom and native disclosure marker. */
 #items .grocery-item-wrap>.grocery-breakdown>summary::before{content:none!important;display:none!important}
 #items .grocery-item-wrap>.grocery-breakdown>summary::after{content:none!important;display:none!important}
+/* Shopping item actions adapt to light and dark themes. */
+html:not([data-theme="dark"]) #items .grocery-actions>summary{background:#f0f4f1!important;color:#30493c!important;border:1px solid #cbd8cf!important;box-shadow:none!important}
+html:not([data-theme="dark"]) #items .grocery-actions>summary:hover,
+html:not([data-theme="dark"]) #items .grocery-actions[open]>summary{background:#e3ece6!important;border-color:#9fb9a8!important}
+html:not([data-theme="dark"]) #items .grocery-action-options{background:#fff!important;color:#183329!important;border-color:#cbd8cf!important;box-shadow:0 8px 22px #18332920!important}
+html[data-theme="dark"] #items .grocery-actions>summary{background:#29352f!important;color:#e6f2e9!important;border-color:#567363!important}
 /* Single native disclosure arrow and tighter shopping-list spacing. */
 #items .grocery-item-wrap>.grocery-breakdown>summary{display:list-item!important;list-style:disclosure-closed inside!important}
 #items .grocery-item-wrap>.grocery-breakdown[open]>summary{list-style:disclosure-open inside!important}
