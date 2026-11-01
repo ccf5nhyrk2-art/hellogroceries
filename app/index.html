@@ -2354,15 +2354,39 @@ function renderRecommendations(){
  panel.innerHTML=results.length?results.map(({r,reason})=>'<article class="recommend-card">'+('<img class="recommend-photo" src="/api/photo/'+encodeURIComponent(r.id)+'" alt="" loading="lazy" onerror="recommendationPhotoFailed(this)">')+'<strong class="recommend-title">'+esc(cleanRecipeName(r.name))+'</strong><div class="muted recommend-reason" style="font-size:12px;margin:6px 0">'+esc(reason)+'</div><div class="recommend-actions"><button type="button" data-recommend-detail="'+r.id+'">View recipe</button><button type="button" data-recommend-plan="'+r.id+'">Add to plan</button></div><select data-recommend-collection="'+r.id+'" aria-label="Add recommended recipe to collection" style="width:100%;margin-top:8px;min-height:40px"><option value="">Add to collection…</option>'+Object.keys(state.collections||{}).map(n=>'<option value="'+esc(n)+'">'+esc(n)+'</option>').join('')+'</select><button type="button" data-recommend-more="'+r.id+'" class="recommend-dismiss">Show me more like this</button><button type="button" data-recommend-hide="'+r.id+'" class="recommend-dismiss">Not interested</button></article>').join(''):'<p class="muted">'+(terms.length?'No suggestions match this search. Try clearing the search.':'No suggestions available yet.')+'</p>';
  requestAnimationFrame(updateRecommendationCarousel);
 }
+const recommendationReplacementBusy=new WeakSet();
 function recommendationPhotoFailed(img){
  const card=img.closest('.recommend-card');
  const id=card?.querySelector('[data-recommend-detail]')?.dataset.recommendDetail;
- if(!id)return;
+ if(!card||!id||recommendationReplacementBusy.has(card))return;
+ recommendationReplacementBusy.add(card);
  recommendationFailedPhotos.add(String(id));
- // Never re-render visible recommendations because of a photo failure.
- // A new candidate set is chosen on the next explicit Refresh or normal data update.
- if(card)card.hidden=true;
- updateRecommendationCarousel();
+ // Keep the visible card and its grid slot stable while checking replacements.
+ // Never rebuild the carousel in response to an image error.
+ img.removeAttribute('onerror');
+ img.style.visibility='hidden';
+ const current=new Set([...document.querySelectorAll('#recommend-list [data-recommend-detail]')].map(el=>String(el.dataset.recommendDetail)));
+ const pool=(recommendationRankCache?.pool||[]).filter(({r})=>!current.has(String(r.id))&&!recommendationFailedPhotos.has(String(r.id)));
+ let index=0;
+ function tryNext(){
+  if(!card.isConnected)return;
+  if(index>=pool.length){card.hidden=true;updateRecommendationCarousel();return}
+  const item=pool[index++],candidate=item.r,photo=new Image();
+  photo.onload=()=>{
+   if(!card.isConnected)return;
+   img.src=photo.src;
+   img.style.visibility='';
+   card.querySelector('.recommend-title').textContent=cleanRecipeName(candidate.name);
+   card.querySelector('.recommend-reason').textContent=item.reason;
+   for(const [attribute,selector] of [['data-recommend-detail','[data-recommend-detail]'],['data-recommend-plan','[data-recommend-plan]'],['data-recommend-collection','[data-recommend-collection]'],['data-recommend-more','[data-recommend-more]'],['data-recommend-hide','[data-recommend-hide]']]){
+    const el=card.querySelector(selector);if(el)el.setAttribute(attribute,String(candidate.id));
+   }
+   recommendationReplacementBusy.delete(card);
+  };
+  photo.onerror=()=>{recommendationFailedPhotos.add(String(candidate.id));tryNext()};
+  photo.src='/api/photo/'+encodeURIComponent(candidate.id);
+ }
+ tryNext();
 }
 function updateRecommendationCarousel(){const list=$('recommend-list'),controls=$('recommend-carousel-controls'),dots=$('recommend-dots');if(!list||!controls||!dots)return;const cards=[...list.querySelectorAll('.recommend-card')];const enabled=matchMedia('(max-width:750px)').matches&&cards.length>1;controls.hidden=!enabled;if(!enabled)return;const current=cards.reduce((best,card,i)=>Math.abs(card.offsetLeft-list.offsetLeft-list.scrollLeft)<Math.abs(cards[best].offsetLeft-list.offsetLeft-list.scrollLeft)?i:best,0);dots.innerHTML=cards.map((_,i)=>'<span class="recommend-dot'+(i===current?' active':'')+'"></span>').join('')}
 $('recommend-list').addEventListener('change',async e=>{
