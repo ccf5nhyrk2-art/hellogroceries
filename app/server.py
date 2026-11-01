@@ -2776,4 +2776,4 @@ if __name__=='__main__':
  threading.Thread(target=recommendation_photo_warmup_worker,daemon=True,name='recommendation-photo-warmup').start()
  threading.Thread(target=nutrition_scan_worker,daemon=True,name='nutrition-background-scan').start()
  threading.Thread(target=us_import_schedule_worker,daemon=True,name='us-import-scheduler').start()
-  ThreadingHTTPServer(('0.0.0.0',8080),Handler).serve_forever()
+ ThreadingHTTPServer(('0.0.0.0',8080),Handler).serve_forever()
