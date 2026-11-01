@@ -1837,6 +1837,13 @@ class Handler(SimpleHTTPRequestHandler):
    except Exception as error:
     print('Store lookup failed:',repr(error),flush=True)
     return self.sendjson({'error':'Store lookup could not reach the directory services. Check the HelloGroceries container logs for DNS or network errors.'},503)
+  if self.path=='/api/recommendation-photos':
+   # Cached-only lookup: never fetch external images on a page request.
+   cached_ids=[]
+   for photo in PHOTO_DIR.iterdir():
+    if photo.suffix.lower() in ('.jpg','.png','.webp','.gif') and photo.stem.isdigit() and photo.is_file() and photo.stat().st_size>0:
+     cached_ids.append(int(photo.stem))
+   return self.sendjson({'ids':cached_ids})
   if self.path=='/api/recipes':return self.sendjson([r for r in allrecipes() if not non_recipe_reason(r)])
   if self.path=='/api/state':
    with lock:
