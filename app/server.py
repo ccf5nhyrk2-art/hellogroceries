@@ -572,7 +572,12 @@ def recipe_from_url(url):
    if isinstance(entry,str):
     label=allowed.get(entry.rsplit('/',1)[-1])
     if label and label not in diet_labels:diet_labels.append(label)
- return validate_import_recipe({'name':name,'country':recipe_country_from_url(url),'url':url,'image':str(photo),'ingredients':ingredients,'ingredient_text':items,'source':'HelloFresh page','instructions_url':url,'nutrition':nutrition,'dietary_labels':diet_labels})
+ source_yield=found.get('recipeYield',found.get('yield'))
+ if isinstance(source_yield,list):source_yield=source_yield[0] if source_yield else None
+ serving_match=re.search(r'\d+(?:\.\d+)?',str(source_yield or ''))
+ source_servings=float(serving_match.group()) if serving_match else None
+ if source_servings is not None and not (0<source_servings<=20):source_servings=None
+ return validate_import_recipe({'name':name,'country':recipe_country_from_url(url),'url':url,'image':str(photo),'ingredients':ingredients,'ingredient_text':items,'source':'HelloFresh page','source_servings':source_servings,'instructions_url':url,'nutrition':nutrition,'dietary_labels':diet_labels})
 
 def discover_sitemap(country,limit):
  roots={'US':'https://www.hellofresh.com/sitemap_recipe_pages.xml','UK':'https://www.hellofresh.co.uk/sitemap.xml','AU':'https://www.hellofresh.com.au/sitemap.xml','CA':'https://www.hellofresh.ca/sitemap.xml','DE':'https://www.hellofresh.de/sitemap.xml','NL':'https://www.hellofresh.nl/sitemap.xml'}
@@ -1585,8 +1590,12 @@ def rebuild_grocery_list(state):
  for recipe in allrecipes():
   servings=state['selected'].get(str(recipe['id']))
   if servings is None:continue
-  # HelloFresh imported ingredient quantities are for the standard two-serving recipe.
-  scale=float(servings)/2.0
+  # Scale against the original recipe's declared yield, when available.
+  source_servings=recipe.get('source_servings')
+  try:baseline=float(source_servings)
+  except (TypeError,ValueError):baseline=2.0
+  if not math.isfinite(baseline) or baseline<=0:baseline=2.0
+  scale=float(servings)/baseline
   ingredients=recipe.get('ingredients')
   if not isinstance(ingredients,dict):continue
   for name,qty in ingredients.items():
@@ -1618,7 +1627,7 @@ def rebuild_grocery_list(state):
     amount=quantity*float(scale)
    if not (0<amount<100000):continue
    totals[label]=totals.get(label,0)+amount
-   sources.setdefault(label,[]).append({'recipe_id':recipe['id'],'recipe':recipe['name'],'original_name':name,'corrected':bool(correction),'source_quantity':qty,'multiplier':scale,'servings':servings,'contribution':round(amount,3)})
+   sources.setdefault(label,[]).append({'recipe_id':recipe['id'],'recipe':recipe['name'],'original_name':name,'corrected':bool(correction),'source_quantity':qty,'multiplier':scale,'servings':servings,'source_servings':baseline,'contribution':round(amount,3)})
  # Do not silently discard recipe ingredients with missing or malformed amounts.
  # Keep them as unverified single entries until a correction supplies a quantity.
  for recipe in allrecipes():
