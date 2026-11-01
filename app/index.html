@@ -671,6 +671,19 @@ html[data-theme="dark"] .recipe-dialog{background:#20272a;color:#edf0f2;border-c
 #inventory-saved .pantry-department-item{display:flex;justify-content:space-between;gap:12px;align-items:center;padding:9px 0;border-top:1px solid var(--line,#c9d9cf)}
 #inventory-saved .pantry-department-item strong{text-align:right;white-space:nowrap}
 #inventory-saved .pantry-quantity-controls{display:flex;align-items:center;justify-content:flex-end;flex-wrap:wrap;gap:8px}#inventory-saved [data-pantry-edit]{min-height:36px;padding:5px 12px;border-radius:9px}#inventory-mode{min-width:0}@media(max-width:750px){#inventory-saved .pantry-department-item{align-items:center}#inventory-saved .pantry-department-item>span{min-width:0;overflow-wrap:anywhere}}
+
+/* Light theme: bright, high-contrast recipe recommendations. */
+html[data-theme="light"] #recipe-recommendations{background:#f5f9f6!important;border:1px solid #cbdcd1!important;color:#173528!important;box-shadow:0 2px 12px rgba(21,54,36,.06)}
+html[data-theme="light"] #recipe-recommendations #recommend-heading{color:#183d2c!important}
+html[data-theme="light"] #recipe-recommendations .muted{color:#526b5c!important}
+html[data-theme="light"] #recommend-list .recommend-card{background:#fff!important;border:1px solid #c9d8ce!important;color:#1d3529!important;box-shadow:0 2px 7px rgba(19,55,35,.07)}
+html[data-theme="light"] #recommend-list .recommend-title{color:#183728!important}
+html[data-theme="light"] #recommend-list .recommend-dismiss{color:#176b4a!important;opacity:1!important}
+html[data-theme="light"] #recommend-list [data-recommend-collection]{background:#fff!important;color:#203b2d!important;border:1px solid #a8bfb0!important;border-radius:10px}
+html[data-theme="light"] #recipe-recommendations #recommend-refresh{background:#fff!important;color:#176b4a!important;border:1px solid #176b4a!important;border-radius:10px!important;font-weight:650}
+html[data-theme="light"] #recipe-recommendations #recommend-refresh:hover{background:#e5f3e9!important}
+html[data-theme="light"] #recommend-list .recommend-actions button{background:#176b4a!important;color:#fff!important;border-color:#176b4a!important}
+html[data-theme="light"] #recommend-list .recommend-actions button:hover{background:#12563c!important}
 </style><script>
 (function(){const originalFetch=window.fetch;window.fetch=function(input,init){const opts=init?{...init}:{};const method=(opts.method||'GET').toUpperCase();const url=typeof input==='string'?input:input.url;if(method!=='GET'&&method!=='HEAD'&&url.startsWith('/api/')){const match=document.cookie.match(/(?:^|; )hg_csrf=([^;]+)/);opts.headers={...opts.headers,'X-HG-CSRF':match?match[1]:''}}return originalFetch.call(this,input,opts)};})();
 </script>
