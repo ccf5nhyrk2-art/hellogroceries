@@ -2097,12 +2097,38 @@ $('smart-auto').onclick=async()=>{
  for(const day of days.slice(0,count)){const next=candidates.find(x=>!used.has(x.r.id));if(!next)break;plan[day]=next.r.id;used.add(next.r.id)}
  if(confirm('Replace the first '+count+' days of your weekly planner with suggested dinners? Your shopping list will not change.'))await preferences({weekly:plan});
 };
-$('smart-cook-open').onclick=()=>{
+// Cooking deductions require an explicit preview and confirmation.
+$('smart-cook-open').onclick=async()=>{
  const r=recipes.find(x=>String(x.id)===$('smart-cook-select').value);if(!r)return;
  const view=$('smart-cook-view');view.hidden=false;
- const link=String(r.url||'').startsWith('https://')?'<a href="'+esc(r.url)+'" target="_blank" rel="noopener noreferrer">Open original cooking instructions</a>':'<span class="muted">Original instructions unavailable.</span>';
- view.innerHTML='<h3>'+esc(cleanRecipeName(r.name))+'</h3>'+Object.entries(r.ingredients||{}).map(([name,qty])=>'<label class="cook-check"><input type="checkbox"> '+esc(shoppingDisplay({name,quantity:qty*(Number((state.selected||{})[String(r.id)])||1)}).name)+'</label>').join('')+'<p>'+link+'</p><button type="button" id="smart-cook-close">Close</button>';
- $('smart-cook-close').onclick=()=>{view.hidden=true;view.innerHTML=''};
+ view.textContent='Checking verified pantry quantities…';
+ const send=async payload=>{
+  const response=await fetch('/api/action',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json','X-HG-CSRF':document.cookie.split('; ').find(x=>x.startsWith('hg_csrf='))?.slice(8)||''},body:JSON.stringify(payload)});
+  const data=await response.json();if(!response.ok)throw Error(data.error||'Request failed');return data;
+ };
+ try{
+  const servings=Number((state.selected||{})[String(r.id)])||1;
+  const preview=await send({action:'preview_cooked_recipe',recipe_id:Number(r.id),servings});
+  const deductions=Object.entries(preview.deductions||{});
+  const summary=deductions.length?deductions.map(([key,amount])=>'<li>'+esc(key.replace('|',' · '))+': −'+esc(groceryNumber(amount))+'</li>').join(''):'<li>No verified pantry quantities match this recipe.</li>';
+  view.innerHTML='<h3>'+esc(cleanRecipeName(r.name))+'</h3><p>Review pantry deductions before marking this meal cooked. Only verified ingredients with compatible units will be used; missing quantities remain unchanged.</p><ul>'+summary+'</ul>'+(preview.not_deducted?.length?'<p class="muted">Not fully deducted: '+esc(preview.not_deducted.join(', '))+'</p>':'')+'<div class="actions"><button type="button" id="confirm-cooked" '+(!deductions.length?'disabled':'')+'>Confirm cooked & deduct</button><button type="button" id="cancel-cooked" class="clear">Cancel</button></div><p id="cooked-status" role="status"></p>';
+  view.querySelector('#cancel-cooked').onclick=()=>{view.hidden=true;view.replaceChildren()};
+  view.querySelector('#confirm-cooked').onclick=async()=>{
+   const button=view.querySelector('#confirm-cooked');button.disabled=true;
+   const eventId=crypto.randomUUID().replaceAll('-','');
+   try{
+    const updated=await send({action:'confirm_cooked_recipe',recipe_id:Number(r.id),servings,event_id:eventId});
+    state=updated;render();
+    view.hidden=false;
+    view.innerHTML='<p>Meal marked cooked. Pantry quantities updated.</p><button type="button" id="undo-cooked">Undo pantry deduction</button><p id="cooked-status" role="status"></p>';
+    view.querySelector('#undo-cooked').onclick=async()=>{
+     const undo=view.querySelector('#undo-cooked');undo.disabled=true;
+     try{state=await send({action:'undo_cooked_recipe',event_id:eventId});render();view.hidden=false;view.innerHTML='<p>Pantry deduction undone.</p>'}
+     catch(error){undo.disabled=false;view.querySelector('#cooked-status').textContent=error.message}
+    };
+   }catch(error){button.disabled=false;view.querySelector('#cooked-status').textContent=error.message}
+  };
+ }catch(error){view.textContent='Could not preview pantry deductions: '+error.message}
  view.scrollIntoView({block:'start'});
 };
 // Hide obvious merchandise/promotional listings from the recipe browser without deleting data.
