@@ -2355,7 +2355,6 @@ function renderRecommendations(){
  // Relax variety limits only when otherwise unable to fill five slots.
  if(results.length<5)for(const item of rotated){if(results.length>=5)break;if(!used.has(String(item.r.id))){results.push(item);used.add(String(item.r.id))}}
  void (async()=>{
- void (async()=>{
  // Only display locally cached photos; never block the recipe page on external downloads.
  const generation=++recommendationRenderGeneration;
  if(!recommendationCachedPhotoIds){
