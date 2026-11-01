@@ -2295,6 +2295,19 @@ function recommendationPantryMatches(r){
 let recommendationRenderGeneration=0;
 let recommendationCachedPhotoIds=null;
 let recommendationPhotoLookup=null;
+// Rotate the home-page suggestions once per local day, not on every UI render.
+const recommendationDayKey=new Date().toLocaleDateString('en-CA');
+const recommendationRotationKey='hg-recommendation-day-v1';
+let recommendationDailyOffset=0;
+try{
+ const saved=JSON.parse(localStorage.getItem(recommendationRotationKey)||'{}');
+ if(saved.day===recommendationDayKey&&Number.isInteger(saved.offset)){
+  recommendationDailyOffset=saved.offset;
+ }else{
+  recommendationDailyOffset=Math.floor(Math.random()*1000000);
+  localStorage.setItem(recommendationRotationKey,JSON.stringify({day:recommendationDayKey,offset:recommendationDailyOffset}));
+ }
+}catch(e){recommendationDailyOffset=new Date().getDate()*137}
 function renderRecommendations(){
  const panel=$('recommend-list');if(!panel)return;
  const picked=new Set(Object.keys(state.selected||{})),fav=new Set((state.favorites||[]).map(String));
@@ -2334,7 +2347,7 @@ function renderRecommendations(){
  const recent=new Set(recommendationMemory.recent);
  const fresh=pool.filter(x=>!recent.has(String(x.r.id)));
  const candidates=fresh.length>=5?fresh:pool;
- const offset=candidates.length?recommendationOffset%candidates.length:0;
+ const offset=candidates.length?(recommendationDailyOffset+recommendationOffset)%candidates.length:0;
  const rotated=candidates.slice(offset).concat(candidates.slice(0,offset));
  const results=[],used=new Set(),groupCounts=new Map(),mealCounts=new Map();
  function addFrom(items,limit){
@@ -2420,7 +2433,7 @@ $('recommend-list').addEventListener('change',async e=>{
  finally{el.disabled=false}
 });
 $('recommend-list').addEventListener('scroll',updateRecommendationCarousel,{passive:true});window.addEventListener('resize',updateRecommendationCarousel);
-$('recommend-refresh').onclick=()=>{recommendationMemory.recent=[...new Set([...recommendationMemory.recent,...[...document.querySelectorAll('#recommend-list [data-recommend-detail]')].map(el=>String(el.dataset.recommendDetail))])].slice(-30);saveRecommendationMemory();recommendationOffset+=5;renderRecommendations()};
+$('recommend-refresh').onclick=()=>{recommendationCachedPhotoIds=null;recommendationMemory.recent=[...new Set([...recommendationMemory.recent,...[...document.querySelectorAll('#recommend-list [data-recommend-detail]')].map(el=>String(el.dataset.recommendDetail))])].slice(-30);saveRecommendationMemory();recommendationOffset+=5;renderRecommendations()};
 $('recommend-list').addEventListener('click',async e=>{
  const detail=e.target.closest('[data-recommend-detail]'),hide=e.target.closest('[data-recommend-hide]'),plan=e.target.closest('[data-recommend-plan]'),more=e.target.closest('[data-recommend-more]');
  if(more){recommendationMemory.more=[...new Set([...recommendationMemory.more,String(more.dataset.recommendMore)])].slice(-30);saveRecommendationMemory();recommendationRankCache=null;renderRecommendations();return;}
