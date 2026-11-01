@@ -1722,7 +1722,7 @@ function purchaseSuggestion(row){
   const tbsp=amount/3;
   if(has(/\bbutter\b/)&&!has(/\b(?:peanut|almond|cashew|sunflower) butter\b/)){
    const sticks=Math.ceil((amount-1e-8)/24);
-   return {label:sticks+' '+(sticks===1?'stick':'sticks')+' '+name,note:groceryNumber(tbsp)+' tbsp needed · 8 tbsp per stick; verify this variety is available'};
+   return {label:groceryNumber(tbsp)+' tbsp '+name,note:'Suggested purchase: '+sticks+' '+(sticks===1?'stick':'sticks')+' (8 tbsp each); verify this variety is available'};
   }
   if(has(/\b(?:olive oil|vegetable oil|canola oil|avocado oil|cooking oil)\b/))
    return item(count(96),'16 fl oz','bottle',name,measured('tsp')+' · 96 tsp per bottle');
