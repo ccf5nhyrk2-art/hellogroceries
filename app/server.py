@@ -1605,6 +1605,20 @@ def rebuild_grocery_list(state):
    if not (0<amount<100000):continue
    totals[label]=totals.get(label,0)+amount
    sources.setdefault(label,[]).append({'recipe_id':recipe['id'],'recipe':recipe['name'],'original_name':name,'corrected':bool(correction),'source_quantity':qty,'multiplier':scale,'contribution':round(amount,3)})
+ # Do not silently discard recipe ingredients with missing or malformed amounts.
+ # Keep them as unverified single entries until a correction supplies a quantity.
+ for recipe in allrecipes():
+  if str(recipe['id']) not in state.get('selected',{}):continue
+  ingredients=recipe.get('ingredients')
+  if not isinstance(ingredients,dict):continue
+  for name,qty in ingredients.items():
+   if not isinstance(name,str) or not name.strip():continue
+   try:valid=math.isfinite(float(qty)) and float(qty)>0
+   except (ValueError,TypeError,OverflowError):valid=False
+   if valid:continue
+   label=name.strip()
+   totals[label]=totals.get(label,0)+1
+   sources.setdefault(label,[]).append({'recipe_id':recipe['id'],'recipe':recipe['name'],'original_name':name,'source_quantity':qty,'quantity_unverified':True,'contribution':1})
  for item in state.get('manual',[]):
   if isinstance(item,str) and item.strip():
    name=item.strip()
@@ -1671,7 +1685,7 @@ def rebuild_grocery_list(state):
   totals[new_label]=totals.get(new_label,0)+1
   sources.setdefault(new_label,[]).extend(original_sources)
  old={item['name']:item for item in state.get('list',[])}
- generated=[{'name':name,'quantity':round(qty,3),'purchased':False,'sources':sources.get(name,[])} for name,qty in sorted(totals.items()) if qty>0 and (any(src.get('corrected') for src in sources.get(name,[])) or any(isinstance(k,str) and pantry_match_name(k.rsplit('|',1)[0])==pantry_match_name(name) for k in inventory) or pantry_match_name(name) not in pantry)]
+ generated=[{'name':name,'quantity':round(qty,3),'purchased':False,'sources':sources.get(name,[])} for name,qty in sorted(totals.items()) if qty>0 and (any(src.get('corrected') or src.get('quantity_unverified') for src in sources.get(name,[])) or any(isinstance(k,str) and pantry_match_name(k.rsplit('|',1)[0])==pantry_match_name(name) for k in inventory) or pantry_match_name(name) not in pantry)]
  for item in generated:
   previous=old.get(item['name'])
   if previous and previous.get('quantity')==item['quantity']:item['purchased']=bool(previous.get('purchased'))
