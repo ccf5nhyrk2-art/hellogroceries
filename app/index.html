@@ -2043,6 +2043,8 @@ function isNonRecipeListing(r){
  if(/\b(?:factor(?:75)?|factor form)\b/.test(title)&&/\b(?:box|kit|trial|greens|creatine|supplement|ready.made|meal plan|meals?\s*(?:box|pack))\b/.test(title))return true;
  if(/\b(?:greens\s*(?:trial|powder|kit)|creatine\s*\+?\s*(?:kit|powder|supplement)|protein\s*(?:powder|shake|supplement)|dietary\s*supplement|vitamin\s*(?:bundle|pack)|supplement\s*(?:kit|pack)|ready.made\s*meal\s*(?:box|pack)|prepared\s*meal\s*(?:box|pack))\b/.test(title))return true;
  if(/\b(?:\d+[- ]day|\d+[- ]meal|\d+\s+ready.made\s+meal)\b/.test(title)&&/\b(?:trial\s*kit|subscription|supplement|box|greens|creatine|ready.made)\b/.test(title))return true;
+ // Packaged coffee and retail grocery products are not cooking recipes.
+ if(/\\b(?:ground|whole.bean|instant)\\s+coffee\\b|\\bcoffee\\s+(?:beans|grounds|pods|capsules)\\b/.test(title)&&/\\b(?:oz|lb|bag|pack|roast|notes?\\s+of)\\b/.test(title))return true;
  // Exclude pet food and bulk packaged meat products that are not cooking instructions.
  if(/\b(?:pet(?:s)?\s*(?:food|table)|dog\s*(?:food|treats?)|cat\s*(?:food|treats?)|air.dried\s*(?:beef|chicken|turkey|salmon)|kibble)\b/.test(title))return true;
  if(/\b(?:air.dried|freeze.dried)\b/.test(title)&&/\b(?:box|pack|bag|lb|lbs)\b/.test(title))return true;
