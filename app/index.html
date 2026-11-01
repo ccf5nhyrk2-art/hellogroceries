@@ -675,6 +675,16 @@ html[data-theme="dark"] .recipe-dialog{background:#20272a;color:#edf0f2;border-c
  #items .grocery-breakdown>summary{padding:3px 0 5px!important;font-size:11px!important;opacity:.78}
  #items .grocery-breakdown:not([open]){border:0!important}
 }
+#items .grocery-title-line{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+#items .grocery-title-line>.grocery-breakdown{margin:0;font-size:11px;position:relative}
+#items .grocery-title-line>.grocery-breakdown>summary{padding:0;color:var(--muted,#7fa48f);white-space:nowrap}
+#items .grocery-title-line>.grocery-breakdown[open] .grocery-breakdown-content{position:relative;z-index:2;margin-top:8px;max-width:600px}
+#items .grocery-actions{position:relative;flex-shrink:0;align-self:center}
+#items .grocery-actions>summary{list-style:none;cursor:pointer;border:1px solid var(--line,#496052);border-radius:10px;padding:8px 12px;font-weight:700;letter-spacing:2px}
+#items .grocery-actions>summary::-webkit-details-marker{display:none}
+#items .grocery-action-options{position:absolute;right:0;top:100%;z-index:20;display:flex;gap:6px;padding:9px;background:var(--card,#26332e);border:1px solid var(--line,#496052);border-radius:12px;box-shadow:0 6px 20px #0004;white-space:nowrap}
+#items .grocery-action-options button{min-height:36px}
+@media(max-width:750px){#items .grocery-title-line{gap:6px}#items .grocery-actions>summary{padding:8px 10px}}
 /* Pantry inventory uses the same grocery departments as the shopping list. */
 #inventory-saved .pantry-department{border:1px solid var(--line,#c9d9cf);border-radius:12px;margin:8px 0;overflow:hidden}
 #inventory-saved .pantry-department>summary{cursor:pointer;padding:12px 14px;font-weight:650}
@@ -1466,6 +1476,7 @@ function shoppingDepartment(name){
  // Specific food categories take priority over generic produce terms.
  if(/\b(?:butter|cheese|feta|mozzarella|parmesan|cheddar|sour cream|yogurt|milk|eggs?|heavy cream|creme fraiche)\b/i.test(value)&&!/\b(?:peanut|almond|cashew|sunflower) butter\b/i.test(value))return 'Dairy & Refrigerated';
  if(/\b(?:peanut|almond|cashew|sunflower) butter\b/i.test(value))return 'Pantry & Seasonings';
+ if(/\b(?:pepper|fruit|onion|tomato|chili|chilli)\s+(?:jam|jelly|preserves?|chutney|relish)\b/i.test(value))return 'Pantry & Seasonings';
  if(/\b(?:bananas?|strawberries|blueberries|raspberries|grapes|peaches|pears|pineapples|watermelons|cantaloupes)\b/i.test(value))return 'Produce';
  if(/\b(?:coleslaw\s+mix|slaw\s+mix|shredded\s+cabbage)\b/i.test(value))return 'Produce';
  if(/^\s*(?:(?:\d+(?:\.\d+)?\s+)?(?:pick|unit)\s+)?garlic\s*$/i.test(value))return 'Produce';
@@ -2045,7 +2056,7 @@ function renderShoppingList(){
    const purchased=x.items.every(i=>i.purchased),names=x.items.map(i=>i.name),first=x.items[0];if(smartPrefs.hide&&purchased)return "";
    const suggestion=purchaseSuggestion(x),label=suggestion?suggestion.label:x.label,note=suggestion?suggestion.note:x.note;
    const sourceCount=x.items.reduce((n,i)=>n+(Array.isArray(i.sources)?i.sources.length:0),0)||groceryRecipeBreakdown(x.items).length;
-   const sourceText=sourceCount?'Used in '+sourceCount+' '+(sourceCount===1?'recipe':'recipes'):'View item sources';
+   const sourceText=sourceCount?sourceCount+' '+(sourceCount===1?'recipe':'recipes'):'Sources';
    const review=x.items.some(shoppingNeedsReview);
    const storePrice=shoppingPriceFor(names);
    itemCount++;
@@ -2054,8 +2065,8 @@ function renderShoppingList(){
    const seenOffers=new Set();
    const reefOffers=sourceNames.flatMap(n=>reefShoppingOffers.get(reefSearchTerm(n).toLowerCase())||[]).filter(p=>{const key=p.chain+'|'+p.product+'|'+p.price;if(seenOffers.has(key))return false;seenOffers.add(key);return true}).sort((a,b)=>a.price-b.price);
    const reefMarkup=reefOffers.length?'<span class="grocery-note">Online package prices: '+reefOffers.map(p=>esc(p.chain)+' $'+Number(p.price).toFixed(2)).join(' · ')+' (sizes may differ)</span>':'';
-   const priceMarkup='<span class="hg-item-price">'+(storePrice?'<span class="grocery-note">Manual price: $'+storePrice.price.toFixed(2)+' / '+esc(storePrice.unit)+'</span>':reefOffers.length?'':'<span class="grocery-note">Manual price not set</span>')+reefMarkup+'</span>';
-   return '<div class="grocery-item-wrap"><div class="row grocery-row"><input type="checkbox" data-items="'+esc(JSON.stringify(names))+'" '+(purchased?'checked':'')+'><div class="grocery-description"><label class="'+(purchased?'done':'')+'">'+esc(label)+'</label>'+(review?'<span class="grocery-note">⚠ Quantity or unit needs confirmation</span>':'')+(note?'<span class="grocery-note">'+esc(note)+'</span>':'')+priceMarkup+'</div><button type="button" data-set-price="'+esc(first.name)+'">Set price</button><button type="button" data-edit-item="'+esc(first.name)+'">Edit</button></div><details class="grocery-breakdown"><summary>'+esc(sourceText)+'</summary><div class="grocery-breakdown-content">'+groceryBreakdownMarkup(x.items)+'</div></details></div>';
+   const priceMarkup='<span class="hg-item-price">'+(storePrice?'<span class="grocery-note">Manual price: $'+storePrice.price.toFixed(2)+' / '+esc(storePrice.unit)+'</span>':'')+reefMarkup+'</span>';
+   return '<div class="grocery-item-wrap"><div class="row grocery-row"><input type="checkbox" data-items="'+esc(JSON.stringify(names))+'" '+(purchased?'checked':'')+'><div class="grocery-description"><div class="grocery-title-line"><label class="'+(purchased?'done':'')+'">'+esc(label)+'</label><details class="grocery-breakdown"><summary>'+esc(sourceText)+'</summary><div class="grocery-breakdown-content">'+groceryBreakdownMarkup(x.items)+'</div></details></div>'+(review?'<span class="grocery-note">⚠ Quantity or unit needs confirmation</span>':'')+(note?'<span class="grocery-note">'+esc(note)+'</span>':'')+priceMarkup+'</div><details class="grocery-actions"><summary aria-label="Item actions">•••</summary><div class="grocery-action-options"><button type="button" data-set-price="'+esc(first.name)+'">Set price</button><button type="button" data-edit-item="'+esc(first.name)+'">Edit</button></div></details></div></div>';
   }).join('');
   return '<details class="shopping-department" data-department="'+esc(group)+'" '+(shoppingOpenDepartments.has(group)?'open':'')+'><summary><span>'+symbol+' '+esc(group)+'</span><span class="department-count">'+done+' of '+entries.length+' purchased</span></summary><div class="department-items">'+rows+'</div></details>';
  }).join('')||'<p class="muted">'+(Object.keys(state.selected||{}).length?'Your selected meals have not produced grocery items. Check that the recipes contain ingredients and that none are excluded by your pantry; try reselecting a meal.':'No meals selected yet. Add a meal to your plan to automatically populate Shop.')+'</p>';
