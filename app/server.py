@@ -1758,6 +1758,14 @@ class Handler(SimpleHTTPRequestHandler):
    if not self.gate():return
    if not getattr(request_scope,'admin',False):return self.sendjson({'error':'Administrator required'},403)
    return self.sendjson(analytics_summary())
+  if self.path=='/api/admin/recipe-photos':
+   if not self.gate():return
+   if not getattr(request_scope,'admin',False):return self.sendjson({'error':'Administrator required'},403)
+   q=urllib.parse.parse_qs(urllib.parse.urlsplit(self.path).query)
+   offset=max(0,min(100000,int(q.get('offset',['0'])[0])))
+   items=[{'id':r['id'],'name':r.get('name',''),'image_url':r.get('image',''),'recipe_url':r.get('url',''),'cached':bool(cached_photo(int(r['id'])))} for r in allrecipes() if isinstance(r.get('id'),int)]
+   missing=[r for r in items if not r['cached']]
+   return self.sendjson({'total':len(missing),'items':missing[offset:offset+50]})
   if self.path=='/api/admin/tasks':
    if not self.gate():return
    if not getattr(request_scope,'admin',False):return self.sendjson({'error':'Administrator required'},403)
@@ -1773,6 +1781,26 @@ class Handler(SimpleHTTPRequestHandler):
    q=urllib.parse.parse_qs(urllib.parse.urlsplit(self.path).query)
    try:return self.sendjson(reef_test_search(q.get('zip',[''])[0],q.get('item',[''])[0]))
    except ValueError as exc:return self.sendjson({'error':str(exc)},400)
+  if self.path=='/api/admin/recipe-photos/repair':
+   if not self.gate(write=True):return
+   if not getattr(request_scope,'admin',False):return self.sendjson({'error':'Administrator required'},403)
+   try:
+    size=int(self.headers.get('Content-Length','0'))
+    if not 0<size<=2048:raise ValueError('Invalid request size')
+    data=json.loads(self.rfile.read(size))
+    rid=data.get('id')
+    if type(rid)!=int:raise ValueError('Invalid recipe ID')
+    recipe=next((r for r in allrecipes() if r.get('id')==rid),None)
+    if not recipe:raise ValueError('Recipe not found')
+    url=str(data.get('url','')).strip()
+    if url and not allowed_photo_url(url):raise ValueError('Photo URL must use an approved HTTPS image host')
+    with photo_locks_guard:item_lock=photo_locks.setdefault(rid,threading.Lock())
+    with item_lock:
+     result=download_photo(url,rid) if url else None
+    if not url:result=resolve_photo(recipe,refresh=True)
+    if not result:return self.sendjson({'error':'Could not retrieve a valid photo. Try a supported direct image URL.'},422)
+    return self.sendjson({'ok':True,'id':rid})
+   except (ValueError,TypeError,OSError,urllib.error.URLError,TimeoutError) as exc:return self.sendjson({'error':str(exc)},400)
   if self.path=='/api/admin/openai-key':
    if not self.gate():return
    if not getattr(request_scope,'admin',False):return self.sendjson({'error':'Administrator required'},403)
