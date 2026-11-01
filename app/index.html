@@ -1196,12 +1196,16 @@ function isHolidayRecipe(r){
  return /\b(thanksgiving|christmas|holiday|festive|easter|hanukkah|chanukah|new year(?:'s)?|valentine(?:'s)?|halloween)\b/i.test(n);
 }
 function isSideRecipe(r){
- const n=cleanRecipeName(r.name).toLowerCase().trim();
- // Reject complete entrees even when their title mentions a side.
- const entree=/\b(?:burger|sandwich|chicken|beef|pork|steak|salmon|shrimp|fish|turkey|meatball|sausage|taco|burrito|enchilada|pizza|flatbread|pasta|spaghetti|noodles|risotto|curry|chili|stew|main course|dinner|meal|bowl|patty|patties)\b/i;
- const standalone=/\b(?:garlic bread|breadsticks|dinner rolls|mashed potatoes|roasted potatoes|potato wedges|fries|coleslaw|slaw|cornbread|brussels sprouts|green beans|roasted vegetables|grilled vegetables|mac(?:aroni)? and cheese|side dish|appetizer|starter|hummus|deviled eggs|dip|salsa|guacamole|roasted carrots|roasted asparagus)\b/i;
- const explicit=/^(?:\[[^\]]*(?:side|appetizer|starter)[^\]]*\]\s*)|^(?:side(?:s)?|appetizer|starter|side of)\s*[:\-– ]/i;
- return (standalone.test(n)||explicit.test(n))&&!entree.test(n);
+ const raw=String(r.name||'').trim();
+ // Import labels describe substitutions on full meals, not standalone sides.
+ if(/\[(?:SIDE\s+(?:ADD|CARB|SWAP|UPGRADE)|PROTEIN|ADD|SWAP|UPGRADE)[^\]]*\]/i.test(raw))return false;
+ const n=cleanRecipeName(raw).toLowerCase().trim();
+ // Only identify dishes named as sides, never entrees merely served with one.
+ const entree=/\b(?:burger|sandwich|chicken|beef|pork|steak|salmon|shrimp|fish|turkey|meatball|sausage|taco|burrito|enchilada|pizza|flatbread|spaghetti|noodles|risotto|curry|chili|stew|dinner|meal|bowl|patty|patties|tuna|chickpea tikka)\b/i;
+ if(entree.test(n))return false;
+ const primary=/^(?:(?:easy|simple|classic|homemade|crispy|creamy|cheesy|roasted|baked|grilled|sauteed|sautéed|garlicky|buttery|herbed|spicy|loaded|fresh|warm|quick)\s+){0,3}(?:garlic bread|breadsticks|dinner rolls|mashed potatoes|roasted potatoes|potato wedges|fries|coleslaw|slaw|cornbread|brussels sprouts|green beans|roasted vegetables|grilled vegetables|mac(?:aroni)?\s*(?:and|&)\s*cheese|hummus|deviled eggs|guacamole|roasted carrots|roasted asparagus|chips\s*(?:and|&)\s*(?:salsa|dip)|(?:spinach|artichoke|bean) dip)\b/i;
+ const explicit=/^(?:side(?:s)?|appetizer|starter|side dish|side of)\s*[:\-– ]/i;
+ return primary.test(n)||explicit.test(n);
 }
 function isAddon(r){
  const n=(r.name||'').toLowerCase().trim();
