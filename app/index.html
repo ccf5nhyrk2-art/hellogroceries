@@ -1581,17 +1581,21 @@ function shoppingNeedsReview(item){const override=(state.ingredient_overrides||{
 function consolidatedShoppingRows(items){
  const rows=[],seen=new Map();
  const conversions={teaspoon:['teaspoon',1],tablespoon:['teaspoon',3],cup:['teaspoon',48],milliliter:['milliliter',1],liter:['milliliter',1000],gram:['gram',1],kilogram:['gram',1000],ounce:['ounce',1],pound:['ounce',16]};
- const countable=/^(?:onions?|shallots?|lemons?|limes?|apples?|avocados?|carrots?|potatoes|tomatoes|cucumbers?|zucchinis?|bell peppers?|jalapeños?|jalapenos?|eggs?|garlic bulbs?)$/i;
+ const countable=/^(?:(?:roma|cherry|grape|heirloom|plum|beefsteak)\s+)?(?:onions?|shallots?|lemons?|limes?|apples?|avocados?|carrots?|potatoes|tomatoes|cucumbers?|zucchinis?|bell peppers?|jalapeños?|jalapenos?|eggs?|garlic bulbs?)$/i;
  const measured=/^(\d+(?:\.\d+)?(?:\s+[¼½¾⅓⅔⅛⅜⅝⅞])?|\d+\/\d+|[¼½¾⅓⅔⅛⅜⅝⅞])\s+(?:(teaspoons?|tablespoons?|cups?|ounces?|pounds?|grams?|kilograms?|milliliters?|liters?|cloves?|bunch(?:es)?|heads?|stalks?|slices?|pieces?|cans?|packages?|bags?)\s+)?(.+)$/i;
  for(const item of items){
   const override=(state.ingredient_overrides||{})[item.name]||{};
   const label=override.display||shoppingDisplay(item).name;
-  const match=label.match(measured),amount=match?ingredientNumber(match[1]):NaN;
-  const unit=match&&match[2]?(ingredientUnitAliases[match[2].toLowerCase()]||match[2].toLowerCase()):'';
-  const ingredient=match?match[3].trim():'';
-  const valid=Number.isFinite(amount)&&amount>0&&(unit||countable.test(ingredient));
+  const unitSource=label.match(/^([\d¼½¾⅓⅔⅛⅜⅝⅞.\/\s]+)\s+units?\s+(.+)$/i);
+  const match=label.match(measured);
+  const amount=unitSource?ingredientNumber(unitSource[1].trim()):match?ingredientNumber(match[1]):NaN;
+  const unit=unitSource?'':match&&match[2]?(ingredientUnitAliases[match[2].toLowerCase()]||match[2].toLowerCase()):'';
+  const ingredient=unitSource?unitSource[2].trim():match?match[3].trim():'';
+  const canonical=ingredient.toLowerCase().replace(/^(?:roma|cherry|grape|heirloom|plum|beefsteak)\s+(?=tomatoes?\b)/,'').replace(/\b(tomatoes|potatoes)\b/g,m=>m==='tomatoes'?'tomato':'potato').replace(/s$/,'');
+
+  const valid=Number.isFinite(amount)&&amount>0&&(unit||countable.test(ingredient)||countable.test(canonical));
   const conversion=conversions[unit]||[unit,1];
-  const normalizedIngredient=ingredient.toLowerCase().replace(/\s+/g,' ').replace(/s$/,'');
+  const normalizedIngredient=canonical.replace(/\s+/g,' ');
   const key=valid?conversion[0]+'|'+normalizedIngredient:null;
   if(key&&seen.has(key)){
    const row=seen.get(key);row.amount+=amount*conversion[1];row.items.push(item);continue;
@@ -1624,6 +1628,16 @@ function purchaseSuggestion(row){
   return {label:name.replace(/^pick\s+/i,''),note:'⚠ Quantity needs review — source recipe says “pick”'};
  }
  // Remove raw source-unit markers when they were not converted into quantities.
+ // A numeric source-unit count for individual produce is a piece count.
+ const countedProduce=row.label.match(/^([\d¼½¾⅓⅔⅛⅜⅝⅞.\/\s]+)\s+units?\s+((?:(?:roma|cherry|grape|heirloom|plum|beefsteak)\s+)?(?:tomatoes?|shallots?|onions?|potatoes?|lemons?|limes?|apples?|carrots?|cucumbers?|zucchinis?))$/i);
+ if(countedProduce){
+  const qty=ingredientNumber(countedProduce[1].trim());
+  if(Number.isInteger(qty)&&qty>0){
+   const product=countedProduce[2].trim();
+   const plural=qty===1?product:product.replace(/\b(tomato|potato|shallot|onion|lemon|lime|apple|carrot|cucumber|zucchini)\b/gi,(m)=>m.toLowerCase()==='tomato'||m.toLowerCase()==='potato'?m+'es':m.toLowerCase()==='zucchini'?m+'s':m+'s');
+   return {label:groceryNumber(qty)+' '+plural,note:''};
+  }
+ }
  if(/^units?\s+/i.test(row.label)){
   const cleaned=row.label.replace(/^units?\s+/i,'').trim();
   return {label:(Number.isFinite(amount)&&amount>0?groceryNumber(amount)+' ':'')+cleaned,note:''};
