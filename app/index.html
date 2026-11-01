@@ -685,6 +685,16 @@ html[data-theme="dark"] .recipe-dialog{background:#20272a;color:#edf0f2;border-c
 #items .grocery-action-options{position:absolute;right:0;top:100%;z-index:20;display:flex;gap:6px;padding:9px;background:var(--card,#26332e);border:1px solid var(--line,#496052);border-radius:12px;box-shadow:0 6px 20px #0004;white-space:nowrap}
 #items .grocery-action-options button{min-height:36px}
 @media(max-width:750px){#items .grocery-title-line{gap:6px}#items .grocery-actions>summary{padding:8px 10px}}
+/* Legible mobile shopping actions and source details. */
+#items .grocery-title-line{display:block!important;min-width:0}
+#items .grocery-title-line>label{display:block;overflow-wrap:anywhere}
+#items .grocery-title-line>.grocery-breakdown{display:block;margin:3px 0 0!important;font-size:11px}
+#items .grocery-title-line>.grocery-breakdown>summary{display:inline-block;color:#75bb96!important;font-size:11px;line-height:1.3}
+#items .grocery-actions>summary{background:#29352f!important;color:#e6f2e9!important;border:1px solid #567363!important;box-shadow:none!important;min-width:42px;min-height:38px;display:flex;align-items:center;justify-content:center;letter-spacing:1px}
+#items .grocery-action-options{background:#26332e!important;color:#edf5ef!important}
+#items .grocery-action-options button{background:#176c4b;color:white}
+#items .grocery-description{min-width:0}
+@media(max-width:750px){#items .grocery-row{align-items:center!important}#items .grocery-actions>summary{min-width:42px;min-height:38px;padding:5px!important}}
 /* Pantry inventory uses the same grocery departments as the shopping list. */
 #inventory-saved .pantry-department{border:1px solid var(--line,#c9d9cf);border-radius:12px;margin:8px 0;overflow:hidden}
 #inventory-saved .pantry-department>summary{cursor:pointer;padding:12px 14px;font-weight:650}
@@ -1477,6 +1487,7 @@ function shoppingDepartment(name){
  if(/\b(?:butter|cheese|feta|mozzarella|parmesan|cheddar|sour cream|yogurt|milk|eggs?|heavy cream|creme fraiche)\b/i.test(value)&&!/\b(?:peanut|almond|cashew|sunflower) butter\b/i.test(value))return 'Dairy & Refrigerated';
  if(/\b(?:peanut|almond|cashew|sunflower) butter\b/i.test(value))return 'Pantry & Seasonings';
  if(/\b(?:pepper|fruit|onion|tomato|chili|chilli)\s+(?:jam|jelly|preserves?|chutney|relish)\b/i.test(value))return 'Pantry & Seasonings';
+ if(/\b(?:crushed|diced|canned|tinned|whole peeled)\s+tomatoes?\b/i.test(value))return 'Pantry & Seasonings';
  if(/\b(?:bananas?|strawberries|blueberries|raspberries|grapes|peaches|pears|pineapples|watermelons|cantaloupes)\b/i.test(value))return 'Produce';
  if(/\b(?:coleslaw\s+mix|slaw\s+mix|shredded\s+cabbage)\b/i.test(value))return 'Produce';
  if(/^\s*(?:(?:\d+(?:\.\d+)?\s+)?(?:pick|unit)\s+)?garlic\s*$/i.test(value))return 'Produce';
@@ -1593,6 +1604,11 @@ function purchaseSuggestion(row){
  // "pick" is a HelloFresh source marker, not a unit of measurement.
  if(/^\s*(?:\d+(?:\.\d+)?\s+)?pick\s+/i.test(row.label)){
   return {label:name.replace(/^pick\s+/i,''),note:'⚠ Quantity needs review — source recipe says “pick”'};
+ }
+ // Remove raw source-unit markers when they were not converted into quantities.
+ if(/^units?\s+/i.test(row.label)){
+  const cleaned=row.label.replace(/^units?\s+/i,'').trim();
+  return {label:(Number.isFinite(amount)&&amount>0?groceryNumber(amount)+' ':'')+cleaned,note:''};
  }
  // Source "unit" denotes a count, not a purchasable package.
  const sourceUnit=row.label.match(/^([\d¼½¾⅓⅔⅛⅜⅝⅞.\/\s]+)\s+units?\s+(.+)$/i);
@@ -2056,7 +2072,7 @@ function renderShoppingList(){
    const purchased=x.items.every(i=>i.purchased),names=x.items.map(i=>i.name),first=x.items[0];if(smartPrefs.hide&&purchased)return "";
    const suggestion=purchaseSuggestion(x),label=suggestion?suggestion.label:x.label,note=suggestion?suggestion.note:x.note;
    const sourceCount=x.items.reduce((n,i)=>n+(Array.isArray(i.sources)?i.sources.length:0),0)||groceryRecipeBreakdown(x.items).length;
-   const sourceText=sourceCount?sourceCount+' '+(sourceCount===1?'recipe':'recipes'):'Sources';
+   const sourceText=sourceCount?'▸ '+sourceCount+' '+(sourceCount===1?'recipe':'recipes'):'▸ Sources';
    const review=x.items.some(shoppingNeedsReview);
    const storePrice=shoppingPriceFor(names);
    itemCount++;
