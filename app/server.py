@@ -399,7 +399,20 @@ def discover_sitemap(country,limit):
  except Exception as exc:raise ValueError('Could not check robots.txt; import aborted: '+str(exc)[:160])
  if not rp.can_fetch('PersonalRecipeImporter/1.0',root):
   raise ValueError('Sitemap access is disallowed by robots.txt for '+host)
- queue=[root];seen=set();recipes=[];recipe_seen=set();sitemaps=0;errors=[]
+ # Prefer sitemap locations published by the site's own robots.txt.
+ published=[]
+ try:
+  req=urllib.request.Request('https://'+host+'/robots.txt',headers={'User-Agent':'PersonalRecipeImporter/1.0'})
+  with urllib.request.urlopen(req,timeout=15) as response:
+   robots_text=response.read(250000).decode('utf-8','replace')
+  for line in robots_text.splitlines():
+   if line.strip().lower().startswith('sitemap:'):
+    candidate=line.split(':',1)[1].strip()
+    if allowed_url(candidate) and recipe_country_from_url(candidate)==country and candidate not in published:published.append(candidate)
+ except Exception:pass
+ candidates=published+[root,'https://'+host+'/sitemap_index.xml','https://'+host+'/sitemap_recipe_pages.xml','https://'+host+'/sitemap-recipes.xml']
+ queue=list(dict.fromkeys(candidate for candidate in candidates if allowed_url(candidate)))
+ seen=set();recipes=[];recipe_seen=set();sitemaps=0;errors=[]
  while queue and (limit==0 or len(recipes)<limit) and sitemaps<100:
   url=queue.pop(0)
   if url in seen or not allowed_url(url) or not rp.can_fetch('PersonalRecipeImporter/1.0',url):continue
