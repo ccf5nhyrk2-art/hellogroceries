@@ -2043,6 +2043,10 @@ function isNonRecipeListing(r){
  if(/\b(?:factor(?:75)?|factor form)\b/.test(title)&&/\b(?:box|kit|trial|greens|creatine|supplement|ready.made|meal plan|meals?\s*(?:box|pack))\b/.test(title))return true;
  if(/\b(?:greens\s*(?:trial|powder|kit)|creatine\s*\+?\s*(?:kit|powder|supplement)|protein\s*(?:powder|shake|supplement)|dietary\s*supplement|vitamin\s*(?:bundle|pack)|supplement\s*(?:kit|pack)|ready.made\s*meal\s*(?:box|pack)|prepared\s*meal\s*(?:box|pack))\b/.test(title))return true;
  if(/\b(?:\d+[- ]day|\d+[- ]meal|\d+\s+ready.made\s+meal)\b/.test(title)&&/\b(?:trial\s*kit|subscription|supplement|box|greens|creatine|ready.made)\b/.test(title))return true;
+ // Exclude pet food and bulk packaged meat products that are not cooking instructions.
+ if(/\b(?:pet(?:s)?\s*(?:food|table)|dog\s*(?:food|treats?)|cat\s*(?:food|treats?)|air.dried\s*(?:beef|chicken|turkey|salmon)|kibble)\b/.test(title))return true;
+ if(/\b(?:air.dried|freeze.dried)\b/.test(title)&&/\b(?:box|pack|bag|lb|lbs)\b/.test(title))return true;
+ if(/\b(?:\d+\s*(?:lb|lbs|oz|kg|g)\b|(?:variety|assortment|bulk)\s*(?:box|pack)|\d+\s*x\s*\d+\s*(?:lb|lbs|oz))/.test(title)&&/\b(?:box|bundle|pack|kit|case|subscription|pet|air.dried)\b/.test(title)&&!/\b(?:roasted|grilled|braised|baked|stir.fried|pan.seared|sauteed|glazed)\b/.test(title))return true;
  const name=String(r.name||'').trim();
  return /(?:\b(?:bundle|gift\s*(?:box|card|set)|merchandise|subscription|promo(?:tional)?\s*(?:box|offer)|sampler\s*(?:pack|box)|variety\s*pack)\b.*\b(?:order|ship(?:s|ping)?|deliver(?:y|ed)?|items?|box|pack)\b|\b(?:order\s+ships?|arrives?\s+separately|\d+\s+items?\s*$))/i.test(name)
   && !Object.keys(r.ingredients||{}).some(k=>/\b(?:chicken|beef|pork|fish|salmon|rice|pasta|flour|onion|garlic|tomato|potato)\b/i.test(k));
