@@ -473,7 +473,7 @@ async function loadTasks(){
     info.append(title,meta,progress);
    }else if(task.key==='nutrition'){
     const progress=document.createElement('div');progress.className='account-meta';
-    progress.textContent='Scanned this cycle: '+(task.processed||0)+' / '+(task.total||0)+' · Nutrition added: '+(task.updated||0)+' · Source unavailable: '+(task.missing||0)+' · Errors: '+(task.failed||0)+' · Next check: '+fmt(task.next_run);
+    progress.textContent='Scanned this cycle: '+(task.processed||0)+' / '+(task.total||0)+' · Records updated: '+(task.updated||0)+' · Serving counts backfilled: '+(task.servings_backfilled||0)+' · Original servings known: '+(task.servings_coverage?.known||0)+' / '+(task.servings_coverage?.total||0)+' · Still missing: '+(task.servings_coverage?.missing||0)+' · Source unavailable: '+(task.missing||0)+' · Errors: '+(task.failed||0)+' · Next check: '+fmt(task.next_run);
     info.append(title,meta,progress);
    }else if(task.key==='recommendation_photos'){
     const progress=document.createElement('div');progress.className='account-meta';
@@ -483,9 +483,9 @@ async function loadTasks(){
    card.append(info);
    if(task.key==='nutrition'){
     const button=document.createElement('button');button.type='button';button.className='button-secondary';
-    button.textContent=task.running?'Running…':'Run now';button.disabled=Boolean(task.running);
+    button.textContent=task.running?'Running…':'Backfill missing servings / scan nutrition';button.disabled=Boolean(task.running);
     button.onclick=async()=>{
-     button.disabled=true;const msg=document.getElementById('tasks-message');msg.textContent='Queuing nutrition scan…';
+     button.disabled=true;const msg=document.getElementById('tasks-message');msg.textContent='Queuing serving-count and nutrition scan…';
      try{
       const response=await fetch('/api/admin/nutrition/run',{method:'POST',headers:{'Content-Type':'application/json','X-HG-CSRF':csrf()},body:'{}'});
       const data=await response.json();if(!response.ok)throw Error(data.error||'Unable to start');
