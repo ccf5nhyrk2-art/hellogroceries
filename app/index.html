@@ -704,6 +704,9 @@ html[data-theme="dark"] .recipe-dialog{background:#20272a;color:#edf0f2;border-c
 #items .grocery-breakdown-content button{background:#176c4b!important;color:#fff!important;border:1px solid #338b65!important;border-radius:9px}
 #items .grocery-breakdown-content a{color:#88dbac!important}
 @media(max-width:750px){#items .grocery-item-wrap>.grocery-breakdown{margin-left:31px!important;margin-right:6px!important}}
+/* Prevent Safari from showing both a custom and native disclosure marker. */
+#items .grocery-item-wrap>.grocery-breakdown>summary::before{content:none!important;display:none!important}
+#items .grocery-item-wrap>.grocery-breakdown>summary::after{content:none!important;display:none!important}
 /* Single native disclosure arrow and tighter shopping-list spacing. */
 #items .grocery-item-wrap>.grocery-breakdown>summary{display:list-item!important;list-style:disclosure-closed inside!important}
 #items .grocery-item-wrap>.grocery-breakdown[open]>summary{list-style:disclosure-open inside!important}
