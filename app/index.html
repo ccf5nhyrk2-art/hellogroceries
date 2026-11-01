@@ -1810,7 +1810,7 @@ function groceryBreakdownMarkup(items){
    const measuredUnit=sourceMatch?sourceMatch[2]:'';
    const amountPerSelection=Number.isFinite(embeddedAmount)&&embeddedAmount>0?embeddedAmount*sourceQty:sourceQty;
    const totalAmount=amountPerSelection*multiplier;
-   const details=manual?'Added manually':unverified?'⚠ Quantity not verified — review recipe amount':Number.isFinite(amountPerSelection)&&amountPerSelection>0?'Recipe: '+groceryNumber(amountPerSelection)+(measuredUnit?' '+measuredUnit:' source unit(s)')+' × '+groceryNumber(multiplier)+' (for '+groceryNumber(Number(x.servings)||multiplier*2)+' servings) = '+groceryNumber(totalAmount)+(measuredUnit?' '+measuredUnit:' source unit(s)'):'Recipe quantity needs review';
+   const details=manual?'Added manually':unverified?'⚠ Quantity not verified — review recipe amount':Number.isFinite(amountPerSelection)&&amountPerSelection>0?'Recipe: '+groceryNumber(amountPerSelection)+(measuredUnit?' '+measuredUnit:' source unit(s)')+' × '+groceryNumber(multiplier)+' (from '+groceryNumber(Number(x.source_servings)||2)+' to '+groceryNumber(Number(x.servings)||multiplier*(Number(x.source_servings)||2))+' servings) = '+groceryNumber(totalAmount)+(measuredUnit?' '+measuredUnit:' source unit(s)'):'Recipe quantity needs review';
    return '<div class="grocery-source"><strong>'+esc(cleanRecipeName(x.recipe||'Unknown source'))+'</strong><div>'+esc(details)+'</div>'+(manual?'':'<small>Ingredient: '+esc(x.original_name||'')+esc(corrected)+'</small>')+button+'</div>';
   }).join('');
  }
