@@ -2533,6 +2533,14 @@ class Handler(SimpleHTTPRequestHandler):
      favorites=p.get('favorites',[]);collections=p.get('collections',{});weekly=p.get('weekly',{});pantry=p.get('pantry',[]);manual=p.get('manual',[]);previous_week=p.get('previous_week',{});recommendation_hidden=p.get('recommendation_hidden',[])
      if not isinstance(favorites,list) or len(favorites)>20000 or not isinstance(collections,dict) or not isinstance(weekly,dict) or not isinstance(pantry,list) or not isinstance(manual,list) or not isinstance(previous_week,dict) or len(previous_week)>7 or not isinstance(recommendation_hidden,list) or len(recommendation_hidden)>2000 or any(type(v)!=int or v<0 for v in recommendation_hidden):raise ValueError('Invalid preferences')
      if len(collections)>100 or len(weekly)>7 or len(pantry)>500 or len(manual)>500:raise ValueError('Too many items')
+     # Removing an item with the pantry X must remove every stored unit too.
+     if any(not isinstance(x,str) or not x.strip() for x in pantry):raise ValueError('Invalid pantry ingredient')
+     remaining_names={x.strip().casefold() for x in pantry}
+     removed_names={x.strip().casefold() for x in state.get('pantry',[]) if isinstance(x,str) and x.strip()}-remaining_names
+     if removed_names:
+      inventory=state.setdefault('pantry_inventory',{})
+      for key in list(inventory):
+       if isinstance(key,str) and key.rsplit('|',1)[0].strip().casefold() in removed_names:inventory.pop(key,None)
      state.update(favorites=favorites,collections=collections,weekly=weekly,pantry=pantry,manual=manual,previous_week=previous_week,recommendation_hidden=recommendation_hidden)
     elif action=='rate_recipe':
      rid=p.get('id');rating=p.get('rating');note=p.get('note','')
@@ -2561,6 +2569,14 @@ class Handler(SimpleHTTPRequestHandler):
       key=name.casefold()+'|'+unit
       inventory[key]=round(float(inventory.get(key,0))+quantity,4)
       if not any(x.casefold()==name.casefold() for x in pantry if isinstance(x,str)):pantry.append(name)
+    elif action=='delete_pantry_item':
+     name=p.get('name')
+     if not isinstance(name,str) or not name.strip() or len(name)>140:raise ValueError('Invalid pantry ingredient')
+     normalized=name.strip().casefold()
+     state['pantry']=[x for x in state.get('pantry',[]) if not (isinstance(x,str) and x.strip().casefold()==normalized)]
+     inventory=state.setdefault('pantry_inventory',{})
+     for key in list(inventory):
+      if isinstance(key,str) and key.rsplit('|',1)[0].strip().casefold()==normalized:inventory.pop(key,None)
     elif action in ('set_pantry_inventory','adjust_pantry_inventory'):
      name=p.get('name');unit=p.get('unit','');amount=p.get('amount')
      allowed={'','count','teaspoon','tablespoon','cup','ounce','pound','gram','kilogram','milliliter','liter','clove','bunch','head','stalk','slice','piece','pinch','can','package','bag'}
