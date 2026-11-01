@@ -2447,13 +2447,24 @@ class Handler(SimpleHTTPRequestHandler):
      if len(inventory)>=1000 and key not in inventory:raise ValueError('Inventory limit reached')
      mode=p.get('mode','set') if action=='adjust_pantry_inventory' else 'set'
      if mode not in ('set','add','use'):raise ValueError('Invalid quantity action')
-     current=float(inventory.get(key,0))
-     if mode=='use' and key not in inventory:raise ValueError('Set a quantity before using this ingredient')
-     if mode=='add':updated=current+float(amount)
-     elif mode=='use':updated=current-float(amount)
+     conversions={'teaspoon':('volume',4.92892159375),'tablespoon':('volume',14.78676478125),'cup':('volume',236.5882365),'milliliter':('volume',1),'liter':('volume',1000),'gram':('mass',1),'kilogram':('mass',1000),'ounce':('mass',28.349523125),'pound':('mass',453.59237)}
+     target_key=key
+     # For Add/Use, prefer an exact-unit entry; otherwise convert to a single compatible tracked unit.
+     if mode in ('add','use') and key not in inventory and unit in conversions:
+      compatible=[k for k in inventory if k.startswith(name.strip().casefold()+'|') and k.rsplit('|',1)[-1] in conversions and conversions[k.rsplit('|',1)[-1]][0]==conversions[unit][0]]
+      if len(compatible)>1:raise ValueError('Multiple compatible units tracked. Select one of the existing units to update')
+      if compatible:target_key=compatible[0]
+     if mode=='use' and target_key not in inventory:raise ValueError('Set a quantity before using this ingredient')
+     target_unit=target_key.rsplit('|',1)[-1]
+     factor=conversions[unit][1]/conversions[target_unit][1] if target_unit!=unit and unit in conversions and target_unit in conversions else 1
+     delta=float(amount)*factor
+     current=float(inventory.get(target_key,0))
+     if mode=='add':updated=current+delta
+     elif mode=='use':updated=current-delta
      else:updated=float(amount)
-     if not 0<=updated<=100000:raise ValueError('Not enough pantry quantity or inventory limit exceeded')
-     inventory[key]=round(updated,4)
+     if not math.isfinite(updated) or not 0<=updated<=100000:raise ValueError('Not enough pantry quantity or inventory limit exceeded')
+     if len(inventory)>=1000 and target_key not in inventory:raise ValueError('Inventory limit reached')
+     inventory[target_key]=round(updated,4)
      pantry=state.setdefault('pantry',[])
      if not any(isinstance(x,str) and x.casefold()==name.strip().casefold() for x in pantry):
       if len(pantry)>=500:raise ValueError('Pantry capacity reached')
