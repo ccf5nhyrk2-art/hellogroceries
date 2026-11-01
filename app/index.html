@@ -616,10 +616,10 @@ html[data-theme="dark"] .recipe-dialog{background:#20272a;color:#edf0f2;border-c
  #recipe-recommendations #recommend-heading{font-size:18px}
  #recipe-recommendations #recommend-refresh{padding:9px 12px}
  #recommend-list{display:flex!important;overflow-x:auto;scroll-snap-type:x mandatory;overscroll-behavior-x:contain;-webkit-overflow-scrolling:touch;gap:10px!important;padding-bottom:8px;scrollbar-width:thin}
- #recommend-list{align-items:stretch;max-width:100%;min-width:0}
- #recommend-list .recommend-card{flex:0 0 min(76vw,275px);scroll-snap-align:start;display:flex;flex-direction:column;box-sizing:border-box;align-self:stretch}
+ #recommend-list{align-items:flex-start;max-width:100%;min-width:0}
+ #recommend-list .recommend-card{flex:0 0 min(76vw,275px);scroll-snap-align:start;display:flex;flex-direction:column;box-sizing:border-box;align-self:flex-start;height:auto}
  #recommend-list .recommend-photo-placeholder{display:flex;align-items:center;justify-content:center;background:#20372c;font-size:28px}
- #recommend-list .recommend-dismiss{margin-top:auto;padding-top:10px}
+ #recommend-list .recommend-dismiss{margin-top:10px;padding-top:0}
  #recommend-list .recommend-photo{height:90px;flex-shrink:0}
  #recommend-list .recommend-title{font-size:14px;-webkit-line-clamp:2;min-height:2.7em}
  #recommend-list .recommend-reason{font-size:11px!important;margin:5px 0!important}
