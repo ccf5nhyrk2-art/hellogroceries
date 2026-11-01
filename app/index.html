@@ -704,6 +704,12 @@ html[data-theme="dark"] .recipe-dialog{background:#20272a;color:#edf0f2;border-c
 #items .grocery-breakdown-content button{background:#176c4b!important;color:#fff!important;border:1px solid #338b65!important;border-radius:9px}
 #items .grocery-breakdown-content a{color:#88dbac!important}
 @media(max-width:750px){#items .grocery-item-wrap>.grocery-breakdown{margin-left:31px!important;margin-right:6px!important}}
+/* Single native disclosure arrow and tighter shopping-list spacing. */
+#items .grocery-item-wrap>.grocery-breakdown>summary{display:list-item!important;list-style:disclosure-closed inside!important}
+#items .grocery-item-wrap>.grocery-breakdown[open]>summary{list-style:disclosure-open inside!important}
+#items .grocery-item-wrap>.grocery-breakdown{margin-bottom:3px!important}
+#items .grocery-item-wrap>.grocery-row{padding-top:5px!important;padding-bottom:5px!important}
+#items .grocery-item-wrap>.grocery-breakdown:not([open]){padding-bottom:0!important}
 /* Pantry inventory uses the same grocery departments as the shopping list. */
 #inventory-saved .pantry-department{border:1px solid var(--line,#c9d9cf);border-radius:12px;margin:8px 0;overflow:hidden}
 #inventory-saved .pantry-department>summary{cursor:pointer;padding:12px 14px;font-weight:650}
@@ -1727,7 +1733,7 @@ function groceryBreakdownMarkup(items){
    const canEdit=Number.isInteger(x.recipe_id)&&!!x.original_name;
    const corrected=x.corrected?' · corrected for future lists':'';
    const button=canEdit?'<button type="button" class="source-correct" data-source-recipe="'+esc(x.recipe_id)+'" data-source-name="'+esc(x.original_name)+'">Correct recipe quantity</button>':'';
-   return '<div class="grocery-source"><strong>'+esc(x.recipe||'Unknown source')+'</strong><div>'+esc(groceryNumber(Number(x.contribution)||0))+'× '+esc(x.recipe==='Manually added'?'manually added':'recipe ingredient amount')+'</div>'+(x.recipe!=='Manually added'?'<small>Original: '+esc(x.original_name||'')+' · source factor: '+esc(groceryNumber(Number(x.source_quantity)||0))+' · selected multiplier: '+esc(groceryNumber(Number(x.multiplier)||1))+'×'+esc(corrected)+'</small>':'')+button+'</div>';
+   return '<div class="grocery-source"><strong>'+esc(cleanRecipeName(x.recipe||'Unknown source'))+'</strong><div>'+esc(groceryNumber(Number(x.contribution)||0))+'× '+esc(x.recipe==='Manually added'?'manually added':'recipe ingredient amount')+'</div>'+(x.recipe!=='Manually added'?'<small>Original: '+esc(x.original_name||'')+' · source factor: '+esc(groceryNumber(Number(x.source_quantity)||0))+' · selected multiplier: '+esc(groceryNumber(Number(x.multiplier)||1))+'×'+esc(corrected)+'</small>':'')+button+'</div>';
   }).join('');
  }
  const entries=groceryRecipeBreakdown(items);
@@ -2081,7 +2087,7 @@ function renderShoppingList(){
    const purchased=x.items.every(i=>i.purchased),names=x.items.map(i=>i.name),first=x.items[0];if(smartPrefs.hide&&purchased)return "";
    const suggestion=purchaseSuggestion(x),label=suggestion?suggestion.label:x.label,note=suggestion?suggestion.note:x.note;
    const sourceCount=x.items.reduce((n,i)=>n+(Array.isArray(i.sources)?i.sources.length:0),0)||groceryRecipeBreakdown(x.items).length;
-   const sourceText=sourceCount?'▸ '+sourceCount+' '+(sourceCount===1?'recipe':'recipes'):'▸ Sources';
+   const sourceText=sourceCount?sourceCount+' '+(sourceCount===1?'recipe':'recipes'):'Sources';
    const review=x.items.some(shoppingNeedsReview);
    const storePrice=shoppingPriceFor(names);
    itemCount++;
