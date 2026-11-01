@@ -2343,21 +2343,15 @@ function renderRecommendations(){
  panel.innerHTML=results.length?results.map(({r,reason})=>'<article class="recommend-card">'+('<img class="recommend-photo" src="/api/photo/'+encodeURIComponent(r.id)+'" alt="" loading="lazy" onerror="recommendationPhotoFailed(this)">')+'<strong class="recommend-title">'+esc(cleanRecipeName(r.name))+'</strong><div class="muted recommend-reason" style="font-size:12px;margin:6px 0">'+esc(reason)+'</div><div class="recommend-actions"><button type="button" data-recommend-detail="'+r.id+'">View recipe</button><button type="button" data-recommend-plan="'+r.id+'">Add to plan</button></div><select data-recommend-collection="'+r.id+'" aria-label="Add recommended recipe to collection" style="width:100%;margin-top:8px;min-height:40px"><option value="">Add to collection…</option>'+Object.keys(state.collections||{}).map(n=>'<option value="'+esc(n)+'">'+esc(n)+'</option>').join('')+'</select><button type="button" data-recommend-more="'+r.id+'" class="recommend-dismiss">Show me more like this</button><button type="button" data-recommend-hide="'+r.id+'" class="recommend-dismiss">Not interested</button></article>').join(''):'<p class="muted">'+(terms.length?'No suggestions match this search. Try clearing the search.':'No suggestions available yet.')+'</p>';
  requestAnimationFrame(updateRecommendationCarousel);
 }
-let recommendationPhotoRetryTimer=null;
 function recommendationPhotoFailed(img){
  const card=img.closest('.recommend-card');
  const id=card?.querySelector('[data-recommend-detail]')?.dataset.recommendDetail;
- if(!id||recommendationFailedPhotos.has(String(id)))return;
+ if(!id)return;
  recommendationFailedPhotos.add(String(id));
- // Hide the broken card immediately. Batch failed photos instead of rerendering
- // the whole carousel once per image (which restarts every remaining image load).
+ // Never re-render visible recommendations because of a photo failure.
+ // A new candidate set is chosen on the next explicit Refresh or normal data update.
  if(card)card.hidden=true;
- recommendationRankCache=null;
- if(recommendationPhotoRetryTimer!==null)return;
- recommendationPhotoRetryTimer=setTimeout(()=>{
-  recommendationPhotoRetryTimer=null;
-  renderRecommendations();
- },250);
+ updateRecommendationCarousel();
 }
 function updateRecommendationCarousel(){const list=$('recommend-list'),controls=$('recommend-carousel-controls'),dots=$('recommend-dots');if(!list||!controls||!dots)return;const cards=[...list.querySelectorAll('.recommend-card')];const enabled=matchMedia('(max-width:750px)').matches&&cards.length>1;controls.hidden=!enabled;if(!enabled)return;const current=cards.reduce((best,card,i)=>Math.abs(card.offsetLeft-list.offsetLeft-list.scrollLeft)<Math.abs(cards[best].offsetLeft-list.offsetLeft-list.scrollLeft)?i:best,0);dots.innerHTML=cards.map((_,i)=>'<span class="recommend-dot'+(i===current?' active':'')+'"></span>').join('')}
 $('recommend-list').addEventListener('change',async e=>{
