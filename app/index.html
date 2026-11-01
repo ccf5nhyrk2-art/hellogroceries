@@ -1587,10 +1587,22 @@ function consolidatedShoppingRows(items){
   const override=(state.ingredient_overrides||{})[item.name]||{};
   const display=shoppingDisplay(item);
   const label=override.display||display.name;
-  const implicitCount=!override.display&&/^(?:(?:roma|cherry|grape|heirloom|plum|beefsteak)\s+)?(?:shallots?|tomatoes?|onions?|potatoes?|lemons?|limes?|apples?|carrots?|cucumbers?|zucchinis?)$/i.test(label.trim())&&Number(item.quantity)>0;
+  // Only recover an implicit piece count from a source with an explicit numeric
+  // ingredient count. A shopping-list multiplier alone is not proof of quantity.
+  const isWholeProduce=/^(?:(?:roma|cherry|grape|heirloom|plum|beefsteak)\s+)?(?:shallots?|tomatoes?|onions?|potatoes?|lemons?|limes?|apples?|carrots?|cucumbers?|zucchinis?|bananas?)$/i.test(label.trim());
+  const sources=Array.isArray(item.sources)?item.sources:[];
+  const sourceCounts=sources.map(source=>{
+   const original=String(source.original_name||'').trim();
+   const parsed=original.match(/^([\d¼½¾⅓⅔⅛⅜⅝⅞.\/\s]+)\s+(?:(?:unit|units|piece|pieces|pick)\s+)?(.+)$/i);
+   if(!parsed||!/^(?:(?:roma|cherry|grape|heirloom|plum|beefsteak)\s+)?(?:shallots?|tomatoes?|onions?|potatoes?|lemons?|limes?|apples?|carrots?|cucumbers?|zucchinis?|bananas?)$/i.test(parsed[2].trim()))return NaN;
+   const n=ingredientNumber(parsed[1].trim()),multiplier=Number(source.multiplier);
+   return Number.isFinite(n)&&n>0&&Number.isFinite(multiplier)&&multiplier>0?n*multiplier:NaN;
+  });
+  const recoveredCount=!override.display&&isWholeProduce&&sourceCounts.length>0&&sourceCounts.every(n=>Number.isFinite(n)&&n>0)?sourceCounts.reduce((a,b)=>a+b,0):NaN;
+  const implicitCount=Number.isInteger(recoveredCount)&&recoveredCount>0;
   const unitSource=label.match(/^([\d¼½¾⅓⅔⅛⅜⅝⅞.\/\s]+)\s+units?\s+(.+)$/i);
   const match=label.match(measured);
-  const amount=unitSource?ingredientNumber(unitSource[1].trim()):match?ingredientNumber(match[1]):implicitCount?Number(item.quantity):NaN;
+  const amount=unitSource?ingredientNumber(unitSource[1].trim()):match?ingredientNumber(match[1]):implicitCount?recoveredCount:NaN;
   const unit=unitSource?'':match&&match[2]?(ingredientUnitAliases[match[2].toLowerCase()]||match[2].toLowerCase()):'';
   const ingredient=unitSource?unitSource[2].trim():match?match[3].trim():implicitCount?label.trim():'';
   const canonical=ingredient.toLowerCase().replace(/^(?:roma|cherry|grape|heirloom|plum|beefsteak)\s+(?=tomatoes?\b)/,'').replace(/\b(tomatoes|potatoes)\b/g,m=>m==='tomatoes'?'tomato':'potato').replace(/s$/,'');
@@ -1602,7 +1614,7 @@ function consolidatedShoppingRows(items){
   if(key&&seen.has(key)){
    const row=seen.get(key);row.amount+=amount*conversion[1];row.items.push(item);continue;
   }
-  const row={items:[item],label,amount:amount*conversion[1],unit,ingredient,note:override.display?'':shoppingDisplay(item).note,baseUnit:conversion[0]};
+  const row={items:[item],label,amount:amount*conversion[1],unit,ingredient,note:override.display?'':shoppingDisplay(item).note,baseUnit:conversion[0],missingCount:!override.display&&isWholeProduce&&!implicitCount&&!match&&!unitSource};
   rows.push(row);if(key)seen.set(key,row);
  }
  for(const row of rows){
@@ -1620,6 +1632,7 @@ function consolidatedShoppingRows(items){
 }
 // Display conservative shopping-package suggestions without changing recipe quantities.
 function purchaseSuggestion(row){
+ if(row.missingCount)return {label:row.label,note:'Quantity missing from recipe · check source or correct recipe quantity'};
  const name=String(row.ingredient||'').trim(),lower=name.toLowerCase(),unit=row.baseUnit,amount=row.amount;
  const count=(capacity)=>Math.ceil((amount-1e-8)/capacity);
  const item=(quantity,size,kind,description,note)=>({label:quantity+' × '+size+' '+description+' '+(quantity===1?kind:kind+'s'),note});
