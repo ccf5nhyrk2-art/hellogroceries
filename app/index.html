@@ -1196,9 +1196,12 @@ function isHolidayRecipe(r){
  return /\b(thanksgiving|christmas|holiday|festive|easter|hanukkah|chanukah|new year(?:'s)?|valentine(?:'s)?|halloween)\b/i.test(n);
 }
 function isSideRecipe(r){
- const n=cleanRecipeName(r.name).toLowerCase();
- return /\b(?:side dish|side of|sides|appetizer|starter|garlic bread|breadsticks|dinner rolls|mashed potatoes|roasted potatoes|potato wedges|fries|coleslaw|slaw|cornbread|brussels sprouts|green beans|roasted vegetables|grilled vegetables|mac(?:aroni)? and cheese)\b/i.test(n)
- || isAddon(r)&&/\b(?:side|appetizer|starter|bread|potato|fries|vegetable|veggie|salad)\b/i.test(n);
+ const n=cleanRecipeName(r.name).toLowerCase().trim();
+ // Reject complete entrees even when their title mentions a side.
+ const entree=/\b(?:burger|sandwich|chicken|beef|pork|steak|salmon|shrimp|fish|turkey|meatball|sausage|taco|burrito|enchilada|pizza|flatbread|pasta|spaghetti|noodles|risotto|curry|chili|stew|main course|dinner|meal|bowl|patty|patties)\b/i;
+ const standalone=/\b(?:garlic bread|breadsticks|dinner rolls|mashed potatoes|roasted potatoes|potato wedges|fries|coleslaw|slaw|cornbread|brussels sprouts|green beans|roasted vegetables|grilled vegetables|mac(?:aroni)? and cheese|side dish|appetizer|starter|hummus|deviled eggs|dip|salsa|guacamole|roasted carrots|roasted asparagus)\b/i;
+ const explicit=/^(?:\[[^\]]*(?:side|appetizer|starter)[^\]]*\]\s*)|^(?:side(?:s)?|appetizer|starter|side of)\s*[:\-– ]/i;
+ return (standalone.test(n)||explicit.test(n))&&!entree.test(n);
 }
 function isAddon(r){
  const n=(r.name||'').toLowerCase().trim();
