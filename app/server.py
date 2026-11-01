@@ -158,6 +158,10 @@ def pricing_visibility():
 
 def allrecipes():
  with db() as c: imported=[json.loads(x[0]) for x in c.execute('SELECT payload FROM imported ORDER BY id DESC')]
+ for recipe in imported:
+  if isinstance(recipe,dict) and recipe.get('url'):
+   code=recipe_country_from_url(recipe['url'])
+   if code!='other':recipe['country']=code
  recipes=RECIPES+imported
  with db() as c:photos=dict(c.execute('SELECT recipe_id,image_url FROM photos'))
  return [dict(r,image=photos.get(r['id'],r.get('image',''))) for r in recipes]
