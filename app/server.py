@@ -64,7 +64,7 @@ def task_overview():
  progress=Path('/data/us_import_progress.json')
  nutrition=history.get('nutrition',{})
  return [
-  item('us_import','HelloFresh US recipe import','Manual / on demand',us_import_running() or (import_process is not None and import_process.poll() is None),datetime.datetime.fromtimestamp(progress.stat().st_mtime,datetime.timezone.utc).isoformat() if progress.exists() else None,'us_import'),
+  {'key':'us_import','name':'HelloFresh US recipe import','frequency':'Automatic initial import; weekly thereafter','running':us_import_running() or us_import_schedule['running'],'last_started':us_import_schedule['last_started'],'last_finished':us_import_schedule['last_finished'],'next_run':us_import_schedule['next_run'],'status':'Running' if us_import_schedule['running'] else ('Error: '+str(us_import_schedule['last_error']) if us_import_schedule['last_error'] else 'Waiting for next cycle'),'action':'us_import'},
   {'key':'nutrition','name':'Bulk recipe nutrition scan','frequency':'Automatic initial scan; weekly thereafter (2 seconds between recipes)','running':nutrition_scan['running'],'last_started':nutrition_scan['last_started'],'last_finished':nutrition_scan['last_finished'],'next_run':nutrition_scan['next_run'],'status':'Running' if nutrition_scan['running'] else 'Waiting for next cycle','processed':nutrition_scan['processed'],'total':nutrition_scan['total'],'updated':nutrition_scan['updated'],'missing':nutrition_scan['missing'],'failed':nutrition_scan['failed'],'action':None},
   item('store_directory','Nationwide store directory refresh','Automatic when cache expires (7 days) or store search needs it',False,datetime.datetime.fromtimestamp(ATP_CACHE_FILE.stat().st_mtime,datetime.timezone.utc).isoformat() if ATP_CACHE_FILE.exists() else None,'store_directory'),
   item('store_geocode','Store address geocoding','Automatic during store search (only uncached addresses)',RETAILER_GEOCODE_RUNNING,datetime.datetime.fromtimestamp(Path('/data/retailer_address_coordinates.json').stat().st_mtime,datetime.timezone.utc).isoformat() if Path('/data/retailer_address_coordinates.json').exists() else None,'store_geocode'),
@@ -93,6 +93,49 @@ def start_us_import():
    raise ValueError('Importer exited immediately; check /data/us_import.log')
   task_record('us_import','running')
   return {'ok':True,'message':'US importer started. Existing imported URLs will be skipped.'}
+
+US_IMPORT_SCHEDULE=Path('/data/us_import_schedule.json')
+us_import_wakeup=threading.Event()
+us_import_schedule={'running':False,'last_started':None,'last_finished':None,'next_run':None,'last_error':None}
+def save_us_import_schedule():
+ try:
+  tmp=US_IMPORT_SCHEDULE.with_suffix('.tmp');tmp.write_text(json.dumps(us_import_schedule));os.replace(tmp,US_IMPORT_SCHEDULE)
+ except OSError:pass
+def us_import_schedule_worker():
+ try:
+  saved=json.loads(US_IMPORT_SCHEDULE.read_text())
+  for key in us_import_schedule:
+   if key in saved and key!='running':us_import_schedule[key]=saved[key]
+ except (OSError,ValueError,TypeError):pass
+ while True:
+  now=datetime.datetime.now(datetime.timezone.utc)
+  due=us_import_schedule.get('next_run')
+  if due:
+   try:delay=max(0,(datetime.datetime.fromisoformat(due)-now).total_seconds())
+   except (ValueError,TypeError):delay=0
+   if delay>0:
+    us_import_wakeup.wait(min(delay,86400))
+    if not us_import_wakeup.is_set():continue
+    us_import_wakeup.clear()
+  if us_import_running() or (import_process is not None and import_process.poll() is None):
+   us_import_schedule['next_run']=(datetime.datetime.now(datetime.timezone.utc)+datetime.timedelta(hours=1)).isoformat()
+   save_us_import_schedule()
+   continue
+  try:
+   us_import_schedule['last_started']=datetime.datetime.now(datetime.timezone.utc).isoformat()
+   us_import_schedule['running']=True
+   save_us_import_schedule()
+   start_us_import()
+   while us_import_running() or (import_process is not None and import_process.poll() is None):time.sleep(30)
+   us_import_schedule['last_finished']=datetime.datetime.now(datetime.timezone.utc).isoformat()
+   us_import_schedule['last_error']=None
+   us_import_schedule['next_run']=(datetime.datetime.now(datetime.timezone.utc)+datetime.timedelta(days=7)).isoformat()
+  except Exception as exc:
+   us_import_schedule['last_error']=str(exc)[:200]
+   us_import_schedule['next_run']=(datetime.datetime.now(datetime.timezone.utc)+datetime.timedelta(hours=1)).isoformat()
+  finally:
+   us_import_schedule['running']=False
+   save_us_import_schedule()
 
 def db():
  c=sqlite3.connect(DB)
@@ -2706,4 +2749,5 @@ if __name__=='__main__':
   threading.Thread(target=bulk_worker,args=(job.get('country','US'),int(job.get('limit',0))),daemon=True).start()
  threading.Thread(target=recommendation_photo_warmup_worker,daemon=True,name='recommendation-photo-warmup').start()
  threading.Thread(target=nutrition_scan_worker,daemon=True,name='nutrition-background-scan').start()
+ threading.Thread(target=us_import_schedule_worker,daemon=True,name='us-import-scheduler').start()
  ThreadingHTTPServer(('0.0.0.0',8080),Handler).serve_forever()
