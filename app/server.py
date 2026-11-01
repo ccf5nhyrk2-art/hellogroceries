@@ -13,9 +13,22 @@ RECIPES=json.loads((BASE/'recipes.json').read_text());lock=threading.Lock()
 
 job={"running":False,"discovered":0,"processed":0,"imported":0,"skipped":0,"errors":0,"message":"Idle","paused":False,"country":"US","limit":0}
 BULK_STATE=Path("/data/bulk_import_progress.json")
+BULK_COUNTRIES=Path('/data/bulk_import_countries.json')
+def bulk_country_history():
+ try:
+  data=json.loads(BULK_COUNTRIES.read_text())
+  return data if isinstance(data,dict) else {}
+ except (OSError,ValueError):return {}
+def save_bulk_country():
+ data=bulk_country_history()
+ data[str(job.get('country','US'))]={k:job.get(k) for k in ('country','limit','running','paused','discovered','processed','imported','skipped','errors','message','started_at','updated_at')}
+ tmp=BULK_COUNTRIES.with_suffix('.tmp')
+ tmp.write_text(json.dumps(data));tmp.replace(BULK_COUNTRIES)
 BULK_PAUSE=threading.Event()
 BULK_RECOVER=False
 def save_bulk():
+ job['updated_at']=time.time()
+ save_bulk_country()
  tmp=BULK_STATE.with_suffix(".tmp");tmp.write_text(json.dumps(job));tmp.replace(BULK_STATE)
 if BULK_STATE.exists():
  try:
@@ -1758,7 +1771,7 @@ class Handler(SimpleHTTPRequestHandler):
      data={'version':1,'exported_at':datetime.datetime.now(datetime.timezone.utc).isoformat(),'state':read(),'imported':[dict(url=u,payload=json.loads(v)) for u,v in conn.execute('SELECT url,payload FROM imported')],'photos':[dict(recipe_id=i,image_url=u) for i,u in conn.execute('SELECT recipe_id,image_url FROM photos')]}
    raw=json.dumps(data).encode()
    self.send_response(200);self.send_header('Content-Type','application/json');self.send_header('Content-Disposition','attachment; filename="hellogroceries-backup.json"');self.send_header('Content-Length',str(len(raw)));self.end_headers();self.wfile.write(raw);return
-  if self.path=='/api/bulk-status':return self.sendjson(dict(job))
+  if self.path=='/api/bulk-status':return self.sendjson(dict(job,countries=bulk_country_history()))
   if self.path=='/api/us-import-control-status':return self.sendjson({'running':us_import_running() or (import_process is not None and import_process.poll() is None),'message':'Importer running' if us_import_running() or (import_process is not None and import_process.poll() is None) else 'Importer idle — ready to start / resume'})
   if self.path=='/api/us-import-status':
    progress=Path('/data/us_import_progress.json')
@@ -2225,13 +2238,13 @@ class Handler(SimpleHTTPRequestHandler):
     with lock:
      if job['running']:raise ValueError('An import is already running')
      BULK_PAUSE.clear()
-     job.update(running=True,paused=False,country=country,limit=limit,discovered=0,processed=0,imported=0,skipped=0,errors=0,message='Discovering public recipe pages');save_bulk()
+     job.update(running=True,paused=False,country=country,limit=limit,discovered=0,processed=0,imported=0,skipped=0,errors=0,started_at=time.time(),message='Discovering public recipe pages');save_bulk()
      threading.Thread(target=bulk_worker,args=(country,limit),daemon=True).start()
     return self.sendjson({'ok':True,'message':'Bulk import started'})
    if action=='resume-bulk':
     if job['running']:raise ValueError('Import already running')
     BULK_PAUSE.clear();country=job.get('country','US');limit=int(job.get('limit',0))
-    job.update(running=True,paused=False,discovered=0,processed=0,imported=0,skipped=0,errors=0,message='Resuming (already imported recipes will be skipped)');save_bulk()
+    job.update(running=True,paused=False,discovered=0,processed=0,imported=0,skipped=0,errors=0,started_at=time.time(),message='Resuming (already imported recipes will be skipped)');save_bulk()
     threading.Thread(target=bulk_worker,args=(country,limit),daemon=True).start()
     return self.sendjson({'ok':True,'message':'Resuming bulk import'})
    if action=='photo':
