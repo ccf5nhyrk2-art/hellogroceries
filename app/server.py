@@ -465,11 +465,12 @@ def bulk_worker(country,limit):
   job['discovered']=len(urls)
   for url in urls:
    if BULK_PAUSE.is_set():job['message']='Paused';job['paused']=True;save_bulk();return
-   if not rp.can_fetch('PersonalRecipeImporter',url):job['skipped']+=1;continue
+   if not rp.can_fetch('PersonalRecipeImporter/1.0',url):
+    job['skipped']+=1;job['processed']+=1;save_bulk();continue
    try:
     with db() as c:
      if c.execute('SELECT 1 FROM imported WHERE url=?',(url,)).fetchone():
-      job['skipped']+=1;continue
+      job['skipped']+=1;job['processed']+=1;save_bulk();continue
     recipe=recipe_from_url(url)
     with lock:
      with db() as c:
