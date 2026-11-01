@@ -704,6 +704,11 @@ html[data-theme="dark"] .recipe-dialog{background:#20272a;color:#edf0f2;border-c
 #items .grocery-breakdown-content button{background:#176c4b!important;color:#fff!important;border:1px solid #338b65!important;border-radius:9px}
 #items .grocery-breakdown-content a{color:#88dbac!important}
 @media(max-width:750px){#items .grocery-item-wrap>.grocery-breakdown{margin-left:31px!important;margin-right:6px!important}}
+/* Theme-aware recipe details for every grocery department. */
+html:not([data-theme="dark"]) #items .grocery-item-wrap>.grocery-breakdown[open]>.grocery-breakdown-content{background:#f5f9f6!important;color:#203c2c!important;border-color:#cbdcd1!important}
+html:not([data-theme="dark"]) #items .grocery-breakdown-content .grocery-source{background:transparent!important;color:#203c2c!important;border-bottom-color:#d6e3da!important}
+html:not([data-theme="dark"]) #items .grocery-breakdown-content .grocery-source small{color:#536c5d!important}
+#items .grocery-breakdown-content .grocery-source{padding:9px 0;line-height:1.5}
 /* Prevent Safari from showing both a custom and native disclosure marker. */
 #items .grocery-item-wrap>.grocery-breakdown>summary::before{content:none!important;display:none!important}
 #items .grocery-item-wrap>.grocery-breakdown>summary::after{content:none!important;display:none!important}
@@ -1796,7 +1801,12 @@ function groceryBreakdownMarkup(items){
    const canEdit=Number.isInteger(x.recipe_id)&&!!x.original_name;
    const corrected=x.corrected?' · corrected for future lists':'';
    const button=canEdit?'<button type="button" class="source-correct" data-source-recipe="'+esc(x.recipe_id)+'" data-source-name="'+esc(x.original_name)+'">Correct recipe quantity</button>':'';
-   return '<div class="grocery-source"><strong>'+esc(cleanRecipeName(x.recipe||'Unknown source'))+'</strong><div>'+esc(groceryNumber(Number(x.contribution)||0))+'× '+esc(x.recipe==='Manually added'?'manually added':'recipe ingredient amount')+'</div>'+(x.recipe!=='Manually added'?'<small>Original: '+esc(x.original_name||'')+' · source factor: '+esc(groceryNumber(Number(x.source_quantity)||0))+' · selected multiplier: '+esc(groceryNumber(Number(x.multiplier)||1))+'×'+esc(corrected)+'</small>':'')+button+'</div>';
+   const manual=x.recipe==='Manually added';
+   const unverified=!!x.quantity_unverified;
+   const multiplier=Number(x.multiplier)||1;
+   const sourceQty=Number(x.source_quantity);
+   const details=manual?'Added manually':unverified?'⚠ Quantity not verified — review recipe amount':Number.isFinite(sourceQty)&&sourceQty>0?'Recipe amount: '+groceryNumber(sourceQty)+' × '+groceryNumber(multiplier)+' selected = '+groceryNumber(Number(x.contribution)||0):'Recipe quantity needs review';
+   return '<div class="grocery-source"><strong>'+esc(cleanRecipeName(x.recipe||'Unknown source'))+'</strong><div>'+esc(details)+'</div>'+(manual?'':'<small>Ingredient: '+esc(x.original_name||'')+esc(corrected)+'</small>')+button+'</div>';
   }).join('');
  }
  const entries=groceryRecipeBreakdown(items);
