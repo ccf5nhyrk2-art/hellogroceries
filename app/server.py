@@ -1488,7 +1488,7 @@ def rebuild_grocery_list(state):
   totals[label]=totals.get(label,0)+1
   sources.setdefault(label,[]).extend(sources.pop(key,[]))
  old={item['name']:item for item in state.get('list',[])}
- generated=[{'name':name,'quantity':round(qty,3),'purchased':False,'sources':sources.get(name,[])} for name,qty in sorted(totals.items()) if qty>0 and pantry_match_name(name) not in pantry]
+ generated=[{'name':name,'quantity':round(qty,3),'purchased':False,'sources':sources.get(name,[])} for name,qty in sorted(totals.items()) if qty>0 and (any(src.get('corrected') for src in sources.get(name,[])) or pantry_match_name(name) not in pantry)]
  for item in generated:
   previous=old.get(item['name'])
   if previous and previous.get('quantity')==item['quantity']:item['purchased']=bool(previous.get('purchased'))
