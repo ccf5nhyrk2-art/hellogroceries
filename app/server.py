@@ -1595,7 +1595,16 @@ def rebuild_grocery_list(state):
    # Recipe ingredient labels can contain the actual measure while the stored
    # numeric value is only a source factor (often 1). Preserve both separately.
    source_factor=quantity
-   embedded=re.match(r'^\s*(\d+(?:\.\d+)?|\d+/\d+)\s+(teaspoons?|tablespoons?|cups?|ounces?|pounds?|grams?|kilograms?|milliliters?|liters?)\s+(.+)state.get('recipe_ingredient_corrections',{}).get(str(recipe['id'])+'|'+name)
+   embedded=re.match(r'^\s*(\d+(?:\.\d+)?|\d+/\d+)\s+(teaspoons?|tablespoons?|cups?|ounces?|pounds?|grams?|kilograms?|milliliters?|liters?)\s+(.+)$',name,re.I)
+   if embedded:
+    raw=embedded.group(1)
+    measured=float(raw.split('/')[0])/float(raw.split('/')[1]) if '/' in raw else float(raw)
+    quantity=source_factor*measured
+    normalized_unit={'teaspoons':'teaspoon','tablespoons':'tablespoon','cups':'cup','ounces':'ounce','pounds':'pound','grams':'gram','kilograms':'kilogram','milliliters':'milliliter','liters':'liter'}.get(embedded.group(2).lower(),embedded.group(2).lower())
+    label_name=normalized_unit+' '+embedded.group(3)
+   else:
+    label_name=name
+   correction=state.get('recipe_ingredient_corrections',{}).get(str(recipe['id'])+'|'+name)
    if isinstance(correction,dict):
     ingredient_name=correction['name']
     unit=correction.get('unit','')
