@@ -388,6 +388,15 @@ html[data-theme="dark"] .mobile-more-logout{color:#ff8989!important;border-color
  header #hg-header-store span{min-width:0!important;overflow:hidden!important;text-overflow:ellipsis!important;white-space:nowrap!important}
  header>a[data-admin-only]{grid-column:2!important;grid-row:2!important;margin:0!important;font-size:11px!important;white-space:nowrap!important;align-self:center!important}
 }
+/* Mobile settings live in More, leaving the store selector full-width. */
+@media(max-width:750px){
+ header{grid-template-columns:minmax(0,1fr)!important}
+ header h1{grid-column:1!important;grid-row:1!important}
+ header #hg-header-store{grid-column:1!important;grid-row:2!important;max-width:100%!important}
+ .mobile-more-footer #hg-theme-toggle{position:static!important;display:flex!important;width:100%!important;max-width:100%!important;min-height:44px!important;margin:0 0 10px!important;justify-content:flex-start!important;border-radius:12px!important;padding:10px 12px!important;box-sizing:border-box!important}
+ .mobile-more-footer a[data-admin-only]{display:block;margin:0 0 10px!important;padding:11px 12px;border-radius:12px;text-decoration:none;font-weight:600;background:#eef6f0;color:#165a3d}
+ html[data-theme="dark"] .mobile-more-footer a[data-admin-only]{background:#2a3035;color:#f0f3f4!important}
+}
 /* Tighter mobile planner rows without sacrificing touch target size. */
 @media (max-width:700px) {
  #week-grid label {gap:4px!important;padding:7px 0!important;font-size:14px!important}
@@ -2791,7 +2800,24 @@ fetch('/api/auth/status',{cache:'no-store'}).then(r=>r.json()).then(status=>{
   if(localStorage.getItem('hellogroceries-active-page-v1')==='backup')showPage('all');
  }
 }).catch(()=>{});
-</script><script>if('serviceWorker' in navigator)navigator.serviceWorker.getRegistrations().then(rs=>rs.forEach(r=>{if(r.active&&r.active.scriptURL.endsWith('/sw.js'))r.unregister()})).catch(()=>{});</script><script>(function(){const b=document.createElement('button');b.id='hg-theme-toggle';b.type='button';b.setAttribute('aria-label','Toggle light and dark mode');function sync(){const dark=document.documentElement.dataset.theme==='dark';b.textContent=dark?'☀ Light mode':'☾ Dark mode';b.setAttribute('aria-pressed',String(dark))}b.addEventListener('click',()=>{const theme=document.documentElement.dataset.theme==='dark'?'light':'dark';document.documentElement.dataset.theme=theme;try{localStorage.setItem('hg-theme',theme)}catch(e){}sync()});(document.querySelector('header')||document.body).appendChild(b);sync()})()</script><script>
+</script><script>if('serviceWorker' in navigator)navigator.serviceWorker.getRegistrations().then(rs=>rs.forEach(r=>{if(r.active&&r.active.scriptURL.endsWith('/sw.js'))r.unregister()})).catch(()=>{});</script><script>(function(){const b=document.createElement('button');b.id='hg-theme-toggle';b.type='button';b.setAttribute('aria-label','Toggle light and dark mode');function sync(){const dark=document.documentElement.dataset.theme==='dark';b.textContent=dark?'☀ Light mode':'☾ Dark mode';b.setAttribute('aria-pressed',String(dark))}b.addEventListener('click',()=>{const theme=document.documentElement.dataset.theme==='dark'?'light':'dark';document.documentElement.dataset.theme=theme;try{localStorage.setItem('hg-theme',theme)}catch(e){}sync()});(document.querySelector('header')||document.body).appendChild(b);sync()})()</script><script>(function(){
+ const header=document.querySelector('header'),footer=document.querySelector('.mobile-more-footer');
+ const theme=document.getElementById('hg-theme-toggle'),admin=header&&header.querySelector('a[data-admin-only]');
+ if(!header||!footer||!theme)return;
+ const mobile=window.matchMedia('(max-width:750px)');
+ function placeSettings(){
+  if(mobile.matches){
+   footer.insertBefore(theme,footer.firstChild);
+   if(admin)footer.insertBefore(admin,theme.nextSibling);
+  }else{
+   header.appendChild(theme);
+   if(admin)header.appendChild(admin);
+  }
+ }
+ placeSettings();
+ if(mobile.addEventListener)mobile.addEventListener('change',placeSettings);
+ else if(mobile.addListener)mobile.addListener(placeSettings);
+})()</script><script>
 (function(){
 const csrf=()=>{const m=document.cookie.match(/(?:^|; )hg_csrf=([^;]*)/);return m?decodeURIComponent(m[1]):''};
 const emit=event=>{fetch('/api/analytics/event',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json','X-HG-CSRF':csrf()},body:JSON.stringify({event})}).then(async r=>{if(!r.ok)console.warn('Analytics event rejected:',r.status,(await r.text()).slice(0,160))}).catch(e=>console.warn('Analytics event failed:',e))};
