@@ -2117,20 +2117,28 @@ function renderSmartPrefs(){
 function updatePantryQuantityPreview(){
  const name=$('inventory-name').value.trim(),unit=$('inventory-unit').value,raw=$('inventory-amount').value;
  const mode=$('inventory-mode').value,preview=$('inventory-preview'),submit=$('inventory-submit');
- const key=name.toLocaleLowerCase()+'|'+unit;
- const existing=state?.pantry_inventory||{};
- const current=Number(existing[key]||0),hasQuantity=Object.prototype.hasOwnProperty.call(existing,key);
- const amount=Number(raw);
- const valid=Boolean(name)&&raw.trim()!==''&&Number.isFinite(amount)&&amount>=0&&amount<=100000;
- const next=mode==='add'?current+amount:mode==='use'?current-amount:amount;
- const allowed=valid&&next>=0&&next<=100000&&!(mode==='use'&&!hasQuantity);
+ const existing=state?.pantry_inventory||{},key=name.toLocaleLowerCase()+'|'+unit;
+ const conversions={teaspoon:['volume',4.92892159375],tablespoon:['volume',14.78676478125],cup:['volume',236.5882365],milliliter:['volume',1],liter:['volume',1000],gram:['mass',1],kilogram:['mass',1000],ounce:['mass',28.349523125],pound:['mass',453.59237]};
+ let targetKey=key,ambiguous=false;
+ if(mode!=='set'&&!Object.prototype.hasOwnProperty.call(existing,key)&&conversions[unit]){
+  const candidates=Object.keys(existing).filter(k=>k.startsWith(name.toLocaleLowerCase()+'|')&&conversions[k.split('|').pop()]?.[0]===conversions[unit][0]);
+  ambiguous=candidates.length>1;
+  if(candidates.length===1)targetKey=candidates[0];
+ }
+ const targetUnit=targetKey.split('|').pop();
+ const factor=targetUnit!==unit&&conversions[unit]&&conversions[targetUnit]?conversions[unit][1]/conversions[targetUnit][1]:1;
+ const current=Number(existing[targetKey]||0),tracked=Object.prototype.hasOwnProperty.call(existing,targetKey);
+ const amount=Number(raw),valid=Boolean(name)&&raw.trim()!==''&&Number.isFinite(amount)&&amount>=0&&amount<=100000;
+ const delta=amount*factor,next=mode==='add'?current+delta:mode==='use'?current-delta:amount;
+ const allowed=valid&&!ambiguous&&next>=0&&next<=100000&&!(mode==='use'&&!tracked);
  submit.disabled=!allowed;
  if(!name){preview.textContent='Enter an ingredient to preview the quantity change.';return}
  if(!valid){preview.textContent='Enter a valid amount to see the resulting quantity.';return}
- if(mode==='use'&&!hasQuantity){preview.textContent='Set a tracked quantity for this unit before using it.';return}
- if(next<0){preview.textContent='Not enough in pantry: currently '+groceryNumber(current)+' '+unit+'.';return}
+ if(ambiguous){preview.textContent='Multiple compatible units exist. Choose an existing unit to update.';return}
+ if(mode==='use'&&!tracked){preview.textContent='Set a tracked quantity for this unit before using it.';return}
+ if(next<0){preview.textContent='Not enough in pantry: currently '+groceryNumber(current)+' '+targetUnit+'.';return}
  if(next>100000){preview.textContent='Quantity exceeds the maximum allowed.';return}
- preview.textContent='Currently: '+groceryNumber(current)+' '+unit+' → After '+mode+': '+groceryNumber(next)+' '+unit+'.'+(hasQuantity?'':' This unit is not tracked yet.');
+ preview.textContent='Currently: '+groceryNumber(current)+' '+targetUnit+' → After '+mode+': '+groceryNumber(next)+' '+targetUnit+'.'+(targetUnit!==unit?' Converted from '+unit+'.':'')+(tracked?'':' This unit is not tracked yet.');
 }
 ['inventory-name','inventory-amount','inventory-unit','inventory-mode'].forEach(id=>{
  $(id).addEventListener('input',updatePantryQuantityPreview);
