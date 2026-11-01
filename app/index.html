@@ -1559,6 +1559,13 @@ function missingGroceryMeasure(rest){
 function shoppingDisplay(item){
  const name=cleanGroceryUnits(String(item.name||'').trim()), qty=Number(item.quantity);
  if(!Number.isFinite(qty)||qty<=0)return {name,note:''};
+ // Backend stores measured recipe ingredients as "unit Ingredient" with
+ // item.quantity already summed across selected recipes and serving counts.
+ const unitFirst=name.match(/^(teaspoons?|tablespoons?|cups?|ounces?|pounds?|grams?|kilograms?|milliliters?|liters?)\\s+(.+)$/i);
+ if(unitFirst){
+  const unit=ingredientUnitAliases[unitFirst[1].toLowerCase()]||unitFirst[1].toLowerCase();
+  return {name:groceryNumber(qty)+' '+ingredientPluralUnit(unit,qty)+' '+unitFirst[2],note:''};
+ }
  const fractions={'¼':0.25,'½':0.5,'¾':0.75,'⅓':1/3,'⅔':2/3,'⅛':0.125,'⅜':0.375,'⅝':0.625,'⅞':0.875};
  const match=name.match(/^(\d+(?:\.\d+)?(?:\s+\d+\/\d+)?|\d+\/\d+|[¼½¾⅓⅔⅛⅜⅝⅞])\s+(.+)$/);
  if(!match)return {name,note:'Source quantity needs confirmation — check recipe details'};
@@ -1593,7 +1600,7 @@ function shoppingDisplay(item){
  }
  return {name:pretty+' '+rest,note:missingGroceryMeasure(rest)?'Unit not specified':''};
 }
-function shoppingNeedsReview(item){const override=(state.ingredient_overrides||{})[item.name]||{};if(override.display)return false;const d=shoppingDisplay(item);return d.note==='Unit not specified'||/\b(?:pick|unit)\s+(?:chickpeas|croutons|beans|lentils|rice|pasta|seeds|nuts|dressing|hummus|pepper|garlic|salt|spices?)\b/i.test(item.name)||/^\s*(?:teaspoons?|tablespoons?|cups?|ounces?|pounds?)\s+\S/i.test(item.name);}
+function shoppingNeedsReview(item){const override=(state.ingredient_overrides||{})[item.name]||{};if(override.display)return false;const d=shoppingDisplay(item);return d.note==='Unit not specified'||/\b(?:pick|unit)\s+(?:chickpeas|croutons|beans|lentils|rice|pasta|seeds|nuts|dressing|hummus|pepper|garlic|salt|spices?)\b/i.test(item.name);}
 function consolidatedShoppingRows(items){
  const rows=[],seen=new Map();
  const conversions={teaspoon:['teaspoon',1],tablespoon:['teaspoon',3],cup:['teaspoon',48],milliliter:['milliliter',1],liter:['milliliter',1000],gram:['gram',1],kilogram:['gram',1000],ounce:['ounce',1],pound:['ounce',16]};
