@@ -2165,7 +2165,7 @@ function renderRecommendations(){
  }):recommendationRankCache.pool;
  // Refresh rotates complete, non-overlapping batches instead of reselecting
  // the same top-ranked protein groups on every click.
- const pageSize=4;
+ const pageSize=5;
  const offset=pool.length?recommendationOffset%pool.length:0;
  const rotated=pool.slice(offset).concat(pool.slice(0,offset));
  const results=rotated.slice(0,pageSize);
@@ -2183,7 +2183,7 @@ $('recommend-list').addEventListener('change',async e=>{
  finally{el.disabled=false}
 });
 $('recommend-list').addEventListener('scroll',updateRecommendationCarousel,{passive:true});window.addEventListener('resize',updateRecommendationCarousel);
-$('recommend-refresh').onclick=()=>{recommendationOffset+=4;renderRecommendations()};
+$('recommend-refresh').onclick=()=>{recommendationOffset+=5;renderRecommendations()};
 $('recommend-list').addEventListener('click',async e=>{
  const detail=e.target.closest('[data-recommend-detail]'),hide=e.target.closest('[data-recommend-hide]'),plan=e.target.closest('[data-recommend-plan]');
  if(plan){await selectMealAndRefresh(Number(plan.dataset.recommendPlan),true,2);return;}
