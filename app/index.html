@@ -2047,7 +2047,9 @@ function isNonRecipeListing(r){
 let recommendationOffset=0;
 
 
+const recommendationFeatureCache=new WeakMap();
 function recommendationFeatures(r){
+ if(recommendationFeatureCache.has(r))return recommendationFeatureCache.get(r);
  const name=cleanRecipeName(r.name||'').toLowerCase(),features=[];
  const protein=recipeGroup(r),cuisine=cuisineGroup(r),meal=mealGroup(r);
  if(protein!=='other')features.push(['protein:'+protein,5,'More '+protein+' meals']);
@@ -2058,8 +2060,10 @@ function recommendationFeatures(r){
  const ingredients=['potato','mushroom','broccoli','spinach','tomato','rice','garlic','lemon','lime','avocado','chickpea','sesame','ginger','sweet potato'];
  const ingredientText=name+' '+Object.keys(r.ingredients||{}).join(' ').toLowerCase();
  for(const ingredient of ingredients)if(ingredientText.includes(ingredient))features.push(['ingredient:'+ingredient,1,'Recipes with '+ingredient]);
+ recommendationFeatureCache.set(r,features);
  return features;
 }
+let recommendationRankCache=null;
 function renderRecommendations(){
  const panel=$('recommend-list');if(!panel)return;
  const picked=new Set(Object.keys(state.selected||{})),fav=new Set((state.favorites||[]).map(String));
@@ -2070,16 +2074,22 @@ function renderRecommendations(){
   const weight=(picked.has(String(r.id))?3:0)+(fav.has(String(r.id))?4:0)+(rating>=4?rating:0);
   for(const [key,importance] of recommendationFeatures(r))preferences.set(key,(preferences.get(key)||0)+weight*importance);
  }
- const candidates=recipes.filter(r=>!(state.recommendation_hidden||[]).includes(Number(r.id))&&!picked.has(String(r.id))&&!fav.has(String(r.id))&&!isNonRecipeListing(r)&&!isAddon(r)&&!isSideRecipe(r)&&!isWineListing(r)&&!isHolidayRecipe(r));
- const scored=candidates.map(r=>{
-  let score=0,reason='';const matches=recommendationFeatures(r);
-  for(const [key,importance,label] of matches){
-   const value=(preferences.get(key)||0)*importance;
-   score+=value;if(value>0&&(!reason||value>reason.score))reason={label,score:value};
-  }
-  return {r,score,reason:reason?.label||''};
- }).sort((a,b)=>b.score-a.score||Number(b.r.id)-Number(a.r.id));
- const pool=signals.length?scored.filter(x=>x.score>0):scored;
+ const signature=JSON.stringify([recipes.length,[...picked].sort(),[...fav].sort(),reviews,state.recommendation_hidden||[]]);
+ if(!recommendationRankCache||recommendationRankCache.signature!==signature){
+  const candidates=recipes.filter(r=>!(state.recommendation_hidden||[]).includes(Number(r.id))&&!picked.has(String(r.id))&&!fav.has(String(r.id))&&!isNonRecipeListing(r)&&!isAddon(r)&&!isSideRecipe(r)&&!isWineListing(r)&&!isHolidayRecipe(r));
+  const scored=candidates.map(r=>{
+   let score=0,reason='';const matches=recommendationFeatures(r);
+   for(const [key,importance,label] of matches){
+    const value=(preferences.get(key)||0)*importance;
+    score+=value;if(value>0&&(!reason||value>reason.score))reason={label,score:value};
+   }
+   return {r,score,reason:reason?.label||''};
+  }).sort((a,b)=>b.score-a.score||Number(b.r.id)-Number(a.r.id));
+  const pool=signals.length?scored.filter(x=>x.score>0):scored;
+ 
+  recommendationRankCache={signature,pool};
+ }
+ const pool=recommendationRankCache.pool;
  const offset=pool.length?recommendationOffset%pool.length:0;
  const results=[],usedGroups=new Set();
  for(const item of pool.slice(offset).concat(pool.slice(0,offset))){
