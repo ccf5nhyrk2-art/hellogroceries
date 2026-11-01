@@ -2315,7 +2315,63 @@ class Handler(SimpleHTTPRequestHandler):
    with lock:
     state=read()
     pantry_before={'pantry':list(state.get('pantry',[])),'pantry_inventory':dict(state.get('pantry_inventory',{}))}
-    if action=='select':
+    if action in ('preview_cooked_recipe','confirm_cooked_recipe','undo_cooked_recipe'):
+     inventory=state.setdefault('pantry_inventory',{})
+     history=state.setdefault('pantry_cooking_history',[])
+     if not isinstance(history,list):raise ValueError('Invalid cooking history')
+     if action=='undo_cooked_recipe':
+      event_id=p.get('event_id')
+      event=next((x for x in history if x.get('id')==event_id),None)
+      if not event or event.get('undone'):raise ValueError('Cooking event unavailable or already undone')
+      for key,delta in event['deductions'].items():
+       inventory[key]=round(float(inventory.get(key,0))+float(delta),4)
+      event['undone']=True
+     else:
+      rid=p.get('recipe_id')
+      if type(rid)!=int:raise ValueError('Invalid recipe')
+      recipe=next((r for r in allrecipes() if r['id']==rid),None)
+      if recipe is None:raise ValueError('Unknown recipe')
+      multiplier=p.get('servings',1)
+      if type(multiplier) not in (int,float) or not 0<float(multiplier)<=20:raise ValueError('Invalid serving multiplier')
+      corrections=state.get('recipe_ingredient_corrections',{})
+      conversions={'gram':('mass',1),'kilogram':('mass',1000),'ounce':('mass',28.349523125),'pound':('mass',453.59237),'milliliter':('volume',1),'liter':('volume',1000),'teaspoon':('volume',4.92892159375),'tablespoon':('volume',14.78676478125),'cup':('volume',236.5882365)}
+      remaining={k:float(v) for k,v in inventory.items() if type(v) in (int,float) and v>0}
+      deductions={}
+      unmatched=[]
+      for original in recipe.get('ingredients',{}):
+       correction=corrections.get(str(rid)+'|'+original)
+       if not isinstance(correction,dict):continue
+       name=str(correction.get('name','')).strip().casefold()
+       unit=correction.get('unit','')
+       amount=correction.get('amount')
+       if not name or '|' in name or type(amount) not in (int,float) or amount<=0:continue
+       required=float(amount)*float(multiplier)
+       matches=[]
+       for key,available in remaining.items():
+        if not key.startswith(name+'|') or available<=0:continue
+        stock_unit=key.rsplit('|',1)[-1]
+        if stock_unit==unit:factor=1
+        elif unit in conversions and stock_unit in conversions and conversions[unit][0]==conversions[stock_unit][0]:
+         factor=conversions[unit][1]/conversions[stock_unit][1]
+        else:continue
+        matches.append((key,factor))
+       for key,factor in matches:
+        take=min(remaining[key],required*factor)
+        if take<=0:continue
+        remaining[key]=round(remaining[key]-take,6)
+        deductions[key]=round(deductions.get(key,0)+take,6)
+        required=max(0,required-take/factor)
+        if required<0.000001:break
+       if required>0.000001:unmatched.append(name+' ('+unit+')')
+      if action=='preview_cooked_recipe':
+       return self.sendjson({'deductions':deductions,'not_deducted':unmatched,'recipe_name':recipe.get('name','Recipe')})
+      if not isinstance(p.get('event_id'),str) or not (8<=len(p['event_id'])<=80) or not re.fullmatch(r'[A-Za-z0-9_-]+',p['event_id']):raise ValueError('Invalid cooking event')
+      if any(x.get('id')==p['event_id'] for x in history):raise ValueError('This cooking event was already recorded')
+      if not deductions:raise ValueError('No verified pantry quantities to deduct')
+      for key,delta in deductions.items():inventory[key]=round(max(0,float(inventory[key])-delta),4)
+      history.append({'id':p['event_id'],'recipe_id':rid,'deductions':deductions,'undone':False,'at':time.time()})
+      if len(history)>100:del history[:-100]
+    elif action=='select':
      rid=str(int(p['id']));servings=float(p.get('servings',1))
      if not (0<servings<=20):raise ValueError('Serving multiplier must be 0–20')
      if p.get('checked') and rid not in {str(r['id']) for r in allrecipes()}:raise ValueError('Unknown recipe')
