@@ -2107,7 +2107,7 @@ function renderRecommendations(){
  }
  const signature=JSON.stringify([recipes.length,[...picked].sort(),[...fav].sort(),reviews,state.recommendation_hidden||[]]);
  if(!recommendationRankCache||recommendationRankCache.signature!==signature){
-  const candidates=recipes.filter(r=>!(state.recommendation_hidden||[]).includes(Number(r.id))&&!picked.has(String(r.id))&&!fav.has(String(r.id))&&!isNonRecipeListing(r)&&!isAddon(r)&&!isSideRecipe(r)&&!isWineListing(r)&&!isHolidayRecipe(r));
+  const candidates=recipes.filter(r=>!(state.recommendation_hidden||[]).includes(Number(r.id))&&!picked.has(String(r.id))&&!fav.has(String(r.id))&&Boolean(r.image)&&!isNonRecipeListing(r)&&!isAddon(r)&&!isSideRecipe(r)&&!isWineListing(r)&&!isHolidayRecipe(r));
   const scored=candidates.map(r=>{
    let score=0,reason='';const matches=recommendationFeatures(r);
    for(const [key,importance,label] of matches){
@@ -2134,7 +2134,7 @@ function renderRecommendations(){
   results.push(item);usedGroups.add(group);if(results.length===4)break;
  }
  if(results.length<4)for(const item of pool.slice(offset).concat(pool.slice(0,offset))){if(!results.includes(item)){results.push(item);if(results.length===4)break}}
- panel.innerHTML=results.length?results.map(({r,reason})=>'<article class="recommend-card">'+((r.image||r.url)?'<img class="recommend-photo" src="/api/photo/'+encodeURIComponent(r.id)+'" alt="" loading="lazy" onerror="this.style.display=\'none\'">':'<div class="recommend-photo recommend-photo-placeholder" aria-hidden="true">🍽️</div>')+'<strong class="recommend-title">'+esc(cleanRecipeName(r.name))+'</strong><div class="muted recommend-reason" style="font-size:12px;margin:6px 0">'+(reason?esc(reason):'Discover something new')+'</div><div class="recommend-actions"><button type="button" data-recommend-detail="'+r.id+'">View recipe</button><button type="button" data-recommend-plan="'+r.id+'">Add to plan</button></div><button type="button" data-recommend-hide="'+r.id+'" class="recommend-dismiss">Not interested</button></article>').join(''):'<p class="muted">'+(terms.length?'No personalized suggestions match this search. Try a different search or clear it to see your usual recommendations.':'No suggestions available yet.')+'</p>';
+ panel.innerHTML=results.length?results.map(({r,reason})=>'<article class="recommend-card">'+((r.image||r.url)?'<img class="recommend-photo" src="/api/photo/'+encodeURIComponent(r.id)+'" alt="" loading="lazy" onerror="this.parentElement.remove()">':'')+'<strong class="recommend-title">'+esc(cleanRecipeName(r.name))+'</strong><div class="muted recommend-reason" style="font-size:12px;margin:6px 0">'+(reason?esc(reason):'Discover something new')+'</div><div class="recommend-actions"><button type="button" data-recommend-detail="'+r.id+'">View recipe</button><button type="button" data-recommend-plan="'+r.id+'">Add to plan</button></div><button type="button" data-recommend-hide="'+r.id+'" class="recommend-dismiss">Not interested</button></article>').join(''):'<p class="muted">'+(terms.length?'No personalized suggestions match this search. Try a different search or clear it to see your usual recommendations.':'No suggestions available yet.')+'</p>';
 }
 $('recommend-refresh').onclick=()=>{recommendationOffset+=4;renderRecommendations()};
 $('recommend-list').addEventListener('click',async e=>{
