@@ -303,7 +303,7 @@ def resolve_photo(recipe,refresh=False):
 def allowed_url(url):
  u=urllib.parse.urlsplit(url)
  host=(u.hostname or '').lower()
- return u.scheme=='https' and (host=='hellofresh.com' or host.startswith('hellofresh.') or host.endswith('.hellofresh.com') or host.endswith('.hellofresh.co.uk') or host.endswith('.hellofresh.com.au') or host.endswith('.hellofresh.co.nz')) and not u.username and not u.password
+ return u.scheme=='https' and recipe_country_from_url(url)!='other' and not u.username and not u.password
 
 def nutrition_fallback(page):
  # Parse embedded HelloFresh nutrition arrays without inferring missing values.
@@ -326,6 +326,13 @@ def nutrition_fallback(page):
     output[key]=str(value).strip()+(' '+str(unit).strip() if unit else '')
   if output:return output
  return {}
+
+def recipe_country_from_url(url):
+ host=(urllib.parse.urlsplit(url).hostname or '').lower()
+ domains={'hellofresh.com':'US','hellofresh.co.uk':'UK','hellofresh.com.au':'AU','hellofresh.ca':'CA','hellofresh.de':'DE','hellofresh.nl':'NL','hellofresh.co.nz':'NZ'}
+ for domain,code in domains.items():
+  if host==domain or host.endswith('.'+domain):return code
+ return 'other'
 
 def recipe_from_url(url):
  if not allowed_url(url):raise ValueError('Only public HTTPS HelloFresh recipe URLs are supported')
@@ -378,7 +385,7 @@ def recipe_from_url(url):
    if isinstance(entry,str):
     label=allowed.get(entry.rsplit('/',1)[-1])
     if label and label not in diet_labels:diet_labels.append(label)
- return {'name':name,'country':urllib.parse.urlsplit(url).hostname,'url':url,'image':str(photo),'ingredients':ingredients,'ingredient_text':items,'source':'HelloFresh page','instructions_url':url,'nutrition':nutrition,'dietary_labels':diet_labels}
+ return {'name':name,'country':recipe_country_from_url(url),'url':url,'image':str(photo),'ingredients':ingredients,'ingredient_text':items,'source':'HelloFresh page','instructions_url':url,'nutrition':nutrition,'dietary_labels':diet_labels}
 
 def discover_sitemap(country,limit):
  roots={'US':'https://www.hellofresh.com/sitemap_recipe_pages.xml','UK':'https://www.hellofresh.co.uk/sitemap.xml','AU':'https://www.hellofresh.com.au/sitemap.xml','CA':'https://www.hellofresh.ca/sitemap.xml','DE':'https://www.hellofresh.de/sitemap.xml','NL':'https://www.hellofresh.nl/sitemap.xml'}
