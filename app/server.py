@@ -69,7 +69,7 @@ def task_overview():
   item('store_directory','Nationwide store directory refresh','Automatic when cache expires (7 days) or store search needs it',False,datetime.datetime.fromtimestamp(ATP_CACHE_FILE.stat().st_mtime,datetime.timezone.utc).isoformat() if ATP_CACHE_FILE.exists() else None,'store_directory'),
   item('store_geocode','Store address geocoding','Automatic during store search (only uncached addresses)',RETAILER_GEOCODE_RUNNING,datetime.datetime.fromtimestamp(Path('/data/retailer_address_coordinates.json').stat().st_mtime,datetime.timezone.utc).isoformat() if Path('/data/retailer_address_coordinates.json').exists() else None,'store_geocode'),
   item('reef_prices','ReefAPI grocery price refresh','Manual only; cached prices expire after 365 days',False,None,None),
-  {'key':'recommendation_photos','name':'Recommendation photo caching','frequency':'Background: checks hourly; 15 seconds between downloads (target: 40 photos)','running':recommendation_photo_warmup['running'],'last_started':recommendation_photo_warmup['last_started'],'last_finished':recommendation_photo_warmup['last_finished'],'next_run':recommendation_photo_warmup['next_run'],'status':'Running' if recommendation_photo_warmup['running'] else 'Waiting for next cycle','cached':recommendation_photo_warmup['cached'],'target':40,'checked':recommendation_photo_warmup['checked'],'errors':recommendation_photo_warmup['errors'],'action':None}
+  {'key':'recommendation_photos','name':'Recommendation photo caching','frequency':'Background: checks hourly; 15 seconds between downloads (target: 40 photos)','running':recommendation_photo_warmup['running'],'last_started':recommendation_photo_warmup['last_started'],'last_finished':recommendation_photo_warmup['last_finished'],'next_run':recommendation_photo_warmup['next_run'],'status':'Running' if recommendation_photo_warmup['running'] else 'Waiting for next cycle','cached':recommendation_photo_warmup['cached'],'target':RECOMMENDATION_PHOTO_TARGET,'checked':recommendation_photo_warmup['checked'],'errors':recommendation_photo_warmup['errors'],'action':None}
  ]
 
 def us_import_running():
@@ -319,6 +319,8 @@ def resolve_photo(recipe,refresh=False):
   return None if refresh else cached_photo(rid)
 
 # Low-rate background warmup for recommendation photos; never blocks a page request.
+RECOMMENDATION_PHOTO_TARGET=150
+recommendation_photo_wakeup=threading.Event()
 recommendation_photo_warmup={'last_attempt':None,'cached':0,'checked':0,'errors':0,'running':False,'last_started':None,'last_finished':None,'next_run':None}
 def recommendation_photo_warmup_worker():
  import random
@@ -332,7 +334,7 @@ def recommendation_photo_warmup_worker():
    recommendation_photo_warmup['cached']=cached
    # Keep the warmup deliberately small and low-rate to limit external traffic.
    for recipe in recipes:
-    if cached>=40:break
+    if cached>=RECOMMENDATION_PHOTO_TARGET:break
     if cached_photo(int(recipe['id'])):continue
     recommendation_photo_warmup['last_attempt']=int(recipe['id'])
     recommendation_photo_warmup['checked']+=1
@@ -348,7 +350,8 @@ def recommendation_photo_warmup_worker():
    recommendation_photo_warmup['running']=False
    recommendation_photo_warmup['last_finished']=datetime.datetime.now(datetime.timezone.utc).isoformat()
    recommendation_photo_warmup['next_run']=(datetime.datetime.now(datetime.timezone.utc)+datetime.timedelta(hours=1)).isoformat()
-  time.sleep(3600)
+  recommendation_photo_wakeup.wait(3600)
+  recommendation_photo_wakeup.clear()
 
 def allowed_url(url):
  u=urllib.parse.urlsplit(url)
@@ -1781,6 +1784,13 @@ class Handler(SimpleHTTPRequestHandler):
    q=urllib.parse.parse_qs(urllib.parse.urlsplit(self.path).query)
    try:return self.sendjson(reef_test_search(q.get('zip',[''])[0],q.get('item',[''])[0]))
    except ValueError as exc:return self.sendjson({'error':str(exc)},400)
+  if self.path=='/api/admin/recommendation-photos/run':
+   if not self.gate(write=True):return
+   if not getattr(request_scope,'admin',False):return self.sendjson({'error':'Administrator required'},403)
+   if recommendation_photo_warmup['running']:
+    return self.sendjson({'ok':True,'message':'Photo caching is already running.'})
+   recommendation_photo_wakeup.set()
+   return self.sendjson({'ok':True,'message':'Photo cache check queued.'})
   if self.path=='/api/admin/recipe-photos/repair':
    if not self.gate(write=True):return
    if not getattr(request_scope,'admin',False):return self.sendjson({'error':'Administrator required'},403)
