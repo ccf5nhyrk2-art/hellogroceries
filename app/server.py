@@ -1499,6 +1499,7 @@ def rebuild_grocery_list(state):
    needed-=taken
    if needed<=0.000001:break
   return max(0,needed)
+ corrected_labels=set()
  for key in list(totals):
   if not key.startswith('__corrected__|'):continue
   _,unit,ingredient=key.split('|',2)
@@ -1508,9 +1509,10 @@ def rebuild_grocery_list(state):
   if needed<=0.000001:continue
   label=(str(round(needed,3)).rstrip('0').rstrip('.') if needed%1 else str(int(needed)))+' '+(unit+' ' if unit and unit!='count' else '')+ingredient
   totals[label]=totals.get(label,0)+1
+  corrected_labels.add(label)
   sources.setdefault(label,[]).extend(original_sources)
  for label in list(totals):
-  if label.startswith('__corrected__|'):continue
+  if label.startswith('__corrected__|') or label in corrected_labels:continue
   match=re.match(r'^(\d+(?:\.\d+)?)\s+(?:(pick|unit|piece|pieces|count|teaspoon|tablespoon|cup|ounce|pound|gram|kilogram|milliliter|liter)\s+)?(.+)$',label,re.I)
   if not match:continue
   per_item=float(match.group(1))
