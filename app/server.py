@@ -362,6 +362,7 @@ def validate_import_recipe(recipe):
   r'\\b(?:pet(?:s)?\\s*(?:food|table)|dog\\s*(?:food|treats?)|cat\\s*(?:food|treats?)|kibble)\\b',
   r'\\b(?:air.dried|freeze.dried)\\s*(?:beef|chicken|turkey|salmon)\\b.*\\b(?:box|pack|bag|lb|lbs)\\b',
   r'\\b(?:variety|assortment|bulk)\\s*(?:box|pack)\\b',
+  r'\\b(?:ground|whole.bean|instant)\\s+coffee\\b.*\\b(?:oz|lb|bag|roast|notes?\\s+of)\\b',
  )
  if any(re.search(pattern,title) for pattern in product_patterns):
   raise ValueError('Skipped non-recipe product listing')
