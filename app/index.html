@@ -2292,6 +2292,7 @@ function recommendationPantryMatches(r){
  const pantry=Object.keys(state.pantry_inventory||{}).filter(k=>Number(state.pantry_inventory[k])>0).map(k=>ingredientKey(k.split('|')[0])).filter(k=>k.length>=3);
  return pantry.filter(k=>Object.keys(r.ingredients||{}).some(ingredient=>{const normalized=ingredientKey(ingredient);return normalized===k||normalized.includes(k)||k.includes(normalized)&&normalized.length>=3})).length;
 }
+let recommendationRenderGeneration=0;
 function renderRecommendations(){
  const panel=$('recommend-list');if(!panel)return;
  const picked=new Set(Object.keys(state.selected||{})),fav=new Set((state.favorites||[]).map(String));
@@ -2351,7 +2352,36 @@ function renderRecommendations(){
  addFrom(rotated,5);
  // Relax variety limits only when otherwise unable to fill five slots.
  if(results.length<5)for(const item of rotated){if(results.length>=5)break;if(!used.has(String(item.r.id))){results.push(item);used.add(String(item.r.id))}}
- panel.innerHTML=results.length?results.map(({r,reason})=>'<article class="recommend-card">'+('<img class="recommend-photo" src="/api/photo/'+encodeURIComponent(r.id)+'" alt="" loading="lazy" onerror="recommendationPhotoFailed(this)">')+'<strong class="recommend-title">'+esc(cleanRecipeName(r.name))+'</strong><div class="muted recommend-reason" style="font-size:12px;margin:6px 0">'+esc(reason)+'</div><div class="recommend-actions"><button type="button" data-recommend-detail="'+r.id+'">View recipe</button><button type="button" data-recommend-plan="'+r.id+'">Add to plan</button></div><select data-recommend-collection="'+r.id+'" aria-label="Add recommended recipe to collection" style="width:100%;margin-top:8px;min-height:40px"><option value="">Add to collection…</option>'+Object.keys(state.collections||{}).map(n=>'<option value="'+esc(n)+'">'+esc(n)+'</option>').join('')+'</select><button type="button" data-recommend-more="'+r.id+'" class="recommend-dismiss">Show me more like this</button><button type="button" data-recommend-hide="'+r.id+'" class="recommend-dismiss">Not interested</button></article>').join(''):'<p class="muted">'+(terms.length?'No suggestions match this search. Try clearing the search.':'No suggestions available yet.')+'</p>';
+ void (async()=>{
+ // Verify photo responses before revealing cards. The server caches successful images.
+ const generation=++recommendationRenderGeneration;
+ const choices=[...results,...rotated.filter(x=>!used.has(String(x.r.id)))].slice(0,24);
+ const verified=[];
+ if(!choices.length){panel.innerHTML='<p class="muted">No recommendations available.</p>';return}
+ panel.innerHTML='<p class="muted" role="status">Loading recommendations with photos…</p>';
+ let next=0;
+ async function worker(){
+  while(next<choices.length&&verified.length<5&&generation===recommendationRenderGeneration){
+   const item=choices[next++];
+   if(recommendationFailedPhotos.has(String(item.r.id)))continue;
+   const ok=await new Promise(resolve=>{
+    const img=new Image();let done=false;
+    const timeout=setTimeout(()=>finish(false),10000);
+    function finish(value){if(done)return;done=true;clearTimeout(timeout);img.onload=null;img.onerror=null;resolve(value)}
+    img.onload=()=>finish(img.naturalWidth>0);
+    img.onerror=()=>finish(false);
+    img.src='/api/photo/'+encodeURIComponent(item.r.id);
+   });
+   if(generation!==recommendationRenderGeneration)return;
+   if(ok){if(verified.length<5)verified.push(item)}
+   else recommendationFailedPhotos.add(String(item.r.id));
+  }
+ }
+ await Promise.all([worker(),worker(),worker()]);
+ if(generation!==recommendationRenderGeneration)return;
+ panel.innerHTML=verified.length?verified.map(({r,reason})=>'<article class="recommend-card">'+('<img class="recommend-photo" src="/api/photo/'+encodeURIComponent(r.id)+'" alt="" loading="lazy">')+'<strong class="recommend-title">'+esc(cleanRecipeName(r.name))+'</strong><div class="muted recommend-reason" style="font-size:12px;margin:6px 0">'+esc(reason)+'</div><div class="recommend-actions"><button type="button" data-recommend-detail="'+r.id+'">View recipe</button><button type="button" data-recommend-plan="'+r.id+'">Add to plan</button></div><select data-recommend-collection="'+r.id+'" aria-label="Add recommended recipe to collection" style="width:100%;margin-top:8px;min-height:40px"><option value="">Add to collection…</option>'+Object.keys(state.collections||{}).map(n=>'<option value="'+esc(n)+'">'+esc(n)+'</option>').join('')+'</select><button type="button" data-recommend-more="'+r.id+'" class="recommend-dismiss">Show me more like this</button><button type="button" data-recommend-hide="'+r.id+'" class="recommend-dismiss">Not interested</button></article>').join(''):'<p class="muted">'+(terms.length?'No suggestions match this search. Try clearing the search.':'No suggestions available yet.')+'</p>';
+
+ })();
  requestAnimationFrame(updateRecommendationCarousel);
 }
 const recommendationReplacementBusy=new WeakSet();
