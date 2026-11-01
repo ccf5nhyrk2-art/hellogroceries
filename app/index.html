@@ -2045,6 +2045,8 @@ function isNonRecipeListing(r){
   && !Object.keys(r.ingredients||{}).some(k=>/\b(?:chicken|beef|pork|fish|salmon|rice|pasta|flour|onion|garlic|tomato|potato)\b/i.test(k));
 }
 let recommendationOffset=0;
+const recommendationHidden=new Set();
+
 function recommendationTokens(recipe){
  const ignore=new Set(['with','and','the','for','from','fresh','style','plus','over','served','hello','recipe','classic','creamy','crispy','easy','quick','minute','minutes']);
  return new Set(cleanRecipeName(recipe.name||'').toLowerCase().match(/[a-z]{4,}/g)?.filter(w=>!ignore.has(w))||[]);
@@ -2058,7 +2060,7 @@ function renderRecommendations(){
   const weight=(picked.has(String(r.id))?3:0)+(fav.has(String(r.id))?4:0)+(Number(reviews[String(r.id)]?.rating)>=4?4:0);
   for(const word of recommendationTokens(r))preferences.set(word,(preferences.get(word)||0)+weight);
  }
- const candidates=recipes.filter(r=>!picked.has(String(r.id))&&!fav.has(String(r.id))&&!isNonRecipeListing(r)&&!isAddon(r)&&!isSideRecipe(r)&&!isWineListing(r)&&!isHolidayRecipe(r));
+ const candidates=recipes.filter(r=>!recommendationHidden.has(String(r.id))&&!picked.has(String(r.id))&&!fav.has(String(r.id))&&!isNonRecipeListing(r)&&!isAddon(r)&&!isSideRecipe(r)&&!isWineListing(r)&&!isHolidayRecipe(r));
  const scored=candidates.map(r=>{
   let score=0,reason='';
   for(const word of recommendationTokens(r)){const value=preferences.get(word)||0;if(value>score){score=value;reason=word}}
@@ -2073,7 +2075,7 @@ $('recommend-refresh').onclick=()=>{recommendationOffset+=4;renderRecommendation
 $('recommend-list').addEventListener('click',e=>{
  const detail=e.target.closest('[data-recommend-detail]'),hide=e.target.closest('[data-recommend-hide]');
  if(detail){const target=document.querySelector('[data-detail="'+detail.dataset.recommendDetail+'"]');if(target){target.click()}else{const r=recipes.find(x=>String(x.id)===detail.dataset.recommendDetail);if(r?.url)window.open(r.url,'_blank','noopener,noreferrer')}}
- if(hide){recommendationOffset++;renderRecommendations()}
+ if(hide){recommendationHidden.add(String(hide.dataset.recommendHide));renderRecommendations()}
 });
 function render(){updateEnhancements();$('diet-warning').style.display=$('diet-filter').value==='all'?'none':'block';const q=$('search').value.toLowerCase().trim(),selected=state.selected||{};$('count').textContent=`(${Object.keys(selected).length} selected · ${recipes.length.toLocaleString()} total)`;let filtered=recipes.filter(r=>{const name=cleanRecipeName(r.name).toLowerCase();const internalTest=/\b(?:do\s+not\s+use|uat|test(?:ing)?(?:\s+recipe)?|recipe\s+(?:card\s+)?test|modular\s+recipe\s+card\s+test)\b/i.test(String(r.name||''));return !isNonRecipeListing(r)&&hasIncludedSide(r,$('included-side').value)&&($('meal').value!=='sides'||isSideRecipe(r))&&(!internalTest||$('selectedonly').checked)&&($('meal').value==='wine'?isWineListing(r):$('meal').value==='holiday'?isHolidayRecipe(r)&&!isWineListing(r):!isWineListing(r)&&!isHolidayRecipe(r))&&(!$('quickmeals').checked||quickMinutes(r)!==null)&&($('meal').value==='sides'||!$('fullmeals').checked||!isAddon(r))&&(name+' '+(r.country||'').toLowerCase()).includes(q)&&($('protein').value==='all'||recipeGroup(r)===$('protein').value)&&($('cuisine').value==='all'||cuisineGroup(r)===$('cuisine').value)&&(['holiday','wine','sides'].includes($('meal').value)||$('meal').value==='all'||mealGroup(r)===$('meal').value)&&($('recipe-country').value==='all'||($('recipe-country').value==='other'?!['US','UK','AU','CA','DE','NL'].includes(String(r.country||'').toUpperCase()):String(r.country||'').toUpperCase()===$('recipe-country').value))&&dietMatch(r,$('diet-filter').value)&&($('rating-filter').value==='all'||($('rating-filter').value==='unrated'?!(state.recipe_reviews||{})[String(r.id)]?.rating:Number((state.recipe_reviews||{})[String(r.id)]?.rating||0)>=Number($('rating-filter').value)))&&($('favorite-filter').value!=='favorites'||(state.favorites||[]).includes(r.id))&&($('collection-filter').value==='all'||(state.collections||{})[$('collection-filter').value]?.includes(r.id))&&($('ingredient-filter').value==='all'||Object.keys(r.ingredients||{}).some(x=>x.toLowerCase().includes($('ingredient-filter').value)))&&(!$('exclude-ingredient').value.trim()||!Object.keys(r.ingredients||{}).some(x=>x.toLowerCase().includes($('exclude-ingredient').value.trim().toLowerCase())))&&(!$('selectedonly').checked||Object.hasOwn(selected,String(r.id)))});// Only collapse identical titles with identical ingredient data; keep named variations.
 const seenRecipeKeys=new Set();
