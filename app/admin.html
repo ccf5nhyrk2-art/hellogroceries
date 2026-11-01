@@ -467,12 +467,29 @@ async function loadTasks(){
    const meta=document.createElement('div');meta.className='account-meta';
    const fmt=value=>value?new Date(value).toLocaleString():'Not recorded';
    meta.textContent='Frequency: '+task.frequency+' · Last started/activity: '+fmt(task.last_started)+' · Last finished: '+fmt(task.last_finished)+' · Status: '+(task.running?'Running':task.status);
-   if(task.key==='recommendation_photos'){
+   if(task.key==='nutrition'){
+    const progress=document.createElement('div');progress.className='account-meta';
+    progress.textContent='Scanned this cycle: '+(task.processed||0)+' / '+(task.total||0)+' · Nutrition added: '+(task.updated||0)+' · Source unavailable: '+(task.missing||0)+' · Errors: '+(task.failed||0)+' · Next check: '+fmt(task.next_run);
+    info.append(title,meta,progress);
+   }else if(task.key==='recommendation_photos'){
     const progress=document.createElement('div');progress.className='account-meta';
     progress.textContent='Cached photos: '+(task.cached||0)+' / '+(task.target||150)+' · Download attempts: '+(task.checked||0)+' · Errors: '+(task.errors||0)+' · Next check: '+fmt(task.next_run);
     info.append(title,meta,progress);
    }else info.append(title,meta);
    card.append(info);
+   if(task.key==='nutrition'){
+    const button=document.createElement('button');button.type='button';button.className='button-secondary';
+    button.textContent=task.running?'Running…':'Run now';button.disabled=Boolean(task.running);
+    button.onclick=async()=>{
+     button.disabled=true;const msg=document.getElementById('tasks-message');msg.textContent='Queuing nutrition scan…';
+     try{
+      const response=await fetch('/api/admin/nutrition/run',{method:'POST',headers:{'Content-Type':'application/json','X-HG-CSRF':csrf()},body:'{}'});
+      const data=await response.json();if(!response.ok)throw Error(data.error||'Unable to start');
+      msg.textContent=data.message||'Nutrition scan queued.';await loadTasks();
+     }catch(error){msg.textContent=error.message;button.disabled=false}
+    };
+    card.append(button);
+   }
    if(task.key==='recommendation_photos'){
     const button=document.createElement('button');button.type='button';button.className='button-secondary';
     button.textContent=task.running?'Running…':'Run now';button.disabled=Boolean(task.running);
