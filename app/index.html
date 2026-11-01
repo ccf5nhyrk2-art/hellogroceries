@@ -2133,6 +2133,22 @@ function recommendationFeatures(r){
 }
 let recommendationRankCache=null;
 const recommendationFailedPhotos=new Set();
+const recommendationStoreKey='hg-recommendations-v2';
+let recommendationMemory={recent:[],more:[]};
+try{
+ const saved=JSON.parse(localStorage.getItem(recommendationStoreKey)||'{}');
+ recommendationMemory={recent:Array.isArray(saved.recent)?saved.recent.map(String).slice(-30):[],more:Array.isArray(saved.more)?saved.more.map(String).slice(-30):[]};
+}catch(e){}
+function saveRecommendationMemory(){try{localStorage.setItem(recommendationStoreKey,JSON.stringify(recommendationMemory))}catch(e){}}
+function recommendationSeason(r){
+ const month=new Date().getMonth(),name=cleanRecipeName(r.name||'').toLowerCase();
+ const seasonal=month===11||month<=1?/\\b(soup|stew|roast|chili|casserole|braised|baked)\\b/:month<=4?/\\b(salad|asparagus|lemon|pea|spring|herb)\\b/:month<=7?/\\b(grill|salad|corn|tomato|lime|summer)\\b/:/\\b(squash|pumpkin|apple|roast|soup|mushroom)\\b/;
+ return seasonal.test(name);
+}
+function recommendationPantryMatches(r){
+ const pantry=Object.keys(state.pantry_inventory||{}).filter(k=>Number(state.pantry_inventory[k])>0).map(k=>ingredientKey(k.split('|')[0])).filter(k=>k.length>=3);
+ return pantry.filter(k=>Object.keys(r.ingredients||{}).some(ingredient=>{const normalized=ingredientKey(ingredient);return normalized===k||normalized.includes(k)||k.includes(normalized)&&normalized.length>=3})).length;
+}
 function renderRecommendations(){
  const panel=$('recommend-list');if(!panel)return;
  const picked=new Set(Object.keys(state.selected||{})),fav=new Set((state.favorites||[]).map(String));
@@ -2143,21 +2159,25 @@ function renderRecommendations(){
   const weight=(picked.has(String(r.id))?3:0)+(fav.has(String(r.id))?4:0)+(rating>=4?rating:0);
   for(const [key,importance] of recommendationFeatures(r))preferences.set(key,(preferences.get(key)||0)+weight*importance);
  }
- const signature=JSON.stringify([recipes.length,[...picked].sort(),[...fav].sort(),reviews,state.recommendation_hidden||[],[...recommendationFailedPhotos].sort()]);
+ for(const id of recommendationMemory.more){
+  const r=recipes.find(x=>String(x.id)===id);if(!r)continue;
+  for(const [key,importance] of recommendationFeatures(r))preferences.set(key,(preferences.get(key)||0)+3*importance);
+ }
+ const signature=JSON.stringify([recipes.length,[...picked].sort(),[...fav].sort(),reviews,state.recommendation_hidden||[],[...recommendationFailedPhotos].sort(),recommendationMemory.more,JSON.stringify(state.pantry_inventory||{}),new Date().getMonth()]);
  if(!recommendationRankCache||recommendationRankCache.signature!==signature){
   const candidates=recipes.filter(r=>!(state.recommendation_hidden||[]).includes(Number(r.id))&&!picked.has(String(r.id))&&!fav.has(String(r.id))&&Boolean(r.image)&&!recommendationFailedPhotos.has(String(r.id))&&!isNonRecipeListing(r)&&!isAddon(r)&&!isSideRecipe(r)&&!isWineListing(r)&&!isHolidayRecipe(r));
   const scored=candidates.map(r=>{
-   let score=0,reason='';const matches=recommendationFeatures(r);
-   for(const [key,importance,label] of matches){
+   let score=0,reason='',best=0;
+   for(const [key,importance,label] of recommendationFeatures(r)){
     const value=(preferences.get(key)||0)*importance;
-    score+=value;if(value>0&&(!reason||value>reason.score))reason={label,score:value};
+    score+=value;if(value>best){best=value;reason=label}
    }
-   return {r,score,reason:reason?.label||''};
+   const pantry=recommendationPantryMatches(r),quick=quickMinutes(r),seasonal=recommendationSeason(r);
+   const bonus=Math.min(3,pantry)*8+(quick!==null?12:0)+(seasonal?6:0);
+   const explanation=pantry?'Uses '+pantry+' pantry ingredient'+(pantry===1?'':'s'):quick!==null?'Quick '+quick+'-minute meal':seasonal?'Seasonal pick':reason||'Try something new';
+   return {r,score:score+bonus,personal:score>0,reason:explanation,group:recipeGroup(r)||'other',meal:mealGroup(r)||'other'};
   }).sort((a,b)=>b.score-a.score||Number(b.r.id)-Number(a.r.id));
-  // Prefer personalized matches, but fill the batch from other eligible recipes.
-  const pool=signals.length?[...scored.filter(x=>x.score>0),...scored.filter(x=>x.score<=0)]:scored;
- 
-  recommendationRankCache={signature,pool};
+  recommendationRankCache={signature,pool:scored};
  }
  const query=$('search').value.toLowerCase().trim();
  const terms=query.split(/\\s+/).filter(Boolean);
@@ -2165,29 +2185,30 @@ function renderRecommendations(){
   const searchable=[cleanRecipeName(r.name),r.country,r.cuisine,r.description].filter(Boolean).join(' ').toLowerCase();
   return terms.every(term=>searchable.includes(term));
  }):recommendationRankCache.pool;
- // Refresh rotates complete, non-overlapping batches instead of reselecting
- // the same top-ranked protein groups on every click.
- const pageSize=5;
- const offset=pool.length?recommendationOffset%pool.length:0;
- const rotated=pool.slice(offset).concat(pool.slice(0,offset));
- // Spread recommendations across proteins instead of filling the batch
- // with one dominant preference (often chicken). Still use the ranked
- // order within each group and fill remaining slots when groups are scarce.
- const groups=new Map();
- for(const item of rotated){
-  const group=recipeGroup(item.r)||'other';
-  if(!groups.has(group))groups.set(group,[]);
-  groups.get(group).push(item);
- }
- const results=[];
- while(results.length<pageSize&&groups.size){
-  for(const [group,items] of groups){
-   if(results.length>=pageSize)break;
-   results.push(items.shift());
-   if(!items.length)groups.delete(group);
+ const recent=new Set(recommendationMemory.recent);
+ const fresh=pool.filter(x=>!recent.has(String(x.r.id)));
+ const candidates=fresh.length>=5?fresh:pool;
+ const offset=candidates.length?recommendationOffset%candidates.length:0;
+ const rotated=candidates.slice(offset).concat(candidates.slice(0,offset));
+ const results=[],used=new Set(),groupCounts=new Map(),mealCounts=new Map();
+ function addFrom(items,limit){
+  for(const item of items){
+   if(results.length>=limit)break;
+   const id=String(item.r.id);if(used.has(id))continue;
+   if((groupCounts.get(item.group)||0)>=2)continue;
+   if((mealCounts.get(item.meal)||0)>=3)continue;
+   results.push(item);used.add(id);
+   groupCounts.set(item.group,(groupCounts.get(item.group)||0)+1);
+   mealCounts.set(item.meal,(mealCounts.get(item.meal)||0)+1);
   }
  }
- panel.innerHTML=results.length?results.map(({r,reason})=>'<article class="recommend-card">'+((r.image||r.url)?'<img class="recommend-photo" src="/api/photo/'+encodeURIComponent(r.id)+'" alt="" loading="lazy" onerror="recommendationPhotoFailed(this)">':'')+'<strong class="recommend-title">'+esc(cleanRecipeName(r.name))+'</strong><div class="muted recommend-reason" style="font-size:12px;margin:6px 0">'+(reason?esc(reason):'Discover something new')+'</div><div class="recommend-actions"><button type="button" data-recommend-detail="'+r.id+'">View recipe</button><button type="button" data-recommend-plan="'+r.id+'">Add to plan</button></div><select data-recommend-collection="'+r.id+'" aria-label="Add recommended recipe to collection" style="width:100%;margin-top:8px;min-height:40px"><option value="">Add to collection…</option>'+Object.keys(state.collections||{}).map(n=>'<option value="'+esc(n)+'">'+esc(n)+'</option>').join('')+'</select><button type="button" data-recommend-hide="'+r.id+'" class="recommend-dismiss">Not interested</button></article>').join(''):'<p class="muted">'+(terms.length?'No personalized suggestions match this search. Try a different search or clear it to see your usual recommendations.':'No suggestions available yet.')+'</p>';
+ // Three familiar choices plus two discoveries whenever the catalog allows.
+ addFrom(rotated.filter(x=>x.personal),3);
+ addFrom(rotated.filter(x=>!x.personal),5);
+ addFrom(rotated,5);
+ // Relax variety limits only when otherwise unable to fill five slots.
+ if(results.length<5)for(const item of rotated){if(results.length>=5)break;if(!used.has(String(item.r.id))){results.push(item);used.add(String(item.r.id))}}
+ panel.innerHTML=results.length?results.map(({r,reason})=>'<article class="recommend-card">'+('<img class="recommend-photo" src="/api/photo/'+encodeURIComponent(r.id)+'" alt="" loading="lazy" onerror="recommendationPhotoFailed(this)">')+'<strong class="recommend-title">'+esc(cleanRecipeName(r.name))+'</strong><div class="muted recommend-reason" style="font-size:12px;margin:6px 0">'+esc(reason)+'</div><div class="recommend-actions"><button type="button" data-recommend-detail="'+r.id+'">View recipe</button><button type="button" data-recommend-plan="'+r.id+'">Add to plan</button></div><select data-recommend-collection="'+r.id+'" aria-label="Add recommended recipe to collection" style="width:100%;margin-top:8px;min-height:40px"><option value="">Add to collection…</option>'+Object.keys(state.collections||{}).map(n=>'<option value="'+esc(n)+'">'+esc(n)+'</option>').join('')+'</select><button type="button" data-recommend-more="'+r.id+'" class="recommend-dismiss">Show me more like this</button><button type="button" data-recommend-hide="'+r.id+'" class="recommend-dismiss">Not interested</button></article>').join(''):'<p class="muted">'+(terms.length?'No suggestions match this search. Try clearing the search.':'No suggestions available yet.')+'</p>';
  requestAnimationFrame(updateRecommendationCarousel);
 }
 function recommendationPhotoFailed(img){
@@ -2209,9 +2230,10 @@ $('recommend-list').addEventListener('change',async e=>{
  finally{el.disabled=false}
 });
 $('recommend-list').addEventListener('scroll',updateRecommendationCarousel,{passive:true});window.addEventListener('resize',updateRecommendationCarousel);
-$('recommend-refresh').onclick=()=>{recommendationOffset+=5;renderRecommendations()};
+$('recommend-refresh').onclick=()=>{recommendationMemory.recent=[...new Set([...recommendationMemory.recent,...[...document.querySelectorAll(\'#recommend-list [data-recommend-detail]\')].map(el=>String(el.dataset.recommendDetail))])].slice(-30);saveRecommendationMemory();recommendationOffset+=5;renderRecommendations()};
 $('recommend-list').addEventListener('click',async e=>{
- const detail=e.target.closest('[data-recommend-detail]'),hide=e.target.closest('[data-recommend-hide]'),plan=e.target.closest('[data-recommend-plan]');
+ const detail=e.target.closest('[data-recommend-detail]'),hide=e.target.closest('[data-recommend-hide]'),plan=e.target.closest('[data-recommend-plan]'),more=e.target.closest('[data-recommend-more]');
+ if(more){recommendationMemory.more=[...new Set([...recommendationMemory.more,String(more.dataset.recommendMore)])].slice(-30);saveRecommendationMemory();recommendationRankCache=null;renderRecommendations();return;}
  if(plan){await selectMealAndRefresh(Number(plan.dataset.recommendPlan),true,2);return;}
  if(detail){const id=detail.dataset.recommendDetail;const target=document.querySelector('#recipes [data-detail="'+id+'"]');if(target)target.click();else{const trigger=document.createElement('button');trigger.type='button';trigger.dataset.detail=id;trigger.hidden=true;$('recipes').appendChild(trigger);trigger.click();trigger.remove()}}
  if(hide){const id=Number(hide.dataset.recommendHide);const hidden=[...new Set([...(state.recommendation_hidden||[]),id])];try{await preferences({recommendation_hidden:hidden})}catch(err){alert('Could not save this preference: '+err.message)}}
