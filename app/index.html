@@ -1805,9 +1805,12 @@ function groceryBreakdownMarkup(items){
    const unverified=!!x.quantity_unverified;
    const multiplier=Number(x.multiplier)||1;
    const sourceQty=Number(x.source_quantity);
-   const sourceMatch=String(x.original_name||'').match(/^\s*(?:\d+(?:\.\d+)?|\d+\/\d+)\s+(teaspoons?|tablespoons?|cups?|ounces?|pounds?|grams?|kilograms?|milliliters?|liters?)\b/i);
-   const measuredUnit=sourceMatch?sourceMatch[1]:'';
-   const details=manual?'Added manually':unverified?'⚠ Quantity not verified — review recipe amount':Number.isFinite(sourceQty)&&sourceQty>0?'Recipe: '+groceryNumber(sourceQty)+(measuredUnit?' '+measuredUnit:' source unit(s)')+' × '+groceryNumber(multiplier)+' selected = '+groceryNumber(Number(x.contribution)||0)+(measuredUnit?' '+measuredUnit:' source unit(s)'):'Recipe quantity needs review';
+   const sourceMatch=String(x.original_name||'').match(/^\s*(\d+(?:\.\d+)?|\d+\/\d+)\s+(teaspoons?|tablespoons?|cups?|ounces?|pounds?|grams?|kilograms?|milliliters?|liters?)\b/i);
+   const embeddedAmount=sourceMatch?(sourceMatch[1].includes('/')?Number(sourceMatch[1].split('/')[0])/Number(sourceMatch[1].split('/')[1]):Number(sourceMatch[1])):NaN;
+   const measuredUnit=sourceMatch?sourceMatch[2]:'';
+   const amountPerSelection=Number.isFinite(embeddedAmount)&&embeddedAmount>0?embeddedAmount*sourceQty:sourceQty;
+   const totalAmount=amountPerSelection*multiplier;
+   const details=manual?'Added manually':unverified?'⚠ Quantity not verified — review recipe amount':Number.isFinite(amountPerSelection)&&amountPerSelection>0?'Recipe: '+groceryNumber(amountPerSelection)+(measuredUnit?' '+measuredUnit:' source unit(s)')+' × '+groceryNumber(multiplier)+' selected = '+groceryNumber(totalAmount)+(measuredUnit?' '+measuredUnit:' source unit(s)'):'Recipe quantity needs review';
    return '<div class="grocery-source"><strong>'+esc(cleanRecipeName(x.recipe||'Unknown source'))+'</strong><div>'+esc(details)+'</div>'+(manual?'':'<small>Ingredient: '+esc(x.original_name||'')+esc(corrected)+'</small>')+button+'</div>';
   }).join('');
  }
