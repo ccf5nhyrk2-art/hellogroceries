@@ -54,6 +54,17 @@ def task_record(name,status):
   try:tmp.write_text(json.dumps(data));os.replace(tmp,TASK_HISTORY_FILE)
   except OSError:pass
 
+def serving_coverage():
+ with db() as conn:
+  rows=conn.execute('SELECT payload FROM imported').fetchall()
+ total=len(rows);known=0
+ for (payload,) in rows:
+  try:
+   value=json.loads(payload).get('source_servings')
+   if value is not None and math.isfinite(float(value)) and float(value)>0:known+=1
+  except (ValueError,TypeError,AttributeError):pass
+ return {'known':known,'missing':total-known,'total':total}
+
 def task_overview():
  try:history=json.loads(TASK_HISTORY_FILE.read_text())
  except (OSError,ValueError,TypeError):history={}
@@ -65,7 +76,7 @@ def task_overview():
  nutrition=history.get('nutrition',{})
  return [
   {'key':'us_import','name':'HelloFresh US recipe import','frequency':'Automatic initial import; weekly thereafter','running':us_import_running() or us_import_schedule['running'],'last_started':us_import_schedule['last_started'],'last_finished':us_import_schedule['last_finished'],'next_run':us_import_schedule['next_run'],'status':'Running' if us_import_schedule['running'] else ('Error: '+str(us_import_schedule['last_error']) if us_import_schedule['last_error'] else 'Waiting for next cycle'),'action':'us_import'},
-  {'key':'nutrition','name':'Bulk recipe nutrition scan','frequency':'Automatic initial scan; weekly thereafter (2 seconds between recipes)','running':nutrition_scan['running'],'last_started':nutrition_scan['last_started'],'last_finished':nutrition_scan['last_finished'],'next_run':nutrition_scan['next_run'],'status':'Running' if nutrition_scan['running'] else 'Waiting for next cycle','processed':nutrition_scan['processed'],'total':nutrition_scan['total'],'updated':nutrition_scan['updated'],'missing':nutrition_scan['missing'],'failed':nutrition_scan['failed'],'action':None},
+  {'key':'nutrition','name':'Bulk recipe nutrition scan','frequency':'Automatic initial scan; weekly thereafter (2 seconds between recipes)','running':nutrition_scan['running'],'last_started':nutrition_scan['last_started'],'last_finished':nutrition_scan['last_finished'],'next_run':nutrition_scan['next_run'],'status':'Running' if nutrition_scan['running'] else 'Waiting for next cycle','processed':nutrition_scan['processed'],'total':nutrition_scan['total'],'updated':nutrition_scan['updated'],'missing':nutrition_scan['missing'],'failed':nutrition_scan['failed'],'servings_backfilled':nutrition_scan.get('servings_backfilled',0),'servings_coverage':serving_coverage(),'action':None},
   item('store_directory','Nationwide store directory refresh','Automatic when cache expires (7 days) or store search needs it',False,datetime.datetime.fromtimestamp(ATP_CACHE_FILE.stat().st_mtime,datetime.timezone.utc).isoformat() if ATP_CACHE_FILE.exists() else None,'store_directory'),
   item('store_geocode','Store address geocoding','Automatic during store search (only uncached addresses)',RETAILER_GEOCODE_RUNNING,datetime.datetime.fromtimestamp(Path('/data/retailer_address_coordinates.json').stat().st_mtime,datetime.timezone.utc).isoformat() if Path('/data/retailer_address_coordinates.json').exists() else None,'store_geocode'),
   item('reef_prices','ReefAPI grocery price refresh','Manual only; cached prices expire after 365 days',False,None,None),
@@ -399,7 +410,7 @@ def recommendation_photo_warmup_worker():
 # Persistent, low-rate nutrition scan. It resumes after restarts and checks again weekly.
 NUTRITION_SCAN_FILE=Path('/data/nutrition_background.json')
 nutrition_wakeup=threading.Event()
-nutrition_scan={'running':False,'cursor':0,'total':0,'processed':0,'updated':0,'missing':0,'failed':0,'last_started':None,'last_finished':None,'next_run':None}
+nutrition_scan={'running':False,'cursor':0,'total':0,'processed':0,'updated':0,'missing':0,'failed':0,'servings_backfilled':0,'last_started':None,'last_finished':None,'next_run':None}
 def nutrition_scan_save():
  try:
   tmp=NUTRITION_SCAN_FILE.with_suffix('.tmp')
@@ -439,6 +450,7 @@ def nutrition_scan_worker():
        changed=False
        if not original.get('source_servings') and fresh.get('source_servings'):
         original['source_servings']=fresh['source_servings']
+        nutrition_scan['servings_backfilled']=nutrition_scan.get('servings_backfilled',0)+1
         changed=True
        if not original.get('nutrition'):
         nutrition=fresh.get('nutrition') or {}
