@@ -2163,14 +2163,12 @@ function renderRecommendations(){
   const searchable=[cleanRecipeName(r.name),r.country,r.cuisine,r.description].filter(Boolean).join(' ').toLowerCase();
   return terms.every(term=>searchable.includes(term));
  }):recommendationRankCache.pool;
+ // Refresh rotates complete, non-overlapping batches instead of reselecting
+ // the same top-ranked protein groups on every click.
+ const pageSize=4;
  const offset=pool.length?recommendationOffset%pool.length:0;
- const results=[],usedGroups=new Set();
- for(const item of pool.slice(offset).concat(pool.slice(0,offset))){
-  const group=recipeGroup(item.r)||'other';
-  if(usedGroups.has(group))continue;
-  results.push(item);usedGroups.add(group);if(results.length===4)break;
- }
- if(results.length<4)for(const item of pool.slice(offset).concat(pool.slice(0,offset))){if(!results.includes(item)){results.push(item);if(results.length===4)break}}
+ const rotated=pool.slice(offset).concat(pool.slice(0,offset));
+ const results=rotated.slice(0,pageSize);
  panel.innerHTML=results.length?results.map(({r,reason})=>'<article class="recommend-card">'+((r.image||r.url)?'<img class="recommend-photo" src="/api/photo/'+encodeURIComponent(r.id)+'" alt="" loading="lazy" onerror="this.parentElement.remove()">':'')+'<strong class="recommend-title">'+esc(cleanRecipeName(r.name))+'</strong><div class="muted recommend-reason" style="font-size:12px;margin:6px 0">'+(reason?esc(reason):'Discover something new')+'</div><div class="recommend-actions"><button type="button" data-recommend-detail="'+r.id+'">View recipe</button><button type="button" data-recommend-plan="'+r.id+'">Add to plan</button></div><select data-recommend-collection="'+r.id+'" aria-label="Add recommended recipe to collection" style="width:100%;margin-top:8px;min-height:40px"><option value="">Add to collection…</option>'+Object.keys(state.collections||{}).map(n=>'<option value="'+esc(n)+'">'+esc(n)+'</option>').join('')+'</select><button type="button" data-recommend-hide="'+r.id+'" class="recommend-dismiss">Not interested</button></article>').join(''):'<p class="muted">'+(terms.length?'No personalized suggestions match this search. Try a different search or clear it to see your usual recommendations.':'No suggestions available yet.')+'</p>';
  requestAnimationFrame(updateRecommendationCarousel);
 }
