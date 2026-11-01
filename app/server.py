@@ -2436,16 +2436,28 @@ class Handler(SimpleHTTPRequestHandler):
       key=name.casefold()+'|'+unit
       inventory[key]=round(float(inventory.get(key,0))+quantity,4)
       if not any(x.casefold()==name.casefold() for x in pantry if isinstance(x,str)):pantry.append(name)
-    elif action=='set_pantry_inventory':
+    elif action in ('set_pantry_inventory','adjust_pantry_inventory'):
      name=p.get('name');unit=p.get('unit','');amount=p.get('amount')
      allowed={'','count','teaspoon','tablespoon','cup','ounce','pound','gram','kilogram','milliliter','liter','clove','bunch','head','stalk','slice','piece','pinch','can','package','bag'}
      if not isinstance(name,str) or not name.strip() or len(name)>140 or '|' in name:raise ValueError('Invalid pantry ingredient')
      if not isinstance(unit,str) or unit not in allowed:raise ValueError('Invalid pantry unit')
-     if type(amount) not in (int,float) or not 0<=amount<=100000:raise ValueError('Invalid pantry amount')
+     if type(amount) not in (int,float) or not math.isfinite(amount) or not 0<=amount<=100000:raise ValueError('Invalid pantry amount')
      inventory=state.setdefault('pantry_inventory',{})
      key=name.strip().casefold()+'|'+unit
      if len(inventory)>=1000 and key not in inventory:raise ValueError('Inventory limit reached')
-     inventory[key]=float(amount)
+     mode=p.get('mode','set') if action=='adjust_pantry_inventory' else 'set'
+     if mode not in ('set','add','use'):raise ValueError('Invalid quantity action')
+     current=float(inventory.get(key,0))
+     if mode=='use' and key not in inventory:raise ValueError('Set a quantity before using this ingredient')
+     if mode=='add':updated=current+float(amount)
+     elif mode=='use':updated=current-float(amount)
+     else:updated=float(amount)
+     if not 0<=updated<=100000:raise ValueError('Not enough pantry quantity or inventory limit exceeded')
+     inventory[key]=round(updated,4)
+     pantry=state.setdefault('pantry',[])
+     if not any(isinstance(x,str) and x.casefold()==name.strip().casefold() for x in pantry):
+      if len(pantry)>=500:raise ValueError('Pantry capacity reached')
+      pantry.append(name.strip())
     elif action=='clear':state['list']=[]
     elif action=='purchase_many':
      names=p.get('names',[])
