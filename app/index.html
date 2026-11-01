@@ -2124,7 +2124,7 @@ function renderSmartPrefs(){
   return '<details class="pantry-department" open><summary><strong>'+esc(category)+'</strong> <span class="muted">('+items.length+')</span></summary><div class="pantry-department-items">'+items.map(item=>{
    const quantities=item.quantities.filter(q=>q.amount>0);
    const display=quantities.length?quantities.map(q=>esc(groceryNumber(q.amount))+' '+esc(q.unit)).join(', '):'<span class="muted">Quantity not set</span>';
-   return '<div class="pantry-department-item"><span>'+esc(item.name)+'</span><div class="pantry-quantity-controls"><strong>'+display+'</strong><button type="button" class="clear" data-pantry-edit="'+esc(item.name)+'" data-pantry-unit="'+esc(quantities[0]?.unit||'count')+'">Edit</button></div></div>';
+   return '<div class="pantry-department-item"><span>'+esc(item.name)+'</span><div class="pantry-quantity-controls"><strong>'+display+'</strong><button type="button" class="clear" data-pantry-edit="'+esc(item.name)+'" data-pantry-unit="'+esc(quantities[0]?.unit||'count')+'">Edit</button><button type="button" class="clear" data-pantry-delete="'+esc(item.name)+'" aria-label="Remove '+esc(item.name)+' from pantry completely">Remove</button></div></div>';
   }).join('')+'</div></details>';
  }).join('')||'<p class="muted">Your pantry is empty. Add an ingredient above to get started.</p>';
  const flags=list.filter(x=>{
@@ -2181,7 +2181,14 @@ $('inventory-form').addEventListener('submit',async e=>{
  render();
  updatePantryQuantityPreview();
 });
-$('inventory-saved').addEventListener('click',e=>{
+$('inventory-saved').addEventListener('click',async e=>{
+ const remove=e.target.closest('[data-pantry-delete]');
+ if(remove){
+  const name=remove.dataset.pantryDelete;
+  if(!confirm('Remove '+name+' from the pantry and delete all tracked quantities?'))return;
+  await action({action:'delete_pantry_item',name});
+  return;
+ }
  const button=e.target.closest('[data-pantry-edit]');if(!button)return;
  $('inventory-name').value=button.dataset.pantryEdit;
  $('inventory-unit').value=button.dataset.pantryUnit;
