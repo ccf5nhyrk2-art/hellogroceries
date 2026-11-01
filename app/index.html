@@ -2045,7 +2045,7 @@ function isNonRecipeListing(r){
   && !Object.keys(r.ingredients||{}).some(k=>/\b(?:chicken|beef|pork|fish|salmon|rice|pasta|flour|onion|garlic|tomato|potato)\b/i.test(k));
 }
 let recommendationOffset=0;
-const recommendationHidden=new Set();
+
 
 function recommendationTokens(recipe){
  const ignore=new Set(['with','and','the','for','from','fresh','style','plus','over','served','hello','recipe','classic','creamy','crispy','easy','quick','minute','minutes']);
@@ -2060,7 +2060,7 @@ function renderRecommendations(){
   const weight=(picked.has(String(r.id))?3:0)+(fav.has(String(r.id))?4:0)+(Number(reviews[String(r.id)]?.rating)>=4?4:0);
   for(const word of recommendationTokens(r))preferences.set(word,(preferences.get(word)||0)+weight);
  }
- const candidates=recipes.filter(r=>!recommendationHidden.has(String(r.id))&&!picked.has(String(r.id))&&!fav.has(String(r.id))&&!isNonRecipeListing(r)&&!isAddon(r)&&!isSideRecipe(r)&&!isWineListing(r)&&!isHolidayRecipe(r));
+ const candidates=recipes.filter(r=>!(state.recommendation_hidden||[]).includes(Number(r.id))&&!picked.has(String(r.id))&&!fav.has(String(r.id))&&!isNonRecipeListing(r)&&!isAddon(r)&&!isSideRecipe(r)&&!isWineListing(r)&&!isHolidayRecipe(r));
  const scored=candidates.map(r=>{
   let score=0,reason='';
   for(const word of recommendationTokens(r)){const value=preferences.get(word)||0;if(value>score){score=value;reason=word}}
@@ -2068,14 +2068,20 @@ function renderRecommendations(){
  }).sort((a,b)=>b.score-a.score||Number(b.r.id)-Number(a.r.id));
  const pool=signals.length?scored.filter(x=>x.score>0):scored;
  const offset=pool.length?recommendationOffset%pool.length:0;
- const results=pool.slice(offset,offset+4).concat(pool.slice(0,Math.max(0,offset+4-pool.length)));
- panel.innerHTML=results.length?results.map(({r,reason})=>'<article style="padding:12px;border:1px solid #405247;border-radius:11px"><strong>'+esc(cleanRecipeName(r.name))+'</strong><div class="muted" style="font-size:12px;margin:6px 0">'+(reason?'Because you enjoy '+esc(reason)+' recipes':'Discover something new')+'</div><div class="actions"><button type="button" data-recommend-detail="'+r.id+'">View recipe</button><button type="button" data-recommend-hide="'+r.id+'" class="clear">Not interested</button></div></article>').join(''):'<p class="muted">No suggestions available yet.</p>';
+ const results=[],usedGroups=new Set();
+ for(const item of pool.slice(offset).concat(pool.slice(0,offset))){
+  const group=recipeGroup(item.r)||'other';
+  if(usedGroups.has(group))continue;
+  results.push(item);usedGroups.add(group);if(results.length===4)break;
+ }
+ if(results.length<4)for(const item of pool.slice(offset).concat(pool.slice(0,offset))){if(!results.includes(item)){results.push(item);if(results.length===4)break}}
+ panel.innerHTML=results.length?results.map(({r,reason})=>'<article style="padding:12px;border:1px solid #405247;border-radius:11px;overflow:hidden">'+((r.image||r.url)?'<img src="/api/photo/'+encodeURIComponent(r.id)+'" alt="" loading="lazy" style="width:100%;height:125px;object-fit:cover;border-radius:8px;margin-bottom:9px" onerror="this.style.display=\'none\'">':'')+'<strong>'+esc(cleanRecipeName(r.name))+'</strong><div class="muted" style="font-size:12px;margin:6px 0">'+(reason?'Because you enjoy '+esc(reason)+' recipes':'Discover something new')+'</div><div class="actions"><button type="button" data-recommend-detail="'+r.id+'">View recipe</button><button type="button" data-recommend-hide="'+r.id+'" class="clear">Not interested</button></div></article>').join(''):'<p class="muted">No suggestions available yet.</p>';
 }
 $('recommend-refresh').onclick=()=>{recommendationOffset+=4;renderRecommendations()};
-$('recommend-list').addEventListener('click',e=>{
+$('recommend-list').addEventListener('click',async e=>{
  const detail=e.target.closest('[data-recommend-detail]'),hide=e.target.closest('[data-recommend-hide]');
- if(detail){const target=document.querySelector('[data-detail="'+detail.dataset.recommendDetail+'"]');if(target){target.click()}else{const r=recipes.find(x=>String(x.id)===detail.dataset.recommendDetail);if(r?.url)window.open(r.url,'_blank','noopener,noreferrer')}}
- if(hide){recommendationHidden.add(String(hide.dataset.recommendHide));renderRecommendations()}
+ if(detail){const id=detail.dataset.recommendDetail;const target=document.querySelector('#recipes [data-detail="'+id+'"]');if(target)target.click();else{const trigger=document.createElement('button');trigger.type='button';trigger.dataset.detail=id;trigger.hidden=true;$('recipes').appendChild(trigger);trigger.click();trigger.remove()}}
+ if(hide){const id=Number(hide.dataset.recommendHide);const hidden=[...new Set([...(state.recommendation_hidden||[]),id])];try{await preferences({recommendation_hidden:hidden})}catch(err){alert('Could not save this preference: '+err.message)}}
 });
 function render(){updateEnhancements();$('diet-warning').style.display=$('diet-filter').value==='all'?'none':'block';const q=$('search').value.toLowerCase().trim(),selected=state.selected||{};$('count').textContent=`(${Object.keys(selected).length} selected · ${recipes.length.toLocaleString()} total)`;let filtered=recipes.filter(r=>{const name=cleanRecipeName(r.name).toLowerCase();const internalTest=/\b(?:do\s+not\s+use|uat|test(?:ing)?(?:\s+recipe)?|recipe\s+(?:card\s+)?test|modular\s+recipe\s+card\s+test)\b/i.test(String(r.name||''));return !isNonRecipeListing(r)&&hasIncludedSide(r,$('included-side').value)&&($('meal').value!=='sides'||isSideRecipe(r))&&(!internalTest||$('selectedonly').checked)&&($('meal').value==='wine'?isWineListing(r):$('meal').value==='holiday'?isHolidayRecipe(r)&&!isWineListing(r):!isWineListing(r)&&!isHolidayRecipe(r))&&(!$('quickmeals').checked||quickMinutes(r)!==null)&&($('meal').value==='sides'||!$('fullmeals').checked||!isAddon(r))&&(name+' '+(r.country||'').toLowerCase()).includes(q)&&($('protein').value==='all'||recipeGroup(r)===$('protein').value)&&($('cuisine').value==='all'||cuisineGroup(r)===$('cuisine').value)&&(['holiday','wine','sides'].includes($('meal').value)||$('meal').value==='all'||mealGroup(r)===$('meal').value)&&($('recipe-country').value==='all'||($('recipe-country').value==='other'?!['US','UK','AU','CA','DE','NL'].includes(String(r.country||'').toUpperCase()):String(r.country||'').toUpperCase()===$('recipe-country').value))&&dietMatch(r,$('diet-filter').value)&&($('rating-filter').value==='all'||($('rating-filter').value==='unrated'?!(state.recipe_reviews||{})[String(r.id)]?.rating:Number((state.recipe_reviews||{})[String(r.id)]?.rating||0)>=Number($('rating-filter').value)))&&($('favorite-filter').value!=='favorites'||(state.favorites||[]).includes(r.id))&&($('collection-filter').value==='all'||(state.collections||{})[$('collection-filter').value]?.includes(r.id))&&($('ingredient-filter').value==='all'||Object.keys(r.ingredients||{}).some(x=>x.toLowerCase().includes($('ingredient-filter').value)))&&(!$('exclude-ingredient').value.trim()||!Object.keys(r.ingredients||{}).some(x=>x.toLowerCase().includes($('exclude-ingredient').value.trim().toLowerCase())))&&(!$('selectedonly').checked||Object.hasOwn(selected,String(r.id)))});// Only collapse identical titles with identical ingredient data; keep named variations.
 const seenRecipeKeys=new Set();
@@ -2546,7 +2552,7 @@ function hfUpdatePhotoAudit(){
 const days=['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'];
 let previousWeek={};
 async function preferences(update){
- const next={favorites:state.favorites||[],collections:state.collections||{},weekly:state.weekly||{},pantry:state.pantry||[],manual:state.manual||[],previous_week:state.previous_week||{},...update};
+ const next={favorites:state.favorites||[],collections:state.collections||{},weekly:state.weekly||{},pantry:state.pantry||[],manual:state.manual||[],previous_week:state.previous_week||{},recommendation_hidden:state.recommendation_hidden||[],...update};
  const response=await fetch('/api/action',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'set_preferences',...next})});
  const result=await response.json();
  if(!response.ok||result.error)throw new Error(result.error||'Unable to save preferences');
