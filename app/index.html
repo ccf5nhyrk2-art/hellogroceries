@@ -2142,7 +2142,7 @@ try{
 function saveRecommendationMemory(){try{localStorage.setItem(recommendationStoreKey,JSON.stringify(recommendationMemory))}catch(e){}}
 function recommendationSeason(r){
  const month=new Date().getMonth(),name=cleanRecipeName(r.name||'').toLowerCase();
- const seasonal=month===11||month<=1?/\\b(soup|stew|roast|chili|casserole|braised|baked)\\b/:month<=4?/\\b(salad|asparagus|lemon|pea|spring|herb)\\b/:month<=7?/\\b(grill|salad|corn|tomato|lime|summer)\\b/:/\\b(squash|pumpkin|apple|roast|soup|mushroom)\\b/;
+ const seasonal=month===11||month<=1?/\b(soup|stew|roast|chili|casserole|braised|baked)\b/:month<=4?/\b(salad|asparagus|lemon|pea|spring|herb)\b/:month<=7?/\b(grill|salad|corn|tomato|lime|summer)\b/:/\b(squash|pumpkin|apple|roast|soup|mushroom)\b/;
  return seasonal.test(name);
 }
 function recommendationPantryMatches(r){
@@ -2180,7 +2180,7 @@ function renderRecommendations(){
   recommendationRankCache={signature,pool:scored};
  }
  const query=$('search').value.toLowerCase().trim();
- const terms=query.split(/\\s+/).filter(Boolean);
+ const terms=query.split(/\s+/).filter(Boolean);
  const pool=terms.length?recommendationRankCache.pool.filter(({r})=>{
   const searchable=[cleanRecipeName(r.name),r.country,r.cuisine,r.description].filter(Boolean).join(' ').toLowerCase();
   return terms.every(term=>searchable.includes(term));
@@ -2230,7 +2230,7 @@ $('recommend-list').addEventListener('change',async e=>{
  finally{el.disabled=false}
 });
 $('recommend-list').addEventListener('scroll',updateRecommendationCarousel,{passive:true});window.addEventListener('resize',updateRecommendationCarousel);
-$('recommend-refresh').onclick=()=>{recommendationMemory.recent=[...new Set([...recommendationMemory.recent,...[...document.querySelectorAll(\'#recommend-list [data-recommend-detail]\')].map(el=>String(el.dataset.recommendDetail))])].slice(-30);saveRecommendationMemory();recommendationOffset+=5;renderRecommendations()};
+$('recommend-refresh').onclick=()=>{recommendationMemory.recent=[...new Set([...recommendationMemory.recent,...[...document.querySelectorAll('#recommend-list [data-recommend-detail]')].map(el=>String(el.dataset.recommendDetail))])].slice(-30);saveRecommendationMemory();recommendationOffset+=5;renderRecommendations()};
 $('recommend-list').addEventListener('click',async e=>{
  const detail=e.target.closest('[data-recommend-detail]'),hide=e.target.closest('[data-recommend-hide]'),plan=e.target.closest('[data-recommend-plan]'),more=e.target.closest('[data-recommend-more]');
  if(more){recommendationMemory.more=[...new Set([...recommendationMemory.more,String(more.dataset.recommendMore)])].slice(-30);saveRecommendationMemory();recommendationRankCache=null;renderRecommendations();return;}
