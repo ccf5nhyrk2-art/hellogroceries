@@ -1644,11 +1644,16 @@ function purchaseSuggestion(row){
      return {label:groceryNumber(quantity)+' ciabatta '+(quantity===1?'loaf':'loaves'),note:'Verify loaf or roll size in recipe'};
     return {label:groceryNumber(quantity)+' '+product,note:'Count from recipe · verify size/weight when purchasing'};
    }
+   // A source "unit" is not necessarily a jar, bottle or package.
+   // Display a measured need rather than inventing a package count.
+   if(/\b(?:jam|jelly|preserves?|chutney|relish|marmalade|salsa|paste|sauce|dressing|marinade|dip)\b/.test(p)){
+    return {label:product,note:groceryNumber(quantity)+' recipe '+(quantity===1?'unit':'units')+' needed · check jar or package size'};
+   }
    if(Number.isInteger(quantity)&&/\b(?:eggs?|lemons?|limes?|potatoes?|tomatoes?|onions?|shallots?|carrots?|apples?|cucumbers?)\b/.test(p)){
     const plural=quantity===1?product:/\b(?:tomato|potato)\b/i.test(product)?product.replace(/\b(tomato|potato)\b/gi,'$1es'): /\b(?:onion|shallot|carrot|apple|cucumber|lemon|lime|egg)\b/i.test(product)?product.replace(/\b(onion|shallot|carrot|apple|cucumber|lemon|lime|egg)\b/gi,'$1s'):product;
     return {label:groceryNumber(quantity)+' '+plural,note:''};
    }
-   return {label:groceryNumber(quantity)+' '+product,note:'Check item size or package quantity'};
+   return {label:product,note:groceryNumber(quantity)+' recipe '+(quantity===1?'unit':'units')+' needed · check package size'};
   }
  }
  if(!Number.isFinite(amount)||amount<=0||!name)return null;
