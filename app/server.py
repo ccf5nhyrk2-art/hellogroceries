@@ -1648,7 +1648,7 @@ def rebuild_grocery_list(state):
    # Recipe ingredient labels can contain the actual measure while the stored
    # numeric value is only a source factor (often 1). Preserve both separately.
    source_factor=quantity
-   embedded=re.match(r'^\s*(\d+(?:\.\d+)?|\d+/\d+|[¼½¾⅓⅔⅛⅜⅝⅞])\s+(teaspoons?|tablespoons?|cups?|ounces?|pounds?|grams?|kilograms?|milliliters?|liters?)\s+(.+)
+   embedded=re.match(r'^\s*(\d+(?:\.\d+)?|\d+/\d+|[¼½¾⅓⅔⅛⅜⅝⅞])\s+(teaspoons?|tablespoons?|cups?|ounces?|pounds?|grams?|kilograms?|milliliters?|liters?)\s+(.+)$',name,re.I)
    if embedded:
     raw=embedded.group(1)
     measured={'¼':.25,'½':.5,'¾':.75,'⅓':1/3,'⅔':2/3,'⅛':.125,'⅜':.375,'⅝':.625,'⅞':.875}.get(raw) if raw in '¼½¾⅓⅔⅛⅜⅝⅞' else float(raw.split('/')[0])/float(raw.split('/')[1]) if '/' in raw else float(raw)
