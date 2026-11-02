@@ -1545,6 +1545,8 @@ function shoppingDepartment(name){
  // Classify plain pepper and black pepper before generic produce rules.
  const spiceName=value.trim().replace(/^(?:\d+(?:\.\d+)?\s+)?(?:(?:teaspoons?|tablespoons?|cups?|ounces?|grams?|box|pick|unit)\s+)?/,'');
  if(['pepper','black pepper','ground pepper','ground black pepper','white pepper','salt','black peppercorns','peppercorns','crushed red pepper flakes'].includes(spiceName))return 'Pantry & Seasonings';
+ // Shelf-stable seasonings and vinegars must not match fresh onion/apple rules.
+ if(/\b(?:granulated\s+(?:onion|garlic)|(?:onion|garlic)\s+(?:granules?|powder)|apple\s+cider\s+vinegar|(?:white|red\s+wine|rice|balsamic|distilled|malt)\s+vinegar)\b/i.test(value))return 'Pantry & Seasonings';
  // Categorize recognizable ingredients without changing their recipe quantities.
  if(/\b(?:cashew pieces?|cashews?|ancho chil(?:e|i) powder|chili powder|chile powder)\b/i.test(value))return 'Pantry & Seasonings';
  if(/\b(?:pineapple|fresh pineapple|pineapple chunks?|yellow sweet corn|sweet corn|corn on the cob)\b/i.test(value)&&!/\b(?:canned|tinned|frozen|dried|powder|syrup|juice)\b/i.test(value))return 'Produce';
