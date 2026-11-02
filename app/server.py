@@ -1688,17 +1688,23 @@ def rebuild_grocery_list(state):
    else:
     label_name=name
    correction=state.get('recipe_ingredient_corrections',{}).get(str(recipe['id'])+'|'+name)
+   recovered=None
+   if not isinstance(correction,dict) and not embedded:
+    recovered=recipe_quality.verified_grocery_recovery(recipe,name,source_factor)
    if isinstance(correction,dict):
     ingredient_name=correction['name']
     unit=correction.get('unit','')
     corrected_amount=float(correction['amount'])
     label='__corrected__|'+unit+'|'+ingredient_name.casefold()
     amount=corrected_amount*float(scale)
+   elif recovered:
+    label=recovered['unit']+' '+recovered['name']
+    amount=recovered['amount']*float(scale)
    else:
     label=label_name
     amount=quantity*float(scale)
    if not (0<amount<100000):continue
-   add_ingredient(label,amount,{'recipe_id':recipe['id'],'recipe':recipe['name'],'original_name':name,'corrected':bool(correction),'source_quantity':qty,'multiplier':scale,'servings':servings,'source_servings':baseline,'contribution':round(amount,3)})
+   add_ingredient(label,amount,{'recipe_id':recipe['id'],'recipe':recipe['name'],'original_name':name,'corrected':bool(correction),'source_recovered':bool(recovered),'source_line':recovered['source'] if recovered else None,'source_quantity':qty,'multiplier':scale,'servings':servings,'source_servings':baseline,'contribution':round(amount,3)})
  # Do not silently discard recipe ingredients with missing or malformed amounts.
  # Keep them as unverified single entries until a correction supplies a quantity.
  for recipe in allrecipes():
