@@ -2174,8 +2174,12 @@ function renderShoppingList(){
    // The shopping list leads with the total recipe requirement, not a suggested package.
    const hasMeasuredTotal=x.knownCount&&Number.isFinite(x.amount)&&x.amount>0;
    const label=hasMeasuredTotal?x.label:(suggestion?suggestion.label:x.label);
-   const packageNote=hasMeasuredTotal&&suggestion&&suggestion.label!==x.label?'Suggested purchase: '+suggestion.label:'';
-   const note=[x.note&& !/× recipe amount/.test(x.note)?x.note:'',packageNote,suggestion?.note||''].filter(Boolean).filter((v,i,a)=>a.indexOf(v)===i).join(' · ');
+   const packageNote=hasMeasuredTotal&&suggestion&&suggestion.label!==x.label&&
+    !/^\\s*[\\d¼½¾⅓⅔⅛⅜⅝⅞.\\/]+\\s+(?:tsp|tbsp|teaspoons?|tablespoons?|cups?|oz|ounces?|lb|pounds?|g|grams?|ml|milliliters?)\\b/i.test(suggestion.label)
+    ?'Suggested purchase: '+suggestion.label:'';
+   const suggestionNote=suggestion?.note||'';
+   const note=[x.note&& !/× recipe amount/.test(x.note)?x.note:'',packageNote,suggestionNote]
+    .filter(Boolean).filter((v,i,a)=>a.indexOf(v)===i).join(' · ');
    const sourceCount=x.items.reduce((n,i)=>n+(Array.isArray(i.sources)?i.sources.length:0),0)||groceryRecipeBreakdown(x.items).length;
    const sourceText=sourceCount?sourceCount+' '+(sourceCount===1?'recipe':'recipes'):'Sources';
    const review=x.items.some(shoppingNeedsReview);
