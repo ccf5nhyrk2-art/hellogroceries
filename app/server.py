@@ -1611,10 +1611,23 @@ def auth_rate_allowed(ip, route, limit=8, window=900):
 
 
 def parse_grocery_measure(label):
- """Extract structured quantity/unit/name without changing the display label."""
+ """Extract quantity, unit and ingredient from a grocery label."""
  if not isinstance(label,str):return None
  number=r'(?:\\d+(?:\\.\\d+)?|\\d+/\\d+|[¼½¾⅓⅔⅛⅜⅝⅞])'
- match=re.match(r'^\\s*('+number+r')\\s+(?:(teaspoons?|tsp|tablespoons?|tbsp|cups?|ounces?|oz|pounds?|lbs?|grams?|g|kilograms?|kg|milliliters?|ml|liters?|l|cloves?|thumbs?|pieces?|count)\\s+)?(.+?)\\s* totals={}
+ pattern=r'^\\s*('+number+r')\\s+(?:(teaspoons?|tsp|tablespoons?|tbsp|cups?|ounces?|oz|pounds?|lbs?|grams?|g|kilograms?|kg|milliliters?|ml|liters?|l|cloves?|thumbs?|pieces?|count)\\s+)?(.+?)\\s*$'
+ match=re.match(pattern,label,re.I)
+ if not match:return None
+ raw,unit,name=match.groups()
+ fractions={'¼':.25,'½':.5,'¾':.75,'⅓':1/3,'⅔':2/3,'⅛':.125,'⅜':.375,'⅝':.625,'⅞':.875}
+ try:amount=fractions[raw] if raw in fractions else float(raw.split('/')[0])/float(raw.split('/')[1]) if '/' in raw else float(raw)
+ except (ValueError,ZeroDivisionError):return None
+ units={'teaspoons':'teaspoon','tsp':'teaspoon','tablespoons':'tablespoon','tbsp':'tablespoon','cups':'cup','ounces':'ounce','oz':'ounce','pounds':'pound','lbs':'pound','grams':'gram','g':'gram','kilograms':'kilogram','kg':'kilogram','milliliters':'milliliter','ml':'milliliter','liters':'liter','l':'liter','cloves':'clove','thumbs':'thumb','pieces':'piece'}
+ unit=units.get((unit or '').lower(),(unit or 'count').lower())
+ return {'amount':amount,'unit':unit,'ingredient':name.strip()}
+
+
+def rebuild_grocery_list(state):
+ totals={}
  sources={}
  for recipe in allrecipes():
   servings=state['selected'].get(str(recipe['id']))
