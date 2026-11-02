@@ -342,26 +342,53 @@ def inspect_alternative_recipe_fields(limit=3):
    # Compare the same JSON-LD Recipe field the importer actually consumes.
    # Never copy source amounts into the catalog during this diagnostic.
    source_lines=[]
-   jsonld_blocks=re.findall(r'<script\\b[^>]*\\btype\\s*=\\s*["\\x27]application/ld\\+json["\\x27][^>]*>(.*?)</script\\s*>',page,re.I|re.S)
+   from html.parser import HTMLParser
+   class RecipeJsonLdParser(HTMLParser):
+    def __init__(self):
+     super().__init__(convert_charrefs=True)
+     self.blocks=[]
+     self.active=False
+     self.parts=[]
+    def handle_starttag(self,tag,attrs):
+     if tag.lower()!='script':return
+     attrs=dict(attrs)
+     self.active=(attrs.get('type') or '').strip().lower()=='application/ld+json'
+     self.parts=[]
+    def handle_data(self,data):
+     if self.active and sum(len(part) for part in self.parts)<1500000:
+      self.parts.append(data)
+    def handle_endtag(self,tag):
+     if tag.lower()=='script':
+      if self.active:self.blocks.append(''.join(self.parts))
+      self.active=False
+      self.parts=[]
+   jsonld_parser=RecipeJsonLdParser()
+   jsonld_parser.feed(page)
+   jsonld_blocks=jsonld_parser.blocks
+   parse_errors=0
    def recipe_nodes(obj):
     if isinstance(obj,list):
-     for child in obj:yield from recipe_nodes(child)
+     for child in obj[:200]:yield from recipe_nodes(child)
     elif isinstance(obj,dict):
      if '@graph' in obj:yield from recipe_nodes(obj['@graph'])
      yield obj
    for block in jsonld_blocks[:30]:
     try:
-     for node in recipe_nodes(json.loads(html.unescape(block))):
+     # JSON-LD script contents are raw JSON; unescaping entities can corrupt strings.
+     data=json.loads(block)
+     for node in recipe_nodes(data):
       kinds=node.get('@type',[])
       if isinstance(kinds,str):kinds=[kinds]
-      if 'Recipe' not in kinds:continue
+      if not any(str(kind).rsplit('/',1)[-1].lower()=='recipe' for kind in kinds):continue
       lines=node.get('recipeIngredient',[]) or []
       if isinstance(lines,str):lines=[lines]
       if isinstance(lines,list):
-       source_lines=[str(line).strip() for line in lines if isinstance(line,str) and line.strip()][:150]
-       break
-    except (ValueError,TypeError,RecursionError):pass
+       source_lines=[line.strip() for line in lines if isinstance(line,str) and line.strip()][:150]
+       if source_lines:break
+    except (ValueError,TypeError,RecursionError):
+     parse_errors+=1
     if source_lines:break
+   result['jsonld_parse_diagnostics']={'blocks':len(jsonld_blocks),'parse_errors':parse_errors}
    diag=result['http_diagnostics']
    diag['source_status']=('access_challenge' if diag['looks_like_access_challenge'] else
     'recipe_jsonld_available' if source_lines else
