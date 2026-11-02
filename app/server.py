@@ -1,6 +1,7 @@
 from http.server import ThreadingHTTPServer,SimpleHTTPRequestHandler
 from pathlib import Path
 from http.cookies import SimpleCookie
+import recipe_quality
 import households as auth
 import household_sharing as sharing
 import secrets
@@ -1964,6 +1965,10 @@ class Handler(SimpleHTTPRequestHandler):
   if self.path=='/api/pricing-visibility':
    if not self.gate():return
    return self.sendjson({'visibility':pricing_visibility(),'is_admin':bool(getattr(request_scope,'admin',False))})
+  if self.path=='/api/admin/recipe-quality':
+   if not self.gate():return
+   if not getattr(request_scope,'admin',False):return self.sendjson({'error':'Administrator required'},403)
+   return self.sendjson(recipe_quality.audit_catalog(allrecipes()))
   if self.path=='/api/admin/pantry-activity':
    if not self.gate():return
    if not getattr(request_scope,'admin',False):return self.sendjson({'error':'Administrator required'},403)
