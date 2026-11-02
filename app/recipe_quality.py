@@ -11,8 +11,8 @@ NUMBER = r"(?:\d+(?:\.\d+)?|\d+/\d+|[¼½¾⅓⅔⅛⅜⅝⅞])"
 UNITS = r"(?:teaspoons?|tsp|tablespoons?|tbsp|cups?|ounces?|oz|pounds?|lbs?|grams?|g|kilograms?|kg|milliliters?|ml|liters?|l|cloves?|bulbs?|fillets?|pieces?|bunch(?:es)?|heads?|stalks?|slices?|cans?|packages?|bags?)"
 EXPLICIT = re.compile(r"^\s*("+NUMBER+r")\s+(?:(("+UNITS+r")\s+))?(.+?)\s*$", re.I)
 MEASURED = re.compile(r"^\s*("+NUMBER+r")\s+("+UNITS+r")\s+(.+?)\s*$", re.I)
-UNIT_ONLY = re.compile(r"^\\s*(?:"+UNITS+r")(?:\\s*\\([^)]*\\))?\\s+.+$", re.I)
-SOURCE_UNIT = re.compile(r"^\\s*(?:"+UNITS+r")(?:\\s*\\([^)]*\\))?\\s+", re.I)
+UNIT_ONLY = re.compile(r"^\s*(?:"+UNITS+r")(?:\s*\([^)]*\))?\s+.+$", re.I)
+SOURCE_UNIT = re.compile(r"^\s*(?:"+UNITS+r")(?:\s*\([^)]*\))?\s+", re.I)
 
 def canonical_source_name(name):
     if not isinstance(name, str):
