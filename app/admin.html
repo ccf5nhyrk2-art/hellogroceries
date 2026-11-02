@@ -778,13 +778,22 @@ alternativeProbe.addEventListener('click',async()=>{
   const summary=document.createElement('p');
   summary.textContent='Inspected '+data.sample_size+' pages. This checks JSON script fields only; no measurements were changed.';
   target.appendChild(summary);
-  const list=document.createElement('ul');
-  for(const item of data.results||[]){
-   const li=document.createElement('li');
-   li.textContent='Recipe '+item.recipe_id+': '+item.alternative_ingredient_objects+' alternative ingredient objects · '+item.quantity_fields+' with quantity-like fields · keys: '+(item.field_names||[]).join(', ')+(item.page_signals?' · other page formats: '+Object.entries(item.page_signals).filter(([key,found])=>found).map(([key])=>key.replaceAll('_',' ')).join(', '):'')+(item.next_data_inspection?' · Next.js status: '+(item.next_data_inspection.status||'unknown')+' · parsed: '+item.next_data_inspection.parsed+' · ingredient paths: '+(item.next_data_inspection.ingredient_key_paths||[]).join(', ')+' · quantity paths: '+(item.next_data_inspection.quantity_key_paths||[]).join(', ')+' · candidate objects: '+item.next_data_inspection.candidate_objects+' · script types: '+(item.next_data_inspection.script_types||[]).join(', ')+' · content bytes: '+(item.next_data_inspection.content_length??'unknown')+' · page truncated: '+(item.next_data_inspection.response_truncated??'unknown')+' · other payloads: '+Object.entries(item.next_data_inspection.alternative_payload_markers||{}).filter(([k,v])=>v).map(([k])=>k).join(', ')+(item.import_source_comparison?' · current JSON-LD lines: '+item.import_source_comparison.current_source_lines+' · stored lines: '+item.import_source_comparison.stored_source_lines+' · current measured: '+item.import_source_comparison.current_measured_lines+' · stored measured: '+item.import_source_comparison.stored_measured_lines+' · exact match: '+item.import_source_comparison.exact_line_match+' · new measured lines: '+item.import_source_comparison.new_measured_lines:'')+(item.http_diagnostics?' · HTTP: '+item.http_diagnostics.http_status+' · host: '+item.http_diagnostics.final_host+' · type: '+item.http_diagnostics.content_type+' · title: '+item.http_diagnostics.page_title+' · source: '+item.http_diagnostics.source_status:''):'')+(item.error?' · '+item.error:'');
-   list.appendChild(li);
+  const table=document.createElement('table');
+  table.style.cssText='width:100%;border-collapse:collapse;font-size:0.9rem';
+  const head=document.createElement('tr');
+  for(const label of ['Recipe','HTTP','Source status','Stored measured','Live measured','Field context']){
+   const th=document.createElement('th');th.textContent=label;th.style.cssText='text-align:left;padding:10px 8px;border-bottom:1px solid #555';head.appendChild(th);
   }
-  target.appendChild(list);
+  table.appendChild(head);
+  for(const item of data.results||[]){
+   const row=document.createElement('tr');
+   const d=item.http_diagnostics||{},c=item.import_source_comparison||{},loc=item.ingredient_field_locations||[];
+   const contexts=loc.map(x=>(x.in_script?'script '+(x.script_type||'unknown'):'HTML')+(x.escaped_quotes?' escaped':'')+(x.json_array_nearby?' array':'')+(x.html_attribute_context?' attribute':''));
+   const cells=[item.recipe_id,d.http_status??item.error??'—',d.source_status||'—',c.stored_measured_lines??'—',c.current_measured_lines??'—',contexts.join('; ')||'not found'];
+   for(const value of cells){const td=document.createElement('td');td.textContent=String(value);td.style.cssText='padding:10px 8px;border-bottom:1px solid #444;vertical-align:top;overflow-wrap:anywhere';row.appendChild(td)}
+   table.appendChild(row);
+  }
+  const wrap=document.createElement('div');wrap.style.cssText='overflow-x:auto';wrap.appendChild(table);target.appendChild(wrap);
  }catch(error){target.textContent='Source inspection unavailable: '+error.message}
  finally{alternativeProbe.disabled=false}
 });
