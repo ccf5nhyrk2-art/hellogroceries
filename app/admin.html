@@ -744,6 +744,26 @@ async function scanRecipeQuality(){
    }
    issues.appendChild(list);
   }
+  const recoveryTitle=document.createElement('p');
+  recoveryTitle.textContent='Verified recovery preview: '+(data.recovery_eligible||0)+' eligible entries. No changes applied.';
+  issues.appendChild(recoveryTitle);
+  if((data.recovery_preview||[]).length){
+   const previewTable=document.createElement('table');
+   previewTable.style.cssText='width:100%;border-collapse:collapse;font-size:0.9rem';
+   const header=document.createElement('tr');
+   for(const label of ['Recipe','Ingredient','Verified amount','Original source line']){
+    const th=document.createElement('th');th.textContent=label;th.style.cssText='text-align:left;padding:8px;border-bottom:1px solid #555';header.appendChild(th);
+   }
+   previewTable.appendChild(header);
+   for(const item of data.recovery_preview){
+    const row=document.createElement('tr');
+    for(const value of [item.recipe_id,item.ingredient,String(item.amount)+' '+item.unit,item.verified_source]){
+     const td=document.createElement('td');td.textContent=String(value||'');td.style.cssText='padding:8px;border-bottom:1px solid #444;overflow-wrap:anywhere';row.appendChild(td);
+    }
+    previewTable.appendChild(row);
+   }
+   const wrap=document.createElement('div');wrap.style.cssText='overflow-x:auto';wrap.appendChild(previewTable);issues.appendChild(wrap);
+  }
   const heading=document.createElement('p');heading.textContent='First '+data.issues.length+' unresolved entries (read-only):';issues.appendChild(heading);
   const list=document.createElement('ol');
   for(const item of data.issues){
