@@ -408,6 +408,15 @@ def inspect_alternative_recipe_fields(limit=3):
     try:portion_candidates+=inspect_portions(json.loads(block))
     except (ValueError,TypeError,RecursionError):pass
    result['portion_field_inspection']={'jsonld_candidate_objects':portion_candidates,'field_paths':sorted(portion_paths),'verified_matches':0}
+   # Check alternate structured ingredient delivery signals without extracting amounts.
+   result['alternate_source_signals']={
+    'ingredient_data_attributes':bool(re.search(r'data-[\\w-]*ingredient[\\w-]*\\s*=',page,re.I)),
+    'ingredient_microdata':bool(re.search(r'itemprop\\s*=\\s*["\\x27]recipeIngredient["\\x27]',page,re.I)),
+    'next_flight_payload':bool(re.search(r'self\\.__next_f\\.push',page,re.I)),
+    'apollo_state':('__APOLLO_STATE__' in page),
+    'initial_state':('__INITIAL_STATE__' in page),
+    'embedded_portion_keywords':bool(re.search(r'ingredient.{0,60}(?:portion|quantity|amount|unit)',page,re.I)),
+   }
    diag=result['http_diagnostics']
    diag['source_status']=('access_challenge' if diag['looks_like_access_challenge'] else
     'recipe_jsonld_available' if source_lines else
