@@ -329,6 +329,43 @@ def inspect_alternative_recipe_fields(limit=3):
    with urllib.request.urlopen(req,timeout=12) as resp:
     if not allowed_url(resp.geturl()):raise ValueError('Unexpected redirect')
     page=resp.read(1500000).decode('utf-8','replace')
+   # Compare the same JSON-LD Recipe field the importer actually consumes.
+   # Never copy source amounts into the catalog during this diagnostic.
+   source_lines=[]
+   jsonld_blocks=re.findall(r'<script\\b[^>]*\\btype\\s*=\\s*["\\x27]application/ld\\+json["\\x27][^>]*>(.*?)</script\\s*>',page,re.I|re.S)
+   def recipe_nodes(obj):
+    if isinstance(obj,list):
+     for child in obj:yield from recipe_nodes(child)
+    elif isinstance(obj,dict):
+     if '@graph' in obj:yield from recipe_nodes(obj['@graph'])
+     yield obj
+   for block in jsonld_blocks[:30]:
+    try:
+     for node in recipe_nodes(json.loads(html.unescape(block))):
+      kinds=node.get('@type',[])
+      if isinstance(kinds,str):kinds=[kinds]
+      if 'Recipe' not in kinds:continue
+      lines=node.get('recipeIngredient',[]) or []
+      if isinstance(lines,str):lines=[lines]
+      if isinstance(lines,list):
+       source_lines=[str(line).strip() for line in lines if isinstance(line,str) and line.strip()][:150]
+       break
+    except (ValueError,TypeError,RecursionError):pass
+    if source_lines:break
+   stored_lines=recipe.get('ingredient_text') or []
+   if not isinstance(stored_lines,list):stored_lines=[]
+   stored_lines=[str(line).strip() for line in stored_lines if str(line).strip()]
+   measured=lambda lines:sum(1 for line in lines if recipe_quality.parse_source_line(line))
+   result['import_source_comparison']={
+    'jsonld_blocks':len(jsonld_blocks),
+    'current_source_lines':len(source_lines),
+    'stored_source_lines':len(stored_lines),
+    'current_measured_lines':measured(source_lines),
+    'stored_measured_lines':measured(stored_lines),
+    'exact_line_match':source_lines==stored_lines if source_lines else None,
+    'new_measured_lines':len(set(line for line in source_lines if recipe_quality.parse_source_line(line))-set(stored_lines)),
+    'source_has_measurements_missing_from_import':bool(set(line for line in source_lines if recipe_quality.parse_source_line(line))-set(stored_lines))
+   }
    # Parse script elements as HTML, not with a regular expression over tags.
    # Capture only the designated Next.js payload; report metadata, never raw HTML.
    from html.parser import HTMLParser
