@@ -84,8 +84,36 @@ def audit_catalog(recipes, limit=200):
             counts["ingredients"] += 1
             counts[item["status"]] += 1
             if item["status"] in ("needs_source", "unit_labeled", "invalid") and len(issues) < limit:
-                issues.append(item)
+                issues.append({**item, "source_diagnostic": source_match_diagnostic(recipe, item["ingredient"])})
     return {"counts": counts, "issues": issues, "complete": True, "estimates_applied": 0}
+
+def source_match_diagnostic(recipe, ingredient):
+    """Explain non-recovery without exposing unrelated recipe data."""
+    if not isinstance(recipe, dict):
+        return {"status": "invalid_recipe"}
+    lines = recipe.get("ingredient_text")
+    if not isinstance(lines, list) or not lines:
+        return {"status": "no_source_lines"}
+    target = canonical_source_name(ingredient)
+    exact = []
+    unsupported = 0
+    for line in lines:
+        if not isinstance(line, str):
+            continue
+        measured = MEASURED.match(line)
+        if measured and canonical_source_name(measured.group(3)) == target:
+            exact.append((measured.group(1), SHOPPING_UNITS.get(measured.group(2).lower()), line))
+        elif target and target in canonical_source_name(line):
+            unsupported += 1
+    distinct = {(amount, unit) for amount, unit, _ in exact}
+    if len(distinct) > 1:
+        return {"status": "conflicting_quantities", "candidate_count": len(distinct)}
+    if exact and not all(unit for _, unit, _ in exact):
+        return {"status": "unsupported_unit"}
+    if exact:
+        return {"status": "matched", "candidate_count": len(exact)}
+    return {"status": "unparsed_source_line" if unsupported else "ingredient_not_found"}
+
 
 def recover_from_stored_source(recipe, ingredient):
     """Recover only when a single unambiguous stored source line names the ingredient."""
