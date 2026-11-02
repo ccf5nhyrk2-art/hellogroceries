@@ -131,8 +131,10 @@ def source_match_diagnostic(recipe, ingredient):
         return {"status": "to_taste_no_amount"}
     if any(RANGE.match(line) for line in related):
         return {"status": "range_requires_review"}
+    if any(UNIT_ONLY.match(line) for line in related):
+        return {"status": "unit_without_quantity", "example": related[0][:120]}
     if related:
-        return {"status": "unparsed_source_line", "example": related[0][:120]}
+        return {"status": "source_without_verified_quantity", "example": related[0][:120]}
     return {"status": "ingredient_not_found"}
 
 
