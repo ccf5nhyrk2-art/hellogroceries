@@ -92,7 +92,7 @@ class GroceryListRegressionTests(unittest.TestCase):
         # (e.g. "2 cup Milk") instead of the item quantity field.
         required = 0.0
         for name, item in result.items():
-            match = re.fullmatch(r"(?:([0-9]+(?:\\.[0-9]+)?) )?cup Milk", name)
+            match = re.fullmatch(r"(?:([0-9]+(?:\.[0-9]+)?) )?cup Milk", name)
             if match:
                 per_item = float(match.group(1)) if match.group(1) else 1.0
                 required += per_item * item["quantity"]
