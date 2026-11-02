@@ -1678,7 +1678,10 @@ def rebuild_grocery_list(state):
   value=re.sub(r'^(?:\d+(?:[.,]\d+)?|\d+/\d+|[¼½¾⅓⅔])\s+', '', value)
   value=re.sub(r'^(?:tsp|tbsp|teaspoons?|tablespoons?|cups?|oz|ounces?|lbs?|pounds?|grams?|kg|ml|liters?|pieces?|units?|pick|cloves?)\s+', '', value)
   value=re.sub(r'\s+',' ',value).strip()
-  if value.endswith('s') and not value.endswith('ss') and len(value)>3:value=value[:-1]
+  # Only singularize a simple trailing plural. Preserve ingredient qualifiers
+  # (herb butter vs butter) and words such as asparagus or couscous.
+  if value.endswith('ies') and len(value)>5:value=value[:-3]+'y'
+  elif value.endswith('s') and not value.endswith(('ss','us','is','ous')) and len(value)>3:value=value[:-1]
   return value
  inventory=state.get('pantry_inventory',{})
  pantry={pantry_match_name(x) for x in state.get('pantry',[]) if isinstance(x,str) and x.strip()}
@@ -1721,6 +1724,8 @@ def rebuild_grocery_list(state):
   if label.startswith('__corrected__|') or label in corrected_labels:continue
   match=re.match(r'^(\d+(?:\.\d+)?)\s+(?:(pick|unit|piece|pieces|count|teaspoon|tablespoon|cup|ounce|pound|gram|kilogram|milliliter|liter)\s+)?(.+)$',label,re.I)
   if not match:continue
+  # A numeric recipe label is a measurement, not an ingredient name. Never
+  # strip descriptive modifiers while matching pantry stock.
   per_item=float(match.group(1))
   unit=(match.group(2) or 'count').lower()
   unit={'pick':'count','unit':'count','piece':'count','pieces':'count'}.get(unit,unit)
