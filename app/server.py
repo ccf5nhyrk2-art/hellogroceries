@@ -1613,8 +1613,8 @@ def auth_rate_allowed(ip, route, limit=8, window=900):
 def parse_grocery_measure(label):
  """Extract quantity, unit and ingredient from a grocery label."""
  if not isinstance(label,str):return None
- number=r'(?:\\d+(?:\\.\\d+)?|\\d+/\\d+|[¼½¾⅓⅔⅛⅜⅝⅞])'
- pattern=r'^\\s*('+number+r')\\s+(?:(teaspoons?|tsp|tablespoons?|tbsp|cups?|ounces?|oz|pounds?|lbs?|grams?|g|kilograms?|kg|milliliters?|ml|liters?|l|cloves?|thumbs?|pieces?|count)\\s+)?(.+?)\\s*$'
+ number=r'(?:\d+(?:\.\d+)?|\d+/\d+|[¼½¾⅓⅔⅛⅜⅝⅞])'
+ pattern=r'^\s*('+number+r')\s+(?:(teaspoons?|tsp|tablespoons?|tbsp|cups?|ounces?|oz|pounds?|lbs?|grams?|g|kilograms?|kg|milliliters?|ml|liters?|l|cloves?|thumbs?|pieces?|count)\s+)?(.+?)\s*$'
  match=re.match(pattern,label,re.I)
  if not match:return None
  raw,unit,name=match.groups()
