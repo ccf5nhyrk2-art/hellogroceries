@@ -712,7 +712,16 @@ document.getElementById('recipe-quality-refresh').addEventListener('click',async
   const list=document.createElement('ol');
   for(const item of data.issues){
    const li=document.createElement('li');
-   li.textContent='Recipe '+item.recipe_id+': '+item.ingredient+' — '+item.reason+(item.source_diagnostic?' · Source: '+item.source_diagnostic.status.replaceAll('_',' '):'');
+   const diagnostic=item.source_diagnostic;
+   li.textContent='Recipe '+item.recipe_id+': '+item.ingredient+' — '+item.reason+(diagnostic?' · Source: '+String(diagnostic.status||'unknown').replaceAll('_',' '):'');
+   if(diagnostic&&typeof diagnostic.example==='string'&&diagnostic.example.trim()){
+    const example=document.createElement('div');
+    example.className='muted';
+    // Display only a short, sanitized text excerpt, never source HTML.
+    const safe=diagnostic.example.replace(/[\\x00-\\x1f\\x7f]/g,' ').replace(/https?:\\/\\/\\S+/gi,'[link]').replace(/[\\w.+-]+@[\\w.-]+\\.[a-z]{2,}/gi,'[email]').trim().slice(0,120);
+    example.textContent='Original source line: '+safe;
+    li.appendChild(example);
+   }
    list.appendChild(li);
   }
   issues.appendChild(list);
