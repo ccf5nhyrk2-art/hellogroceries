@@ -11,6 +11,16 @@ NUMBER = r"(?:\d+(?:\.\d+)?|\d+/\d+|[¼½¾⅓⅔⅛⅜⅝⅞])"
 UNITS = r"(?:teaspoons?|tsp|tablespoons?|tbsp|cups?|ounces?|oz|pounds?|lbs?|grams?|g|kilograms?|kg|milliliters?|ml|liters?|l|cloves?|bulbs?|fillets?|pieces?|bunch(?:es)?|heads?|stalks?|slices?|cans?|packages?|bags?)"
 EXPLICIT = re.compile(r"^\s*("+NUMBER+r")\s+(?:(("+UNITS+r")\s+))?(.+?)\s*$", re.I)
 MEASURED = re.compile(r"^\s*("+NUMBER+r")\s+("+UNITS+r")\s+(.+?)\s*$", re.I)
+UNIT_ONLY = re.compile(r"^\\s*(?:"+UNITS+r")(?:\\s*\\([^)]*\\))?\\s+.+$", re.I)
+SOURCE_UNIT = re.compile(r"^\\s*(?:"+UNITS+r")(?:\\s*\\([^)]*\\))?\\s+", re.I)
+
+def canonical_source_name(name):
+    if not isinstance(name, str):
+        return ""
+    name = SOURCE_UNIT.sub("", name.strip())
+    name = re.sub(r"[^a-z0-9]+", " ", name.casefold()).strip()
+    return name
+
 AMBIGUOUS = re.compile(r"\b(?:garlic|grape tomatoes?|jalape(?:ñ|n)o(?: peppers?)?|salmon|pepper|salt|cilantro|parsley|sour cream|bell peppers?)\b", re.I)
 
 
@@ -29,12 +39,14 @@ def inspect_ingredient(name, factor):
     match = EXPLICIT.match(name)
     if match:
         return {"status": "verified_count", "reason": "Explicit count in source label", "source": name}
+    if UNIT_ONLY.match(name):
+        return {"status": "unit_labeled", "reason": "Unit identified but numeric quantity must be verified", "source": name}
     return {"status": "needs_source", "reason": "Source label has no explicit measurement; multiplier is not a unit", "source": name}
 
 
 def _inspect_with_source(recipe, name, factor):
     result = inspect_ingredient(name, factor)
-    if result["status"] == "needs_source":
+    if result["status"] in ("needs_source", "unit_labeled"):
         recovered = recover_from_stored_source(recipe, name)
         if recovered:
             return {"status": "source_recovered", "reason": "Verified in stored original ingredient text", "recovery": recovered}
@@ -53,14 +65,14 @@ def audit_recipe(recipe):
 
 
 def audit_catalog(recipes, limit=200):
-    counts = {"recipes": 0, "ingredients": 0, "verified": 0, "verified_count": 0, "source_recovered": 0, "needs_source": 0, "invalid": 0}
+    counts = {"recipes": 0, "ingredients": 0, "verified": 0, "verified_count": 0, "source_recovered": 0, "unit_labeled": 0, "needs_source": 0, "invalid": 0}
     issues = []
     for recipe in recipes:
         counts["recipes"] += 1
         for item in audit_recipe(recipe):
             counts["ingredients"] += 1
             counts[item["status"]] += 1
-            if item["status"] in ("needs_source", "invalid") and len(issues) < limit:
+            if item["status"] in ("needs_source", "unit_labeled", "invalid") and len(issues) < limit:
                 issues.append(item)
     return {"counts": counts, "issues": issues, "complete": True, "estimates_applied": 0}
 
@@ -71,7 +83,7 @@ def recover_from_stored_source(recipe, ingredient):
     lines = recipe.get("ingredient_text")
     if not isinstance(lines, list):
         return None
-    target = re.sub(r"[^a-z0-9]+", " ", ingredient.casefold()).strip()
+    target = canonical_source_name(ingredient)
     if not target:
         return None
     matches = []
@@ -81,7 +93,7 @@ def recover_from_stored_source(recipe, ingredient):
         measured = MEASURED.match(line)
         if not measured:
             continue
-        name = re.sub(r"[^a-z0-9]+", " ", measured.group(3).casefold()).strip()
+        name = canonical_source_name(measured.group(3))
         if name == target:
             matches.append({"source": line, "amount": measured.group(1),
                             "unit": measured.group(2), "ingredient": measured.group(3),
