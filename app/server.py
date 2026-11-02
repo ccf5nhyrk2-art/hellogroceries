@@ -296,10 +296,10 @@ def recipe_source_enrichment_worker():
     rid=str(recipe.get('id',''))
     if not rid or not isinstance(url,str) or not allowed_url(url):continue
     if existing.get(rid)==url:continue
-    if isinstance(recipe.get('ingredient_text'),list) and all(recipe_quality.inspect_ingredient(k,v)['status']!='needs_source' or recipe_quality.recover_from_stored_source(recipe,k) for k,v in (recipe.get('ingredients') or {}).items()):continue
+    if isinstance(recipe.get('ingredient_text'),list) and all(recipe_quality.inspect_ingredient(k,v)['status'] not in ('needs_source','unit_labeled') or recipe_quality.recover_from_stored_source(recipe,k) for k,v in (recipe.get('ingredients') or {}).items()):continue
     # Only enrich recipes whose current ingredient labels lack source units.
     ingredients=recipe.get('ingredients')
-    if not isinstance(ingredients,dict) or not any(recipe_quality.inspect_ingredient(k,v)['status']=='needs_source' for k,v in ingredients.items()):continue
+    if not isinstance(ingredients,dict) or not any(recipe_quality.inspect_ingredient(k,v)['status'] in ('needs_source','unit_labeled') for k,v in ingredients.items()):continue
     processed+=1
     try:
      original=recipe_from_url(url)
