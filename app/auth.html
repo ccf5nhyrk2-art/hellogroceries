@@ -55,7 +55,7 @@ async function initialize(){
   $('household-section').hidden=mode==='login'||mode==='verify';
   $('password').hidden=mode==='verify';$('password').required=mode!=='verify';$('email').hidden=mode==='verify';$('email').required=mode!=='verify';
   $('submit').textContent=mode==='verify'?'Verify email':'Continue';
-  $('resend-wrap').hidden=mode==='setup'||mode==='redeem'||mode==='verify';
+  $('resend-wrap').hidden=mode==='setup'||mode==='redeem'||mode==='verify'||mode==='login';
   $('switch').hidden=mode==='setup'||mode==='redeem'||mode==='verify';
   $('password').autocomplete=mode==='login'?'current-password':'new-password';
   $('form').hidden=false;
@@ -74,15 +74,14 @@ $('form').onsubmit=async e=>{
   const j=await r.json();if(!r.ok)throw Error(j.error||'Unable to sign in');
   if(mode==='verify'){$('mode').textContent='Email verified';$('form').hidden=true;$('error').style.color='#176b4a';$('error').textContent=j.message||'You can now sign in.';$('switch').hidden=false;$('toggle').textContent='Sign in';return;}
   if(mode==='register'){
-   mode='login';
-   $('mode').textContent='Sign in to your household';
-   $('household-section').hidden=true;
-   $('password').value='';
-   $('password').autocomplete='current-password';
-   $('submit').textContent='Sign In';
-   $('toggle').textContent='Create an account';
+   mode='pending';
+   $('mode').textContent='Check your email to activate your account';
+   $('form').hidden=true;
+   $('resend-wrap').hidden=false;
+   $('switch').hidden=false;
+   $('toggle').textContent='Back to sign in';
    $('error').style.color='#176b4a';
-   $('error').textContent=j.message||'Check your inbox to verify your email.';
+   $('error').textContent=j.sent?'Verification email submitted. Check your inbox and spam folder. Delivery may take a few minutes.':(j.message||'If your registration is pending, wait 60 seconds and resend the verification email.');
    return;
   }
   location.replace('/');
