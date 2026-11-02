@@ -2423,6 +2423,8 @@ class Handler(SimpleHTTPRequestHandler):
     except (sqlite3.Error,ValueError,TypeError):pass
    recipes.sort(key=lambda recipe: 0 if str(recipe.get('id')) in selected_ids else 1)
    result=recipe_quality.audit_catalog(recipes)
+   import quantity_validation
+   result['quantity_validation']=quantity_validation.evaluate(recipes, limit=200)
    result['selected_recipes']=len(selected_ids)
    return self.sendjson(result)
   if self.path=='/api/admin/pantry-activity':
