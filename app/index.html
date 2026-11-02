@@ -1664,6 +1664,7 @@ function consolidatedShoppingRows(items){
    .replace(/\b(cucumbers|cucumber)\b/g,'cucumber')
    .replace(/\b(zucchinis|zucchini)\b/g,'zucchini')
    .replace(/\b(eggs|egg)\b/g,'egg')
+   .replace(/^pepper$/,'black pepper')
    .replace(/\s+/g,' ');
  for(const item of items){
   const override=(state.ingredient_overrides||{})[item.name]||{};
@@ -1717,7 +1718,7 @@ function consolidatedShoppingRows(items){
   if(bare.knownCount||bare.unit||!bare.items.length)continue;
   // Do not merge custom display overrides, which may represent a distinct product.
   if(bare.items.some(item=>(state.ingredient_overrides||{})[item.name]?.display))continue;
-  const bareName=canonicalProduce(bare.label).replace(/^(?:box|pick|unit)\s+/,'').trim();
+  const bareName=canonicalProduce(bare.label).replace(/^(?:box|pick|unit)\s+/,'').replace(/^pepper$/,'black pepper').trim();
   if(!['salt','pepper','black pepper','sour cream','cilantro','parsley'].includes(bareName))continue;
   const candidates=rows.filter(row=>row!==bare&&row.knownCount&&row.unit&&canonicalProduce(row.ingredient)===bareName);
   if(candidates.length!==1)continue;
@@ -1738,7 +1739,7 @@ function consolidatedShoppingRows(items){
   else if(unit==='ounce'&&amount>=16){amount/=16;unit='pound'}
   else if(unit==='gram'&&amount>=1000){amount/=1000;unit='kilogram'}
   else if(unit==='milliliter'&&amount>=1000){amount/=1000;unit='liter'}
-  row.label=groceryNumber(amount)+(unit?' '+ingredientPluralUnit(unit,amount):'')+' '+row.ingredient;
+  row.label=groceryNumber(amount)+(unit?' '+ingredientPluralUnit(unit,amount):'')+' '+(canonicalProduce(row.ingredient)==='black pepper'?'Black Pepper':row.ingredient);
   row.note=row.missingCount?'Known quantity shown; additional recipe amount needs verification':'';
  }
  return rows;
