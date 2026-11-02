@@ -95,6 +95,16 @@ class RecipeQualityTests(unittest.TestCase):
         self.assertIsNone(verified_grocery_recovery(unit_only, "teaspoon (tsp) Salt", 1))
         self.assertIsNone(verified_grocery_recovery(plain, "Salt", 1))
 
+    def test_parenthetical_unit_alias_recovery(self):
+        recipe = {"ingredient_text": ["2 teaspoons (tsp) Salt"]}
+        recovered = verified_grocery_recovery(recipe, "teaspoon (tsp) Salt", 1)
+        self.assertIsNotNone(recovered)
+        self.assertEqual(recovered["amount"], 2)
+        self.assertEqual(recovered["unit"], "teaspoon")
+        # A conflicting alias is not silently discarded.
+        conflicting = {"ingredient_text": ["2 teaspoons (tbsp) Salt"]}
+        self.assertIsNone(verified_grocery_recovery(conflicting, "Salt", 1))
+
     def test_invalid_factor(self):
         self.assertEqual(inspect_ingredient("Garlic", -1)["status"], "invalid")
 
