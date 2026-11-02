@@ -1543,7 +1543,7 @@ function setAllShoppingDepartments(open){
 function shoppingDepartment(name){
  const value=String(name||'').toLowerCase();
  // Ground pepper and spice varieties belong in the pantry, not produce.
- if(/^(?:\\d+(?:\\.\\d+)?\\s+)?(?:(?:box|unit|pick|teaspoons?|tablespoons?|ounces?|grams?)\\s+)?(?:(?:black|white|ground|crushed red|cayenne)\\s+)?(?:pepper|peppercorns?|pepper flakes|salt)\\s*$/i.test(value))return 'Pantry & Seasonings';
+ if(/^(?:\d+(?:\.\d+)?\s+)?(?:(?:box|unit|pick|teaspoons?|tablespoons?|ounces?|grams?)\s+)?(?:(?:black|white|ground|crushed red|cayenne)\s+)?(?:pepper|peppercorns?|pepper flakes|salt)\s*$/i.test(value))return 'Pantry & Seasonings';
  // Categorize recognizable ingredients without changing their recipe quantities.
  if(/\b(?:cashew pieces?|cashews?|ancho chil(?:e|i) powder|chili powder|chile powder)\b/i.test(value))return 'Pantry & Seasonings';
  if(/\b(?:pineapple|fresh pineapple|pineapple chunks?|yellow sweet corn|sweet corn|corn on the cob)\b/i.test(value)&&!/\b(?:canned|tinned|frozen|dried|powder|syrup|juice)\b/i.test(value))return 'Produce';
@@ -2218,7 +2218,7 @@ function renderShoppingList(){
  const groups=new Map();
  for(const item of state.list||[]){
   // Hide legacy plain tap-water entries already stored in existing lists.
-  if(/^(?:(?:\\d+(?:\\.\\d+)?|[¼½¾])\\s+)?(?:(?:cups?|liters?|milliliters?|ounces?|tablespoons?|teaspoons?|units?)\\s+)?(?:tap\\s+)?water$/i.test(String(item.name||'').trim()))continue;
+  if(/^(?:(?:\d+(?:\.\d+)?|[¼½¾])\s+)?(?:(?:cups?|liters?|milliliters?|ounces?|tablespoons?|teaspoons?|units?)\s+)?(?:tap\s+)?water$/i.test(String(item.name||'').trim()))continue;
   const override=(state.ingredient_overrides||{})[item.name];
   const group=override&&override.department&&override.department!=='Auto'?override.department:shoppingDepartment(item.name);
   if(!groups.has(group))groups.set(group,[]);
