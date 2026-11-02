@@ -59,6 +59,14 @@ class RecipeQualityTests(unittest.TestCase):
         recipe["ingredient_text"].append("6 ounces Salmon")
         self.assertIsNone(verified_grocery_recovery(recipe, "ounce Salmon", 1))
 
+    def test_unit_only_audit_counts(self):
+        recipes = [{"id": 12, "ingredients": {
+            "ounce Carrots": 1, "tablespoon Mayonnaise": 1,
+            "teaspoon (tsp) Black Pepper": 1, "Salt": 1}}]
+        counts = audit_catalog(recipes)["counts"]
+        self.assertEqual(counts["unit_labeled"], 3)
+        self.assertEqual(counts["needs_source"], 1)
+
     def test_invalid_factor(self):
         self.assertEqual(inspect_ingredient("Garlic", -1)["status"], "invalid")
 
