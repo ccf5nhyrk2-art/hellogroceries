@@ -1561,7 +1561,7 @@ function shoppingDisplay(item){
  if(!Number.isFinite(qty)||qty<=0)return {name,note:''};
  // Backend stores measured recipe ingredients as "unit Ingredient" with
  // item.quantity already summed across selected recipes and serving counts.
- const unitFirst=name.match(/^(teaspoons?|tablespoons?|cups?|ounces?|pounds?|grams?|kilograms?|milliliters?|liters?)\\s+(.+)$/i);
+ const unitFirst=name.match(/^(teaspoons?|tablespoons?|cups?|ounces?|pounds?|grams?|kilograms?|milliliters?|liters?)\s+(.+)$/i);
  if(unitFirst){
   const unit=ingredientUnitAliases[unitFirst[1].toLowerCase()]||unitFirst[1].toLowerCase();
   return {name:groceryNumber(qty)+' '+ingredientPluralUnit(unit,qty)+' '+unitFirst[2],note:''};
