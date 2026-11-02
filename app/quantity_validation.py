@@ -71,6 +71,14 @@ def category(name):
     return "other"
 
 
+def recipe_context(recipe):
+    """Conservative title-based meal type; never infer quantities from the title."""
+    title = str(recipe.get("title") or recipe.get("name") or "").casefold()
+    matches = [word for word in ("salad", "soup", "pasta", "taco", "burger", "bowl")
+               if word in title]
+    return matches[0] if len(matches) == 1 else "unspecified"
+
+
 def evaluate(recipes, limit=1500, minimum_examples=5):
     """Recipe-level holdout with per-serving normalization and cautious abstention.
 
@@ -85,18 +93,18 @@ def evaluate(recipes, limit=1500, minimum_examples=5):
         servings = serving_count(recipe)
         rows = observations(recipe)
         if i % 5 == 0:
-            heldout.append((recipe.get("id"), servings, rows))
+            heldout.append((recipe.get("id"), servings, recipe_context(recipe), rows))
         else:
             for name, unit, amount in rows:
                 # Never mix serving-normalized and unnormalized training examples.
-                key = (name, unit, "per_serving" if servings else "raw")
+                key = (name, unit, "per_serving" if servings else "raw", recipe_context(recipe))
                 training[key].append(amount / servings if servings else amount)
     checked = covered = within_10 = within_25 = within_50 = 0
     errors = []
     examples = []
     categories = defaultdict(lambda: {"tested": 0, "covered": 0, "within_25": 0, "high_consensus": 0, "high_consensus_within_25": 0})
     high_confidence = {"eligible": 0, "within_25": 0, "within_10": 0}
-    for recipe_id, servings, rows in heldout:
+    for recipe_id, servings, context, rows in heldout:
         for name, unit, actual in rows:
             if checked >= limit:
                 break
@@ -132,7 +140,7 @@ def evaluate(recipes, limit=1500, minimum_examples=5):
                                  "estimated": round(estimate, 4),
                                  "relative_error": round(error, 3),
                                  "training_examples": len(samples),
-                                 "serving_normalized": bool(servings),
+                                 "serving_normalized": bool(servings), "recipe_context": context,
                                  "high_consensus": consensus})
         if checked >= limit:
             break
