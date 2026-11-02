@@ -1737,8 +1737,11 @@ function consolidatedShoppingRows(items){
   // Do not merge custom display overrides, which may represent a distinct product.
   if(bare.items.some(item=>(state.ingredient_overrides||{})[item.name]?.display))continue;
   const bareName=canonicalProduce(bare.label).replace(/^(?:box|pick|unit)\s+/,'').trim();
-  if(!['salt','pepper','black pepper','sour cream','cilantro','parsley'].includes(bareName))continue;
-  const candidates=rows.filter(row=>row!==bare&&row.knownCount&&row.unit&&canonicalProduce(row.ingredient)===bareName);
+  if(!['salt','pepper','black pepper','sour cream','cilantro','parsley','garlic'].includes(bareName))continue;
+  // Garlic cloves and bare Garlic refer to the same grocery item, but the
+  // bare source contributes no count. Do not combine bulbs or garlic powder.
+  const candidates=rows.filter(row=>row!==bare&&row.knownCount&&row.unit&&canonicalProduce(row.ingredient)===bareName&&
+   (bareName!=='garlic'||row.baseUnit==='clove'));
   if(candidates.length!==1)continue;
   const target=candidates[0];
   target.items.push(...bare.items);
