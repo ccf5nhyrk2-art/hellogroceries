@@ -1709,6 +1709,24 @@ function consolidatedShoppingRows(items){
   const row={items:[item],label,amount:valid?amount*conversion[1]:NaN,unit,ingredient:bareProduce?label.trim():ingredient,note:override.display?'':shoppingDisplay(item).note,baseUnit:conversion[0],missingCount:bareProduce,knownCount:valid};
   rows.push(row);if(key)seen.set(key,row);
  }
+ // Fold an unmeasured source into a uniquely matching measured ingredient.
+ // Keep the known measured total and explicitly flag the unknown remainder.
+ // Do not merge across different units, varieties, or multiple possible matches.
+ const mergedBare=new Set();
+ for(const bare of rows){
+  if(bare.knownCount||bare.items.length!==1||bare.unit)continue;
+  const bareName=canonicalProduce(bare.label).replace(/^(?:box|pick|unit)\s+/,'').trim();
+  if(!bareName||/^(?:salt|pepper)$/.test(bareName)===false&&!/^(?:black pepper|sour cream|cilantro|parsley)$/.test(bareName))continue;
+  const candidates=rows.filter(row=>row!==bare&&row.knownCount&&row.unit&&canonicalProduce(row.ingredient)===bareName);
+  if(candidates.length!==1)continue;
+  const target=candidates[0];
+  target.items.push(...bare.items);
+  target.missingCount=true;
+  mergedBare.add(bare);
+ }
+ if(mergedBare.size){
+  for(let i=rows.length-1;i>=0;i--)if(mergedBare.has(rows[i]))rows.splice(i,1);
+ }
  for(const row of rows){
   if(row.items.length<2)continue;
   if(!Number.isFinite(row.amount)||row.amount<=0){row.missingCount=true;continue;}
