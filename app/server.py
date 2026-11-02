@@ -308,6 +308,58 @@ def recipe_source_sample_diagnostic(limit=20):
  return result
 
 
+
+def inspect_alternative_recipe_fields(limit=3):
+ """On-demand, read-only probe of publicly exposed ingredient object keys.
+ Does not import or treat any alternative fields as verified quantities.
+ """
+ with db() as c:
+  rows=c.execute('SELECT payload FROM imported ORDER BY id DESC LIMIT 100').fetchall()
+ samples=[]
+ for (payload,) in rows:
+  if len(samples)>=limit:break
+  try:recipe=json.loads(payload)
+  except (TypeError,ValueError):continue
+  if not isinstance(recipe,dict) or not allowed_url(recipe.get('url','')):continue
+  if not any(recipe_quality.inspect_ingredient(k,v)['status'] in ('needs_source','unit_labeled') for k,v in (recipe.get('ingredients') or {}).items()):continue
+  samples.append(recipe)
+ output=[]
+ for recipe in samples:
+  result={'recipe_id':str(recipe.get('id')),'alternative_ingredient_objects':0,'quantity_fields':0,'field_names':[]}
+  try:
+   url=recipe['url']
+   req=urllib.request.Request(url,headers={'User-Agent':'Mozilla/5.0 (compatible; PersonalRecipeImporter/1.0)'})
+   with urllib.request.urlopen(req,timeout=12) as resp:
+    if not allowed_url(resp.geturl()):raise ValueError('Unexpected redirect')
+    page=resp.read(1500000).decode('utf-8','replace')
+   # Inspect JSON script objects only. Do not execute page scripts or infer amounts.
+   scripts=re.findall(r'<script\\b[^>]*type=["\\x27]application/(?:ld\\+)?json["\\x27][^>]*>(.*?)</script>',page,re.I|re.S)
+   def walk(obj,depth=0):
+    if depth>12:return
+    if isinstance(obj,list):
+     for child in obj[:1000]:yield from walk(child,depth+1)
+    elif isinstance(obj,dict):
+     keys={str(k).lower() for k in obj}
+     if ('ingredient' in keys or 'ingredientname' in keys or 'ingredientid' in keys) and keys.intersection({'amount','quantity','unit','measure','value'}):
+      yield obj
+     for child in list(obj.values())[:100]:yield from walk(child,depth+1)
+   found=set()
+   for script in scripts[:30]:
+    try:data=json.loads(html.unescape(script))
+    except (TypeError,ValueError):continue
+    for obj in walk(data):
+     result['alternative_ingredient_objects']+=1
+     found.update(str(k)[:50] for k in obj)
+     if any(k.lower() in ('amount','quantity','value') and obj[k] is not None for k in obj):
+      result['quantity_fields']+=1
+   result['field_names']=sorted(found)[:25]
+  except (ValueError,OSError,TimeoutError) as exc:
+   result['error']=type(exc).__name__
+  output.append(result)
+  time.sleep(2)
+ return {'sample_size':len(output),'results':output,'note':'JSON script object inspection only; quantities are not validated or applied'}
+
+
 def recipe_source_enrichment_worker():
  """Automatically recover original ingredient lines in small, rate-limited batches.
  Never overwrite source recipes or invent missing measurements.
@@ -2104,6 +2156,10 @@ class Handler(SimpleHTTPRequestHandler):
   if self.path=='/api/pricing-visibility':
    if not self.gate():return
    return self.sendjson({'visibility':pricing_visibility(),'is_admin':bool(getattr(request_scope,'admin',False))})
+  if self.path=='/api/admin/recipe-alternative-source-probe':
+   if not self.gate():return
+   if not getattr(request_scope,'admin',False):return self.sendjson({'error':'Administrator required'},403)
+   return self.sendjson(inspect_alternative_recipe_fields())
   if self.path=='/api/admin/recipe-source-sample':
    if not self.gate():return
    if not getattr(request_scope,'admin',False):return self.sendjson({'error':'Administrator required'},403)
