@@ -285,6 +285,12 @@ def recipe_source_enrichment_worker():
       if isinstance(state,dict) and isinstance(state.get('selected'),dict):
        selected_ids.update(str(k) for k in state['selected'])
     except (sqlite3.Error,ValueError,TypeError):pass
+    try:
+     for (payload,) in c.execute('SELECT payload FROM state'):
+      state=json.loads(payload)
+      if isinstance(state,dict) and isinstance(state.get('selected'),dict):
+       selected_ids.update(str(k) for k in state['selected'])
+    except (sqlite3.Error,ValueError,TypeError):pass
    rows.sort(key=lambda row: 0 if _selected_recipe_payload(row[0],selected_ids) else 1)
    processed=0
    for (payload,) in rows:
@@ -2061,7 +2067,25 @@ class Handler(SimpleHTTPRequestHandler):
   if self.path=='/api/admin/recipe-quality':
    if not self.gate():return
    if not getattr(request_scope,'admin',False):return self.sendjson({'error':'Administrator required'},403)
-   return self.sendjson(recipe_quality.audit_catalog(allrecipes()))
+   recipes=allrecipes()
+   selected_ids=set()
+   with db() as c:
+    try:
+     for (payload,) in c.execute('SELECT payload FROM hg_household_state'):
+      state=json.loads(payload)
+      if isinstance(state,dict) and isinstance(state.get('selected'),dict):
+       selected_ids.update(str(k) for k in state['selected'])
+    except (sqlite3.Error,ValueError,TypeError):pass
+    try:
+     for (payload,) in c.execute('SELECT payload FROM state'):
+      state=json.loads(payload)
+      if isinstance(state,dict) and isinstance(state.get('selected'),dict):
+       selected_ids.update(str(k) for k in state['selected'])
+    except (sqlite3.Error,ValueError,TypeError):pass
+   recipes.sort(key=lambda recipe: 0 if str(recipe.get('id')) in selected_ids else 1)
+   result=recipe_quality.audit_catalog(recipes)
+   result['selected_recipes']=len(selected_ids)
+   return self.sendjson(result)
   if self.path=='/api/admin/pantry-activity':
    if not self.gate():return
    if not getattr(request_scope,'admin',False):return self.sendjson({'error':'Administrator required'},403)
