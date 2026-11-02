@@ -247,6 +247,13 @@ def allrecipes():
  with db() as c:photos=dict(c.execute('SELECT recipe_id,image_url FROM photos'))
  return [dict(r,image=photos.get(r['id'],r.get('image',''))) for r in recipes]
 
+def _selected_recipe_payload(payload,selected_ids):
+ try:
+  recipe=json.loads(payload)
+  return str(recipe.get('id')) in selected_ids if isinstance(recipe,dict) else False
+ except (ValueError,TypeError):return False
+
+
 def recipe_source_enrichment_worker():
  """Automatically recover original ingredient lines in small, rate-limited batches.
  Never overwrite source recipes or invent missing measurements.
@@ -257,6 +264,15 @@ def recipe_source_enrichment_worker():
     c.execute('CREATE TABLE IF NOT EXISTS hg_recipe_source_cache (recipe_id TEXT PRIMARY KEY,url TEXT NOT NULL,lines_json TEXT NOT NULL,checked_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)')
     rows=c.execute('SELECT payload FROM imported ORDER BY id DESC').fetchall()
     existing={rid:url for rid,url in c.execute('SELECT recipe_id,url FROM hg_recipe_source_cache')}
+    # Selected meals are the priority; all households share verified source data.
+    selected_ids=set()
+    try:
+     for (payload,) in c.execute('SELECT payload FROM hg_household_state'):
+      state=json.loads(payload)
+      if isinstance(state,dict) and isinstance(state.get('selected'),dict):
+       selected_ids.update(str(k) for k in state['selected'])
+    except (sqlite3.Error,ValueError,TypeError):pass
+   rows.sort(key=lambda row: 0 if _selected_recipe_payload(row[0],selected_ids) else 1)
    processed=0
    for (payload,) in rows:
     if processed>=8:break
