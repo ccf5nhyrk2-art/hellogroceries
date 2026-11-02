@@ -330,16 +330,19 @@ def inspect_alternative_recipe_fields(limit=3):
     if not allowed_url(resp.geturl()):raise ValueError('Unexpected redirect')
     page=resp.read(1500000).decode('utf-8','replace')
    result['page_signals']={
-    'next_data':bool(re.search(r'<script[^>]+id=["\\x27]__NEXT_DATA__["\\x27]',page,re.I)),
+    'next_data':bool(re.search(r'<script\b(?=[^>]*\bid\s*=\s*["\x27]__NEXT_DATA__["\x27])',page,re.I)),
     'microdata_ingredient':bool(re.search(r'itemprop=["\\x27]recipeIngredient["\\x27]',page,re.I)),
     'data_attributes_ingredient':bool(re.search(r'data-[\\w-]*ingredient[\\w-]*=',page,re.I)),
     'hydration_markers':bool(re.search(r'__NUXT__|__APOLLO_STATE__|__INITIAL_STATE__|self\\.__next_f',page,re.I))}
-   match=re.search(r'<script\\b[^>]*id=["\\x27]__NEXT_DATA__["\\x27][^>]*>(.*?)</script>',page,re.I|re.S)
+   match=re.search(r'<script\b(?=[^>]*\bid\s*=\s*["\x27]__NEXT_DATA__["\x27])[^>]*>(.*?)</script\s*>',page,re.I|re.S)
+   result['next_data_inspection']['status']='script_not_found' if not match else 'content_extracted'
    if match:
+    result['next_data_inspection']['content_length']=len(match.group(1))
     try:
      data=json.loads(html.unescape(match.group(1)))
      info=result['next_data_inspection']
      info['parsed']=True
+     info['status']='parsed'
      ingredient_paths=set()
      quantity_paths=set()
      def inspect_tree(obj,path='',depth=0):
@@ -355,7 +358,9 @@ def inspect_alternative_recipe_fields(limit=3):
      inspect_tree(data)
      info['ingredient_key_paths']=sorted(ingredient_paths)
      info['quantity_key_paths']=sorted(quantity_paths)
-    except (ValueError,TypeError,RecursionError):result['next_data_inspection']['error']='Unable to parse page data'
+    except (ValueError,TypeError,RecursionError) as exc:
+     result['next_data_inspection']['status']='parse_failed'
+     result['next_data_inspection']['error']=type(exc).__name__
   except (ValueError,OSError,TimeoutError) as exc:result['error']=type(exc).__name__
   output.append(result)
   time.sleep(2)
