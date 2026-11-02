@@ -108,12 +108,28 @@ def audit_catalog(recipes, limit=200):
             counts[item["status"]] += 1
             if item["status"] in ("needs_source", "unit_labeled", "invalid") and len(issues) < limit:
                 issues.append({**item, "source_diagnostic": source_match_diagnostic(recipe, item["ingredient"])})
+    # Inspect every unresolved entry, not just the first 200 displayed above.
+    match_counts = {"matched": 0, "source_missing_quantity": 0, "ingredient_not_found": 0,
+                    "no_source_lines": 0, "ambiguous_or_unsupported": 0}
+    for recipe in recipes:
+        for item in audit_recipe(recipe):
+            if item["status"] not in ("needs_source", "unit_labeled"):
+                continue
+            diagnostic = source_match_diagnostic(recipe, item["ingredient"])["status"]
+            if diagnostic == "matched":
+                match_counts["matched"] += 1
+            elif diagnostic in ("unit_without_quantity", "source_without_verified_quantity", "to_taste_no_amount"):
+                match_counts["source_missing_quantity"] += 1
+            elif diagnostic in ("ingredient_not_found", "no_source_lines"):
+                match_counts[diagnostic] += 1
+            else:
+                match_counts["ambiguous_or_unsupported"] += 1
     diagnostic_counts = {}
     for issue in issues:
         status = issue["source_diagnostic"]["status"]
         diagnostic_counts[status] = diagnostic_counts.get(status, 0) + 1
     return {"counts": counts, "issues": issues, "diagnostic_counts": diagnostic_counts,
-            "diagnostic_sample_size": len(issues), "complete": True, "estimates_applied": 0}
+            "diagnostic_sample_size": len(issues), "unresolved_match_counts": match_counts, "complete": True, "estimates_applied": 0}
 
 def source_match_diagnostic(recipe, ingredient):
     if not isinstance(recipe, dict):
