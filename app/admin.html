@@ -781,7 +781,7 @@ alternativeProbe.addEventListener('click',async()=>{
   const list=document.createElement('ul');
   for(const item of data.results||[]){
    const li=document.createElement('li');
-   li.textContent='Recipe '+item.recipe_id+': '+item.alternative_ingredient_objects+' alternative ingredient objects · '+item.quantity_fields+' with quantity-like fields · keys: '+(item.field_names||[]).join(', ')+(item.page_signals?' · other page formats: '+Object.entries(item.page_signals).filter(([key,found])=>found).map(([key])=>key.replaceAll('_',' ')).join(', '):'')+(item.next_data_inspection?' · Next.js parsed: '+item.next_data_inspection.parsed+' · ingredient paths: '+(item.next_data_inspection.ingredient_key_paths||[]).join(', ')+' · quantity paths: '+(item.next_data_inspection.quantity_key_paths||[]).join(', ')+' · candidate objects: '+item.next_data_inspection.candidate_objects:'')+(item.error?' · '+item.error:'');
+   li.textContent='Recipe '+item.recipe_id+': '+item.alternative_ingredient_objects+' alternative ingredient objects · '+item.quantity_fields+' with quantity-like fields · keys: '+(item.field_names||[]).join(', ')+(item.page_signals?' · other page formats: '+Object.entries(item.page_signals).filter(([key,found])=>found).map(([key])=>key.replaceAll('_',' ')).join(', '):'')+(item.next_data_inspection?' · Next.js status: '+(item.next_data_inspection.status||'unknown')+' · parsed: '+item.next_data_inspection.parsed+' · ingredient paths: '+(item.next_data_inspection.ingredient_key_paths||[]).join(', ')+' · quantity paths: '+(item.next_data_inspection.quantity_key_paths||[]).join(', ')+' · candidate objects: '+item.next_data_inspection.candidate_objects:'')+(item.error?' · '+item.error:'');
    list.appendChild(li);
   }
   target.appendChild(list);
