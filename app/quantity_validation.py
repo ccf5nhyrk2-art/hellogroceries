@@ -133,6 +133,18 @@ def evaluate(recipes, limit=1500, minimum_examples=5):
             samples = contextual_samples if use_context else training.get(key, [])
             if len(samples) < minimum_examples:
                 continue
+            # Avoid a context-specific model when its observed quantities are
+            # substantially less stable than the broader ingredient baseline.
+            # The choice uses training data only, never the held-out answer.
+            if use_context:
+                baseline = training.get(key, [])
+                if len(baseline) >= minimum_examples:
+                    def relative_mad(values):
+                        center = median(values)
+                        return median(abs(value - center) for value in values) / center if center > 0 else float("inf")
+                    if relative_mad(contextual_samples) > relative_mad(baseline):
+                        samples = baseline
+                        use_context = False
             predicted_unit = median(samples)
             estimate = predicted_unit * servings if servings else predicted_unit
             error = abs(estimate - actual) / actual
