@@ -14,7 +14,7 @@ class SecurityRegressionTests(unittest.TestCase):
         self.conn = sqlite3.connect(':memory:')
         self.conn.execute('PRAGMA foreign_keys=ON')
         auth.ensure_schema(self.conn)
-        sharing.ensure_schema(self.conn)
+        sharing.schema(self.conn)
 
     def tearDown(self):
         self.conn.close()
