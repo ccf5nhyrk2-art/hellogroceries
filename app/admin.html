@@ -789,7 +789,7 @@ async function scanRecipeQuality(){
   const categoryList=document.createElement('ul');
   for(const [name,stats] of Object.entries(benchmark.categories||{})){
    const li=document.createElement('li');
-   li.textContent=name.replaceAll('_',' ')+' — '+stats.covered+'/'+stats.tested+' covered · within 25%: '+pct(stats.within_25_percent);
+   li.textContent=name.replaceAll('_',' ')+' — '+stats.covered+'/'+stats.tested+' covered · within 25%: '+pct(stats.within_25_percent)+' · high-consensus: '+(stats.high_consensus||0)+' tested, '+pct(stats.high_consensus_within_25_percent)+' within 25%';
    categoryList.appendChild(li);
   }
   categoryDetails.appendChild(categoryList);
