@@ -1552,6 +1552,12 @@ function shoppingDepartment(name){
  if(/\b(?:egg\s+noodles?|rice\s+noodles?|udon\s+noodles?|soba\s+noodles?|ramen\s+noodles?|(?:dry|dried)\s+(?:pasta|noodles?)|(?:spaghetti|linguine|fettuccine|penne|rigatoni|macaroni|orzo))\b/i.test(value))return 'Pantry & Seasonings';
  if(/\b(?:flour\s+tortillas?|corn\s+tortillas?|whole\s+wheat\s+tortillas?|tortilla\s+wraps?|pita\s+bread|naan\s+bread|flatbreads?)\b/i.test(value))return 'Bakery & Bread';
  if(/\b(?:apple\s+sauce|applesauce|apple\s+butter|apple\s+juice|onion\s+flakes?|dehydrated\s+onions?|dried\s+onions?|garlic\s+granules?|tomato\s+powder|vegetable\s+oil|peanut\s+oil)\b/i.test(value))return 'Pantry & Seasonings';
+ // Packaged citrus products, dry powders and concentrates take precedence
+ // over fresh fruit/vegetable keyword matching.
+ if(/\b(?:lemon|lime|orange|grapefruit|pineapple|apple|cranberry|tomato)\s+(?:juice|concentrate|powder|extract|syrup)\b/i.test(value))return 'Pantry & Seasonings';
+ if(/\b(?:bottled|shelf[- ]stable|from\s+concentrate)\b.*\b(?:juice|lemon|lime)\b/i.test(value))return 'Pantry & Seasonings';
+ if(/\b(?:powdered|dehydrated|freeze[- ]dried|dried|granulated)\s+(?:lemon|lime|orange|apple|tomato|onion|garlic|mushroom|vegetable|fruit)\b/i.test(value))return 'Pantry & Seasonings';
+ if(/\b(?:lemon|lime|orange|apple|tomato|onion|garlic|mushroom|vegetable|fruit)\s+(?:powder|granules?|flakes?|concentrate|extract)\b/i.test(value))return 'Pantry & Seasonings';
  // Categorize recognizable ingredients without changing their recipe quantities.
  if(/\b(?:cashew pieces?|cashews?|ancho chil(?:e|i) powder|chili powder|chile powder)\b/i.test(value))return 'Pantry & Seasonings';
  if(/\b(?:pineapple|fresh pineapple|pineapple chunks?|yellow sweet corn|sweet corn|corn on the cob)\b/i.test(value)&&!/\b(?:canned|tinned|frozen|dried|powder|syrup|juice)\b/i.test(value))return 'Produce';
