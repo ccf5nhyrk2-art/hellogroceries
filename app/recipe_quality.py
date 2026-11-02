@@ -7,7 +7,7 @@ import math
 import re
 from functools import lru_cache
 
-NUMBER = r"(?:\d+(?:\.\d+)?|\d+/\d+|[¼½¾⅓⅔⅛⅜⅝⅞])"
+NUMBER = r"(?:\d+\s+\d+/\d+|\d+(?:\.\d+)?|\d+/\d+|[¼½¾⅓⅔⅛⅜⅝⅞])"
 UNITS = r"(?:teaspoons?|tsp|tablespoons?|tbsp|cups?|ounces?|oz|pounds?|lbs?|grams?|g|kilograms?|kg|milliliters?|ml|liters?|l|cloves?|bulbs?|fillets?|pieces?|bunch(?:es)?|heads?|stalks?|slices?|cans?|packages?|bags?)"
 EXPLICIT = re.compile(r"^\s*("+NUMBER+r")\s+(?:(("+UNITS+r")\s+))?(.+?)\s*$", re.I)
 MEASURED = re.compile(r"^\s*("+NUMBER+r")\s+("+UNITS+r")\s+(.+?)\s*$", re.I)
@@ -169,8 +169,17 @@ def verified_grocery_recovery(recipe, ingredient, factor):
         return None
     raw = recovered["amount"]
     try:
-        amount = FRACTIONS[raw] if raw in FRACTIONS else (
-            float(raw.split("/")[0]) / float(raw.split("/")[1]) if "/" in raw else float(raw))
+        if raw in FRACTIONS:
+            amount = FRACTIONS[raw]
+        elif "/" in raw:
+            parts = raw.split()
+            if len(parts) == 2:
+                amount = float(parts[0]) + float(parts[1].split("/")[0]) / float(parts[1].split("/")[1])
+            else:
+                numerator, denominator = raw.split("/")
+                amount = float(numerator) / float(denominator)
+        else:
+            amount = float(raw)
     except (ValueError, ZeroDivisionError):
         return None
     unit = SHOPPING_UNITS.get(recovered["unit"].lower())
