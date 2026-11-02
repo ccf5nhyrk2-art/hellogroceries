@@ -80,7 +80,7 @@ def task_overview():
   item('store_directory','Nationwide store directory refresh','Automatic when cache expires (7 days) or store search needs it',False,datetime.datetime.fromtimestamp(ATP_CACHE_FILE.stat().st_mtime,datetime.timezone.utc).isoformat() if ATP_CACHE_FILE.exists() else None,'store_directory'),
   item('store_geocode','Store address geocoding','Automatic during store search (only uncached addresses)',RETAILER_GEOCODE_RUNNING,datetime.datetime.fromtimestamp(Path('/data/retailer_address_coordinates.json').stat().st_mtime,datetime.timezone.utc).isoformat() if Path('/data/retailer_address_coordinates.json').exists() else None,'store_geocode'),
   item('reef_prices','ReefAPI grocery price refresh','Manual only; cached prices expire after 365 days',False,None,None),
-  {'key':'recommendation_photos','name':'Recommendation photo caching','frequency':'Background: checks hourly; 15 seconds between downloads (target: 40 photos)','running':recommendation_photo_warmup['running'],'last_started':recommendation_photo_warmup['last_started'],'last_finished':recommendation_photo_warmup['last_finished'],'next_run':recommendation_photo_warmup['next_run'],'status':'Running' if recommendation_photo_warmup['running'] else 'Waiting for next cycle','cached':recommendation_photo_warmup['cached'],'target':RECOMMENDATION_PHOTO_TARGET,'checked':recommendation_photo_warmup['checked'],'errors':recommendation_photo_warmup['errors'],'action':None}
+  {'key':'recommendation_photos','name':'Recommendation photo caching','frequency':'Background: checks hourly; 15 seconds between downloads (5 GB cache limit)','running':recommendation_photo_warmup['running'],'last_started':recommendation_photo_warmup['last_started'],'last_finished':recommendation_photo_warmup['last_finished'],'next_run':recommendation_photo_warmup['next_run'],'status':'Running' if recommendation_photo_warmup['running'] else 'Waiting for next cycle','cached':recommendation_photo_warmup['cached'],'target':len([r for r in allrecipes() if r.get('image') and not non_recipe_reason(r)]),'cache_bytes':recommendation_photo_cache_bytes(),'cache_limit_bytes':RECOMMENDATION_PHOTO_CACHE_LIMIT,'checked':recommendation_photo_warmup['checked'],'errors':recommendation_photo_warmup['errors'],'action':None}
  ]
 
 def us_import_running():
@@ -373,7 +373,14 @@ def resolve_photo(recipe,refresh=False):
   return None if refresh else cached_photo(rid)
 
 # Low-rate background warmup for recommendation photos; never blocks a page request.
-RECOMMENDATION_PHOTO_TARGET=150
+RECOMMENDATION_PHOTO_CACHE_LIMIT=5*1024**3
+RECOMMENDATION_PHOTO_MIN_FREE=2*1024**3
+def recommendation_photo_cache_bytes():
+ try:return sum(p.stat().st_size for p in PHOTO_DIR.iterdir() if p.is_file())
+ except OSError:return 0
+def recommendation_photo_cache_has_room():
+ try:return recommendation_photo_cache_bytes()<RECOMMENDATION_PHOTO_CACHE_LIMIT and __import__('shutil').disk_usage(PHOTO_DIR).free>RECOMMENDATION_PHOTO_MIN_FREE
+ except OSError:return False
 recommendation_photo_wakeup=threading.Event()
 recommendation_photo_warmup={'last_attempt':None,'cached':0,'checked':0,'errors':0,'running':False,'last_started':None,'last_finished':None,'next_run':None}
 def recommendation_photo_warmup_worker():
@@ -388,7 +395,7 @@ def recommendation_photo_warmup_worker():
    recommendation_photo_warmup['cached']=cached
    # Keep the warmup deliberately small and low-rate to limit external traffic.
    for recipe in recipes:
-    if cached>=RECOMMENDATION_PHOTO_TARGET:break
+    if not recommendation_photo_cache_has_room():break
     if cached_photo(int(recipe['id'])):continue
     recommendation_photo_warmup['last_attempt']=int(recipe['id'])
     recommendation_photo_warmup['checked']+=1
