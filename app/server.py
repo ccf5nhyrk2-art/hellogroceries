@@ -1629,11 +1629,11 @@ def parse_grocery_measure(label):
 def grocery_display_name(name):
  """Normalize common source typos without dropping meaningful qualifiers."""
  if not isinstance(name,str):return name
- name=re.sub(r'\\bshitake\\b','Shiitake',name,flags=re.I)
- name=re.sub(r'\\s+',' ',name).strip()
+ name=re.sub(r'\bshitake\b','Shiitake',name,flags=re.I)
+ name=re.sub(r'\s+',' ',name).strip()
  # Normalize only known countable produce names; retain meaningful qualifiers.
  # Do not merge uncertain package units (e.g. box Pepper) into measured amounts.
- name=re.sub(r'\\b(bell pepper|bell peppers|onion|onions|tomato|tomatoes|lime|limes|lemon|lemons|carrot|carrots|mushroom|mushrooms)\\b',
+ name=re.sub(r'\b(bell pepper|bell peppers|onion|onions|tomato|tomatoes|lime|limes|lemon|lemons|carrot|carrots|mushroom|mushrooms)\b',
              lambda m:{'bell pepper':'Bell Pepper','bell peppers':'Bell Pepper',
                        'onion':'Onion','onions':'Onion','tomato':'Tomato',
                        'tomatoes':'Tomato','lime':'Limes','limes':'Limes',
