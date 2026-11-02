@@ -1953,33 +1953,6 @@ class Handler(SimpleHTTPRequestHandler):
    if nutrition_scan['running']:return self.sendjson({'ok':True,'message':'Nutrition scan is already running.'})
    nutrition_wakeup.set()
    return self.sendjson({'ok':True,'message':'Nutrition scan queued.'})
-  if self.path=='/api/admin/recommendation-photos/run':
-   if not self.gate(write=True):return
-   if not getattr(request_scope,'admin',False):return self.sendjson({'error':'Administrator required'},403)
-   if recommendation_photo_warmup['running']:
-    return self.sendjson({'ok':True,'message':'Photo caching is already running.'})
-   recommendation_photo_wakeup.set()
-   return self.sendjson({'ok':True,'message':'Photo cache check queued.'})
-  if self.path=='/api/admin/recipe-photos/repair':
-   if not self.gate(write=True):return
-   if not getattr(request_scope,'admin',False):return self.sendjson({'error':'Administrator required'},403)
-   try:
-    size=int(self.headers.get('Content-Length','0'))
-    if not 0<size<=2048:raise ValueError('Invalid request size')
-    data=json.loads(self.rfile.read(size))
-    rid=data.get('id')
-    if type(rid)!=int:raise ValueError('Invalid recipe ID')
-    recipe=next((r for r in allrecipes() if r.get('id')==rid),None)
-    if not recipe:raise ValueError('Recipe not found')
-    url=str(data.get('url','')).strip()
-    if url and not allowed_photo_url(url):raise ValueError('Photo URL must use an approved HTTPS image host')
-    with photo_locks_guard:item_lock=photo_locks.setdefault(rid,threading.Lock())
-    with item_lock:
-     result=download_photo(url,rid) if url else None
-    if not url:result=resolve_photo(recipe,refresh=True)
-    if not result:return self.sendjson({'error':'Could not retrieve a valid photo. Try a supported direct image URL.'},422)
-    return self.sendjson({'ok':True,'id':rid})
-   except (ValueError,TypeError,OSError,urllib.error.URLError,TimeoutError) as exc:return self.sendjson({'error':str(exc)},400)
   if self.path=='/api/admin/openai-key':
    if not self.gate():return
    if not getattr(request_scope,'admin',False):return self.sendjson({'error':'Administrator required'},403)
@@ -2141,6 +2114,33 @@ class Handler(SimpleHTTPRequestHandler):
   super().end_headers()
  def do_POST(self):
   request_scope.household_id=None
+  if self.path=='/api/admin/recommendation-photos/run':
+   if not self.gate(write=True):return
+   if not getattr(request_scope,'admin',False):return self.sendjson({'error':'Administrator required'},403)
+   if recommendation_photo_warmup['running']:
+    return self.sendjson({'ok':True,'message':'Photo caching is already running.'})
+   recommendation_photo_wakeup.set()
+   return self.sendjson({'ok':True,'message':'Photo cache check queued.'})
+  if self.path=='/api/admin/recipe-photos/repair':
+   if not self.gate(write=True):return
+   if not getattr(request_scope,'admin',False):return self.sendjson({'error':'Administrator required'},403)
+   try:
+    size=int(self.headers.get('Content-Length','0'))
+    if not 0<size<=2048:raise ValueError('Invalid request size')
+    data=json.loads(self.rfile.read(size))
+    rid=data.get('id')
+    if type(rid)!=int:raise ValueError('Invalid recipe ID')
+    recipe=next((r for r in allrecipes() if r.get('id')==rid),None)
+    if not recipe:raise ValueError('Recipe not found')
+    url=str(data.get('url','')).strip()
+    if url and not allowed_photo_url(url):raise ValueError('Photo URL must use an approved HTTPS image host')
+    with photo_locks_guard:item_lock=photo_locks.setdefault(rid,threading.Lock())
+    with item_lock:
+     result=download_photo(url,rid) if url else None
+    if not url:result=resolve_photo(recipe,refresh=True)
+    if not result:return self.sendjson({'error':'Could not retrieve a valid photo. Try a supported direct image URL.'},422)
+    return self.sendjson({'ok':True,'id':rid})
+   except (ValueError,TypeError,OSError,urllib.error.URLError,TimeoutError) as exc:return self.sendjson({'error':str(exc)},400)
   if self.path in ('/api/household/invite','/api/household/respond'):
    if not self.gate(write=True):return
    try:
