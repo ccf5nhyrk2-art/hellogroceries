@@ -1769,9 +1769,14 @@ def rebuild_grocery_list(state):
    unit=parsed['unit']
    ingredient=parsed['ingredient']
   else:
-   # Measured recipe labels are stored as "unit ingredient" with the
-   # numeric amount in totals, so handle them without guessing a count.
-   measured=re.match(r'^(teaspoon|tablespoon|cup|ounce|pound|gram|kilogram|milliliter|liter)\\s+(.+)
+   # Aggregated measured labels store the number in totals.
+   measured=re.match(r'^(teaspoon|tablespoon|cup|ounce|pound|gram|kilogram|milliliter|liter)\\s+(.+)$',label,re.I)
+   if not measured:continue
+   per_item=1
+   unit=measured.group(1).lower()
+   ingredient=measured.group(2)
+  needed=consume(ingredient,unit,per_item*totals[label])
+  if needed>=per_item*totals[label]-0.000001:continue
   original_sources=sources.pop(label,[])
   totals.pop(label,None)
   if needed<=0.000001:continue
