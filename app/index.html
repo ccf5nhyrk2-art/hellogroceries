@@ -2248,7 +2248,12 @@ function renderShoppingList(){
   const waterLabel=String(item.name||'').trim().toLowerCase().replace(/^[0-9.\/¼½¾⅓⅔]+ +/,'').replace(/^(?:cups?|liters?|milliliters?|ounces?|tablespoons?|teaspoons?|units?) +/,'');
   if(waterLabel==='water'||waterLabel==='tap water')continue;
   const override=(state.ingredient_overrides||{})[item.name];
-  const group=override&&override.department&&override.department!=='Auto'?override.department:shoppingDepartment(item.name);
+  // Group pepper variants by the normalized ingredient, not by the raw
+  // recipe label: measured and unmeasured sources must reach one consolidator.
+  const displayName=shoppingDisplay(item).name;
+  const pepperName=displayName.replace(/^\s*(?:(?:\d+(?:\.\d+)?|\d+\/\d+|[¼½¾⅓⅔⅛⅜⅝⅞])\s+)?(?:(?:teaspoons?|tablespoons?|cups?|ounces?|pounds?|grams?|kilograms?|milliliters?|liters?|units?)\s+)?/i,'').trim().toLowerCase();
+  const isBlackPepper=pepperName==='pepper'||pepperName==='black pepper';
+  const group=isBlackPepper?'Pantry & Seasonings':override&&override.department&&override.department!=='Auto'?override.department:shoppingDepartment(item.name);
   if(!groups.has(group))groups.set(group,[]);
   groups.get(group).push(item);
  }
