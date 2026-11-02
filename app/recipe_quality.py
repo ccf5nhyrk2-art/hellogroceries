@@ -108,7 +108,12 @@ def audit_catalog(recipes, limit=200):
             counts[item["status"]] += 1
             if item["status"] in ("needs_source", "unit_labeled", "invalid") and len(issues) < limit:
                 issues.append({**item, "source_diagnostic": source_match_diagnostic(recipe, item["ingredient"])})
-    return {"counts": counts, "issues": issues, "complete": True, "estimates_applied": 0}
+    diagnostic_counts = {}
+    for issue in issues:
+        status = issue["source_diagnostic"]["status"]
+        diagnostic_counts[status] = diagnostic_counts.get(status, 0) + 1
+    return {"counts": counts, "issues": issues, "diagnostic_counts": diagnostic_counts,
+            "diagnostic_sample_size": len(issues), "complete": True, "estimates_applied": 0}
 
 def source_match_diagnostic(recipe, ingredient):
     if not isinstance(recipe, dict):
