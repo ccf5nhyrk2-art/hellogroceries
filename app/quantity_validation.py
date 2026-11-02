@@ -93,6 +93,18 @@ def evaluate(recipes, limit=1500, minimum_examples=5):
     for i, recipe in enumerate(ordered):
         servings = serving_count(recipe)
         rows = observations(recipe)
+        # Count each recipe only once per ingredient/unit. Conflicting repeated
+        # amounts are ambiguous and cannot safely support a consensus estimate.
+        unique = {}
+        ambiguous = set()
+        for name, unit, amount in rows:
+            pair = (name, unit)
+            if pair in unique and not math.isclose(unique[pair], amount, rel_tol=1e-9):
+                ambiguous.add(pair)
+            else:
+                unique[pair] = amount
+        rows = [(name, unit, amount) for (name, unit), amount in unique.items()
+                if (name, unit) not in ambiguous]
         if i % 5 == 0:
             heldout.append((recipe.get("id"), servings, recipe_context(recipe), rows))
         else:
