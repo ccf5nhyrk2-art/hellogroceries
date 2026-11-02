@@ -2424,7 +2424,7 @@ class Handler(SimpleHTTPRequestHandler):
    recipes.sort(key=lambda recipe: 0 if str(recipe.get('id')) in selected_ids else 1)
    result=recipe_quality.audit_catalog(recipes)
    import quantity_validation
-   result['quantity_validation']=quantity_validation.evaluate(recipes, limit=200)
+   result['quantity_validation']=quantity_validation.evaluate(recipes, limit=1500)
    result['selected_recipes']=len(selected_ids)
    return self.sendjson(result)
   if self.path=='/api/admin/pantry-activity':
