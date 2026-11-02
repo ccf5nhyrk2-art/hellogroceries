@@ -2123,7 +2123,7 @@ class Handler(SimpleHTTPRequestHandler):
   # SimpleHTTPRequestHandler otherwise exposes everything inside /app to logged-in users.
   static_path=urllib.parse.unquote(urllib.parse.urlsplit(self.path).path)
   if static_path=='/':static_path='/index.html'
-  allowed_pages={'/index.html','/auth.html','/admin.html'}
+  allowed_pages={'/index.html','/auth.html','/admin.html','/household.html'}
   allowed_extensions={'.css','.js','.png','.jpg','.jpeg','.webp','.gif','.svg','.ico','.woff','.woff2'}
   if (static_path not in allowed_pages and
       (not static_path.startswith('/assets/') or Path(static_path).suffix.lower() not in allowed_extensions)):
