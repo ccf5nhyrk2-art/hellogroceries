@@ -49,9 +49,9 @@ main h1{font-size:clamp(28px,7vw,40px);line-height:1.12;overflow-wrap:anywhere;m
 #form input,#form button{display:block;width:100%;max-width:100%;font-size:16px;min-height:48px;margin:10px 0}
 #form input{min-width:0}
 @media(max-width:600px){
- body{align-items:flex-start;padding:16px;overflow-x:hidden}
- main{margin:auto 0;padding:24px 20px;border-radius:16px}
- #hg-theme-toggle{position:static;display:block;margin:16px auto 0;width:auto;max-width:calc(100% - 32px)}
+ body{align-items:flex-start;justify-content:flex-start;flex-direction:column;padding:clamp(16px,4vw,24px);overflow-x:hidden;gap:12px}
+ main{margin:clamp(8px,4vh,36px) auto 0;padding:24px 20px;border-radius:16px}
+ #hg-theme-toggle{position:static;display:block;align-self:flex-end;order:-1;margin:0;width:auto;max-width:calc(100% - 16px);padding:8px 12px;font-size:13px;line-height:1.2;box-shadow:none}
 }
 @media(max-height:650px){
  body{align-items:flex-start}
