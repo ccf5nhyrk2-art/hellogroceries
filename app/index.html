@@ -1591,7 +1591,7 @@ function groceryMissingUnit(rest){
  return /^(?:kale|peas|cilantro|parsley|basil|spinach|arugula|lettuce|mixed greens|broccoli|chives|rice|flour|sugar|butter|olive oil|garlic powder|pepper|salt)$/i.test(rest.trim());
 }
 function cleanGroceryUnits(text){
- return String(text).replace(/\b(teaspoons?|tablespoons?|ounces?|cups?|pounds?|grams?|milliliters?)\s*\((?:tsp|tbsp|oz|cup|lb|lbs|g|ml)\)/gi,'$1');
+ return String(text).replace(/^box\s+pepper$/i,'Pepper').replace(/\b(teaspoons?|tablespoons?|ounces?|cups?|pounds?|grams?|milliliters?)\s*\((?:tsp|tbsp|oz|cup|lb|lbs|g|ml)\)/gi,'$1');
 }
 function missingGroceryMeasure(rest){
  const value=String(rest).trim();
