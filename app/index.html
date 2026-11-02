@@ -764,6 +764,12 @@ html[data-theme="light"] #recommend-list .recommend-actions button:hover{backgro
  body[data-active-page]:not([data-active-page="all"]) main>.mobile-home-dashboard{display:none!important}
  body[data-active-page="all"] .mobile-home-actions{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:14px}
 }
+
+/* Keep mobile shopping actions compact without hiding generation controls. */
+@media(max-width:750px){
+ .shopping-view-toolbar{gap:6px;margin-bottom:8px}
+ .shopping-view-toolbar button{padding:8px 10px;min-height:40px;font-size:13px}
+}
 </style><script>
 (function(){const originalFetch=window.fetch;window.fetch=function(input,init){const opts=init?{...init}:{};const method=(opts.method||'GET').toUpperCase();const url=typeof input==='string'?input:input.url;if(method!=='GET'&&method!=='HEAD'&&url.startsWith('/api/')){const match=document.cookie.match(/(?:^|; )hg_csrf=([^;]+)/);opts.headers={...opts.headers,'X-HG-CSRF':match?match[1]:''}}return originalFetch.call(this,input,opts)};})();
 </script>
@@ -1528,6 +1534,10 @@ function setAllShoppingDepartments(open){
 // Prefer precise pantry matches before broad produce words; tolerate plural ingredient names.
 function shoppingDepartment(name){
  const value=String(name||'').toLowerCase();
+ // Ingredients that should not be buried under Other / Uncategorized.
+ if(/\b(?:tex[- ]mex paste|curry paste|miso paste|gochujang|harissa|tahini|chili paste|chilli paste|sambal|hot sauce)\b/i.test(value))return 'Pantry & Seasonings';
+ if(/\b(?:bell peppers?|poblano peppers?|jalape(?:ñ|n)os?|serrano peppers?|sweet peppers?|red peppers?|green peppers?)\b/i.test(value))return 'Produce';
+ if(/^\s*(?:\d+(?:\.\d+)?\s+)?(?:water|tap water)\s*$/i.test(value))return 'Pantry & Seasonings';
  // Specific food categories take priority over generic produce terms.
  if(/\b(?:butter|cheese|feta|mozzarella|parmesan|cheddar|sour cream|yogurt|milk|eggs?|heavy cream|creme fraiche)\b/i.test(value)&&!/\b(?:peanut|almond|cashew|sunflower) butter\b/i.test(value))return 'Dairy & Refrigerated';
  if(/\b(?:peanut|almond|cashew|sunflower) butter\b/i.test(value))return 'Pantry & Seasonings';
@@ -1588,7 +1598,7 @@ function shoppingDisplay(item){
  }
  const fractions={'¼':0.25,'½':0.5,'¾':0.75,'⅓':1/3,'⅔':2/3,'⅛':0.125,'⅜':0.375,'⅝':0.625,'⅞':0.875};
  const match=name.match(/^(\d+(?:\.\d+)?(?:\s+\d+\/\d+)?|\d+\/\d+|[¼½¾⅓⅔⅛⅜⅝⅞])\s+(.+)$/);
- if(!match)return {name,note:'Check recipe quantity'};
+ if(!match)return {name,note:missingGroceryMeasure(name)?'Unit not specified':''};
  const raw=match[1],rest=match[2];
  let amount;
  if(Object.hasOwn(fractions,raw))amount=fractions[raw];
