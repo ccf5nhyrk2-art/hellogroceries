@@ -3,7 +3,7 @@ import unittest
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "app"))
-from recipe_quality import inspect_ingredient, audit_catalog
+from recipe_quality import inspect_ingredient, audit_catalog, verified_grocery_recovery
 
 
 class RecipeQualityTests(unittest.TestCase):
@@ -28,6 +28,19 @@ class RecipeQualityTests(unittest.TestCase):
         data = audit_catalog([recipe])
         self.assertEqual(data["counts"]["source_recovered"], 0)
         self.assertEqual(data["counts"]["needs_source"], 1)
+
+    def test_safe_source_recovery_for_grocery_generation(self):
+        recipe = {"id": 7, "ingredients": {"Salmon": 1},
+                  "ingredient_text": ["2 ounces Salmon"]}
+        recovered = verified_grocery_recovery(recipe, "Salmon", 1)
+        self.assertEqual(recovered["amount"], 2)
+        self.assertEqual(recovered["unit"], "ounce")
+        self.assertEqual(recovered["confidence"], "verified_source")
+        self.assertIsNone(verified_grocery_recovery(recipe, "Salmon", 2))
+        recipe["ingredient_text"].append("4 ounces Salmon")
+        self.assertIsNone(verified_grocery_recovery(recipe, "Salmon", 1))
+        recipe["ingredient_text"] = ["1 package Salmon"]
+        self.assertIsNone(verified_grocery_recovery(recipe, "Salmon", 1))
 
     def test_invalid_factor(self):
         self.assertEqual(inspect_ingredient("Garlic", -1)["status"], "invalid")
