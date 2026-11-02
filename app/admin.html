@@ -769,6 +769,22 @@ async function scanRecipeQuality(){
   const pct=value=>value==null?'N/A':(value*100).toFixed(1)+'%';
   benchmarkSummary.textContent='Quantity estimation benchmark (read-only): '+(benchmark.evaluated||0)+' held-out measurements tested · '+(benchmark.covered||0)+' predictions · coverage '+pct(benchmark.coverage)+' · within 25% error '+pct(benchmark.within_25_percent)+' · median relative error '+pct(benchmark.median_relative_error)+'. No estimates applied.';
   issues.appendChild(benchmarkSummary);
+  const confidence=benchmark.high_confidence||{};
+  const confidenceLine=document.createElement('p');
+  confidenceLine.textContent='High-consensus suggestions (validation only): '+(confidence.eligible||0)+' tested · within 10%: '+pct(confidence.within_10_percent)+' · within 25%: '+pct(confidence.within_25_percent)+'. No automatic estimates enabled.';
+  issues.appendChild(confidenceLine);
+  const categoryDetails=document.createElement('details');
+  const categoryHeading=document.createElement('summary');
+  categoryHeading.textContent='Accuracy by ingredient category';
+  categoryDetails.appendChild(categoryHeading);
+  const categoryList=document.createElement('ul');
+  for(const [name,stats] of Object.entries(benchmark.categories||{})){
+   const li=document.createElement('li');
+   li.textContent=name.replaceAll('_',' ')+' — '+stats.covered+'/'+stats.tested+' covered · within 25%: '+pct(stats.within_25_percent);
+   categoryList.appendChild(li);
+  }
+  categoryDetails.appendChild(categoryList);
+  issues.appendChild(categoryDetails);
   const benchmarkDetails=document.createElement('details');
   const benchmarkTitle=document.createElement('summary');
   benchmarkTitle.textContent='Show estimation benchmark examples';
