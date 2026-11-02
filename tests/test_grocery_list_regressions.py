@@ -7,7 +7,7 @@ import unittest
 
 SOURCE = pathlib.Path(__file__).resolve().parents[1] / "app" / "server.py"
 tree = ast.parse(SOURCE.read_text(encoding="utf-8"), filename=str(SOURCE))
-functions = [node for node in tree.body if isinstance(node, ast.FunctionDef) and node.name in ("parse_grocery_measure", "rebuild_grocery_list")]
+functions = [node for node in tree.body if isinstance(node, ast.FunctionDef) and node.name in ("parse_grocery_measure", "grocery_display_name", "rebuild_grocery_list")]
 ns = {"math": math, "re": re}
 exec(compile(ast.Module(body=functions, type_ignores=[]), str(SOURCE), "exec"), ns)
 
@@ -32,6 +32,27 @@ class GroceryListRegressionTests(unittest.TestCase):
         result = generate(recipes, make_state())
         self.assertEqual(result["Limes"]["quantity"], 2)
         self.assertEqual(len(result["Limes"]["sources"]), 2)
+
+    def test_case_variants_merge_without_losing_recipe_sources(self):
+        recipes = [
+            {"id": 1, "name": "A", "source_servings": 2, "ingredients": {"Limes": 1}},
+            {"id": 2, "name": "B", "source_servings": 2, "ingredients": {"limes": 1}},
+        ]
+        result = generate(recipes, make_state())
+        self.assertEqual(len(result), 1)
+        item = next(iter(result.values()))
+        self.assertEqual(item["quantity"], 2)
+        self.assertEqual(len(item["sources"]), 2)
+
+    def test_shiitake_spelling_normalized_in_display(self):
+        recipes = [
+            {"id": 1, "name": "A", "source_servings": 2, "ingredients": {"4 ounces Shitake Mushrooms": 1}},
+            {"id": 2, "name": "B", "source_servings": 2, "ingredients": {"4 ounces Shiitake Mushrooms": 1}},
+        ]
+        result = generate(recipes, make_state())
+        self.assertEqual(len(result), 1)
+        self.assertTrue(any("Shiitake" in name for name in result))
+        self.assertEqual(len(next(iter(result.values()))["sources"]), 2)
 
     def test_herb_butter_not_merged_with_regular_butter(self):
         recipes = [
