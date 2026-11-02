@@ -105,6 +105,15 @@ class RecipeQualityTests(unittest.TestCase):
         conflicting = {"ingredient_text": ["2 teaspoons (tbsp) Salt"]}
         self.assertIsNone(verified_grocery_recovery(conflicting, "Salt", 1))
 
+    def test_diagnostic_counts_are_sample_only(self):
+        recipes = [{"id": 1, "ingredients": {"Salt": 1, "Pepper": 1},
+                    "ingredient_text": ["Salt", "Pepper"]}]
+        result = audit_catalog(recipes, limit=1)
+        self.assertEqual(result["counts"]["needs_source"], 2)
+        self.assertEqual(result["diagnostic_sample_size"], 1)
+        self.assertEqual(result["diagnostic_counts"]["source_without_verified_quantity"], 1)
+        self.assertEqual(result["estimates_applied"], 0)
+
     def test_invalid_factor(self):
         self.assertEqual(inspect_ingredient("Garlic", -1)["status"], "invalid")
 
