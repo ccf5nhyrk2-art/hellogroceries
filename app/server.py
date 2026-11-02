@@ -417,6 +417,39 @@ def inspect_alternative_recipe_fields(limit=3):
     'initial_state':('__INITIAL_STATE__' in page),
     'embedded_portion_keywords':bool(re.search(r'ingredient.{0,60}(?:portion|quantity|amount|unit)',page,re.I)),
    }
+   # Classify keyword hits by their enclosing script or HTML context.
+   class SourceContextParser(HTMLParser):
+    def __init__(self):
+     super().__init__(convert_charrefs=True)
+     self.script_type=None
+     self.script_parts=[]
+     self.counts={'jsonld':0,'other_script':0,'html_text':0}
+    def handle_starttag(self,tag,attrs):
+     if tag.lower()=='script':
+      self.script_type=(dict(attrs).get('type') or 'script').lower()
+      self.script_parts=[]
+    def handle_data(self,data):
+     if self.script_type is not None:
+      if sum(map(len,self.script_parts))<1500000:self.script_parts.append(data)
+     elif re.search(r'ingredient.{0,60}(?:portion|quantity|amount|unit)',data,re.I):
+      self.counts['html_text']+=1
+    def handle_endtag(self,tag):
+     if tag.lower()=='script' and self.script_type is not None:
+      data=''.join(self.script_parts)
+      if re.search(r'ingredient.{0,60}(?:portion|quantity|amount|unit)',data,re.I):
+       key='jsonld' if self.script_type=='application/ld+json' else 'other_script'
+       self.counts[key]+=1
+      self.script_type=None
+      self.script_parts=[]
+   context_parser=SourceContextParser()
+   context_parser.feed(page)
+   result['portion_keyword_context']={
+    'matching_jsonld_scripts':context_parser.counts['jsonld'],
+    'matching_other_scripts':context_parser.counts['other_script'],
+    'matching_html_text_nodes':context_parser.counts['html_text'],
+    'structured_portion_objects':portion_candidates,
+    'verified_quantities_from_context':0,
+    'note':'Diagnostic counts only; no measurements recovered'}
    diag=result['http_diagnostics']
    diag['source_status']=('access_challenge' if diag['looks_like_access_challenge'] else
     'recipe_jsonld_available' if source_lines else
