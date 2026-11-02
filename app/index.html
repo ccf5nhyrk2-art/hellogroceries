@@ -1547,6 +1547,11 @@ function shoppingDepartment(name){
  if(['pepper','black pepper','ground pepper','ground black pepper','white pepper','salt','black peppercorns','peppercorns','crushed red pepper flakes'].includes(spiceName))return 'Pantry & Seasonings';
  // Shelf-stable seasonings and vinegars must not match fresh onion/apple rules.
  if(/\b(?:granulated\s+(?:onion|garlic)|(?:onion|garlic)\s+(?:granules?|powder)|apple\s+cider\s+vinegar|(?:white|red\s+wine|rice|balsamic|distilled|malt)\s+vinegar)\b/i.test(value))return 'Pantry & Seasonings';
+ // Match the finished grocery product before broad ingredient words like egg,
+ // flour, apple, onion, or pepper. These are display-only classifications.
+ if(/\b(?:egg\s+noodles?|rice\s+noodles?|udon\s+noodles?|soba\s+noodles?|ramen\s+noodles?|(?:dry|dried)\s+(?:pasta|noodles?)|(?:spaghetti|linguine|fettuccine|penne|rigatoni|macaroni|orzo))\b/i.test(value))return 'Pantry & Seasonings';
+ if(/\b(?:flour\s+tortillas?|corn\s+tortillas?|whole\s+wheat\s+tortillas?|tortilla\s+wraps?|pita\s+bread|naan\s+bread|flatbreads?)\b/i.test(value))return 'Bakery & Bread';
+ if(/\b(?:apple\s+sauce|applesauce|apple\s+butter|apple\s+juice|onion\s+flakes?|dehydrated\s+onions?|dried\s+onions?|garlic\s+granules?|tomato\s+powder|vegetable\s+oil|peanut\s+oil)\b/i.test(value))return 'Pantry & Seasonings';
  // Categorize recognizable ingredients without changing their recipe quantities.
  if(/\b(?:cashew pieces?|cashews?|ancho chil(?:e|i) powder|chili powder|chile powder)\b/i.test(value))return 'Pantry & Seasonings';
  if(/\b(?:pineapple|fresh pineapple|pineapple chunks?|yellow sweet corn|sweet corn|corn on the cob)\b/i.test(value)&&!/\b(?:canned|tinned|frozen|dried|powder|syrup|juice)\b/i.test(value))return 'Produce';
