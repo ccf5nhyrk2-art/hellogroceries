@@ -724,6 +724,18 @@ document.getElementById('recipe-quality-refresh').addEventListener('click',async
   }
   breakdown.appendChild(diagnosticList);
   issues.appendChild(breakdown);
+  if(data.unresolved_match_counts){
+   const totals=data.unresolved_match_counts;
+   const title=document.createElement('p');
+   title.textContent='Full-catalog unresolved matching diagnosis (all missing-quantity entries):';
+   issues.appendChild(title);
+   const list=document.createElement('ul');
+   const labels={matched:'Matching measured source lines (requires investigation)',source_missing_quantity:'Matching source line lacks a quantity',ingredient_not_found:'No matching ingredient in source lines',no_source_lines:'No source lines',ambiguous_or_unsupported:'Ambiguous or unsupported source evidence'};
+   for(const [key,label] of Object.entries(labels)){
+    const li=document.createElement('li');li.textContent=label+': '+(totals[key]||0);list.appendChild(li);
+   }
+   issues.appendChild(list);
+  }
   const heading=document.createElement('p');heading.textContent='First '+data.issues.length+' unresolved entries (read-only):';issues.appendChild(heading);
   const list=document.createElement('ol');
   for(const item of data.issues){
