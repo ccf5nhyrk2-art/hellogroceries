@@ -663,6 +663,98 @@ html[data-theme="dark"] .recipe-dialog{background:#20272a;color:#edf0f2;border-c
 .recommend-carousel-controls{display:none}
 @media(max-width:750px){#recommend-list{gap:8px!important;scrollbar-width:none;padding-bottom:3px}#recommend-list::-webkit-scrollbar{display:none}#recommend-list .recommend-card{flex-basis:min(66vw,248px);padding:10px}.recommend-carousel-controls:not([hidden]){display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:9px}.recommend-swipe-hint{font-size:12px;color:#a9bcb2}.recommend-dots{display:flex;gap:6px;align-items:center}.recommend-dot{width:6px;height:6px;border-radius:50%;background:#62766b}.recommend-dot.active{background:#65c79a;transform:scale(1.3)}}
 @media(max-width:750px){#desktop-logout{display:none!important}}
+
+/* Compact mobile shopping rows while retaining expandable recipe sources. */
+@media(max-width:750px){
+ #items .grocery-item-wrap{padding:0!important}
+ #items .grocery-row{gap:8px!important;padding:9px 0!important;min-height:0!important}
+ #items .grocery-description{min-width:0;flex:1}
+ #items .grocery-description label{line-height:1.3!important}
+ #items .grocery-row button[data-edit-item]{padding:7px 10px!important;min-height:34px!important;font-size:13px!important}
+ #items .grocery-breakdown{margin:0 0 4px 0!important;padding:0!important}
+ #items .grocery-breakdown>summary{padding:3px 0 5px!important;font-size:11px!important;opacity:.78}
+ #items .grocery-breakdown:not([open]){border:0!important}
+}
+#items .grocery-title-line{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+#items .grocery-title-line>.grocery-breakdown{margin:0;font-size:11px;position:relative}
+#items .grocery-title-line>.grocery-breakdown>summary{padding:0;color:var(--muted,#7fa48f);white-space:nowrap}
+#items .grocery-title-line>.grocery-breakdown[open] .grocery-breakdown-content{position:relative;z-index:2;margin-top:8px;max-width:600px}
+#items .grocery-actions{position:relative;flex-shrink:0;align-self:center}
+#items .grocery-actions>summary{list-style:none;cursor:pointer;border:1px solid var(--line,#496052);border-radius:10px;padding:8px 12px;font-weight:700;letter-spacing:2px}
+#items .grocery-actions>summary::-webkit-details-marker{display:none}
+#items .grocery-action-options{position:absolute;right:0;top:100%;z-index:20;display:flex;gap:6px;padding:9px;background:var(--card,#26332e);border:1px solid var(--line,#496052);border-radius:12px;box-shadow:0 6px 20px #0004;white-space:nowrap}
+#items .grocery-action-options button{min-height:36px}
+@media(max-width:750px){#items .grocery-title-line{gap:6px}#items .grocery-actions>summary{padding:8px 10px}}
+/* Legible mobile shopping actions and source details. */
+#items .grocery-title-line{display:block!important;min-width:0}
+#items .grocery-title-line>label{display:block;overflow-wrap:anywhere}
+#items .grocery-title-line>.grocery-breakdown{display:block;margin:3px 0 0!important;font-size:11px}
+#items .grocery-title-line>.grocery-breakdown>summary{display:inline-block;color:#75bb96!important;font-size:11px;line-height:1.3}
+#items .grocery-actions>summary{background:#29352f!important;color:#e6f2e9!important;border:1px solid #567363!important;box-shadow:none!important;min-width:42px;min-height:38px;display:flex;align-items:center;justify-content:center;letter-spacing:1px}
+#items .grocery-action-options{background:#26332e!important;color:#edf5ef!important}
+#items .grocery-action-options button{background:#176c4b;color:white}
+#items .grocery-description{min-width:0}
+@media(max-width:750px){#items .grocery-row{align-items:center!important}#items .grocery-actions>summary{min-width:42px;min-height:38px;padding:5px!important}}
+/* Expanded recipe details sit below the shopping row and use accessible dark colors. */
+#items .grocery-item-wrap>.grocery-breakdown{display:block;margin:0 12px 8px 35px!important;padding:0!important;border:0!important}
+#items .grocery-item-wrap>.grocery-breakdown>summary{display:inline-block;padding:0 0 4px!important;color:#79c79d!important;font-size:11px;line-height:1.4;cursor:pointer}
+#items .grocery-item-wrap>.grocery-breakdown[open]>.grocery-breakdown-content{display:block;margin:7px 0 5px;background:#202c27!important;color:#edf5ef!important;border:1px solid #496454!important;border-radius:10px;padding:12px 14px}
+#items .grocery-breakdown-content .grocery-source{background:transparent!important;color:#edf5ef!important;border-bottom-color:#405648!important}
+#items .grocery-breakdown-content .grocery-source small{color:#bdd3c3!important}
+#items .grocery-breakdown-content button{background:#176c4b!important;color:#fff!important;border:1px solid #338b65!important;border-radius:9px}
+#items .grocery-breakdown-content a{color:#88dbac!important}
+@media(max-width:750px){#items .grocery-item-wrap>.grocery-breakdown{margin-left:31px!important;margin-right:6px!important}}
+/* Theme-aware recipe details for every grocery department. */
+html:not([data-theme="dark"]) #items .grocery-item-wrap>.grocery-breakdown[open]>.grocery-breakdown-content{background:#f5f9f6!important;color:#203c2c!important;border-color:#cbdcd1!important}
+html:not([data-theme="dark"]) #items .grocery-breakdown-content .grocery-source{background:transparent!important;color:#203c2c!important;border-bottom-color:#d6e3da!important}
+html:not([data-theme="dark"]) #items .grocery-breakdown-content .grocery-source small{color:#536c5d!important}
+#items .grocery-breakdown-content .grocery-source{padding:9px 0;line-height:1.5}
+/* Prevent Safari from showing both a custom and native disclosure marker. */
+#items .grocery-item-wrap>.grocery-breakdown>summary::before{content:none!important;display:none!important}
+#items .grocery-item-wrap>.grocery-breakdown>summary::after{content:none!important;display:none!important}
+/* Shopping item actions adapt to light and dark themes. */
+html:not([data-theme="dark"]) #items .grocery-actions>summary{background:#f0f4f1!important;color:#30493c!important;border:1px solid #cbd8cf!important;box-shadow:none!important}
+html:not([data-theme="dark"]) #items .grocery-actions>summary:hover,
+html:not([data-theme="dark"]) #items .grocery-actions[open]>summary{background:#e3ece6!important;border-color:#9fb9a8!important}
+html:not([data-theme="dark"]) #items .grocery-action-options{background:#fff!important;color:#183329!important;border-color:#cbd8cf!important;box-shadow:0 8px 22px #18332920!important}
+html[data-theme="dark"] #items .grocery-actions>summary{background:#29352f!important;color:#e6f2e9!important;border-color:#567363!important}
+/* Single native disclosure arrow and tighter shopping-list spacing. */
+#items .grocery-item-wrap>.grocery-breakdown>summary{display:list-item!important;list-style:disclosure-closed inside!important}
+#items .grocery-item-wrap>.grocery-breakdown[open]>summary{list-style:disclosure-open inside!important}
+#items .grocery-item-wrap>.grocery-breakdown{margin-bottom:3px!important}
+#items .grocery-item-wrap>.grocery-row{padding-top:5px!important;padding-bottom:5px!important}
+#items .grocery-item-wrap>.grocery-breakdown:not([open]){padding-bottom:0!important}
+/* Pantry inventory uses the same grocery departments as the shopping list. */
+#inventory-saved .pantry-department{border:1px solid var(--line,#c9d9cf);border-radius:12px;margin:8px 0;overflow:hidden}
+#inventory-saved .pantry-department>summary{cursor:pointer;padding:12px 14px;font-weight:650}
+#inventory-saved .pantry-department-items{padding:0 14px 10px}
+#inventory-saved .pantry-department-item{display:flex;justify-content:space-between;gap:12px;align-items:center;padding:9px 0;border-top:1px solid var(--line,#c9d9cf)}
+#inventory-saved .pantry-department-item strong{text-align:right;white-space:nowrap}
+#inventory-saved .pantry-quantity-controls{display:flex;align-items:center;justify-content:flex-end;flex-wrap:wrap;gap:8px}#inventory-saved [data-pantry-edit]{min-height:36px;padding:5px 12px;border-radius:9px}#inventory-mode{min-width:0}@media(max-width:750px){#inventory-saved .pantry-department-item{align-items:center}#inventory-saved .pantry-department-item>span{min-width:0;overflow-wrap:anywhere}}
+
+/* Light theme: bright, high-contrast recipe recommendations. */
+html[data-theme="light"] #recipe-recommendations{background:#f5f9f6!important;border:1px solid #cbdcd1!important;color:#173528!important;box-shadow:0 2px 12px rgba(21,54,36,.06)}
+html[data-theme="light"] #recipe-recommendations #recommend-heading{color:#183d2c!important}
+html[data-theme="light"] #recipe-recommendations .muted{color:#526b5c!important}
+html[data-theme="light"] #recommend-list .recommend-card{background:#fff!important;border:1px solid #c9d8ce!important;color:#1d3529!important;box-shadow:0 2px 7px rgba(19,55,35,.07)}
+html[data-theme="light"] #recommend-list .recommend-title{color:#183728!important}
+html[data-theme="light"] #recommend-list .recommend-dismiss{color:#176b4a!important;opacity:1!important}
+html[data-theme="light"] #recommend-list [data-recommend-collection]{background:#fff!important;color:#203b2d!important;border:1px solid #a8bfb0!important;border-radius:10px}
+html[data-theme="light"] #recipe-recommendations #recommend-refresh{background:#fff!important;color:#176b4a!important;border:1px solid #176b4a!important;border-radius:10px!important;font-weight:650}
+html[data-theme="light"] #recipe-recommendations #recommend-refresh:hover{background:#e5f3e9!important}
+html[data-theme="light"] #recommend-list .recommend-actions button{background:#176b4a!important;color:#fff!important;border-color:#176b4a!important}
+html[data-theme="light"] #recommend-list .recommend-actions button:hover{background:#12563c!important}
+
+/* Keep recommendation cards consistently sized on desktop, even if photos fail. */
+@media(min-width:751px){
+ #recommend-list{grid-template-columns:repeat(5,minmax(0,1fr))!important;align-items:stretch}
+ #recommend-list .recommend-card{min-width:0;width:100%;box-sizing:border-box}
+ #recommend-list .recommend-photo{height:125px;object-fit:cover}
+}
+@media(min-width:751px) and (max-width:1050px){
+ #recommend-list{grid-template-columns:repeat(3,minmax(0,1fr))!important}
+}
+#recommend-list .recommend-card[hidden]{display:none!important}
 </style><script>
 (function(){const originalFetch=window.fetch;window.fetch=function(input,init){const opts=init?{...init}:{};const method=(opts.method||'GET').toUpperCase();const url=typeof input==='string'?input:input.url;if(method!=='GET'&&method!=='HEAD'&&url.startsWith('/api/')){const match=document.cookie.match(/(?:^|; )hg_csrf=([^;]+)/);opts.headers={...opts.headers,'X-HG-CSRF':match?match[1]:''}}return originalFetch.call(this,input,opts)};})();
 </script>
@@ -672,7 +764,7 @@ html[data-theme="dark"] .recipe-dialog{background:#20272a;color:#edf0f2;border-c
 <optgroup label="Rice"><option value="rice">All rice sides</option><option value="white-rice">White / jasmine / basmati rice</option><option value="brown-rice">Brown rice</option><option value="seasoned-rice">Seasoned rice / pilaf</option></optgroup>
 <optgroup label="Vegetables"><option value="vegetables">All vegetable sides</option><option value="broccoli">Broccoli</option><option value="green-beans">Green beans</option><option value="asparagus">Asparagus</option><option value="carrots">Carrots</option><option value="brussels-sprouts">Brussels sprouts</option><option value="mixed-vegetables">Mixed / roasted vegetables</option></optgroup>
 <optgroup label="Other sides"><option value="salad">Salad / slaw</option><option value="bread">Bread / rolls</option><option value="pasta">Pasta / noodles</option><option value="beans">Beans / lentils</option></optgroup>
-</select><input id="exclude-ingredient" type="search" placeholder="Exclude ingredient" aria-label="Exclude ingredient"></div></div><div id="active-recipe-filter-chips" aria-label="Active recipe filters"></div><p class="muted" id="filtercount" aria-live="polite"></p><p class="muted" id="hf-photo-audit" style="font-size:12px;margin:5px 0 10px"></p><div class="enhance-panel" id="shop-sales"><h3>Find nearby grocery stores</h3><p class="muted">Find grocery stores near your ZIP code and choose your favorite.</p><form id="store-lookup-form" class="actions" style="flex-wrap:wrap"><input id="store-zip" inputmode="numeric" pattern="[0-9]{5}" maxlength="5" placeholder="ZIP code" aria-label="Five-digit ZIP code" required><label for="store-radius">Within</label><select id="store-radius" aria-label="Search radius"><option value="5" selected>5 miles</option><option value="10">10 miles</option><option value="15">15 miles</option><option value="20">20 miles</option><option value="25">25 miles</option></select><button type="submit">Find stores</button></form><p id="store-status" class="muted" aria-live="polite"></p><div id="store-results"></div><div class="enhance-panel" id="store-sales-comparison" style="margin-top:14px"><h3>Compare sales with your shopping list</h3><p class="muted">Add verified offers from retailer weekly ads to compare nearby stores. Automatic regional weekly ads are checked for free when available. You can also enter verified offers manually. Confirm offers and dates with the retailer before shopping.</p><details id="sale-feed-import"><summary style="cursor:pointer;font-weight:600;margin:10px 0">Import weekly-ad offers (JSON)</summary><p class="muted">Import a retailer-provided or independently verified JSON export. Each record needs store, item, price, unit, expires (YYYY-MM-DD), and an HTTPS source link. Imported offers remain in this browser and expire automatically.</p><input id="sale-feed-file" type="file" accept=".json,application/json" aria-label="Choose weekly-ad JSON export"><button type="button" id="sale-feed-import-button">Import verified offers</button><p class="muted" id="sale-feed-status" aria-live="polite"></p></details><details id="manual-sale-entry"><summary style="cursor:pointer;font-weight:600;margin:10px 0">＋ Add an offer from a weekly ad (optional)</summary><form id="store-sale-form" class="actions" style="flex-wrap:wrap"><select id="sale-store" aria-label="Store for sale" required><option value="">Find nearby stores first</option></select><input id="sale-item" list="sale-shopping-items" placeholder="Sale item (e.g. chicken breast)" maxlength="100" required><input id="sale-price" type="number" min="0.01" max="10000" step="0.01" placeholder="Sale price ($)" required><input id="sale-unit" placeholder="Unit (e.g. lb, pack)" maxlength="30" required><input id="sale-expires" type="date" aria-label="Offer expiration date" required><input id="sale-source" type="url" placeholder="Retailer weekly-ad URL" aria-label="Retailer offer source URL" required><button type="submit">Add verified offer</button></form><datalist id="sale-shopping-items"></datalist></details><p class="muted" id="sale-status" aria-live="polite"></p><div class="actions" style="flex-wrap:wrap;margin:12px 0"><button type="button" id="check-retailer-ad">Check official weekly ad</button><span class="muted" id="retailer-ad-status" aria-live="polite">Check retailer ad availability before entering verified offers.</span></div><p class="muted" id="automatic-sale-status" aria-live="polite">Free regional weekly-ad lookup runs when nearby stores load; no API key required.</p><div class="enhance-panel" id="store-price-panel" style="margin-top:14px"><h3>Preferred store pricing</h3><p class="muted">Prices are tied to your selected store. Matching verified weekly-ad offers are included automatically; other prices can be entered manually. Unavailable prices are not estimated.</p><form id="store-price-form" class="actions" style="flex-wrap:wrap"><input id="store-price-item" list="sale-shopping-items" placeholder="Ingredient" maxlength="120" required><input id="store-price-amount" type="number" min="0.01" max="10000" step="0.01" placeholder="Price ($)" required><input id="store-price-unit" maxlength="40" placeholder="Pack / lb / each" required><input id="store-price-source" type="url" placeholder="HTTPS source (optional)"><button type="submit">Save price</button></form><p class="muted" id="store-price-status" aria-live="polite"></p><div id="store-price-results"></div></div><div id="sale-comparison-results"></div></div><small class="muted">Store locations from third-party directories; coverage varies. Weekly sale prices require verification.</small></div><div class="enhance-panel" id="my-recipes"><h3>My Recipes</h3><p class="muted">Your collections and saved meals, all in one place.</p><div id="my-collection-cards" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(175px,1fr));gap:10px;margin:14px 0"></div><div id="my-collection-contents" style="margin:12px 0"></div><div class="actions" style="display:none" aria-hidden="true"><select id="favorite-filter" aria-label="Show favorites"><option value="all">All recipes</option><option value="favorites">♥ Favorites only</option></select><select id="collection-filter" aria-label="Filter by collection"><option value="all">All collections</option></select></div><details id="manage-collections-panel" style="margin-top:12px"><summary style="cursor:pointer;font-weight:600">Manage collections</summary><div class="actions" style="margin-top:12px;flex-wrap:wrap"><input id="new-collection" placeholder="New collection name" maxlength="60"><button id="create-collection" type="button">Create collection</button></div><div class="actions" style="margin-top:12px;flex-wrap:wrap"><select id="manage-collection" aria-label="Collection to manage"><option value="">Choose a collection…</option></select><button id="rename-collection" type="button" class="clear">Rename</button><button id="delete-collection" type="button" class="clear">Delete collection</button></div><div id="manage-collection-recipes" class="muted"></div></details></div><div id="selected-plan" class="selected-plan" hidden><h3>My Selected Meals <span id="selected-plan-count" class="muted"></span></h3><div id="selected-plan-list" class="muted">No meals selected yet.</div></div><p id="diet-warning" class="muted" style="display:none">Dietary results are estimated from ingredient names, not verified allergen labels. Check the full recipe, sauces, substitutions and packaging for gluten, dairy and cross-contact before cooking, especially for allergies or celiac disease.</p><section id="recipe-recommendations" aria-labelledby="recommend-heading" style="margin:16px 0 24px;padding:16px;border:1px solid #345443;border-radius:14px;background:rgba(28,57,42,.18)"><div style="display:flex;align-items:center;justify-content:space-between;gap:12px"><div><h3 id="recommend-heading" style="margin:0">Recommended for you</h3><p class="muted" style="margin:5px 0 0">Suggestions based on saved meals, favorites and ratings</p></div><button type="button" id="recommend-refresh" class="clear">Refresh</button></div><div id="recommend-list" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px;margin-top:14px"></div><div id="recommend-carousel-controls" class="recommend-carousel-controls" hidden><span class="recommend-swipe-hint">Swipe for more →</span><div id="recommend-dots" class="recommend-dots"></div></div></section><div id="recipes" class="recipe-browser"></div><div class="pagination"><button id="prevpage" type="button">Previous</button><span id="pageinfo" class="muted"></span><button id="nextpage" type="button">Next</button></div></section><section><div class="import-tools" hidden style="display:none!important"><h2>Import recipes</h2><div class="actions"><input id="recipeurl" type="url" placeholder="Paste HelloFresh recipe URL (any country)" style="flex:1;min-width:180px;padding:11px;border:1px solid #cad7cf;border-radius:8px"><button id="import">Import Recipe</button></div><p class="muted">Import publicly available HelloFresh recipes from international sites. Imported recipes display official page photos when provided; older workbook recipes may need photo links added manually; cooking steps open on the original page.</p></div></div><div class="enhance-panel"><h3>Weekly meal planner</h3><div id="week-grid" class="week-grid"></div><div class="actions"><button type="button" id="week-apply">Use week for grocery list</button><button type="button" id="week-copy" class="clear">Copy last week</button></div></div><div class="enhance-panel"><h3>Pantry & manual groceries</h3><div class="actions"><input id="pantry-input" placeholder="Ingredient already in pantry"><button id="pantry-add" type="button">Add to pantry</button></div><div id="pantry-items" class="muted"></div><div class="pantry-scan-box" style="margin-top:16px;padding:16px;border:1px solid var(--line,#42524b);border-radius:14px"><h3>📷 Scan groceries or a receipt</h3><p class="muted">Take a grocery or receipt photo. Review recognized items before adding them.</p><div class="actions"><input type="hidden" id="pantry-scan-mode" value="groceries"><input type="file" id="pantry-scan-file" accept="image/*" capture="environment" aria-label="Take grocery photo" hidden></div><div class="actions"><button type="button" id="pantry-scan-start">📷 Scan groceries</button><button type="button" id="pantry-scan-receipt">🧾 Scan receipt</button></div><div class="actions" style="margin-top:10px"><button type="button" id="pantry-barcode-open" style="background:#176e4c;color:white;border:1px solid #23875e;width:100%;font-weight:600">▥ Scan barcode</button><input type="file" id="pantry-barcode-photo" accept="image/*" capture="environment" hidden></div><div id="pantry-barcode-panel" hidden style="margin-top:12px"><video id="pantry-barcode-video" autoplay muted playsinline style="width:100%;max-height:240px;object-fit:cover;border-radius:14px" hidden></video><p id="pantry-barcode-status" class="muted" role="status">Point the camera at a barcode, or enter its numbers below.</p><div class="actions"><input id="pantry-barcode-input" inputmode="numeric" pattern="[0-9]*" maxlength="14" placeholder="Barcode numbers" aria-label="Barcode digits"><button type="button" id="pantry-barcode-lookup">Find product</button><button type="button" id="pantry-barcode-close" class="clear">Close</button></div><div id="pantry-barcode-fallback" hidden style="margin-top:12px;padding:12px;border:1px solid #45534c;border-radius:14px"><p class="muted">Product not in the catalog. Identify its front label with AI, or save the product for future scans.</p><button type="button" id="pantry-barcode-ai" class="clear" style="width:100%;margin-bottom:10px">📷 Identify product with AI</button><input id="pantry-barcode-name" placeholder="Product name" aria-label="Product name" style="width:100%;margin-bottom:8px"><input id="pantry-barcode-size" placeholder="Package size (optional)" aria-label="Package size" style="width:100%;margin-bottom:8px"><button type="button" id="pantry-barcode-save" style="width:100%">Save product and review</button></div></div><p id="pantry-scan-status" class="muted" role="status"></p><div id="pantry-scan-results" hidden><h4>Review detected items</h4><p class="muted">Review names and quantities. Existing pantry quantities will increase.</p><div id="pantry-scan-rows"></div><div class="actions"><button type="button" id="pantry-scan-another" class="clear">Scan another photo</button></div><div class="actions"><button type="button" id="pantry-scan-apply">Add selected to pantry</button><button type="button" id="pantry-scan-cancel" class="clear">Cancel</button></div></div></div></div></section><section id="shopping-page-section"><h2>Shopping list</h2><div class="enhance-panel" id="shopping-manual-add"><h3>Add an item to your shopping list</h3><div class="actions"><input id="manual-input" placeholder="e.g. Milk, paper towels, bananas" aria-label="New shopping item" style="flex:1 1 230px;min-width:0"><button id="manual-add" type="button">Add item</button></div><div id="manual-items" class="muted"></div><p class="muted">Items you add here are included when you generate your shopping list. Use the × beside an item to remove it.</p></div><div class="enhance-panel" id="smart-tools"><h3>Smart shopping & planning</h3><div id="smart-flags"></div><label><input type="checkbox" id="smart-hide"> Hide purchased items</label><p id="smart-progress" class="muted"></p><h4>Pantry inventory (verified ingredients)</h4><p class="muted">Enter an ingredient, amount and exact unit. Quantities are deducted only from recipe ingredients you've explicitly corrected to the same name and unit. Existing pantry exclusions still apply.</p><form id="inventory-form" class="inventory-form"><input id="inventory-name" placeholder="e.g. black pepper" required maxlength="140"><input id="inventory-amount" type="number" min="0" max="100000" step="any" placeholder="On hand" required><select id="inventory-unit"><option value="count">Items</option><option value="teaspoon">Teaspoon</option><option value="tablespoon">Tablespoon</option><option value="cup">Cup</option><option value="ounce">Ounce</option><option value="pound">Pound</option><option value="gram">Gram</option><option value="clove">Clove</option><option value="piece">Piece</option><option value="bag">Bag</option><option value="package">Package</option></select><button type="submit">Save amount</button></form><div id="inventory-saved" class="muted"></div><h4>Pantry quantity notes</h4><div id="smart-pantry"></div><h4>Automatic weekly planner</h4><select id="smart-days"><option>3</option><option selected>5</option><option>7</option></select> <button type="button" id="smart-auto">Suggest dinners</button><p class="muted">Review suggestions before applying them to the shopping list.</p><h4>Cooking mode</h4><select id="smart-cook-select"></select> <button type="button" id="smart-cook-open">Cook</button><div id="smart-cook-view" hidden></div></div><div class="actions"><button type="button" id="generate-grocery">Generate Shopping List</button><span id="generate-status" role="status" aria-live="polite" style="display:block;flex-basis:100%;font-weight:600"></span><button type="button" id="preview-grocery" class="clear">Preview changes</button><button class="clear" id="clear">Clear List</button></div><p id="summary" class="muted"></p><div id="grocery-preview" class="ingredient-preview" hidden></div><div id="items"></div><div class="ingredient-suggestions" id="ingredient-suggestions"><h3>🍽️ Cook with what’s on your list</h3><p class="muted">Meals that reuse ingredients already on your shopping list. Suggestions are estimates; check the full recipe for anything extra.</p><div id="ingredient-suggestions-results"></div></div></section></div></div><p id="error" class="error"></p><dialog id="recipe-dialog" class="recipe-dialog"><button id="close-recipe" type="button" class="clear" aria-label="Close recipe details" title="Close recipe details">×</button><div id="recipe-detail"></div><button id="recipe-photo-admin" class="photo-edit" data-admin-only type="button">Change recipe photo</button><form id="recipe-review-form"><input id="recipe-review-id" type="hidden"><label for="recipe-rating">Your rating</label><select id="recipe-rating"><option value="0">Not rated</option><option value="1">★ 1 star</option><option value="2">★★ 2 stars</option><option value="3">★★★ 3 stars</option><option value="4">★★★★ 4 stars</option><option value="5">★★★★★ 5 stars</option></select><label for="recipe-note">Cooking notes</label><textarea id="recipe-note" maxlength="2000" rows="4" placeholder="What worked? What would you change next time?"></textarea><button type="submit">Save rating &amp; notes</button><small id="review-status" class="muted"></small></form></dialog><dialog id="source-correction-dialog" class="ingredient-dialog"><form id="source-correction-form"><h2>Correct recipe ingredient</h2><small id="source-correction-recipe"></small><div class="ingredient-preview"><small>Original imported ingredient</small><strong id="source-correction-original"></strong></div><label>Ingredient name<input id="source-correction-name" maxlength="140" required></label><label>Amount per original recipe<input id="source-correction-amount" type="number" min="0.001" max="10000" step="any" required></label><label>Unit<select id="source-correction-unit"><option value="">Unspecified</option><option value="count">Count (items)</option><option value="teaspoon">Teaspoon</option><option value="tablespoon">Tablespoon</option><option value="cup">Cup</option><option value="ounce">Ounce</option><option value="pound">Pound</option><option value="gram">Gram</option><option value="kilogram">Kilogram</option><option value="milliliter">Milliliter</option><option value="liter">Liter</option><option value="clove">Clove</option><option value="bunch">Bunch</option><option value="head">Head</option><option value="stalk">Stalk</option><option value="slice">Slice</option><option value="piece">Piece</option><option value="pinch">Pinch</option><option value="can">Can</option><option value="package">Package</option><option value="bag">Bag</option></select></label><div class="ingredient-preview"><small>Next grocery list preview</small><strong id="source-correction-preview"></strong></div><small>Saved corrections apply only when you generate a new grocery list. Existing checkmarks remain unchanged.</small><div class="dialog-actions"><button type="button" class="danger" id="source-correction-reset">Reset correction</button><button type="button" class="secondary" id="source-correction-cancel">Cancel</button><button type="submit">Save correction</button></div></form></dialog><dialog id="ingredient-dialog" class="ingredient-dialog"><form id="ingredient-form"><h2>Edit ingredient</h2><small id="ingredient-original"></small><label>Ingredient name<input id="ingredient-name" maxlength="140" required></label><label>Quantity<input id="ingredient-amount" type="text" placeholder="e.g. ¼, 2, 12" required></label><label>Measurement unit<select id="ingredient-unit"><option value="">No unit / unspecified</option><option value="count">Count (items)</option><option value="teaspoon">Teaspoon(s)</option><option value="tablespoon">Tablespoon(s)</option><option value="cup">Cup(s)</option><option value="ounce">Ounce(s)</option><option value="pound">Pound(s)</option><option value="gram">Gram(s)</option><option value="kilogram">Kilogram(s)</option><option value="milliliter">Milliliter(s)</option><option value="liter">Liter(s)</option><option value="clove">Clove(s)</option><option value="bunch">Bunch(es)</option><option value="head">Head(s)</option><option value="stalk">Stalk(s)</option><option value="slice">Slice(s)</option><option value="piece">Piece(s)</option><option value="pinch">Pinch(es)</option><option value="can">Can(s)</option><option value="package">Package(s)</option><option value="bag">Bag(s)</option><option value="other">Other / custom unit</option></select></label><label id="ingredient-custom-unit-wrap" hidden>Custom measurement unit<input id="ingredient-custom-unit" maxlength="32" placeholder="Enter a unit"></label><label>Grocery department<select id="ingredient-department"><option>Auto</option><option>Produce</option><option>Meat &amp; Seafood</option><option>Dairy &amp; Refrigerated</option><option>Bakery &amp; Bread</option><option>Frozen</option><option>Pantry &amp; Seasonings</option><option>Household &amp; Paper Products</option><option>Other / Uncategorized</option></select></label><div class="ingredient-preview"><small>Shopping list preview</small><strong id="ingredient-preview-text"></strong></div><small>Changes affect only this shopping-list label, not recipe calculations.</small><div class="dialog-actions"><button type="button" id="ingredient-reset" class="danger">Reset</button><button type="button" id="ingredient-cancel" class="secondary">Cancel</button><button type="submit">Save changes</button></div></form></dialog></main><script>
+</select><input id="exclude-ingredient" type="search" placeholder="Exclude ingredient" aria-label="Exclude ingredient"></div></div><div id="active-recipe-filter-chips" aria-label="Active recipe filters"></div><p class="muted" id="filtercount" aria-live="polite"></p><p class="muted" id="hf-photo-audit" style="font-size:12px;margin:5px 0 10px"></p><div class="enhance-panel" id="shop-sales"><h3>Find nearby grocery stores</h3><p class="muted">Find grocery stores near your ZIP code and choose your favorite.</p><form id="store-lookup-form" class="actions" style="flex-wrap:wrap"><input id="store-zip" inputmode="numeric" pattern="[0-9]{5}" maxlength="5" placeholder="ZIP code" aria-label="Five-digit ZIP code" required><label for="store-radius">Within</label><select id="store-radius" aria-label="Search radius"><option value="5" selected>5 miles</option><option value="10">10 miles</option><option value="15">15 miles</option><option value="20">20 miles</option><option value="25">25 miles</option></select><button type="submit">Find stores</button></form><p id="store-status" class="muted" aria-live="polite"></p><div id="store-results"></div><div class="enhance-panel" id="store-sales-comparison" style="margin-top:14px"><h3>Compare sales with your shopping list</h3><p class="muted">Add verified offers from retailer weekly ads to compare nearby stores. Automatic regional weekly ads are checked for free when available. You can also enter verified offers manually. Confirm offers and dates with the retailer before shopping.</p><details id="sale-feed-import"><summary style="cursor:pointer;font-weight:600;margin:10px 0">Import weekly-ad offers (JSON)</summary><p class="muted">Import a retailer-provided or independently verified JSON export. Each record needs store, item, price, unit, expires (YYYY-MM-DD), and an HTTPS source link. Imported offers remain in this browser and expire automatically.</p><input id="sale-feed-file" type="file" accept=".json,application/json" aria-label="Choose weekly-ad JSON export"><button type="button" id="sale-feed-import-button">Import verified offers</button><p class="muted" id="sale-feed-status" aria-live="polite"></p></details><details id="manual-sale-entry"><summary style="cursor:pointer;font-weight:600;margin:10px 0">＋ Add an offer from a weekly ad (optional)</summary><form id="store-sale-form" class="actions" style="flex-wrap:wrap"><select id="sale-store" aria-label="Store for sale" required><option value="">Find nearby stores first</option></select><input id="sale-item" list="sale-shopping-items" placeholder="Sale item (e.g. chicken breast)" maxlength="100" required><input id="sale-price" type="number" min="0.01" max="10000" step="0.01" placeholder="Sale price ($)" required><input id="sale-unit" placeholder="Unit (e.g. lb, pack)" maxlength="30" required><input id="sale-expires" type="date" aria-label="Offer expiration date" required><input id="sale-source" type="url" placeholder="Retailer weekly-ad URL" aria-label="Retailer offer source URL" required><button type="submit">Add verified offer</button></form><datalist id="sale-shopping-items"></datalist></details><p class="muted" id="sale-status" aria-live="polite"></p><div class="actions" style="flex-wrap:wrap;margin:12px 0"><button type="button" id="check-retailer-ad">Check official weekly ad</button><span class="muted" id="retailer-ad-status" aria-live="polite">Check retailer ad availability before entering verified offers.</span></div><p class="muted" id="automatic-sale-status" aria-live="polite">Free regional weekly-ad lookup runs when nearby stores load; no API key required.</p><div class="enhance-panel" id="store-price-panel" style="margin-top:14px"><h3>Preferred store pricing</h3><p class="muted">Prices are tied to your selected store. Matching verified weekly-ad offers are included automatically; other prices can be entered manually. Unavailable prices are not estimated.</p><form id="store-price-form" class="actions" style="flex-wrap:wrap"><input id="store-price-item" list="sale-shopping-items" placeholder="Ingredient" maxlength="120" required><input id="store-price-amount" type="number" min="0.01" max="10000" step="0.01" placeholder="Price ($)" required><input id="store-price-unit" maxlength="40" placeholder="Pack / lb / each" required><input id="store-price-source" type="url" placeholder="HTTPS source (optional)"><button type="submit">Save price</button></form><p class="muted" id="store-price-status" aria-live="polite"></p><div id="store-price-results"></div></div><div id="sale-comparison-results"></div></div><small class="muted">Store locations from third-party directories; coverage varies. Weekly sale prices require verification.</small></div><div class="enhance-panel" id="my-recipes"><h3>My Recipes</h3><p class="muted">Your collections and saved meals, all in one place.</p><div id="my-collection-cards" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(175px,1fr));gap:10px;margin:14px 0"></div><div id="my-collection-contents" style="margin:12px 0"></div><div class="actions" style="display:none" aria-hidden="true"><select id="favorite-filter" aria-label="Show favorites"><option value="all">All recipes</option><option value="favorites">♥ Favorites only</option></select><select id="collection-filter" aria-label="Filter by collection"><option value="all">All collections</option></select></div><details id="manage-collections-panel" style="margin-top:12px"><summary style="cursor:pointer;font-weight:600">Manage collections</summary><div class="actions" style="margin-top:12px;flex-wrap:wrap"><input id="new-collection" placeholder="New collection name" maxlength="60"><button id="create-collection" type="button">Create collection</button></div><div class="actions" style="margin-top:12px;flex-wrap:wrap"><select id="manage-collection" aria-label="Collection to manage"><option value="">Choose a collection…</option></select><button id="rename-collection" type="button" class="clear">Rename</button><button id="delete-collection" type="button" class="clear">Delete collection</button></div><div id="manage-collection-recipes" class="muted"></div></details></div><div id="selected-plan" class="selected-plan" hidden><h3>My Selected Meals <span id="selected-plan-count" class="muted"></span></h3><div id="selected-plan-list" class="muted">No meals selected yet.</div></div><p id="diet-warning" class="muted" style="display:none">Dietary results are estimated from ingredient names, not verified allergen labels. Check the full recipe, sauces, substitutions and packaging for gluten, dairy and cross-contact before cooking, especially for allergies or celiac disease.</p><section id="recipe-recommendations" aria-labelledby="recommend-heading" style="margin:16px 0 24px;padding:16px;border:1px solid #345443;border-radius:14px;background:rgba(28,57,42,.18)"><div style="display:flex;align-items:center;justify-content:space-between;gap:12px"><div><h3 id="recommend-heading" style="margin:0">Recommended for you</h3><p class="muted" style="margin:5px 0 0">Suggestions based on saved meals, favorites and ratings</p></div><button type="button" id="recommend-refresh" class="clear">Refresh</button></div><div id="recommend-list" style="display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px;margin-top:14px"></div><div id="recommend-carousel-controls" class="recommend-carousel-controls" hidden><span class="recommend-swipe-hint">Swipe for more →</span><div id="recommend-dots" class="recommend-dots"></div></div></section><div id="recipes" class="recipe-browser"></div><div class="pagination"><button id="prevpage" type="button">Previous</button><span id="pageinfo" class="muted"></span><button id="nextpage" type="button">Next</button></div></section><section><div class="import-tools" hidden style="display:none!important"><h2>Import recipes</h2><div class="actions"><input id="recipeurl" type="url" placeholder="Paste HelloFresh recipe URL (any country)" style="flex:1;min-width:180px;padding:11px;border:1px solid #cad7cf;border-radius:8px"><button id="import">Import Recipe</button></div><p class="muted">Import publicly available HelloFresh recipes from international sites. Imported recipes display official page photos when provided; older workbook recipes may need photo links added manually; cooking steps open on the original page.</p></div></div><div class="enhance-panel"><h3>Weekly meal planner</h3><div id="week-grid" class="week-grid"></div><div class="actions"><button type="button" id="week-apply">Use week for grocery list</button><button type="button" id="week-copy" class="clear">Copy last week</button></div></div><div class="enhance-panel"><h3>Pantry & manual groceries</h3><div class="actions"><input id="pantry-input" placeholder="Ingredient already in pantry"><button id="pantry-add" type="button">Add to pantry</button></div><div id="pantry-items" class="muted"></div><div class="pantry-scan-box" style="margin-top:16px;padding:16px;border:1px solid var(--line,#42524b);border-radius:14px"><h3>📷 Scan groceries or a receipt</h3><p class="muted">Take a grocery or receipt photo. Review recognized items before adding them.</p><div class="actions"><input type="hidden" id="pantry-scan-mode" value="groceries"><input type="file" id="pantry-scan-file" accept="image/*" capture="environment" aria-label="Take grocery photo" hidden></div><div class="actions"><button type="button" id="pantry-scan-start">📷 Scan groceries</button><button type="button" id="pantry-scan-receipt">🧾 Scan receipt</button></div><div class="actions" style="margin-top:10px"><button type="button" id="pantry-barcode-open" style="background:#176e4c;color:white;border:1px solid #23875e;width:100%;font-weight:600">▥ Scan barcode</button><input type="file" id="pantry-barcode-photo" accept="image/*" capture="environment" hidden></div><div id="pantry-barcode-panel" hidden style="margin-top:12px"><video id="pantry-barcode-video" autoplay muted playsinline style="width:100%;max-height:240px;object-fit:cover;border-radius:14px" hidden></video><p id="pantry-barcode-status" class="muted" role="status">Point the camera at a barcode, or enter its numbers below.</p><div class="actions"><input id="pantry-barcode-input" inputmode="numeric" pattern="[0-9]*" maxlength="14" placeholder="Barcode numbers" aria-label="Barcode digits"><button type="button" id="pantry-barcode-lookup">Find product</button><button type="button" id="pantry-barcode-close" class="clear">Close</button></div><div id="pantry-barcode-fallback" hidden style="margin-top:12px;padding:12px;border:1px solid #45534c;border-radius:14px"><p class="muted">Product not in the catalog. Identify its front label with AI, or save the product for future scans.</p><button type="button" id="pantry-barcode-ai" class="clear" style="width:100%;margin-bottom:10px">📷 Identify product with AI</button><input id="pantry-barcode-name" placeholder="Product name" aria-label="Product name" style="width:100%;margin-bottom:8px"><input id="pantry-barcode-size" placeholder="Package size (optional)" aria-label="Package size" style="width:100%;margin-bottom:8px"><button type="button" id="pantry-barcode-save" style="width:100%">Save product and review</button></div></div><p id="pantry-scan-status" class="muted" role="status"></p><div id="pantry-scan-results" hidden><h4>Review detected items</h4><p class="muted">Review names and quantities. Existing pantry quantities will increase.</p><div id="pantry-scan-rows"></div><div class="actions"><button type="button" id="pantry-scan-another" class="clear">Scan another photo</button></div><div class="actions"><button type="button" id="pantry-scan-apply">Add selected to pantry</button><button type="button" id="pantry-scan-cancel" class="clear">Cancel</button></div></div></div></div></section><section id="shopping-page-section"><h2>Shopping list</h2><div class="enhance-panel" id="shopping-manual-add"><h3>Add an item to your shopping list</h3><div class="actions"><input id="manual-input" placeholder="e.g. Milk, paper towels, bananas" aria-label="New shopping item" style="flex:1 1 230px;min-width:0"><button id="manual-add" type="button">Add item</button></div><div id="manual-items" class="muted"></div><p class="muted">Items you add here are included when you generate your shopping list. Use the × beside an item to remove it.</p></div><div class="enhance-panel" id="smart-tools"><h3>Smart shopping & planning</h3><div id="smart-flags"></div><label><input type="checkbox" id="smart-hide"> Hide purchased items</label><p id="smart-progress" class="muted"></p><h4>Pantry inventory (verified ingredients)</h4><p class="muted">Ingredients appear in categories even without quantities. Use Add to increase, Use to decrease, or Set to replace an amount. Automatic cooking deductions require verified recipe quantities.</p><form id="inventory-form" class="inventory-form"><input id="inventory-name" placeholder="e.g. black pepper" required maxlength="140"><input id="inventory-amount" type="number" min="0" max="100000" step="any" placeholder="On hand" required><select id="inventory-unit"><option value="count">Items</option><option value="teaspoon">Teaspoon</option><option value="tablespoon">Tablespoon</option><option value="cup">Cup</option><option value="ounce">Ounce</option><option value="pound">Pound</option><option value="gram">Gram</option><option value="clove">Clove</option><option value="piece">Piece</option><option value="bag">Bag</option><option value="package">Package</option></select><select id="inventory-mode" aria-label="Quantity action"><option value="add">Add quantity</option><option value="use">Use quantity</option><option value="set">Set exact quantity</option></select><button type="submit" id="inventory-submit">Update quantity</button><div id="inventory-preview" role="status" aria-live="polite" style="grid-column:1/-1"></div></form><div id="inventory-saved" class="muted"></div><h4>About quantities</h4><div id="smart-pantry"></div><h4>Automatic weekly planner</h4><select id="smart-days"><option>3</option><option selected>5</option><option>7</option></select> <button type="button" id="smart-auto">Suggest dinners</button><p class="muted">Review suggestions before applying them to the shopping list.</p><h4>Cooking mode</h4><select id="smart-cook-select"></select> <button type="button" id="smart-cook-open">Cook</button><div id="smart-cook-view" hidden></div></div><div class="actions"><button type="button" id="generate-grocery">Generate Shopping List</button><span id="generate-status" role="status" aria-live="polite" style="display:block;flex-basis:100%;font-weight:600"></span><button type="button" id="preview-grocery" class="clear">Preview changes</button><button class="clear" id="clear">Clear List</button></div><p id="summary" class="muted"></p><div id="grocery-preview" class="ingredient-preview" hidden></div><div id="items"></div><div class="ingredient-suggestions" id="ingredient-suggestions"><h3>🍽️ Cook with what’s on your list</h3><p class="muted">Meals that reuse ingredients already on your shopping list. Suggestions are estimates; check the full recipe for anything extra.</p><div id="ingredient-suggestions-results"></div></div></section></div></div><p id="error" class="error"></p><dialog id="recipe-dialog" class="recipe-dialog"><button id="close-recipe" type="button" class="clear" aria-label="Close recipe details" title="Close recipe details">×</button><div id="recipe-detail"></div><button id="recipe-photo-admin" class="photo-edit" data-admin-only type="button">Change recipe photo</button><form id="recipe-review-form"><input id="recipe-review-id" type="hidden"><label for="recipe-rating">Your rating</label><select id="recipe-rating"><option value="0">Not rated</option><option value="1">★ 1 star</option><option value="2">★★ 2 stars</option><option value="3">★★★ 3 stars</option><option value="4">★★★★ 4 stars</option><option value="5">★★★★★ 5 stars</option></select><label for="recipe-note">Cooking notes</label><textarea id="recipe-note" maxlength="2000" rows="4" placeholder="What worked? What would you change next time?"></textarea><button type="submit">Save rating &amp; notes</button><small id="review-status" class="muted"></small></form></dialog><dialog id="source-correction-dialog" class="ingredient-dialog"><form id="source-correction-form"><h2>Correct recipe ingredient</h2><small id="source-correction-recipe"></small><div class="ingredient-preview"><small>Original imported ingredient</small><strong id="source-correction-original"></strong></div><label>Ingredient name<input id="source-correction-name" maxlength="140" required></label><label>Amount per original recipe<input id="source-correction-amount" type="number" min="0.001" max="10000" step="any" required></label><label>Unit<select id="source-correction-unit"><option value="">Unspecified</option><option value="count">Count (items)</option><option value="teaspoon">Teaspoon</option><option value="tablespoon">Tablespoon</option><option value="cup">Cup</option><option value="ounce">Ounce</option><option value="pound">Pound</option><option value="gram">Gram</option><option value="kilogram">Kilogram</option><option value="milliliter">Milliliter</option><option value="liter">Liter</option><option value="clove">Clove</option><option value="bunch">Bunch</option><option value="head">Head</option><option value="stalk">Stalk</option><option value="slice">Slice</option><option value="piece">Piece</option><option value="pinch">Pinch</option><option value="can">Can</option><option value="package">Package</option><option value="bag">Bag</option></select></label><div class="ingredient-preview"><small>Next grocery list preview</small><strong id="source-correction-preview"></strong></div><small>Saved corrections apply only when you generate a new grocery list. Existing checkmarks remain unchanged.</small><div class="dialog-actions"><button type="button" class="danger" id="source-correction-reset">Reset correction</button><button type="button" class="secondary" id="source-correction-cancel">Cancel</button><button type="submit">Save correction</button></div></form></dialog><dialog id="ingredient-dialog" class="ingredient-dialog"><form id="ingredient-form"><h2>Edit ingredient</h2><small id="ingredient-original"></small><label>Ingredient name<input id="ingredient-name" maxlength="140" required></label><label>Quantity<input id="ingredient-amount" type="text" placeholder="e.g. ¼, 2, 12" required></label><label>Measurement unit<select id="ingredient-unit"><option value="">No unit / unspecified</option><option value="count">Count (items)</option><option value="teaspoon">Teaspoon(s)</option><option value="tablespoon">Tablespoon(s)</option><option value="cup">Cup(s)</option><option value="ounce">Ounce(s)</option><option value="pound">Pound(s)</option><option value="gram">Gram(s)</option><option value="kilogram">Kilogram(s)</option><option value="milliliter">Milliliter(s)</option><option value="liter">Liter(s)</option><option value="clove">Clove(s)</option><option value="bunch">Bunch(es)</option><option value="head">Head(s)</option><option value="stalk">Stalk(s)</option><option value="slice">Slice(s)</option><option value="piece">Piece(s)</option><option value="pinch">Pinch(es)</option><option value="can">Can(s)</option><option value="package">Package(s)</option><option value="bag">Bag(s)</option><option value="other">Other / custom unit</option></select></label><label id="ingredient-custom-unit-wrap" hidden>Custom measurement unit<input id="ingredient-custom-unit" maxlength="32" placeholder="Enter a unit"></label><label>Grocery department<select id="ingredient-department"><option>Auto</option><option>Produce</option><option>Meat &amp; Seafood</option><option>Dairy &amp; Refrigerated</option><option>Bakery &amp; Bread</option><option>Frozen</option><option>Pantry &amp; Seasonings</option><option>Household &amp; Paper Products</option><option>Other / Uncategorized</option></select></label><div class="ingredient-preview"><small>Shopping list preview</small><strong id="ingredient-preview-text"></strong></div><small>Changes affect only this shopping-list label, not recipe calculations.</small><div class="dialog-actions"><button type="button" id="ingredient-reset" class="danger">Reset</button><button type="button" id="ingredient-cancel" class="secondary">Cancel</button><button type="submit">Save changes</button></div></form></dialog></main><script>
 let recipes=[],state={selected:{},list:[]};const $=id=>document.getElementById(id);const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 // Group the legacy smart tools into accessible, compact mobile cards.
 (function setupCompactShoppingTools(){
@@ -1385,7 +1477,7 @@ function renderSelectedPlan(){
     const url=String(x.recipe?.url||'');
     const link=/^https:\/\//i.test(url)?`<a class="selected-recipe-link" href="${esc(url)}" target="_blank" rel="noopener noreferrer">View recipe ↗</a>`:'';
     const note=x.recipe?'':'<small class="selected-meal-note">This saved selection no longer matches a recipe in the catalog. It has not been removed.</small>';
-    return `<div class="selected-meal"><div class="selected-meal-info"><div class="selected-meal-name">${esc(name)}</div>${link}${note}</div><div class="selected-meal-controls"><label>Servings <select aria-label="Servings for ${esc(name)}" data-plan-scale="${esc(x.id)}">${[0.5,1,1.5,2,3,4,5,6].map(v=>`<option value="${v}" ${Number(x.scale)===v?'selected':''}>${v}×</option>`).join('')}</select></label><button type="button" data-remove-meal="${esc(x.id)}" aria-label="Remove ${esc(name)}">Remove</button></div></div>`;
+    return `<div class="selected-meal"><div class="selected-meal-info"><div class="selected-meal-name">${esc(name)}</div>${link}${note}</div><div class="selected-meal-controls"><label>Servings <select aria-label="Servings for ${esc(name)}" data-plan-scale="${esc(x.id)}">${[0.5,1,1.5,2,3,4,5,6].map(v=>`<option value="${v}" ${Number(x.scale)===v?'selected':''}>${v} servings</option>`).join('')}</select></label><button type="button" data-remove-meal="${esc(x.id)}" aria-label="Remove ${esc(name)}">Remove</button></div></div>`;
   }).join(''):'<p class="muted">No meals selected yet. Choose “Add to plan” on a recipe.</p>';
 }
 $('selected-plan-list').addEventListener('click',e=>{
@@ -1420,6 +1512,16 @@ function setAllShoppingDepartments(open){
 // Prefer precise pantry matches before broad produce words; tolerate plural ingredient names.
 function shoppingDepartment(name){
  const value=String(name||'').toLowerCase();
+ // Specific food categories take priority over generic produce terms.
+ if(/\b(?:butter|cheese|feta|mozzarella|parmesan|cheddar|sour cream|yogurt|milk|eggs?|heavy cream|creme fraiche)\b/i.test(value)&&!/\b(?:peanut|almond|cashew|sunflower) butter\b/i.test(value))return 'Dairy & Refrigerated';
+ if(/\b(?:peanut|almond|cashew|sunflower) butter\b/i.test(value))return 'Pantry & Seasonings';
+ if(/\b(?:pepper|fruit|onion|tomato|chili|chilli)\s+(?:jam|jelly|preserves?|chutney|relish)\b/i.test(value))return 'Pantry & Seasonings';
+ if(/\b(?:crushed|diced|canned|tinned|whole peeled)\s+tomatoes?\b/i.test(value))return 'Pantry & Seasonings';
+ // Prioritize prepared, packaged and frozen foods over their ingredient names.
+ if(/\b(?:frozen|ice cream|frozen vegetables?|frozen fruit)\b/i.test(value))return 'Frozen';
+ if(/\b(?:tomato|pepper|onion|garlic|herb|fruit)\s+(?:sauce|paste|jam|jelly|relish|chutney|powder|seasoning)\b/i.test(value))return 'Pantry & Seasonings';
+ if(/\b(?:bread|buns?|brioche|baguette|pita|tortilla|naan|flatbread|croissant|rolls?)\b/i.test(value))return 'Bakery & Bread';
+
  if(/\b(?:bananas?|strawberries|blueberries|raspberries|grapes|peaches|pears|pineapples|watermelons|cantaloupes)\b/i.test(value))return 'Produce';
  if(/\b(?:coleslaw\s+mix|slaw\s+mix|shredded\s+cabbage)\b/i.test(value))return 'Produce';
  if(/^\s*(?:(?:\d+(?:\.\d+)?\s+)?(?:pick|unit)\s+)?garlic\s*$/i.test(value))return 'Produce';
@@ -1457,9 +1559,16 @@ function missingGroceryMeasure(rest){
 function shoppingDisplay(item){
  const name=cleanGroceryUnits(String(item.name||'').trim()), qty=Number(item.quantity);
  if(!Number.isFinite(qty)||qty<=0)return {name,note:''};
+ // Backend stores measured recipe ingredients as "unit Ingredient" with
+ // item.quantity already summed across selected recipes and serving counts.
+ const unitFirst=name.match(/^(teaspoons?|tablespoons?|cups?|ounces?|pounds?|grams?|kilograms?|milliliters?|liters?)\s+(.+)$/i);
+ if(unitFirst){
+  const unit=ingredientUnitAliases[unitFirst[1].toLowerCase()]||unitFirst[1].toLowerCase();
+  return {name:groceryNumber(qty)+' '+ingredientPluralUnit(unit,qty)+' '+unitFirst[2],note:''};
+ }
  const fractions={'¼':0.25,'½':0.5,'¾':0.75,'⅓':1/3,'⅔':2/3,'⅛':0.125,'⅜':0.375,'⅝':0.625,'⅞':0.875};
  const match=name.match(/^(\d+(?:\.\d+)?(?:\s+\d+\/\d+)?|\d+\/\d+|[¼½¾⅓⅔⅛⅜⅝⅞])\s+(.+)$/);
- if(!match)return {name,note:qty===1?'':groceryNumber(qty)+'× recipe amount'};
+ if(!match)return {name,note:'Source quantity needs confirmation — check recipe details'};
  const raw=match[1],rest=match[2];
  let amount;
  if(Object.hasOwn(fractions,raw))amount=fractions[raw];
@@ -1471,7 +1580,7 @@ function shoppingDisplay(item){
  // "pick" and "unit" are source-data count markers, not real grocery units.
  // Remove them only for clearly countable whole produce items.
  const count=rest.match(/^(?:pick|unit)\s+(.+)$/i);
- const countable=/^(?:baby lettuce|lemon|lime|shallot|onion|scallion|green onion|mini cucumber|cucumber|garlic bulb|apple|avocado|bell pepper|carrot|potato|sweet potato|tomato|zucchini|eggplant|orange|jalapeño|jalapeno|radish|mushroom)s?$/i;
+ const countable=/^(?:(?:roma|cherry|grape|heirloom|plum|beefsteak)\s+)?(?:baby lettuce|lemon|lime|shallot|onion|scallion|green onion|mini cucumber|cucumber|garlic bulb|apple|avocado|bell pepper|carrot|potato|sweet potato|tomato|zucchini|eggplant|orange|jalapeño|jalapeno|radish|mushroom)s?$/i;
  if(count&&countable.test(count[1])&&Number.isInteger(total)){
   const noun=count[1].trim();
   const irregular={'baby lettuce':'Baby Lettuce'};
@@ -1491,30 +1600,58 @@ function shoppingDisplay(item){
  }
  return {name:pretty+' '+rest,note:missingGroceryMeasure(rest)?'Unit not specified':''};
 }
-function shoppingNeedsReview(item){const override=(state.ingredient_overrides||{})[item.name]||{};if(override.display)return false;const d=shoppingDisplay(item);return d.note==='Unit not specified'||/\b(?:pick|unit)\s+(?:chickpeas|croutons|beans|lentils|rice|pasta|seeds|nuts|dressing|hummus|pepper|garlic|salt|spices?)\b/i.test(item.name)||/^\s*(?:teaspoons?|tablespoons?|cups?|ounces?|pounds?)\s+\S/i.test(item.name);}
+function shoppingNeedsReview(item){const override=(state.ingredient_overrides||{})[item.name]||{};if(override.display)return false;const d=shoppingDisplay(item);return d.note==='Unit not specified'||/\b(?:pick|unit)\s+(?:chickpeas|croutons|beans|lentils|rice|pasta|seeds|nuts|dressing|hummus|pepper|garlic|salt|spices?)\b/i.test(item.name);}
 function consolidatedShoppingRows(items){
  const rows=[],seen=new Map();
  const conversions={teaspoon:['teaspoon',1],tablespoon:['teaspoon',3],cup:['teaspoon',48],milliliter:['milliliter',1],liter:['milliliter',1000],gram:['gram',1],kilogram:['gram',1000],ounce:['ounce',1],pound:['ounce',16]};
- const countable=/^(?:onions?|shallots?|lemons?|limes?|apples?|avocados?|carrots?|potatoes|tomatoes|cucumbers?|zucchinis?|bell peppers?|jalapeños?|jalapenos?|eggs?|garlic bulbs?)$/i;
+ const countable=/^(?:(?:roma|cherry|grape|heirloom|plum|beefsteak)\s+)?(?:onions?|shallots?|lemons?|limes?|apples?|avocados?|carrots?|potatoes|tomatoes|cucumbers?|zucchinis?|bell peppers?|jalapeños?|jalapenos?|eggs?|garlic bulbs?)$/i;
  const measured=/^(\d+(?:\.\d+)?(?:\s+[¼½¾⅓⅔⅛⅜⅝⅞])?|\d+\/\d+|[¼½¾⅓⅔⅛⅜⅝⅞])\s+(?:(teaspoons?|tablespoons?|cups?|ounces?|pounds?|grams?|kilograms?|milliliters?|liters?|cloves?|bunch(?:es)?|heads?|stalks?|slices?|pieces?|cans?|packages?|bags?)\s+)?(.+)$/i;
  for(const item of items){
   const override=(state.ingredient_overrides||{})[item.name]||{};
-  const label=override.display||shoppingDisplay(item).name;
-  const match=label.match(measured),amount=match?ingredientNumber(match[1]):NaN;
-  const unit=match&&match[2]?(ingredientUnitAliases[match[2].toLowerCase()]||match[2].toLowerCase()):'';
-  const ingredient=match?match[3].trim():'';
-  const valid=Number.isFinite(amount)&&amount>0&&(unit||countable.test(ingredient));
+  const display=shoppingDisplay(item);
+  const label=override.display||display.name;
+  // Only recover an implicit piece count from a source with an explicit numeric
+  // ingredient count. A shopping-list multiplier alone is not proof of quantity.
+  const isWholeProduce=/^(?:(?:roma|cherry|grape|heirloom|plum|beefsteak)\s+)?(?:shallots?|tomatoes?|onions?|potatoes?|lemons?|limes?|apples?|carrots?|cucumbers?|zucchinis?|bananas?)$/i.test(label.trim());
+  const sources=Array.isArray(item.sources)?item.sources:[];
+  const sourceCounts=sources.map(source=>{
+   const original=String(source.original_name||'').trim();
+   const parsed=original.match(/^([\d¼½¾⅓⅔⅛⅜⅝⅞.\/\s]+)\s+(?:(?:unit|units|piece|pieces|pick)\s+)?(.+)$/i);
+   if(!parsed||!/^(?:(?:roma|cherry|grape|heirloom|plum|beefsteak)\s+)?(?:shallots?|tomatoes?|onions?|potatoes?|lemons?|limes?|apples?|carrots?|cucumbers?|zucchinis?|bananas?)$/i.test(parsed[2].trim()))return NaN;
+   const n=ingredientNumber(parsed[1].trim()),multiplier=Number(source.multiplier);
+   return Number.isFinite(n)&&n>0&&Number.isFinite(multiplier)&&multiplier>0?n*multiplier:NaN;
+  });
+  const recoveredCount=!override.display&&isWholeProduce&&sourceCounts.length>0&&sourceCounts.every(n=>Number.isFinite(n)&&n>0)?sourceCounts.reduce((a,b)=>a+b,0):NaN;
+  const implicitCount=Number.isInteger(recoveredCount)&&recoveredCount>0;
+  const unitSource=label.match(/^([\d¼½¾⅓⅔⅛⅜⅝⅞.\/\s]+)\s+units?\s+(.+)$/i);
+  const match=label.match(measured);
+  const amount=unitSource?ingredientNumber(unitSource[1].trim()):match?ingredientNumber(match[1]):implicitCount?recoveredCount:NaN;
+  const unit=unitSource?'':match&&match[2]?(ingredientUnitAliases[match[2].toLowerCase()]||match[2].toLowerCase()):'';
+  const ingredient=unitSource?unitSource[2].trim():match?match[3].trim():implicitCount?label.trim():'';
+  const canonical=ingredient.toLowerCase().replace(/^(?:roma|cherry|grape|heirloom|plum|beefsteak)\s+(?=tomatoes?\b)/,'').replace(/\b(tomatoes|potatoes)\b/g,m=>m==='tomatoes'?'tomato':'potato').replace(/s$/,'');
+
+  // Bare imported names have no verified piece count; group them with a matching
+  // counted ingredient for display, but never silently add an assumed quantity.
+  const bareProduce=!override.display&&isWholeProduce&&!match&&!unitSource&&!implicitCount;
+  const valid=Number.isFinite(amount)&&amount>0&&(unit||countable.test(ingredient)||countable.test(canonical));
   const conversion=conversions[unit]||[unit,1];
-  const normalizedIngredient=ingredient.toLowerCase().replace(/\s+/g,' ').replace(/s$/,'');
-  const key=valid?conversion[0]+'|'+normalizedIngredient:null;
+  const normalizedIngredient=canonical.replace(/\s+/g,' ');
+  const bareKey=bareProduce?'|'+label.trim().toLowerCase().replace(/\b(tomatoes|potatoes)\b/g,m=>m==='tomatoes'?'tomato':'potato').replace(/s$/,''):null;
+  const key=valid?conversion[0]+'|'+normalizedIngredient:bareKey;
   if(key&&seen.has(key)){
-   const row=seen.get(key);row.amount+=amount*conversion[1];row.items.push(item);continue;
+   const row=seen.get(key);
+   if(valid)row.amount+=amount*conversion[1];
+   else row.missingCount=true;
+   row.items.push(item);
+   if(valid&&(!Number.isFinite(row.amount)||row.amount<=0)){row.amount=amount*conversion[1];row.ingredient=ingredient;row.baseUnit=conversion[0];row.unit=unit;}
+   continue;
   }
-  const row={items:[item],label,amount:amount*conversion[1],unit,ingredient,note:override.display?'':shoppingDisplay(item).note,baseUnit:conversion[0]};
+  const row={items:[item],label,amount:valid?amount*conversion[1]:NaN,unit,ingredient:bareProduce?label.trim():ingredient,note:override.display?'':shoppingDisplay(item).note,baseUnit:conversion[0],missingCount:bareProduce,knownCount:valid};
   rows.push(row);if(key)seen.set(key,row);
  }
  for(const row of rows){
   if(row.items.length<2)continue;
+  if(!Number.isFinite(row.amount)||row.amount<=0){row.missingCount=true;continue;}
   let amount=row.amount,unit=row.baseUnit;
   if(unit==='teaspoon'&&amount>=48&&Math.abs(amount/48-Math.round(amount/48*8)/8)<0.002){amount/=48;unit='cup'}
   else if(unit==='teaspoon'&&amount>=3&&Math.abs(amount/3-Math.round(amount/3*8)/8)<0.002){amount/=3;unit='tablespoon'}
@@ -1522,12 +1659,13 @@ function consolidatedShoppingRows(items){
   else if(unit==='gram'&&amount>=1000){amount/=1000;unit='kilogram'}
   else if(unit==='milliliter'&&amount>=1000){amount/=1000;unit='liter'}
   row.label=groceryNumber(amount)+(unit?' '+ingredientPluralUnit(unit,amount):'')+' '+row.ingredient;
-  row.note='';
+  row.note=row.missingCount?'At least one recipe has no verified quantity · check recipe source':'';
  }
  return rows;
 }
 // Display conservative shopping-package suggestions without changing recipe quantities.
 function purchaseSuggestion(row){
+ if(row.missingCount)return {label:row.label,note:row.note||'Quantity missing from recipe · check source or correct recipe quantity'};
  const name=String(row.ingredient||'').trim(),lower=name.toLowerCase(),unit=row.baseUnit,amount=row.amount;
  const count=(capacity)=>Math.ceil((amount-1e-8)/capacity);
  const item=(quantity,size,kind,description,note)=>({label:quantity+' × '+size+' '+description+' '+(quantity===1?kind:kind+'s'),note});
@@ -1536,6 +1674,26 @@ function purchaseSuggestion(row){
  // "pick" is a HelloFresh source marker, not a unit of measurement.
  if(/^\s*(?:\d+(?:\.\d+)?\s+)?pick\s+/i.test(row.label)){
   return {label:name.replace(/^pick\s+/i,''),note:'⚠ Quantity needs review — source recipe says “pick”'};
+ }
+ // Remove raw source-unit markers when they were not converted into quantities.
+ // Countable produce is purchased as individual pieces, not ambiguous recipe units.
+ if(!unit&&Number.isInteger(amount)&&amount>0&&/^(?:(?:roma|cherry|grape|heirloom|plum|beefsteak)\s+)?(?:tomatoes?|shallots?|onions?|potatoes?|lemons?|limes?|apples?|carrots?|cucumbers?|zucchinis?)$/i.test(name)){
+  const plural=amount===1?name:name.replace(/\b(tomato|potato|shallot|onion|lemon|lime|apple|carrot|cucumber|zucchini)\b/gi,m=>/^(?:tomato|potato)$/i.test(m)?m+'es':m+'s');
+  return {label:groceryNumber(amount)+' '+plural,note:''};
+ }
+ // A numeric source-unit count for individual produce is a piece count.
+ const countedProduce=row.label.match(/^([\d¼½¾⅓⅔⅛⅜⅝⅞.\/\s]+)\s+units?\s+((?:(?:roma|cherry|grape|heirloom|plum|beefsteak)\s+)?(?:tomatoes?|shallots?|onions?|potatoes?|lemons?|limes?|apples?|carrots?|cucumbers?|zucchinis?))$/i);
+ if(countedProduce){
+  const qty=ingredientNumber(countedProduce[1].trim());
+  if(Number.isInteger(qty)&&qty>0){
+   const product=countedProduce[2].trim();
+   const plural=qty===1?product:product.replace(/\b(tomato|potato|shallot|onion|lemon|lime|apple|carrot|cucumber|zucchini)\b/gi,(m)=>m.toLowerCase()==='tomato'||m.toLowerCase()==='potato'?m+'es':m.toLowerCase()==='zucchini'?m+'s':m+'s');
+   return {label:groceryNumber(qty)+' '+plural,note:''};
+  }
+ }
+ if(/^units?\s+/i.test(row.label)){
+  const cleaned=row.label.replace(/^units?\s+/i,'').trim();
+  return {label:(Number.isFinite(amount)&&amount>0?groceryNumber(amount)+' ':'')+cleaned,note:''};
  }
  // Source "unit" denotes a count, not a purchasable package.
  const sourceUnit=row.label.match(/^([\d¼½¾⅓⅔⅛⅜⅝⅞.\/\s]+)\s+units?\s+(.+)$/i);
@@ -1553,9 +1711,16 @@ function purchaseSuggestion(row){
      return {label:groceryNumber(quantity)+' ciabatta '+(quantity===1?'loaf':'loaves'),note:'Verify loaf or roll size in recipe'};
     return {label:groceryNumber(quantity)+' '+product,note:'Count from recipe · verify size/weight when purchasing'};
    }
-   if(Number.isInteger(quantity)&&/\b(?:eggs?|lemons?|limes?|potatoes?|tomatoes?|onions?|shallots?|carrots?|apples?|cucumbers?)\b/.test(p))
-    return {label:groceryNumber(quantity)+' '+product,note:''};
-   return {label:product,note:'⚠ '+groceryNumber(quantity)+' source unit(s) — confirm package quantity'};
+   // A source "unit" is not necessarily a jar, bottle or package.
+   // Display a measured need rather than inventing a package count.
+   if(/\b(?:jam|jelly|preserves?|chutney|relish|marmalade|salsa|paste|sauce|dressing|marinade|dip)\b/.test(p)){
+    return {label:product,note:groceryNumber(quantity)+' recipe '+(quantity===1?'unit':'units')+' needed · check jar or package size'};
+   }
+   if(Number.isInteger(quantity)&&/\b(?:eggs?|lemons?|limes?|potatoes?|tomatoes?|onions?|shallots?|carrots?|apples?|cucumbers?)\b/.test(p)){
+    const plural=quantity===1?product:/\b(?:tomato|potato)\b/i.test(product)?product.replace(/\b(tomato|potato)\b/gi,'$1es'): /\b(?:onion|shallot|carrot|apple|cucumber|lemon|lime|egg)\b/i.test(product)?product.replace(/\b(onion|shallot|carrot|apple|cucumber|lemon|lime|egg)\b/gi,'$1s'):product;
+    return {label:groceryNumber(quantity)+' '+plural,note:''};
+   }
+   return {label:product,note:groceryNumber(quantity)+' recipe '+(quantity===1?'unit':'units')+' needed · check package size'};
   }
  }
  if(!Number.isFinite(amount)||amount<=0||!name)return null;
@@ -1564,7 +1729,7 @@ function purchaseSuggestion(row){
   const tbsp=amount/3;
   if(has(/\bbutter\b/)&&!has(/\b(?:peanut|almond|cashew|sunflower) butter\b/)){
    const sticks=Math.ceil((amount-1e-8)/24);
-   return {label:sticks+' '+(sticks===1?'stick':'sticks')+' butter',note:groceryNumber(tbsp)+' tbsp needed · 8 tbsp per stick'};
+   return {label:groceryNumber(tbsp)+' tbsp '+name,note:'Suggested purchase: '+sticks+' '+(sticks===1?'stick':'sticks')+' (8 tbsp each); verify this variety is available'};
   }
   if(has(/\b(?:olive oil|vegetable oil|canola oil|avocado oil|cooking oil)\b/))
    return item(count(96),'16 fl oz','bottle',name,measured('tsp')+' · 96 tsp per bottle');
@@ -1643,7 +1808,17 @@ function groceryBreakdownMarkup(items){
    const canEdit=Number.isInteger(x.recipe_id)&&!!x.original_name;
    const corrected=x.corrected?' · corrected for future lists':'';
    const button=canEdit?'<button type="button" class="source-correct" data-source-recipe="'+esc(x.recipe_id)+'" data-source-name="'+esc(x.original_name)+'">Correct recipe quantity</button>':'';
-   return '<div class="grocery-source"><strong>'+esc(x.recipe||'Unknown source')+'</strong><div>'+esc(groceryNumber(Number(x.contribution)||0))+'× '+esc(x.recipe==='Manually added'?'manually added':'recipe ingredient amount')+'</div>'+(x.recipe!=='Manually added'?'<small>Original: '+esc(x.original_name||'')+' · source factor: '+esc(groceryNumber(Number(x.source_quantity)||0))+' · selected multiplier: '+esc(groceryNumber(Number(x.multiplier)||1))+'×'+esc(corrected)+'</small>':'')+button+'</div>';
+   const manual=x.recipe==='Manually added';
+   const unverified=!!x.quantity_unverified;
+   const multiplier=Number(x.multiplier) || (Number(x.servings)||2)/2;
+   const sourceQty=Number(x.source_quantity);
+   const sourceMatch=String(x.original_name||'').match(/^\s*(\d+(?:\.\d+)?|\d+\/\d+)\s+(teaspoons?|tablespoons?|cups?|ounces?|pounds?|grams?|kilograms?|milliliters?|liters?)\b/i);
+   const embeddedAmount=sourceMatch?(sourceMatch[1].includes('/')?Number(sourceMatch[1].split('/')[0])/Number(sourceMatch[1].split('/')[1]):Number(sourceMatch[1])):NaN;
+   const measuredUnit=sourceMatch?sourceMatch[2]:'';
+   const amountPerSelection=Number.isFinite(embeddedAmount)&&embeddedAmount>0?embeddedAmount*sourceQty:sourceQty;
+   const totalAmount=amountPerSelection*multiplier;
+   const details=manual?'Added manually':unverified?'⚠ Quantity not verified — review recipe amount':Number.isFinite(amountPerSelection)&&amountPerSelection>0?'Recipe: '+groceryNumber(amountPerSelection)+(measuredUnit?' '+measuredUnit:' source unit(s)')+' × '+groceryNumber(multiplier)+' (from '+groceryNumber(Number(x.source_servings)||2)+' to '+groceryNumber(Number(x.servings)||multiplier*(Number(x.source_servings)||2))+' servings) = '+groceryNumber(totalAmount)+(measuredUnit?' '+measuredUnit:' source unit(s)'):'Recipe quantity needs review';
+   return '<div class="grocery-source"><strong>'+esc(cleanRecipeName(x.recipe||'Unknown source'))+'</strong><div>'+esc(details)+'</div>'+(manual?'':'<small>Ingredient: '+esc(x.original_name||'')+esc(corrected)+'</small>')+button+'</div>';
   }).join('');
  }
  const entries=groceryRecipeBreakdown(items);
@@ -1995,9 +2170,18 @@ function renderShoppingList(){
   const symbol=group==='Needs Review'?'⚠️':(shoppingDepartments.find(d=>d[0]===group)||[])[1]||'🛒';
   const rows=entries.map(x=>{
    const purchased=x.items.every(i=>i.purchased),names=x.items.map(i=>i.name),first=x.items[0];if(smartPrefs.hide&&purchased)return "";
-   const suggestion=purchaseSuggestion(x),label=suggestion?suggestion.label:x.label,note=suggestion?suggestion.note:x.note;
+   const suggestion=purchaseSuggestion(x);
+   // The shopping list leads with the total recipe requirement, not a suggested package.
+   const hasMeasuredTotal=x.knownCount&&Number.isFinite(x.amount)&&x.amount>0;
+   const label=hasMeasuredTotal?x.label:(suggestion?suggestion.label:x.label);
+   const packageNote=hasMeasuredTotal&&suggestion&&suggestion.label!==x.label&&
+    !/^\s*[\d¼½¾⅓⅔⅛⅜⅝⅞.\/]+\s+(?:tsp|tbsp|teaspoons?|tablespoons?|cups?|oz|ounces?|lb|pounds?|g|grams?|ml|milliliters?)\b/i.test(suggestion.label)
+    ?'Suggested purchase: '+suggestion.label:'';
+   const suggestionNote=suggestion?.note||'';
+   const note=[x.note&& !/× recipe amount/.test(x.note)?x.note:'',packageNote,suggestionNote]
+    .filter(Boolean).filter((v,i,a)=>a.indexOf(v)===i).join(' · ');
    const sourceCount=x.items.reduce((n,i)=>n+(Array.isArray(i.sources)?i.sources.length:0),0)||groceryRecipeBreakdown(x.items).length;
-   const sourceText=sourceCount?'Used in '+sourceCount+' '+(sourceCount===1?'recipe':'recipes'):'View item sources';
+   const sourceText=sourceCount?sourceCount+' '+(sourceCount===1?'recipe':'recipes'):'Sources';
    const review=x.items.some(shoppingNeedsReview);
    const storePrice=shoppingPriceFor(names);
    itemCount++;
@@ -2006,8 +2190,8 @@ function renderShoppingList(){
    const seenOffers=new Set();
    const reefOffers=sourceNames.flatMap(n=>reefShoppingOffers.get(reefSearchTerm(n).toLowerCase())||[]).filter(p=>{const key=p.chain+'|'+p.product+'|'+p.price;if(seenOffers.has(key))return false;seenOffers.add(key);return true}).sort((a,b)=>a.price-b.price);
    const reefMarkup=reefOffers.length?'<span class="grocery-note">Online package prices: '+reefOffers.map(p=>esc(p.chain)+' $'+Number(p.price).toFixed(2)).join(' · ')+' (sizes may differ)</span>':'';
-   const priceMarkup='<span class="hg-item-price">'+(storePrice?'<span class="grocery-note">Manual price: $'+storePrice.price.toFixed(2)+' / '+esc(storePrice.unit)+'</span>':reefOffers.length?'':'<span class="grocery-note">Manual price not set</span>')+reefMarkup+'</span>';
-   return '<div class="grocery-item-wrap"><div class="row grocery-row"><input type="checkbox" data-items="'+esc(JSON.stringify(names))+'" '+(purchased?'checked':'')+'><div class="grocery-description"><label class="'+(purchased?'done':'')+'">'+esc(label)+'</label>'+(review?'<span class="grocery-note">⚠ Quantity or unit needs confirmation</span>':'')+(note?'<span class="grocery-note">'+esc(note)+'</span>':'')+priceMarkup+'</div><button type="button" data-set-price="'+esc(first.name)+'">Set price</button><button type="button" data-edit-item="'+esc(first.name)+'">Edit</button></div><details class="grocery-breakdown"><summary>'+esc(sourceText)+'</summary><div class="grocery-breakdown-content">'+groceryBreakdownMarkup(x.items)+'</div></details></div>';
+   const priceMarkup='<span class="hg-item-price">'+(storePrice?'<span class="grocery-note">Manual price: $'+storePrice.price.toFixed(2)+' / '+esc(storePrice.unit)+'</span>':'')+reefMarkup+'</span>';
+   return '<div class="grocery-item-wrap"><div class="row grocery-row"><input type="checkbox" data-items="'+esc(JSON.stringify(names))+'" '+(purchased?'checked':'')+'><div class="grocery-description"><label class="'+(purchased?'done':'')+'">'+esc(label)+'</label>'+(review?'<span class="grocery-note">⚠ Quantity or unit needs confirmation</span>':'')+(note?'<span class="grocery-note">'+esc(note)+'</span>':'')+priceMarkup+'</div><details class="grocery-actions"><summary aria-label="Item actions">•••</summary><div class="grocery-action-options"><button type="button" data-set-price="'+esc(first.name)+'">Set price</button><button type="button" data-edit-item="'+esc(first.name)+'">Edit</button></div></details></div><details class="grocery-breakdown"><summary>'+esc(sourceText)+'</summary><div class="grocery-breakdown-content">'+groceryBreakdownMarkup(x.items)+'</div></details></div>';
   }).join('');
   return '<details class="shopping-department" data-department="'+esc(group)+'" '+(shoppingOpenDepartments.has(group)?'open':'')+'><summary><span>'+symbol+' '+esc(group)+'</span><span class="department-count">'+done+' of '+entries.length+' purchased</span></summary><div class="department-items">'+rows+'</div></details>';
  }).join('')||'<p class="muted">'+(Object.keys(state.selected||{}).length?'Your selected meals have not produced grocery items. Check that the recipes contain ingredients and that none are excluded by your pantry; try reselecting a meal.':'No meals selected yet. Add a meal to your plan to automatically populate Shop.')+'</p>';
@@ -2067,23 +2251,104 @@ function renderSmartPrefs(){
  const list=state.list||[];
  $('smart-hide').checked=smartPrefs.hide;
  $('smart-progress').textContent=list.filter(x=>x.purchased).length+' of '+list.length+' purchased';
- $('inventory-saved').innerHTML=Object.entries(state.pantry_inventory||{}).filter(([k,v])=>Number(v)>0).slice(0,30).map(([k,v])=>'<p>'+esc(k.replace('|',' · '))+': '+esc(groceryNumber(v))+'</p>').join('')||'No tracked amounts yet.';
+ const inventoryGroups=new Map(),byName=new Map();
+ // Pantry membership is independent of quantity tracking.
+ for(const raw of state.pantry||[]){
+  if(typeof raw!=='string'||!raw.trim())continue;
+  const name=raw.trim(),normalized=name.toLocaleLowerCase();
+  if(!byName.has(normalized))byName.set(normalized,{name,quantities:[]});
+ }
+ for(const [key,amount] of Object.entries(state.pantry_inventory||{})){
+  const split=key.lastIndexOf('|'),name=(split>=0?key.slice(0,split):key).trim(),unit=split>=0?key.slice(split+1):'';
+  if(!name||!Number.isFinite(Number(amount))||Number(amount)<0)continue;
+  const normalized=name.toLocaleLowerCase();
+  if(!byName.has(normalized))byName.set(normalized,{name,quantities:[]});
+  byName.get(normalized).quantities.push({amount:Number(amount),unit});
+ }
+ for(const item of byName.values()){
+  const category=shoppingDepartment(item.name);
+  if(!inventoryGroups.has(category))inventoryGroups.set(category,[]);
+  inventoryGroups.get(category).push(item);
+ }
+ const pantryOrder=[...shoppingDepartments.map(department=>department[0]),'Other / Uncategorized'];
+ $('inventory-saved').innerHTML=pantryOrder.filter(category=>inventoryGroups.has(category)).map(category=>{
+  const items=inventoryGroups.get(category).sort((a,b)=>a.name.localeCompare(b.name));
+  return '<details class="pantry-department" open><summary><strong>'+esc(category)+'</strong> <span class="muted">('+items.length+')</span></summary><div class="pantry-department-items">'+items.map(item=>{
+   const quantities=item.quantities.filter(q=>q.amount>0);
+   const display=quantities.length?quantities.map(q=>esc(groceryNumber(q.amount))+' '+esc(q.unit)).join(', '):'<span class="muted">Quantity not set</span>';
+   return '<div class="pantry-department-item"><span>'+esc(item.name)+'</span><div class="pantry-quantity-controls"><strong>'+display+'</strong><button type="button" class="clear" data-pantry-edit="'+esc(item.name)+'" data-pantry-unit="'+esc(quantities[0]?.unit||'count')+'">Edit</button><button type="button" class="clear" data-pantry-delete="'+esc(item.name)+'" aria-label="Remove '+esc(item.name)+' from pantry completely">Remove</button></div></div>';
+  }).join('')+'</div></details>';
+ }).join('')||'<p class="muted">Your pantry is empty. Add an ingredient above to get started.</p>';
  const flags=list.filter(x=>{
   const d=shoppingDisplay(x);
   const m=d.name.match(/^\s*(\d+(?:\.\d+)?)\s+(?:chicken breasts?|eggs?|buns?|rolls?|fillets?)\b/i);
   return m&&Number(m[1])>=10;
  });
  $('smart-flags').innerHTML=flags.length?flags.map(x=>'<p class="smart-flag">Verify quantity: '+esc(shoppingDisplay(x).name)+' — expand Used in these recipes below.</p>').join(''):'<p class="muted">Check ingredient breakdowns to verify recipe quantities.</p>';
- $('smart-pantry').innerHTML=(state.pantry||[]).map((x,i)=>'<label class="smart-pantry-row">'+esc(x)+' <input data-smart-pantry="'+i+'" value="'+esc(smartPrefs.pantry[x]||'')+'" placeholder="Amount on hand"></label>').join('')||'<p class="muted">Add pantry ingredients above first.</p>';
+ $('smart-pantry').innerHTML='<p class="muted">Quantities are optional. Use Add, Use, or Set above to update an ingredient. Verified quantities can be deducted when you cook.</p>';
  const current=$('smart-cook-select').value;
  $('smart-cook-select').innerHTML='<option value="">Select a planned meal</option>'+recipes.filter(r=>Object.hasOwn(state.selected||{},String(r.id))).map(r=>'<option value="'+r.id+'">'+esc(cleanRecipeName(r.name))+'</option>').join('');
  $('smart-cook-select').value=current;
 }
+function updatePantryQuantityPreview(){
+ const name=$('inventory-name').value.trim(),unit=$('inventory-unit').value,raw=$('inventory-amount').value;
+ const mode=$('inventory-mode').value,preview=$('inventory-preview'),submit=$('inventory-submit');
+ const existing=state?.pantry_inventory||{},key=name.toLocaleLowerCase()+'|'+unit;
+ const conversions={teaspoon:['volume',4.92892159375],tablespoon:['volume',14.78676478125],cup:['volume',236.5882365],milliliter:['volume',1],liter:['volume',1000],gram:['mass',1],kilogram:['mass',1000],ounce:['mass',28.349523125],pound:['mass',453.59237]};
+ let targetKey=key,ambiguous=false;
+ if(mode!=='set'&&!Object.prototype.hasOwnProperty.call(existing,key)&&conversions[unit]){
+  const candidates=Object.keys(existing).filter(k=>k.startsWith(name.toLocaleLowerCase()+'|')&&conversions[k.split('|').pop()]?.[0]===conversions[unit][0]);
+  ambiguous=candidates.length>1;
+  if(candidates.length===1)targetKey=candidates[0];
+ }
+ const targetUnit=targetKey.split('|').pop();
+ const factor=targetUnit!==unit&&conversions[unit]&&conversions[targetUnit]?conversions[unit][1]/conversions[targetUnit][1]:1;
+ const current=Number(existing[targetKey]||0),tracked=Object.prototype.hasOwnProperty.call(existing,targetKey);
+ const amount=Number(raw),valid=Boolean(name)&&raw.trim()!==''&&Number.isFinite(amount)&&amount>=0&&amount<=100000;
+ const delta=amount*factor,next=mode==='add'?current+delta:mode==='use'?current-delta:amount;
+ const allowed=valid&&!ambiguous&&next>=0&&next<=100000&&!(mode==='use'&&!tracked);
+ submit.disabled=!allowed;
+ if(!name){preview.textContent='Enter an ingredient to preview the quantity change.';return}
+ if(!valid){preview.textContent='Enter a valid amount to see the resulting quantity.';return}
+ if(ambiguous){preview.textContent='Multiple compatible units exist. Choose an existing unit to update.';return}
+ if(mode==='use'&&!tracked){preview.textContent='Set a tracked quantity for this unit before using it.';return}
+ if(next<0){preview.textContent='Not enough in pantry: currently '+groceryNumber(current)+' '+targetUnit+'.';return}
+ if(next>100000){preview.textContent='Quantity exceeds the maximum allowed.';return}
+ preview.textContent='Currently: '+groceryNumber(current)+' '+targetUnit+' → After '+mode+': '+groceryNumber(next)+' '+targetUnit+'.'+(targetUnit!==unit?' Converted from '+unit+'.':'')+(tracked?'':' This unit is not tracked yet.');
+}
+['inventory-name','inventory-amount','inventory-unit','inventory-mode'].forEach(id=>{
+ $(id).addEventListener('input',updatePantryQuantityPreview);
+ $(id).addEventListener('change',updatePantryQuantityPreview);
+});
 $('inventory-form').addEventListener('submit',async e=>{
  e.preventDefault();
- const name=$('inventory-name').value.trim(),amount=Number($('inventory-amount').value),unit=$('inventory-unit').value;
- if(!name||!Number.isFinite(amount)||amount<0)return;
- await action({action:'set_pantry_inventory',name,amount,unit});
+ updatePantryQuantityPreview();
+ if($('inventory-submit').disabled)return;
+ const name=$('inventory-name').value.trim(),amount=Number($('inventory-amount').value),unit=$('inventory-unit').value,mode=$('inventory-mode').value;
+ const response=await fetch('/api/action',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'adjust_pantry_inventory',name,amount,unit,mode})});
+ const updated=await response.json();
+ if(!response.ok||updated.error){$('inventory-preview').textContent='Could not update quantity: '+(updated.error||'Request failed');return}
+ state=updated;
+ $('inventory-amount').value='';
+ render();
+ updatePantryQuantityPreview();
+});
+$('inventory-saved').addEventListener('click',async e=>{
+ const remove=e.target.closest('[data-pantry-delete]');
+ if(remove){
+  const name=remove.dataset.pantryDelete;
+  if(!confirm('Remove '+name+' from the pantry and delete all tracked quantities?'))return;
+  await action({action:'delete_pantry_item',name});
+  return;
+ }
+ const button=e.target.closest('[data-pantry-edit]');if(!button)return;
+ $('inventory-name').value=button.dataset.pantryEdit;
+ $('inventory-unit').value=button.dataset.pantryUnit;
+ $('inventory-mode').value='set';
+ $('inventory-amount').value='';
+ $('inventory-amount').focus();
+ updatePantryQuantityPreview();
+ $('inventory-form').scrollIntoView({block:'center',behavior:'smooth'});
 });
 $('smart-hide').onchange=e=>{smartPrefs.hide=e.target.checked;saveSmartPrefs();renderShoppingList()};
 $('smart-pantry').onchange=e=>{const name=(state.pantry||[])[Number(e.target.dataset.smartPantry)];if(name){smartPrefs.pantry[name]=e.target.value;saveSmartPrefs()}};
@@ -2097,12 +2362,38 @@ $('smart-auto').onclick=async()=>{
  for(const day of days.slice(0,count)){const next=candidates.find(x=>!used.has(x.r.id));if(!next)break;plan[day]=next.r.id;used.add(next.r.id)}
  if(confirm('Replace the first '+count+' days of your weekly planner with suggested dinners? Your shopping list will not change.'))await preferences({weekly:plan});
 };
-$('smart-cook-open').onclick=()=>{
+// Cooking deductions require an explicit preview and confirmation.
+$('smart-cook-open').onclick=async()=>{
  const r=recipes.find(x=>String(x.id)===$('smart-cook-select').value);if(!r)return;
  const view=$('smart-cook-view');view.hidden=false;
- const link=String(r.url||'').startsWith('https://')?'<a href="'+esc(r.url)+'" target="_blank" rel="noopener noreferrer">Open original cooking instructions</a>':'<span class="muted">Original instructions unavailable.</span>';
- view.innerHTML='<h3>'+esc(cleanRecipeName(r.name))+'</h3>'+Object.entries(r.ingredients||{}).map(([name,qty])=>'<label class="cook-check"><input type="checkbox"> '+esc(shoppingDisplay({name,quantity:qty*(Number((state.selected||{})[String(r.id)])||1)}).name)+'</label>').join('')+'<p>'+link+'</p><button type="button" id="smart-cook-close">Close</button>';
- $('smart-cook-close').onclick=()=>{view.hidden=true;view.innerHTML=''};
+ view.textContent='Checking verified pantry quantities…';
+ const send=async payload=>{
+  const response=await fetch('/api/action',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json','X-HG-CSRF':document.cookie.split('; ').find(x=>x.startsWith('hg_csrf='))?.slice(8)||''},body:JSON.stringify(payload)});
+  const data=await response.json();if(!response.ok)throw Error(data.error||'Request failed');return data;
+ };
+ try{
+  const servings=Number((state.selected||{})[String(r.id)])||2;
+  const preview=await send({action:'preview_cooked_recipe',recipe_id:Number(r.id),servings});
+  const deductions=Object.entries(preview.deductions||{});
+  const summary=deductions.length?deductions.map(([key,amount])=>'<li>'+esc(key.replace('|',' · '))+': −'+esc(groceryNumber(amount))+'</li>').join(''):'<li>No verified pantry quantities match this recipe.</li>';
+  view.innerHTML='<h3>'+esc(cleanRecipeName(r.name))+'</h3><p>Review pantry deductions before marking this meal cooked. Only verified ingredients with compatible units will be used; missing quantities remain unchanged.</p><ul>'+summary+'</ul>'+(preview.not_deducted?.length?'<p class="muted">Not fully deducted: '+esc(preview.not_deducted.join(', '))+'</p>':'')+'<div class="actions"><button type="button" id="confirm-cooked" '+(!deductions.length?'disabled':'')+'>Confirm cooked & deduct</button><button type="button" id="cancel-cooked" class="clear">Cancel</button></div><p id="cooked-status" role="status"></p>';
+  view.querySelector('#cancel-cooked').onclick=()=>{view.hidden=true;view.replaceChildren()};
+  view.querySelector('#confirm-cooked').onclick=async()=>{
+   const button=view.querySelector('#confirm-cooked');button.disabled=true;
+   const eventId=crypto.randomUUID().replaceAll('-','');
+   try{
+    const updated=await send({action:'confirm_cooked_recipe',recipe_id:Number(r.id),servings,event_id:eventId});
+    state=updated;render();
+    view.hidden=false;
+    view.innerHTML='<p>Meal marked cooked. Pantry quantities updated.</p><button type="button" id="undo-cooked">Undo pantry deduction</button><p id="cooked-status" role="status"></p>';
+    view.querySelector('#undo-cooked').onclick=async()=>{
+     const undo=view.querySelector('#undo-cooked');undo.disabled=true;
+     try{state=await send({action:'undo_cooked_recipe',event_id:eventId});render();view.hidden=false;view.innerHTML='<p>Pantry deduction undone.</p>'}
+     catch(error){undo.disabled=false;view.querySelector('#cooked-status').textContent=error.message}
+    };
+   }catch(error){button.disabled=false;view.querySelector('#cooked-status').textContent=error.message}
+  };
+ }catch(error){view.textContent='Could not preview pantry deductions: '+error.message}
  view.scrollIntoView({block:'start'});
 };
 // Hide obvious merchandise/promotional listings from the recipe browser without deleting data.
@@ -2160,6 +2451,22 @@ function recommendationPantryMatches(r){
  const pantry=Object.keys(state.pantry_inventory||{}).filter(k=>Number(state.pantry_inventory[k])>0).map(k=>ingredientKey(k.split('|')[0])).filter(k=>k.length>=3);
  return pantry.filter(k=>Object.keys(r.ingredients||{}).some(ingredient=>{const normalized=ingredientKey(ingredient);return normalized===k||normalized.includes(k)||k.includes(normalized)&&normalized.length>=3})).length;
 }
+let recommendationRenderGeneration=0;
+let recommendationCachedPhotoIds=null;
+let recommendationPhotoLookup=null;
+// Rotate the home-page suggestions once per local day, not on every UI render.
+const recommendationDayKey=new Date().toLocaleDateString('en-CA');
+const recommendationRotationKey='hg-recommendation-day-v1';
+let recommendationDailyOffset=0;
+try{
+ const saved=JSON.parse(localStorage.getItem(recommendationRotationKey)||'{}');
+ if(saved.day===recommendationDayKey&&Number.isInteger(saved.offset)){
+  recommendationDailyOffset=saved.offset;
+ }else{
+  recommendationDailyOffset=Math.floor(Math.random()*1000000);
+  localStorage.setItem(recommendationRotationKey,JSON.stringify({day:recommendationDayKey,offset:recommendationDailyOffset}));
+ }
+}catch(e){recommendationDailyOffset=new Date().getDate()*137}
 function renderRecommendations(){
  const panel=$('recommend-list');if(!panel)return;
  const picked=new Set(Object.keys(state.selected||{})),fav=new Set((state.favorites||[]).map(String));
@@ -2199,7 +2506,7 @@ function renderRecommendations(){
  const recent=new Set(recommendationMemory.recent);
  const fresh=pool.filter(x=>!recent.has(String(x.r.id)));
  const candidates=fresh.length>=5?fresh:pool;
- const offset=candidates.length?recommendationOffset%candidates.length:0;
+ const offset=candidates.length?(recommendationDailyOffset+recommendationOffset)%candidates.length:0;
  const rotated=candidates.slice(offset).concat(candidates.slice(0,offset));
  const results=[],used=new Set(),groupCounts=new Map(),mealCounts=new Map();
  function addFrom(items,limit){
@@ -2219,16 +2526,60 @@ function renderRecommendations(){
  addFrom(rotated,5);
  // Relax variety limits only when otherwise unable to fill five slots.
  if(results.length<5)for(const item of rotated){if(results.length>=5)break;if(!used.has(String(item.r.id))){results.push(item);used.add(String(item.r.id))}}
- panel.innerHTML=results.length?results.map(({r,reason})=>'<article class="recommend-card">'+('<img class="recommend-photo" src="/api/photo/'+encodeURIComponent(r.id)+'" alt="" loading="lazy" onerror="recommendationPhotoFailed(this)">')+'<strong class="recommend-title">'+esc(cleanRecipeName(r.name))+'</strong><div class="muted recommend-reason" style="font-size:12px;margin:6px 0">'+esc(reason)+'</div><div class="recommend-actions"><button type="button" data-recommend-detail="'+r.id+'">View recipe</button><button type="button" data-recommend-plan="'+r.id+'">Add to plan</button></div><select data-recommend-collection="'+r.id+'" aria-label="Add recommended recipe to collection" style="width:100%;margin-top:8px;min-height:40px"><option value="">Add to collection…</option>'+Object.keys(state.collections||{}).map(n=>'<option value="'+esc(n)+'">'+esc(n)+'</option>').join('')+'</select><button type="button" data-recommend-more="'+r.id+'" class="recommend-dismiss">Show me more like this</button><button type="button" data-recommend-hide="'+r.id+'" class="recommend-dismiss">Not interested</button></article>').join(''):'<p class="muted">'+(terms.length?'No suggestions match this search. Try clearing the search.':'No suggestions available yet.')+'</p>';
+ void (async()=>{
+ // Only display locally cached photos; never block the recipe page on external downloads.
+ const generation=++recommendationRenderGeneration;
+ if(!recommendationCachedPhotoIds){
+  if(!recommendationPhotoLookup)recommendationPhotoLookup=fetch('/api/recommendation-photos').then(r=>{if(!r.ok)throw Error('Photo list unavailable');return r.json()}).then(data=>new Set((data.ids||[]).map(String))).catch(()=>new Set()).finally(()=>{recommendationPhotoLookup=null});
+  panel.innerHTML='<p class="muted" role="status">Loading recommendations…</p>';
+  recommendationCachedPhotoIds=await recommendationPhotoLookup;
+ }
+ if(generation!==recommendationRenderGeneration)return;
+ const choices=[...results,...rotated.filter(x=>!used.has(String(x.r.id)))];
+ const verified=choices.filter(item=>recommendationCachedPhotoIds.has(String(item.r.id))&&!recommendationFailedPhotos.has(String(item.r.id))).slice(0,5);
+  panel.innerHTML=verified.length?verified.map(({r,reason})=>'<article class="recommend-card">'+('<img class="recommend-photo" src="/api/photo/'+encodeURIComponent(r.id)+'" alt="" loading="lazy">')+'<strong class="recommend-title">'+esc(cleanRecipeName(r.name))+'</strong><div class="muted recommend-reason" style="font-size:12px;margin:6px 0">'+esc(reason)+'</div><div class="recommend-actions"><button type="button" data-recommend-detail="'+r.id+'">View recipe</button><button type="button" data-recommend-plan="'+r.id+'">Add to plan</button></div><select data-recommend-collection="'+r.id+'" aria-label="Add recommended recipe to collection" style="width:100%;margin-top:8px;min-height:40px"><option value="">Add to collection…</option>'+Object.keys(state.collections||{}).map(n=>'<option value="'+esc(n)+'">'+esc(n)+'</option>').join('')+'</select><button type="button" data-recommend-more="'+r.id+'" class="recommend-dismiss">Show me more like this</button><button type="button" data-recommend-hide="'+r.id+'" class="recommend-dismiss">Not interested</button></article>').join(''):'<p class="muted">'+(terms.length?'No suggestions match this search. Try clearing the search.':'No suggestions available yet.')+'</p>';
+ if(verified.length<5&&verified.length>0){
+  const note=document.createElement('p');note.className='muted';note.style.gridColumn='1/-1';
+  note.textContent='More recommendations will appear as recipe photos become available.';
+  panel.append(note);
+ }
+
+ })();
  requestAnimationFrame(updateRecommendationCarousel);
 }
+const recommendationReplacementBusy=new WeakSet();
 function recommendationPhotoFailed(img){
  const card=img.closest('.recommend-card');
  const id=card?.querySelector('[data-recommend-detail]')?.dataset.recommendDetail;
- if(!id||recommendationFailedPhotos.has(String(id)))return;
+ if(!card||!id||recommendationReplacementBusy.has(card))return;
+ recommendationReplacementBusy.add(card);
  recommendationFailedPhotos.add(String(id));
- recommendationRankCache=null;
- renderRecommendations();
+ // Keep the visible card and its grid slot stable while checking replacements.
+ // Never rebuild the carousel in response to an image error.
+ img.removeAttribute('onerror');
+ img.style.visibility='hidden';
+ const current=new Set([...document.querySelectorAll('#recommend-list [data-recommend-detail]')].map(el=>String(el.dataset.recommendDetail)));
+ const pool=(recommendationRankCache?.pool||[]).filter(({r})=>!current.has(String(r.id))&&!recommendationFailedPhotos.has(String(r.id)));
+ let index=0;
+ function tryNext(){
+  if(!card.isConnected)return;
+  if(index>=pool.length){card.hidden=true;updateRecommendationCarousel();return}
+  const item=pool[index++],candidate=item.r,photo=new Image();
+  photo.onload=()=>{
+   if(!card.isConnected)return;
+   img.src=photo.src;
+   img.style.visibility='';
+   card.querySelector('.recommend-title').textContent=cleanRecipeName(candidate.name);
+   card.querySelector('.recommend-reason').textContent=item.reason;
+   for(const [attribute,selector] of [['data-recommend-detail','[data-recommend-detail]'],['data-recommend-plan','[data-recommend-plan]'],['data-recommend-collection','[data-recommend-collection]'],['data-recommend-more','[data-recommend-more]'],['data-recommend-hide','[data-recommend-hide]']]){
+    const el=card.querySelector(selector);if(el)el.setAttribute(attribute,String(candidate.id));
+   }
+   recommendationReplacementBusy.delete(card);
+  };
+  photo.onerror=()=>{recommendationFailedPhotos.add(String(candidate.id));tryNext()};
+  photo.src='/api/photo/'+encodeURIComponent(candidate.id);
+ }
+ tryNext();
 }
 function updateRecommendationCarousel(){const list=$('recommend-list'),controls=$('recommend-carousel-controls'),dots=$('recommend-dots');if(!list||!controls||!dots)return;const cards=[...list.querySelectorAll('.recommend-card')];const enabled=matchMedia('(max-width:750px)').matches&&cards.length>1;controls.hidden=!enabled;if(!enabled)return;const current=cards.reduce((best,card,i)=>Math.abs(card.offsetLeft-list.offsetLeft-list.scrollLeft)<Math.abs(cards[best].offsetLeft-list.offsetLeft-list.scrollLeft)?i:best,0);dots.innerHTML=cards.map((_,i)=>'<span class="recommend-dot'+(i===current?' active':'')+'"></span>').join('')}
 $('recommend-list').addEventListener('change',async e=>{
@@ -2241,7 +2592,7 @@ $('recommend-list').addEventListener('change',async e=>{
  finally{el.disabled=false}
 });
 $('recommend-list').addEventListener('scroll',updateRecommendationCarousel,{passive:true});window.addEventListener('resize',updateRecommendationCarousel);
-$('recommend-refresh').onclick=()=>{recommendationMemory.recent=[...new Set([...recommendationMemory.recent,...[...document.querySelectorAll('#recommend-list [data-recommend-detail]')].map(el=>String(el.dataset.recommendDetail))])].slice(-30);saveRecommendationMemory();recommendationOffset+=5;renderRecommendations()};
+$('recommend-refresh').onclick=()=>{recommendationCachedPhotoIds=null;recommendationMemory.recent=[...new Set([...recommendationMemory.recent,...[...document.querySelectorAll('#recommend-list [data-recommend-detail]')].map(el=>String(el.dataset.recommendDetail))])].slice(-30);saveRecommendationMemory();recommendationOffset+=5;renderRecommendations()};
 $('recommend-list').addEventListener('click',async e=>{
  const detail=e.target.closest('[data-recommend-detail]'),hide=e.target.closest('[data-recommend-hide]'),plan=e.target.closest('[data-recommend-plan]'),more=e.target.closest('[data-recommend-more]');
  if(more){recommendationMemory.more=[...new Set([...recommendationMemory.more,String(more.dataset.recommendMore)])].slice(-30);saveRecommendationMemory();recommendationRankCache=null;renderRecommendations();return;}
@@ -2282,8 +2633,8 @@ const sort=$('sort').value;if(sort==='name')filtered.sort((a,b)=>cleanRecipeName
   chip.addEventListener('click',()=>{el.value='all';recipePage=0;render()});
   chipBox.appendChild(chip);
  }
-renderRecommendations();hfUpdatePhotoAudit();const pageRecipes=filtered.slice(recipePage*PAGE_SIZE,(recipePage+1)*PAGE_SIZE);$('pageinfo').textContent=`Page ${recipePage+1} of ${pages}`;$('prevpage').disabled=recipePage===0;$('nextpage').disabled=recipePage>=pages-1;
-$('recipes').innerHTML=pageRecipes.map(r=>{let checked=Object.hasOwn(selected,String(r.id));let photo=(r.image||r.url)?`<img class="recipe-photo" src="/api/photo/${r.id}" alt="${esc(cleanRecipeName(r.name))}" loading="lazy" referrerpolicy="no-referrer" onerror="hfImageFailed(this,${r.id})" onload="hfImageLoaded(this,${r.id})" data-original-image="${esc(r.image||'')}">`:'';return `<article class="recipe-card">${photo}<div class="photo-placeholder" style="${photo?'display:none':''}">🍽️</div><div class="recipe-card-body"><strong class="recipe-card-title">${esc(cleanRecipeName(r.name))}</strong>${r.country?`<small class="muted">${esc(r.country)}</small>`:''}${nutritionSummary(r)}${r.url?`<a href="${esc(r.url)}" target="_blank" rel="noopener noreferrer">View cooking steps</a>`:''}<div class="actions"><button type="button" class="favorite-btn" data-favorite="${r.id}">${(state.favorites||[]).includes(r.id)?"♥ Favorited":"♡ Favorite"}</button><button type="button" data-detail="${r.id}">Cook / Details${(state.recipe_reviews||{})[String(r.id)]?.rating?" · ★"+(state.recipe_reviews||{})[String(r.id)].rating:""}</button><select data-collection-add="${r.id}" aria-label="Add recipe to collection"><option value="">Add to collection…</option>${Object.keys(state.collections||{}).map(n=>`<option value="${esc(n)}">${esc(n)}</option>`).join("")}</select></div><div class="recipe-card-bottom"><label class="recipe-plan-action"><input aria-label="Select ${esc(cleanRecipeName(r.name))}" type="checkbox" data-id="${r.id}" ${checked?'checked':''}> <span class="recipe-plan-label">${checked?'✓ Added to plan':'Add to plan'}</span></label><div class="recipe-serving-row"><span>Servings</span><select aria-label="Serving multiplier" data-scale="${r.id}">${[0.5,1,1.5,2,3,4,5,6].map(v=>`<option value="${v}" ${(selected[r.id]??1)==v?'selected':''}>${v}×</option>`).join('')}</select></div></div></div></article>`}).join('')||'<p class="muted">No recipes match these filters.</p>';let n=state.list.filter(x=>x.purchased).length;$('summary').textContent=state.list.length?`${n} of ${state.list.length} purchased`:'No generated list yet';renderSelectedPlan();renderShoppingList();renderIngredientSuggestions();renderSmartPrefs();renderSalesComparison()}for(const id of ['recipe-country','protein','cuisine','meal','sort','selectedonly','fullmeals','quickmeals','favorite-filter','collection-filter','ingredient-filter','included-side','diet-filter','rating-filter'])$(id).addEventListener('change',()=>{recipePage=0;render()});$('resetfilters').onclick=()=>{for(const id of ['protein','cuisine','meal','diet-filter','rating-filter'])$(id).value='all';$('recipe-country').value='all';$('included-side').value='all';$('sort').value='name';$('selectedonly').checked=false;$('fullmeals').checked=true;$('quickmeals').checked=false;$('search').value='';recipePage=0;render()};function navigateRecipePage(direction){
+renderRecommendations();hfUpdatePhotoAudit();filtered=filtered.filter(r=>!hfBrokenPhotos.has(String(r.id)));const pageRecipes=filtered.slice(recipePage*PAGE_SIZE,(recipePage+1)*PAGE_SIZE);$('pageinfo').textContent=`Page ${recipePage+1} of ${pages}`;$('prevpage').disabled=recipePage===0;$('nextpage').disabled=recipePage>=pages-1;
+$('recipes').innerHTML=pageRecipes.map(r=>{let checked=Object.hasOwn(selected,String(r.id));let photo=(r.image||r.url)?`<img class="recipe-photo" src="/api/photo/${r.id}" alt="${esc(cleanRecipeName(r.name))}" loading="lazy" referrerpolicy="no-referrer" onerror="hfImageFailed(this,${r.id})" onload="hfImageLoaded(this,${r.id})" data-original-image="${esc(r.image||'')}">`:'';return `<article class="recipe-card">${photo}<div class="photo-placeholder" style="${photo?'display:none':''}">🍽️</div><div class="recipe-card-body"><strong class="recipe-card-title">${esc(cleanRecipeName(r.name))}</strong>${r.country?`<small class="muted">${esc(r.country)}</small>`:''}${nutritionSummary(r)}${r.url?`<a href="${esc(r.url)}" target="_blank" rel="noopener noreferrer">View cooking steps</a>`:''}<div class="actions"><button type="button" class="favorite-btn" data-favorite="${r.id}">${(state.favorites||[]).includes(r.id)?"♥ Favorited":"♡ Favorite"}</button><button type="button" data-detail="${r.id}">Cook / Details${(state.recipe_reviews||{})[String(r.id)]?.rating?" · ★"+(state.recipe_reviews||{})[String(r.id)].rating:""}</button><select data-collection-add="${r.id}" aria-label="Add recipe to collection"><option value="">Add to collection…</option>${Object.keys(state.collections||{}).map(n=>`<option value="${esc(n)}">${esc(n)}</option>`).join("")}</select></div><div class="recipe-card-bottom"><label class="recipe-plan-action"><input aria-label="Select ${esc(cleanRecipeName(r.name))}" type="checkbox" data-id="${r.id}" ${checked?'checked':''}> <span class="recipe-plan-label">${checked?'✓ Added to plan':'Add to plan'}</span></label><div class="recipe-serving-row"><span>Servings</span><select aria-label="Total servings" data-scale="${r.id}">${[0.5,1,1.5,2,3,4,5,6].map(v=>`<option value="${v}" ${(selected[r.id]??(Number(r.source_servings)||2))==v?'selected':''}>${v} servings</option>`).join('')}</select></div></div></div></article>`}).join('')||'<p class="muted">No recipes match these filters.</p>';let n=state.list.filter(x=>x.purchased).length;$('summary').textContent=state.list.length?`${n} of ${state.list.length} purchased`:'No generated list yet';renderSelectedPlan();renderShoppingList();renderIngredientSuggestions();renderSmartPrefs();renderSalesComparison()}for(const id of ['recipe-country','protein','cuisine','meal','sort','selectedonly','fullmeals','quickmeals','favorite-filter','collection-filter','ingredient-filter','included-side','diet-filter','rating-filter'])$(id).addEventListener('change',()=>{recipePage=0;render()});$('resetfilters').onclick=()=>{for(const id of ['protein','cuisine','meal','diet-filter','rating-filter'])$(id).value='all';$('recipe-country').value='all';$('included-side').value='all';$('sort').value='name';$('selectedonly').checked=false;$('fullmeals').checked=true;$('quickmeals').checked=false;$('search').value='';recipePage=0;render()};function navigateRecipePage(direction){
  recipePage=Math.max(0,recipePage+direction);
  render();
  // Scroll to the recipe section heading after the new page is rendered.
@@ -2415,7 +2766,7 @@ $('items').addEventListener('change',e=>{if(e.target.dataset.items)action({actio
  const button=e.target.closest('button[data-suggest-add]');
  if(!button)return;
  button.disabled=true;
- await action({action:'select',id:Number(button.dataset.suggestAdd),checked:true,servings:1});
+ await action({action:'select',id:Number(button.dataset.suggestAdd),checked:true,servings:2});
 });
 $('generate-grocery').onclick=()=>{
  $('grocery-preview').hidden=true;
@@ -2692,10 +3043,20 @@ function hfImageLoaded(img,id){
    hfBrokenPhotos.set(String(id),{id:String(id),name:(recipes.find(r=>String(r.id)===String(id))||{}).name||'',url:img.src,reason:'Generic HelloFresh logo'});
    img.style.display='none';
    const placeholder=img.parentElement?.querySelector('.photo-placeholder');
-  if(placeholder)placeholder.style.display='grid';
+  hfHideBrokenCatalogCard(img,id);
    hfUpdatePhotoAudit();
   }
  }catch(err){/* Keep images if the browser cannot inspect them. */}
+}
+let hfCatalogPhotoRefresh=null;
+function hfHideBrokenCatalogCard(img,id){
+ const card=img.closest('.recipe-card');
+ if(card)card.style.display='none';
+ if(hfCatalogPhotoRefresh!==null)return;
+ hfCatalogPhotoRefresh=setTimeout(()=>{
+  hfCatalogPhotoRefresh=null;
+  render();
+ },350);
 }
 function hfImageFailed(img,id){
   const key=String(id), original=img.getAttribute('data-original-image')||img.src;
@@ -2706,7 +3067,7 @@ function hfImageFailed(img,id){
   }
   hfBrokenPhotos.set(key,{id:key,name:(recipes.find(r=>String(r.id)===key)||{}).name||'',url:original});
   img.style.display='none';
-  if(img.nextElementSibling)img.nextElementSibling.style.display='grid';
+  hfHideBrokenCatalogCard(img,id);
   hfUpdatePhotoAudit();
 }
 function hfUpdatePhotoAudit(){
@@ -2852,7 +3213,7 @@ async function saveNamedCollection(name){
 window.hgSaveNamedCollection=saveNamedCollection;
  $('create-collection').onclick=async()=>{try{await saveNamedCollection($('new-collection').value)}catch(e){$('error').textContent='Could not save collection: '+(e.message||e)}};
 $('week-grid').addEventListener('change',async e=>{if(!e.target.dataset.week)return;const weekly={...(state.weekly||{})};weekly[e.target.dataset.week]=e.target.value?Number(e.target.value):null;await preferences({weekly})});
-$('week-apply').onclick=async()=>{previousWeek={...(state.weekly||{})};await preferences({previous_week:previousWeek});const selected={};for(const id of Object.values(state.weekly||{}))if(id)selected[String(id)]=1;for(const [id,scale] of Object.entries(state.selected||{}))if(!Object.hasOwn(selected,id))await action({action:'select',id:Number(id),checked:false,servings:1});for(const id of Object.keys(selected))await action({action:'select',id:Number(id),checked:true,servings:1});await action({action:'generate'})};
+$('week-apply').onclick=async()=>{previousWeek={...(state.weekly||{})};await preferences({previous_week:previousWeek});const selected={};for(const id of Object.values(state.weekly||{}))if(id)selected[String(id)]=2;for(const [id,scale] of Object.entries(state.selected||{}))if(!Object.hasOwn(selected,id))await action({action:'select',id:Number(id),checked:false,servings:2});for(const id of Object.keys(selected))await action({action:'select',id:Number(id),checked:true,servings:2});await action({action:'generate'})};
 $('week-copy').onclick=async()=>{const last=state.previous_week||previousWeek;if(!Object.keys(last).length){$('error').textContent='Apply a week first, then you can copy it again';return}await preferences({weekly:last})};
 for(const key of ['pantry','manual']){
  $(key+'-add').onclick=async()=>{const x=$(key+'-input').value.trim();if(!x)return;await preferences({[key]:[...new Set([...(state[key]||[]),x])]});$(key+'-input').value=''};

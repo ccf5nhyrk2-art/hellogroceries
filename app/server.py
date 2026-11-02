@@ -54,6 +54,17 @@ def task_record(name,status):
   try:tmp.write_text(json.dumps(data));os.replace(tmp,TASK_HISTORY_FILE)
   except OSError:pass
 
+def serving_coverage():
+ with db() as conn:
+  rows=conn.execute('SELECT payload FROM imported').fetchall()
+ total=len(rows);known=0
+ for (payload,) in rows:
+  try:
+   value=json.loads(payload).get('source_servings')
+   if value is not None and math.isfinite(float(value)) and float(value)>0:known+=1
+  except (ValueError,TypeError,AttributeError):pass
+ return {'known':known,'missing':total-known,'total':total}
+
 def task_overview():
  try:history=json.loads(TASK_HISTORY_FILE.read_text())
  except (OSError,ValueError,TypeError):history={}
@@ -64,11 +75,12 @@ def task_overview():
  progress=Path('/data/us_import_progress.json')
  nutrition=history.get('nutrition',{})
  return [
-  item('us_import','HelloFresh US recipe import','Manual / on demand',us_import_running() or (import_process is not None and import_process.poll() is None),datetime.datetime.fromtimestamp(progress.stat().st_mtime,datetime.timezone.utc).isoformat() if progress.exists() else None,'us_import'),
-  item('nutrition','Bulk recipe nutrition scan','Manual / on demand',False,None,'nutrition'),
+  {'key':'us_import','name':'HelloFresh US recipe import','frequency':'Automatic initial import; weekly thereafter','running':us_import_running() or us_import_schedule['running'],'last_started':us_import_schedule['last_started'],'last_finished':us_import_schedule['last_finished'],'next_run':us_import_schedule['next_run'],'status':'Running' if us_import_schedule['running'] else ('Error: '+str(us_import_schedule['last_error']) if us_import_schedule['last_error'] else 'Waiting for next cycle'),'action':'us_import'},
+  {'key':'nutrition','name':'Bulk recipe nutrition scan','frequency':'Automatic initial scan; weekly thereafter (2 seconds between recipes)','running':nutrition_scan['running'],'last_started':nutrition_scan['last_started'],'last_finished':nutrition_scan['last_finished'],'next_run':nutrition_scan['next_run'],'status':'Running' if nutrition_scan['running'] else 'Waiting for next cycle','processed':nutrition_scan['processed'],'total':nutrition_scan['total'],'updated':nutrition_scan['updated'],'missing':nutrition_scan['missing'],'failed':nutrition_scan['failed'],'servings_backfilled':nutrition_scan.get('servings_backfilled',0),'servings_coverage':serving_coverage(),'action':None},
   item('store_directory','Nationwide store directory refresh','Automatic when cache expires (7 days) or store search needs it',False,datetime.datetime.fromtimestamp(ATP_CACHE_FILE.stat().st_mtime,datetime.timezone.utc).isoformat() if ATP_CACHE_FILE.exists() else None,'store_directory'),
   item('store_geocode','Store address geocoding','Automatic during store search (only uncached addresses)',RETAILER_GEOCODE_RUNNING,datetime.datetime.fromtimestamp(Path('/data/retailer_address_coordinates.json').stat().st_mtime,datetime.timezone.utc).isoformat() if Path('/data/retailer_address_coordinates.json').exists() else None,'store_geocode'),
-  item('reef_prices','ReefAPI grocery price refresh','Manual only; cached prices expire after 365 days',False,None,None)
+  item('reef_prices','ReefAPI grocery price refresh','Manual only; cached prices expire after 365 days',False,None,None),
+  {'key':'recommendation_photos','name':'Recommendation photo caching','frequency':'Background: checks hourly; 15 seconds between downloads (target: 40 photos)','running':recommendation_photo_warmup['running'],'last_started':recommendation_photo_warmup['last_started'],'last_finished':recommendation_photo_warmup['last_finished'],'next_run':recommendation_photo_warmup['next_run'],'status':'Running' if recommendation_photo_warmup['running'] else 'Waiting for next cycle','cached':recommendation_photo_warmup['cached'],'target':RECOMMENDATION_PHOTO_TARGET,'checked':recommendation_photo_warmup['checked'],'errors':recommendation_photo_warmup['errors'],'action':None}
  ]
 
 def us_import_running():
@@ -92,6 +104,49 @@ def start_us_import():
    raise ValueError('Importer exited immediately; check /data/us_import.log')
   task_record('us_import','running')
   return {'ok':True,'message':'US importer started. Existing imported URLs will be skipped.'}
+
+US_IMPORT_SCHEDULE=Path('/data/us_import_schedule.json')
+us_import_wakeup=threading.Event()
+us_import_schedule={'running':False,'last_started':None,'last_finished':None,'next_run':None,'last_error':None}
+def save_us_import_schedule():
+ try:
+  tmp=US_IMPORT_SCHEDULE.with_suffix('.tmp');tmp.write_text(json.dumps(us_import_schedule));os.replace(tmp,US_IMPORT_SCHEDULE)
+ except OSError:pass
+def us_import_schedule_worker():
+ try:
+  saved=json.loads(US_IMPORT_SCHEDULE.read_text())
+  for key in us_import_schedule:
+   if key in saved and key!='running':us_import_schedule[key]=saved[key]
+ except (OSError,ValueError,TypeError):pass
+ while True:
+  now=datetime.datetime.now(datetime.timezone.utc)
+  due=us_import_schedule.get('next_run')
+  if due:
+   try:delay=max(0,(datetime.datetime.fromisoformat(due)-now).total_seconds())
+   except (ValueError,TypeError):delay=0
+   if delay>0:
+    us_import_wakeup.wait(min(delay,86400))
+    if not us_import_wakeup.is_set():continue
+    us_import_wakeup.clear()
+  if us_import_running() or (import_process is not None and import_process.poll() is None):
+   us_import_schedule['next_run']=(datetime.datetime.now(datetime.timezone.utc)+datetime.timedelta(hours=1)).isoformat()
+   save_us_import_schedule()
+   continue
+  try:
+   us_import_schedule['last_started']=datetime.datetime.now(datetime.timezone.utc).isoformat()
+   us_import_schedule['running']=True
+   save_us_import_schedule()
+   start_us_import()
+   while us_import_running() or (import_process is not None and import_process.poll() is None):time.sleep(30)
+   us_import_schedule['last_finished']=datetime.datetime.now(datetime.timezone.utc).isoformat()
+   us_import_schedule['last_error']=None
+   us_import_schedule['next_run']=(datetime.datetime.now(datetime.timezone.utc)+datetime.timedelta(days=7)).isoformat()
+  except Exception as exc:
+   us_import_schedule['last_error']=str(exc)[:200]
+   us_import_schedule['next_run']=(datetime.datetime.now(datetime.timezone.utc)+datetime.timedelta(hours=1)).isoformat()
+  finally:
+   us_import_schedule['running']=False
+   save_us_import_schedule()
 
 def db():
  c=sqlite3.connect(DB)
@@ -317,6 +372,113 @@ def resolve_photo(recipe,refresh=False):
    except (OSError,ValueError,TimeoutError,urllib.error.URLError):continue
   return None if refresh else cached_photo(rid)
 
+# Low-rate background warmup for recommendation photos; never blocks a page request.
+RECOMMENDATION_PHOTO_TARGET=150
+recommendation_photo_wakeup=threading.Event()
+recommendation_photo_warmup={'last_attempt':None,'cached':0,'checked':0,'errors':0,'running':False,'last_started':None,'last_finished':None,'next_run':None}
+def recommendation_photo_warmup_worker():
+ import random
+ while True:
+  recommendation_photo_warmup['running']=True
+  recommendation_photo_warmup['last_started']=datetime.datetime.now(datetime.timezone.utc).isoformat()
+  try:
+   recipes=[r for r in allrecipes() if r.get('image') and not non_recipe_reason(r)]
+   random.shuffle(recipes)
+   cached=sum(1 for r in recipes if cached_photo(int(r['id'])))
+   recommendation_photo_warmup['cached']=cached
+   # Keep the warmup deliberately small and low-rate to limit external traffic.
+   for recipe in recipes:
+    if cached>=RECOMMENDATION_PHOTO_TARGET:break
+    if cached_photo(int(recipe['id'])):continue
+    recommendation_photo_warmup['last_attempt']=int(recipe['id'])
+    recommendation_photo_warmup['checked']+=1
+    try:
+     if resolve_photo(recipe):cached+=1
+    except Exception:
+     recommendation_photo_warmup['errors']+=1
+    recommendation_photo_warmup['cached']=cached
+    time.sleep(15)
+  except Exception:
+   recommendation_photo_warmup['errors']+=1
+  finally:
+   recommendation_photo_warmup['running']=False
+   recommendation_photo_warmup['last_finished']=datetime.datetime.now(datetime.timezone.utc).isoformat()
+   recommendation_photo_warmup['next_run']=(datetime.datetime.now(datetime.timezone.utc)+datetime.timedelta(hours=1)).isoformat()
+  recommendation_photo_wakeup.wait(3600)
+  recommendation_photo_wakeup.clear()
+
+# Persistent, low-rate nutrition scan. It resumes after restarts and checks again weekly.
+NUTRITION_SCAN_FILE=Path('/data/nutrition_background.json')
+nutrition_wakeup=threading.Event()
+nutrition_scan={'running':False,'cursor':0,'total':0,'processed':0,'updated':0,'missing':0,'failed':0,'servings_backfilled':0,'last_started':None,'last_finished':None,'next_run':None}
+def nutrition_scan_save():
+ try:
+  tmp=NUTRITION_SCAN_FILE.with_suffix('.tmp')
+  tmp.write_text(json.dumps(nutrition_scan));os.replace(tmp,NUTRITION_SCAN_FILE)
+ except OSError:pass
+def nutrition_scan_worker():
+ try:
+  saved=json.loads(NUTRITION_SCAN_FILE.read_text())
+  for key in nutrition_scan:
+   if key in saved and key!='running':nutrition_scan[key]=saved[key]
+ except (OSError,ValueError,TypeError):pass
+ while True:
+  now=datetime.datetime.now(datetime.timezone.utc)
+  due=nutrition_scan.get('next_run')
+  if due:
+   try:wait=max(0,(datetime.datetime.fromisoformat(due)-now).total_seconds())
+   except (TypeError,ValueError):wait=0
+   if wait>0:
+    nutrition_wakeup.wait(min(wait,86400))
+    if not nutrition_wakeup.is_set():continue
+    nutrition_wakeup.clear()
+  nutrition_scan['running']=True
+  nutrition_scan['last_started']=now.isoformat()
+  nutrition_scan['next_run']=None
+  nutrition_scan_save()
+  try:
+   while True:
+    with db() as conn:
+     rows=conn.execute('SELECT id,url,payload FROM imported WHERE id>? ORDER BY id LIMIT 3',(nutrition_scan['cursor'],)).fetchall()
+     nutrition_scan['total']=conn.execute('SELECT COUNT(*) FROM imported').fetchone()[0]
+    if not rows:break
+    for rid,url,payload in rows:
+     try:
+      original=json.loads(payload)
+      if not original.get('nutrition') or not original.get('source_servings'):
+       fresh=recipe_from_url(url)
+       changed=False
+       if not original.get('source_servings') and fresh.get('source_servings'):
+        original['source_servings']=fresh['source_servings']
+        nutrition_scan['servings_backfilled']=nutrition_scan.get('servings_backfilled',0)+1
+        changed=True
+       if not original.get('nutrition'):
+        nutrition=fresh.get('nutrition') or {}
+        labels=fresh.get('dietary_labels') or []
+        if nutrition or labels:
+         original['nutrition']=nutrition
+         original['dietary_labels']=labels
+         changed=True
+       if changed:
+        with lock:
+         with db() as conn:conn.execute('UPDATE imported SET payload=? WHERE id=?',(json.dumps(original),rid))
+        nutrition_scan['updated']+=1
+       else:nutrition_scan['missing']+=1
+     except Exception:nutrition_scan['failed']+=1
+     nutrition_scan['cursor']=rid
+     nutrition_scan['processed']+=1
+     nutrition_scan_save()
+     time.sleep(2)
+   nutrition_scan['cursor']=0
+   nutrition_scan['processed']=0
+   nutrition_scan['last_finished']=datetime.datetime.now(datetime.timezone.utc).isoformat()
+   nutrition_scan['next_run']=(datetime.datetime.now(datetime.timezone.utc)+datetime.timedelta(days=7)).isoformat()
+  except Exception:
+   nutrition_scan['next_run']=(datetime.datetime.now(datetime.timezone.utc)+datetime.timedelta(hours=1)).isoformat()
+  finally:
+   nutrition_scan['running']=False
+   nutrition_scan_save()
+
 def allowed_url(url):
  u=urllib.parse.urlsplit(url)
  host=(u.hostname or '').lower()
@@ -429,7 +591,12 @@ def recipe_from_url(url):
    if isinstance(entry,str):
     label=allowed.get(entry.rsplit('/',1)[-1])
     if label and label not in diet_labels:diet_labels.append(label)
- return validate_import_recipe({'name':name,'country':recipe_country_from_url(url),'url':url,'image':str(photo),'ingredients':ingredients,'ingredient_text':items,'source':'HelloFresh page','instructions_url':url,'nutrition':nutrition,'dietary_labels':diet_labels})
+ source_yield=found.get('recipeYield',found.get('yield'))
+ if isinstance(source_yield,list):source_yield=source_yield[0] if source_yield else None
+ serving_match=re.search(r'\d+(?:\.\d+)?',str(source_yield or ''))
+ source_servings=float(serving_match.group()) if serving_match else None
+ if source_servings is not None and not (0<source_servings<=20):source_servings=None
+ return validate_import_recipe({'name':name,'country':recipe_country_from_url(url),'url':url,'image':str(photo),'ingredients':ingredients,'ingredient_text':items,'source':'HelloFresh page','source_servings':source_servings,'instructions_url':url,'nutrition':nutrition,'dietary_labels':diet_labels})
 
 def discover_sitemap(country,limit):
  roots={'US':'https://www.hellofresh.com/sitemap_recipe_pages.xml','UK':'https://www.hellofresh.co.uk/sitemap.xml','AU':'https://www.hellofresh.com.au/sitemap.xml','CA':'https://www.hellofresh.ca/sitemap.xml','DE':'https://www.hellofresh.de/sitemap.xml','NL':'https://www.hellofresh.nl/sitemap.xml'}
@@ -1440,8 +1607,14 @@ def rebuild_grocery_list(state):
  totals={}
  sources={}
  for recipe in allrecipes():
-  scale=state['selected'].get(str(recipe['id']))
-  if scale is None:continue
+  servings=state['selected'].get(str(recipe['id']))
+  if servings is None:continue
+  # Scale against the original recipe's declared yield, when available.
+  source_servings=recipe.get('source_servings')
+  try:baseline=float(source_servings)
+  except (TypeError,ValueError):baseline=2.0
+  if not math.isfinite(baseline) or baseline<=0:baseline=2.0
+  scale=float(servings)/baseline
   ingredients=recipe.get('ingredients')
   if not isinstance(ingredients,dict):continue
   for name,qty in ingredients.items():
@@ -1449,6 +1622,18 @@ def rebuild_grocery_list(state):
    try:quantity=float(qty)
    except (ValueError,TypeError,OverflowError):continue
    if not math.isfinite(quantity) or quantity<=0:continue
+   # Recipe ingredient labels can contain the actual measure while the stored
+   # numeric value is only a source factor (often 1). Preserve both separately.
+   source_factor=quantity
+   embedded=re.match(r'^\s*(\d+(?:\.\d+)?|\d+/\d+)\s+(teaspoons?|tablespoons?|cups?|ounces?|pounds?|grams?|kilograms?|milliliters?|liters?)\s+(.+)$',name,re.I)
+   if embedded:
+    raw=embedded.group(1)
+    measured=float(raw.split('/')[0])/float(raw.split('/')[1]) if '/' in raw else float(raw)
+    quantity=source_factor*measured
+    normalized_unit={'teaspoons':'teaspoon','tablespoons':'tablespoon','cups':'cup','ounces':'ounce','pounds':'pound','grams':'gram','kilograms':'kilogram','milliliters':'milliliter','liters':'liter'}.get(embedded.group(2).lower(),embedded.group(2).lower())
+    label_name=normalized_unit+' '+embedded.group(3)
+   else:
+    label_name=name
    correction=state.get('recipe_ingredient_corrections',{}).get(str(recipe['id'])+'|'+name)
    if isinstance(correction,dict):
     ingredient_name=correction['name']
@@ -1457,31 +1642,92 @@ def rebuild_grocery_list(state):
     label='__corrected__|'+unit+'|'+ingredient_name.casefold()
     amount=corrected_amount*float(scale)
    else:
-    label=name
+    label=label_name
     amount=quantity*float(scale)
    if not (0<amount<100000):continue
    totals[label]=totals.get(label,0)+amount
-   sources.setdefault(label,[]).append({'recipe_id':recipe['id'],'recipe':recipe['name'],'original_name':name,'corrected':bool(correction),'source_quantity':qty,'multiplier':scale,'contribution':round(amount,3)})
+   sources.setdefault(label,[]).append({'recipe_id':recipe['id'],'recipe':recipe['name'],'original_name':name,'corrected':bool(correction),'source_quantity':qty,'multiplier':scale,'servings':servings,'source_servings':baseline,'contribution':round(amount,3)})
+ # Do not silently discard recipe ingredients with missing or malformed amounts.
+ # Keep them as unverified single entries until a correction supplies a quantity.
+ for recipe in allrecipes():
+  if str(recipe['id']) not in state.get('selected',{}):continue
+  ingredients=recipe.get('ingredients')
+  if not isinstance(ingredients,dict):continue
+  for name,qty in ingredients.items():
+   if not isinstance(name,str) or not name.strip():continue
+   try:valid=math.isfinite(float(qty)) and float(qty)>0
+   except (ValueError,TypeError,OverflowError):valid=False
+   if valid:continue
+   label=name.strip()
+   totals[label]=totals.get(label,0)+1
+   sources.setdefault(label,[]).append({'recipe_id':recipe['id'],'recipe':recipe['name'],'original_name':name,'source_quantity':qty,'quantity_unverified':True,'contribution':1})
  for item in state.get('manual',[]):
   if isinstance(item,str) and item.strip():
    name=item.strip()
    totals[name]=totals.get(name,0)+1
    sources.setdefault(name,[]).append({'recipe':'Manually added','contribution':1})
- pantry={str(x).strip().lower() for x in state.get('pantry',[])}
- # Merge only user-verified ingredient names with identical measurement units.
+ def pantry_match_name(value):
+  value=str(value).strip().casefold()
+  value=re.sub(r'^(?:\d+(?:[.,]\d+)?|\d+/\d+|[¼½¾⅓⅔])\s+', '', value)
+  value=re.sub(r'^(?:tsp|tbsp|teaspoons?|tablespoons?|cups?|oz|ounces?|lbs?|pounds?|grams?|kg|ml|liters?|pieces?|units?|pick|cloves?)\s+', '', value)
+  value=re.sub(r'\s+',' ',value).strip()
+  if value.endswith('s') and not value.endswith('ss') and len(value)>3:value=value[:-1]
+  return value
+ inventory=state.get('pantry_inventory',{})
+ pantry={pantry_match_name(x) for x in state.get('pantry',[]) if isinstance(x,str) and x.strip()}
+ for key,amount in inventory.items():
+  if isinstance(key,str) and type(amount) in (int,float) and math.isfinite(amount) and amount>0:pantry.add(pantry_match_name(key.rsplit('|',1)[0]))
+ conversions={'teaspoon':('volume',4.92892159375),'tablespoon':('volume',14.78676478125),'cup':('volume',236.5882365),'milliliter':('volume',1),'liter':('volume',1000),'gram':('mass',1),'kilogram':('mass',1000),'ounce':('mass',28.349523125),'pound':('mass',453.59237)}
+ # Keep a shared pool so a pantry amount can never be subtracted twice.
+ remaining_inventory={key:float(amount) for key,amount in inventory.items() if isinstance(key,str) and type(amount) in (int,float) and math.isfinite(amount) and 0<=amount<=100000}
+ def consume(name,unit,required):
+  if required<=0:return 0
+  normalized=pantry_match_name(name)
+  keys=[k for k in remaining_inventory if '|' in k and pantry_match_name(k.rsplit('|',1)[0])==normalized]
+  if unit in conversions:
+   keys=[k for k in keys if k.rsplit('|',1)[1] in conversions and conversions[k.rsplit('|',1)[1]][0]==conversions[unit][0]]
+  else:
+   keys=[k for k in keys if k.rsplit('|',1)[1]==unit]
+  needed=required
+  for k in sorted(keys):
+   stored_unit=k.rsplit('|',1)[1]
+   factor=conversions[stored_unit][1]/conversions[unit][1] if unit in conversions else 1
+   available=remaining_inventory[k]*factor
+   taken=min(needed,available)
+   remaining_inventory[k]=max(0,remaining_inventory[k]-taken/factor)
+   needed-=taken
+   if needed<=0.000001:break
+  return max(0,needed)
+ corrected_labels=set()
  for key in list(totals):
   if not key.startswith('__corrected__|'):continue
   _,unit,ingredient=key.split('|',2)
-  quantity=totals.pop(key)
-  available=state.get('pantry_inventory',{}).get(ingredient+'|'+unit,0)
-  if type(available) not in (int,float) or not 0<=available<=100000:available=0
-  quantity=max(0,quantity-available)
-  if quantity<=0:continue
-  label=(str(round(quantity,3)).rstrip('0').rstrip('.') if quantity%1 else str(int(quantity)))+' '+(unit+' ' if unit and unit!='count' else '')+ingredient
+  required=totals.pop(key)
+  needed=consume(ingredient,unit,required)
+  original_sources=sources.pop(key,[])
+  if needed<=0.000001:continue
+  label=(str(round(needed,3)).rstrip('0').rstrip('.') if needed%1 else str(int(needed)))+' '+(unit+' ' if unit and unit!='count' else '')+ingredient
   totals[label]=totals.get(label,0)+1
-  sources.setdefault(label,[]).extend(sources.pop(key,[]))
+  corrected_labels.add(label)
+  sources.setdefault(label,[]).extend(original_sources)
+ for label in list(totals):
+  if label.startswith('__corrected__|') or label in corrected_labels:continue
+  match=re.match(r'^(\d+(?:\.\d+)?)\s+(?:(pick|unit|piece|pieces|count|teaspoon|tablespoon|cup|ounce|pound|gram|kilogram|milliliter|liter)\s+)?(.+)$',label,re.I)
+  if not match:continue
+  per_item=float(match.group(1))
+  unit=(match.group(2) or 'count').lower()
+  unit={'pick':'count','unit':'count','piece':'count','pieces':'count'}.get(unit,unit)
+  ingredient=match.group(3)
+  needed=consume(ingredient,unit,per_item*totals[label])
+  if needed>=per_item*totals[label]-0.000001:continue
+  original_sources=sources.pop(label,[])
+  totals.pop(label,None)
+  if needed<=0.000001:continue
+  new_label=(str(round(needed,3)).rstrip('0').rstrip('.') if needed%1 else str(int(needed)))+' '+(unit+' ' if unit!='count' else '')+ingredient
+  totals[new_label]=totals.get(new_label,0)+1
+  sources.setdefault(new_label,[]).extend(original_sources)
  old={item['name']:item for item in state.get('list',[])}
- generated=[{'name':name,'quantity':round(qty,3),'purchased':False,'sources':sources.get(name,[])} for name,qty in sorted(totals.items()) if qty>0 and name.strip().lower() not in pantry]
+ generated=[{'name':name,'quantity':round(qty,3),'purchased':False,'sources':sources.get(name,[])} for name,qty in sorted(totals.items()) if qty>0 and (any(src.get('corrected') or src.get('quantity_unverified') for src in sources.get(name,[])) or any(isinstance(k,str) and pantry_match_name(k.rsplit('|',1)[0])==pantry_match_name(name) for k in inventory) or pantry_match_name(name) not in pantry)]
  for item in generated:
   previous=old.get(item['name'])
   if previous and previous.get('quantity')==item['quantity']:item['purchased']=bool(previous.get('purchased'))
@@ -1678,6 +1924,14 @@ class Handler(SimpleHTTPRequestHandler):
    if not self.gate():return
    if not getattr(request_scope,'admin',False):return self.sendjson({'error':'Administrator required'},403)
    return self.sendjson(analytics_summary())
+  if self.path=='/api/admin/recipe-photos':
+   if not self.gate():return
+   if not getattr(request_scope,'admin',False):return self.sendjson({'error':'Administrator required'},403)
+   q=urllib.parse.parse_qs(urllib.parse.urlsplit(self.path).query)
+   offset=max(0,min(100000,int(q.get('offset',['0'])[0])))
+   items=[{'id':r['id'],'name':r.get('name',''),'image_url':r.get('image',''),'recipe_url':r.get('url',''),'cached':bool(cached_photo(int(r['id'])))} for r in allrecipes() if isinstance(r.get('id'),int)]
+   missing=[r for r in items if not r['cached']]
+   return self.sendjson({'total':len(missing),'items':missing[offset:offset+50]})
   if self.path=='/api/admin/tasks':
    if not self.gate():return
    if not getattr(request_scope,'admin',False):return self.sendjson({'error':'Administrator required'},403)
@@ -1693,6 +1947,39 @@ class Handler(SimpleHTTPRequestHandler):
    q=urllib.parse.parse_qs(urllib.parse.urlsplit(self.path).query)
    try:return self.sendjson(reef_test_search(q.get('zip',[''])[0],q.get('item',[''])[0]))
    except ValueError as exc:return self.sendjson({'error':str(exc)},400)
+  if self.path=='/api/admin/nutrition/run':
+   if not self.gate(write=True):return
+   if not getattr(request_scope,'admin',False):return self.sendjson({'error':'Administrator required'},403)
+   if nutrition_scan['running']:return self.sendjson({'ok':True,'message':'Nutrition scan is already running.'})
+   nutrition_wakeup.set()
+   return self.sendjson({'ok':True,'message':'Nutrition scan queued.'})
+  if self.path=='/api/admin/recommendation-photos/run':
+   if not self.gate(write=True):return
+   if not getattr(request_scope,'admin',False):return self.sendjson({'error':'Administrator required'},403)
+   if recommendation_photo_warmup['running']:
+    return self.sendjson({'ok':True,'message':'Photo caching is already running.'})
+   recommendation_photo_wakeup.set()
+   return self.sendjson({'ok':True,'message':'Photo cache check queued.'})
+  if self.path=='/api/admin/recipe-photos/repair':
+   if not self.gate(write=True):return
+   if not getattr(request_scope,'admin',False):return self.sendjson({'error':'Administrator required'},403)
+   try:
+    size=int(self.headers.get('Content-Length','0'))
+    if not 0<size<=2048:raise ValueError('Invalid request size')
+    data=json.loads(self.rfile.read(size))
+    rid=data.get('id')
+    if type(rid)!=int:raise ValueError('Invalid recipe ID')
+    recipe=next((r for r in allrecipes() if r.get('id')==rid),None)
+    if not recipe:raise ValueError('Recipe not found')
+    url=str(data.get('url','')).strip()
+    if url and not allowed_photo_url(url):raise ValueError('Photo URL must use an approved HTTPS image host')
+    with photo_locks_guard:item_lock=photo_locks.setdefault(rid,threading.Lock())
+    with item_lock:
+     result=download_photo(url,rid) if url else None
+    if not url:result=resolve_photo(recipe,refresh=True)
+    if not result:return self.sendjson({'error':'Could not retrieve a valid photo. Try a supported direct image URL.'},422)
+    return self.sendjson({'ok':True,'id':rid})
+   except (ValueError,TypeError,OSError,urllib.error.URLError,TimeoutError) as exc:return self.sendjson({'error':str(exc)},400)
   if self.path=='/api/admin/openai-key':
    if not self.gate():return
    if not getattr(request_scope,'admin',False):return self.sendjson({'error':'Administrator required'},403)
@@ -1790,6 +2077,13 @@ class Handler(SimpleHTTPRequestHandler):
    except Exception as error:
     print('Store lookup failed:',repr(error),flush=True)
     return self.sendjson({'error':'Store lookup could not reach the directory services. Check the HelloGroceries container logs for DNS or network errors.'},503)
+  if self.path=='/api/recommendation-photos':
+   # Cached-only lookup: never fetch external images on a page request.
+   cached_ids=[]
+   for photo in PHOTO_DIR.iterdir():
+    if photo.suffix.lower() in ('.jpg','.png','.webp','.gif') and photo.stem.isdigit() and photo.is_file() and photo.stat().st_size>0:
+     cached_ids.append(int(photo.stem))
+   return self.sendjson({'ids':cached_ids})
   if self.path=='/api/recipes':return self.sendjson([r for r in allrecipes() if not non_recipe_reason(r)])
   if self.path=='/api/state':
    with lock:
@@ -2108,6 +2402,7 @@ class Handler(SimpleHTTPRequestHandler):
     original=json.loads(row[1])
     original['nutrition']=updated.get('nutrition',{})
     original['dietary_labels']=updated.get('dietary_labels',[])
+    if updated.get('source_servings'):original['source_servings']=updated['source_servings']
     with lock:
      with db() as c:c.execute('UPDATE imported SET payload=? WHERE id=?',(json.dumps(original),rid-1000000))
     return self.sendjson({'ok':True,'nutrition':original['nutrition'],'dietary_labels':original['dietary_labels']})
@@ -2315,7 +2610,63 @@ class Handler(SimpleHTTPRequestHandler):
    with lock:
     state=read()
     pantry_before={'pantry':list(state.get('pantry',[])),'pantry_inventory':dict(state.get('pantry_inventory',{}))}
-    if action=='select':
+    if action in ('preview_cooked_recipe','confirm_cooked_recipe','undo_cooked_recipe'):
+     inventory=state.setdefault('pantry_inventory',{})
+     history=state.setdefault('pantry_cooking_history',[])
+     if not isinstance(history,list):raise ValueError('Invalid cooking history')
+     if action=='undo_cooked_recipe':
+      event_id=p.get('event_id')
+      event=next((x for x in history if x.get('id')==event_id),None)
+      if not event or event.get('undone'):raise ValueError('Cooking event unavailable or already undone')
+      for key,delta in event['deductions'].items():
+       inventory[key]=round(float(inventory.get(key,0))+float(delta),4)
+      event['undone']=True
+     else:
+      rid=p.get('recipe_id')
+      if type(rid)!=int:raise ValueError('Invalid recipe')
+      recipe=next((r for r in allrecipes() if r['id']==rid),None)
+      if recipe is None:raise ValueError('Unknown recipe')
+      multiplier=p.get('servings',1)
+      if type(multiplier) not in (int,float) or not 0<float(multiplier)<=20:raise ValueError('Invalid serving multiplier')
+      corrections=state.get('recipe_ingredient_corrections',{})
+      conversions={'gram':('mass',1),'kilogram':('mass',1000),'ounce':('mass',28.349523125),'pound':('mass',453.59237),'milliliter':('volume',1),'liter':('volume',1000),'teaspoon':('volume',4.92892159375),'tablespoon':('volume',14.78676478125),'cup':('volume',236.5882365)}
+      remaining={k:float(v) for k,v in inventory.items() if type(v) in (int,float) and v>0}
+      deductions={}
+      unmatched=[]
+      for original in recipe.get('ingredients',{}):
+       correction=corrections.get(str(rid)+'|'+original)
+       if not isinstance(correction,dict):continue
+       name=str(correction.get('name','')).strip().casefold()
+       unit=correction.get('unit','')
+       amount=correction.get('amount')
+       if not name or '|' in name or type(amount) not in (int,float) or amount<=0:continue
+       required=float(amount)*float(multiplier)
+       matches=[]
+       for key,available in remaining.items():
+        if not key.startswith(name+'|') or available<=0:continue
+        stock_unit=key.rsplit('|',1)[-1]
+        if stock_unit==unit:factor=1
+        elif unit in conversions and stock_unit in conversions and conversions[unit][0]==conversions[stock_unit][0]:
+         factor=conversions[unit][1]/conversions[stock_unit][1]
+        else:continue
+        matches.append((key,factor))
+       for key,factor in matches:
+        take=min(remaining[key],required*factor)
+        if take<=0:continue
+        remaining[key]=round(remaining[key]-take,6)
+        deductions[key]=round(deductions.get(key,0)+take,6)
+        required=max(0,required-take/factor)
+        if required<0.000001:break
+       if required>0.000001:unmatched.append(name+' ('+unit+')')
+      if action=='preview_cooked_recipe':
+       return self.sendjson({'deductions':deductions,'not_deducted':unmatched,'recipe_name':recipe.get('name','Recipe')})
+      if not isinstance(p.get('event_id'),str) or not (8<=len(p['event_id'])<=80) or not re.fullmatch(r'[A-Za-z0-9_-]+',p['event_id']):raise ValueError('Invalid cooking event')
+      if any(x.get('id')==p['event_id'] for x in history):raise ValueError('This cooking event was already recorded')
+      if not deductions:raise ValueError('No verified pantry quantities to deduct')
+      for key,delta in deductions.items():inventory[key]=round(max(0,float(inventory[key])-delta),4)
+      history.append({'id':p['event_id'],'recipe_id':rid,'deductions':deductions,'undone':False,'at':time.time()})
+      if len(history)>100:del history[:-100]
+    elif action=='select':
      rid=str(int(p['id']));servings=float(p.get('servings',1))
      if not (0<servings<=20):raise ValueError('Serving multiplier must be 0–20')
      if p.get('checked') and rid not in {str(r['id']) for r in allrecipes()}:raise ValueError('Unknown recipe')
@@ -2352,6 +2703,14 @@ class Handler(SimpleHTTPRequestHandler):
      favorites=p.get('favorites',[]);collections=p.get('collections',{});weekly=p.get('weekly',{});pantry=p.get('pantry',[]);manual=p.get('manual',[]);previous_week=p.get('previous_week',{});recommendation_hidden=p.get('recommendation_hidden',[])
      if not isinstance(favorites,list) or len(favorites)>20000 or not isinstance(collections,dict) or not isinstance(weekly,dict) or not isinstance(pantry,list) or not isinstance(manual,list) or not isinstance(previous_week,dict) or len(previous_week)>7 or not isinstance(recommendation_hidden,list) or len(recommendation_hidden)>2000 or any(type(v)!=int or v<0 for v in recommendation_hidden):raise ValueError('Invalid preferences')
      if len(collections)>100 or len(weekly)>7 or len(pantry)>500 or len(manual)>500:raise ValueError('Too many items')
+     # Removing an item with the pantry X must remove every stored unit too.
+     if any(not isinstance(x,str) or not x.strip() for x in pantry):raise ValueError('Invalid pantry ingredient')
+     remaining_names={x.strip().casefold() for x in pantry}
+     removed_names={x.strip().casefold() for x in state.get('pantry',[]) if isinstance(x,str) and x.strip()}-remaining_names
+     if removed_names:
+      inventory=state.setdefault('pantry_inventory',{})
+      for key in list(inventory):
+       if isinstance(key,str) and key.rsplit('|',1)[0].strip().casefold() in removed_names:inventory.pop(key,None)
      state.update(favorites=favorites,collections=collections,weekly=weekly,pantry=pantry,manual=manual,previous_week=previous_week,recommendation_hidden=recommendation_hidden)
     elif action=='rate_recipe':
      rid=p.get('id');rating=p.get('rating');note=p.get('note','')
@@ -2380,16 +2739,47 @@ class Handler(SimpleHTTPRequestHandler):
       key=name.casefold()+'|'+unit
       inventory[key]=round(float(inventory.get(key,0))+quantity,4)
       if not any(x.casefold()==name.casefold() for x in pantry if isinstance(x,str)):pantry.append(name)
-    elif action=='set_pantry_inventory':
+    elif action=='delete_pantry_item':
+     name=p.get('name')
+     if not isinstance(name,str) or not name.strip() or len(name)>140:raise ValueError('Invalid pantry ingredient')
+     normalized=name.strip().casefold()
+     state['pantry']=[x for x in state.get('pantry',[]) if not (isinstance(x,str) and x.strip().casefold()==normalized)]
+     inventory=state.setdefault('pantry_inventory',{})
+     for key in list(inventory):
+      if isinstance(key,str) and key.rsplit('|',1)[0].strip().casefold()==normalized:inventory.pop(key,None)
+    elif action in ('set_pantry_inventory','adjust_pantry_inventory'):
      name=p.get('name');unit=p.get('unit','');amount=p.get('amount')
      allowed={'','count','teaspoon','tablespoon','cup','ounce','pound','gram','kilogram','milliliter','liter','clove','bunch','head','stalk','slice','piece','pinch','can','package','bag'}
      if not isinstance(name,str) or not name.strip() or len(name)>140 or '|' in name:raise ValueError('Invalid pantry ingredient')
      if not isinstance(unit,str) or unit not in allowed:raise ValueError('Invalid pantry unit')
-     if type(amount) not in (int,float) or not 0<=amount<=100000:raise ValueError('Invalid pantry amount')
+     if type(amount) not in (int,float) or not math.isfinite(amount) or not 0<=amount<=100000:raise ValueError('Invalid pantry amount')
      inventory=state.setdefault('pantry_inventory',{})
      key=name.strip().casefold()+'|'+unit
      if len(inventory)>=1000 and key not in inventory:raise ValueError('Inventory limit reached')
-     inventory[key]=float(amount)
+     mode=p.get('mode','set') if action=='adjust_pantry_inventory' else 'set'
+     if mode not in ('set','add','use'):raise ValueError('Invalid quantity action')
+     conversions={'teaspoon':('volume',4.92892159375),'tablespoon':('volume',14.78676478125),'cup':('volume',236.5882365),'milliliter':('volume',1),'liter':('volume',1000),'gram':('mass',1),'kilogram':('mass',1000),'ounce':('mass',28.349523125),'pound':('mass',453.59237)}
+     target_key=key
+     # For Add/Use, prefer an exact-unit entry; otherwise convert to a single compatible tracked unit.
+     if mode in ('add','use') and key not in inventory and unit in conversions:
+      compatible=[k for k in inventory if k.startswith(name.strip().casefold()+'|') and k.rsplit('|',1)[-1] in conversions and conversions[k.rsplit('|',1)[-1]][0]==conversions[unit][0]]
+      if len(compatible)>1:raise ValueError('Multiple compatible units tracked. Select one of the existing units to update')
+      if compatible:target_key=compatible[0]
+     if mode=='use' and target_key not in inventory:raise ValueError('Set a quantity before using this ingredient')
+     target_unit=target_key.rsplit('|',1)[-1]
+     factor=conversions[unit][1]/conversions[target_unit][1] if target_unit!=unit and unit in conversions and target_unit in conversions else 1
+     delta=float(amount)*factor
+     current=float(inventory.get(target_key,0))
+     if mode=='add':updated=current+delta
+     elif mode=='use':updated=current-delta
+     else:updated=float(amount)
+     if not math.isfinite(updated) or not 0<=updated<=100000:raise ValueError('Not enough pantry quantity or inventory limit exceeded')
+     if len(inventory)>=1000 and target_key not in inventory:raise ValueError('Inventory limit reached')
+     inventory[target_key]=round(updated,4)
+     pantry=state.setdefault('pantry',[])
+     if not any(isinstance(x,str) and x.casefold()==name.strip().casefold() for x in pantry):
+      if len(pantry)>=500:raise ValueError('Pantry capacity reached')
+      pantry.append(name.strip())
     elif action=='clear':state['list']=[]
     elif action=='purchase_many':
      names=p.get('names',[])
@@ -2414,4 +2804,7 @@ if __name__=='__main__':
  if BULK_RECOVER:
   job.update(running=True,paused=False,processed=0,discovered=0,imported=0,skipped=0,errors=0,message='Recovering interrupted import; saved recipes will be skipped')
   threading.Thread(target=bulk_worker,args=(job.get('country','US'),int(job.get('limit',0))),daemon=True).start()
+ threading.Thread(target=recommendation_photo_warmup_worker,daemon=True,name='recommendation-photo-warmup').start()
+ threading.Thread(target=nutrition_scan_worker,daemon=True,name='nutrition-background-scan').start()
+ threading.Thread(target=us_import_schedule_worker,daemon=True,name='us-import-scheduler').start()
  ThreadingHTTPServer(('0.0.0.0',8080),Handler).serve_forever()
