@@ -62,8 +62,12 @@ def category(name):
         return "protein"
     if any(word in name for word in ("rice", "pasta", "noodle", "couscous", "quinoa", "bread")):
         return "grain_or_starch"
-    if any(word in name for word in ("butter", "oil", "cream", "cheese", "milk", "yogurt")):
-        return "dairy_oil"
+    if any(word in name for word in ("mayonnaise", "mustard", "ketchup", "sauce", "dressing", "salsa", "pesto")):
+        return "sauces_condiments"
+    if any(word in name for word in ("butter", "oil", "ghee")):
+        return "oils_fats"
+    if any(word in name for word in ("cream", "cheese", "milk", "yogurt")):
+        return "dairy"
     return "other"
 
 
@@ -90,7 +94,7 @@ def evaluate(recipes, limit=1500, minimum_examples=5):
     checked = covered = within_10 = within_25 = within_50 = 0
     errors = []
     examples = []
-    categories = defaultdict(lambda: {"tested": 0, "covered": 0, "within_25": 0})
+    categories = defaultdict(lambda: {"tested": 0, "covered": 0, "within_25": 0, "high_consensus": 0, "high_consensus_within_25": 0})
     high_confidence = {"eligible": 0, "within_25": 0, "within_10": 0}
     for recipe_id, servings, rows in heldout:
         for name, unit, actual in rows:
@@ -114,8 +118,11 @@ def evaluate(recipes, limit=1500, minimum_examples=5):
             within_50 += error <= .50
             group["within_25"] += error <= .25
             spread = sorted(abs(x - predicted_unit) / predicted_unit for x in samples)
-            consensus = len(samples) >= 10 and median(spread) <= .10 and spread[int(.8 * (len(spread) - 1))] <= .25
+            variable = category(name) in ("sauces_condiments", "oils_fats", "dairy", "seasoning")
+            consensus = len(samples) >= (20 if variable else 10) and median(spread) <= (.05 if variable else .10) and spread[int(.8 * (len(spread) - 1))] <= (.10 if variable else .25)
             if consensus:
+                group["high_consensus"] += 1
+                group["high_consensus_within_25"] += error <= .25
                 high_confidence["eligible"] += 1
                 high_confidence["within_25"] += error <= .25
                 high_confidence["within_10"] += error <= .10
@@ -139,5 +146,5 @@ def evaluate(recipes, limit=1500, minimum_examples=5):
                 "eligible": high_confidence["eligible"],
                 "within_10_percent": round(high_confidence["within_10"] / high_confidence["eligible"], 3) if high_confidence["eligible"] else None,
                 "within_25_percent": round(high_confidence["within_25"] / high_confidence["eligible"], 3) if high_confidence["eligible"] else None},
-            "categories": {key: {**value, "within_25_percent": round(value["within_25"] / value["covered"], 3) if value["covered"] else None} for key, value in sorted(categories.items())},
+            "categories": {key: {**value, "within_25_percent": round(value["within_25"] / value["covered"], 3) if value["covered"] else None, "high_consensus_within_25_percent": round(value["high_consensus_within_25"] / value["high_consensus"], 3) if value["high_consensus"] else None} for key, value in sorted(categories.items())},
             "examples": examples, "applied_changes": 0}
