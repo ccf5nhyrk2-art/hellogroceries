@@ -1651,6 +1651,20 @@ function consolidatedShoppingRows(items){
  const conversions={teaspoon:['teaspoon',1],tablespoon:['teaspoon',3],cup:['teaspoon',48],milliliter:['milliliter',1],liter:['milliliter',1000],gram:['gram',1],kilogram:['gram',1000],ounce:['ounce',1],pound:['ounce',16]};
  const countable=/^(?:(?:roma|cherry|grape|heirloom|plum|beefsteak)\s+)?(?:onions?|shallots?|lemons?|limes?|apples?|avocados?|carrots?|potatoes|tomatoes|cucumbers?|zucchinis?|bell peppers?|jalapeños?|jalapenos?|eggs?|garlic bulbs?)$/i;
  const measured=/^(\d+(?:\.\d+)?(?:\s+[¼½¾⅓⅔⅛⅜⅝⅞])?|\d+\/\d+|[¼½¾⅓⅔⅛⅜⅝⅞])\s+(?:(teaspoons?|tablespoons?|cups?|ounces?|pounds?|grams?|kilograms?|milliliters?|liters?|cloves?|bunch(?:es)?|heads?|stalks?|slices?|pieces?|cans?|packages?|bags?)\s+)?(.+)$/i;
+  const canonicalProduce=name=>String(name||'').trim().toLowerCase()
+   .replace(/\b(bell peppers|bell pepper)\b/g,'bell pepper')
+   .replace(/\b(tomatoes|tomato)\b/g,'tomato')
+   .replace(/\b(potatoes|potato)\b/g,'potato')
+   .replace(/\b(onions|onion)\b/g,'onion')
+   .replace(/\b(limes|lime)\b/g,'lime')
+   .replace(/\b(lemons|lemon)\b/g,'lemon')
+   .replace(/\b(carrots|carrot)\b/g,'carrot')
+   .replace(/\b(garlic bulbs|garlic bulb)\b/g,'garlic bulb')
+   .replace(/\b(shallots|shallot)\b/g,'shallot')
+   .replace(/\b(cucumbers|cucumber)\b/g,'cucumber')
+   .replace(/\b(zucchinis|zucchini)\b/g,'zucchini')
+   .replace(/\b(eggs|egg)\b/g,'egg')
+   .replace(/\s+/g,' ');
  for(const item of items){
   const override=(state.ingredient_overrides||{})[item.name]||{};
   const display=shoppingDisplay(item);
@@ -1674,20 +1688,6 @@ function consolidatedShoppingRows(items){
   const unit=unitSource?'':match&&match[2]?(ingredientUnitAliases[match[2].toLowerCase()]||match[2].toLowerCase()):'';
   const ingredient=unitSource?unitSource[2].trim():match?match[3].trim():implicitCount?label.trim():'';
   // Keep varieties and colors distinct while combining singular/plural forms.
-  const canonicalProduce=name=>String(name||'').trim().toLowerCase()
-   .replace(/\b(bell peppers|bell pepper)\b/g,'bell pepper')
-   .replace(/\b(tomatoes|tomato)\b/g,'tomato')
-   .replace(/\b(potatoes|potato)\b/g,'potato')
-   .replace(/\b(onions|onion)\b/g,'onion')
-   .replace(/\b(limes|lime)\b/g,'lime')
-   .replace(/\b(lemons|lemon)\b/g,'lemon')
-   .replace(/\b(carrots|carrot)\b/g,'carrot')
-   .replace(/\b(garlic bulbs|garlic bulb)\b/g,'garlic bulb')
-   .replace(/\b(shallots|shallot)\b/g,'shallot')
-   .replace(/\b(cucumbers|cucumber)\b/g,'cucumber')
-   .replace(/\b(zucchinis|zucchini)\b/g,'zucchini')
-   .replace(/\b(eggs|egg)\b/g,'egg')
-   .replace(/\s+/g,' ');
   const canonical=canonicalProduce(ingredient);
 
   // Bare imported names have no verified piece count; group them with a matching
