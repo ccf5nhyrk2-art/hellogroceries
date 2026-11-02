@@ -1543,7 +1543,7 @@ function setAllShoppingDepartments(open){
 function shoppingDepartment(name){
  const value=String(name||'').toLowerCase();
  // Classify plain pepper and black pepper before generic produce rules.
- const spiceName=value.trim().replace(/^(?:box|pick|unit) +/,'');
+ const spiceName=value.trim().replace(/^(?:\d+(?:\.\d+)?\s+)?(?:(?:teaspoons?|tablespoons?|cups?|ounces?|grams?|box|pick|unit)\s+)?/,'');
  if(['pepper','black pepper','ground pepper','ground black pepper','white pepper','salt','black peppercorns','peppercorns','crushed red pepper flakes'].includes(spiceName))return 'Pantry & Seasonings';
  // Categorize recognizable ingredients without changing their recipe quantities.
  if(/\b(?:cashew pieces?|cashews?|ancho chil(?:e|i) powder|chili powder|chile powder)\b/i.test(value))return 'Pantry & Seasonings';
@@ -1669,7 +1669,12 @@ function consolidatedShoppingRows(items){
  for(const item of items){
   const override=(state.ingredient_overrides||{})[item.name]||{};
   const display=shoppingDisplay(item);
-  const label=override.display||display.name;
+  // Normalize legacy unqualified pepper before parsing, grouping and categorization.
+  // Keep bell pepper, chili pepper and explicit custom overrides distinct.
+  const label=override.display||display.name.replace(/^(.*?\b)?Pepper$/i,(full,prefix)=>{
+   const leading=String(prefix||'');
+   return /\b(?:bell|chili|chile|red|white|cayenne|black|ground|crushed|sweet|hot)\s*$/i.test(leading)?full:leading+'Black Pepper';
+  });
   // Only recover an implicit piece count from a source with an explicit numeric
   // ingredient count. A shopping-list multiplier alone is not proof of quantity.
   const isWholeProduce=/^(?:(?:roma|cherry|grape|heirloom|plum|beefsteak)\s+)?(?:shallots?|tomatoes?|onions?|potatoes?|lemons?|limes?|apples?|carrots?|cucumbers?|zucchinis?|bananas?|(?:green|red|yellow|orange)\s+bell peppers?)$/i.test(label.trim());
@@ -1718,7 +1723,7 @@ function consolidatedShoppingRows(items){
   if(bare.knownCount||bare.unit||!bare.items.length)continue;
   // Do not merge custom display overrides, which may represent a distinct product.
   if(bare.items.some(item=>(state.ingredient_overrides||{})[item.name]?.display))continue;
-  const bareName=canonicalProduce(bare.label).replace(/^(?:box|pick|unit)\s+/,'').replace(/^pepper$/,'black pepper').trim();
+  const bareName=canonicalProduce(bare.label).replace(/^(?:box|pick|unit)\s+/,'').trim();
   if(!['salt','pepper','black pepper','sour cream','cilantro','parsley'].includes(bareName))continue;
   const candidates=rows.filter(row=>row!==bare&&row.knownCount&&row.unit&&canonicalProduce(row.ingredient)===bareName);
   if(candidates.length!==1)continue;
