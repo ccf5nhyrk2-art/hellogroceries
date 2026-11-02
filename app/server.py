@@ -325,13 +325,21 @@ def inspect_alternative_recipe_fields(limit=3):
   samples.append(recipe)
  output=[]
  for recipe in samples:
-  result={'recipe_id':str(recipe.get('id')),'alternative_ingredient_objects':0,'quantity_fields':0,'field_names':[]}
+  result={'recipe_id':str(recipe.get('id')),'alternative_ingredient_objects':0,'quantity_fields':0,'field_names':[], 'page_signals':{}}
   try:
    url=recipe['url']
    req=urllib.request.Request(url,headers={'User-Agent':'Mozilla/5.0 (compatible; PersonalRecipeImporter/1.0)'})
    with urllib.request.urlopen(req,timeout=12) as resp:
     if not allowed_url(resp.geturl()):raise ValueError('Unexpected redirect')
     page=resp.read(1500000).decode('utf-8','replace')
+   # Count additional publicly visible data formats without executing scripts,
+   # exposing raw page data, or treating possible values as measurements.
+   result['page_signals']={
+    'next_data':bool(re.search(r'<script[^>]+id=["\\x27]__NEXT_DATA__["\\x27]',page,re.I)),
+    'microdata_ingredient':bool(re.search(r'itemprop=["\\x27]recipeIngredient["\\x27]',page,re.I)),
+    'data_attributes_ingredient':bool(re.search(r'data-[\\w-]*ingredient[\\w-]*=',page,re.I)),
+    'hydration_markers':bool(re.search(r'__NUXT__|__APOLLO_STATE__|__INITIAL_STATE__|self\\.__next_f',page,re.I)),
+   }
    # Inspect JSON script objects only. Do not execute page scripts or infer amounts.
    scripts=re.findall(r'<script\\b[^>]*type=["\\x27]application/(?:ld\\+)?json["\\x27][^>]*>(.*?)</script>',page,re.I|re.S)
    def walk(obj,depth=0):
