@@ -1814,7 +1814,8 @@ class Handler(SimpleHTTPRequestHandler):
      c.commit()
      if not token:
       return self.sendjson({'ok':True,'sent':False,'message':'If verification is pending, an email may have been requested recently. Wait 60 seconds and use Resend verification email. Check Spam and Promotions.'},202)
-     link='https://groceries.greenlee.uk/auth.html#verify='+urllib.parse.quote(token,safe='')
+     verification_host='staging-groceries.greenlee.uk' if self.headers.get('Host','').split(':')[0].lower()=='staging-groceries.greenlee.uk' else 'groceries.greenlee.uk'
+     link='https://'+verification_host+'/auth.html#verify='+urllib.parse.quote(token,safe='')
      try:
       accepted=resend_send_email(email,'Verify your HelloGroceries email','Welcome to HelloGroceries! Verify your email within 24 hours:\n'+link+'\n\nIf you did not register, ignore this message.')
       if not accepted:raise ValueError('Email provider did not confirm the message')
