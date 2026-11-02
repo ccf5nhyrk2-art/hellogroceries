@@ -699,7 +699,7 @@ document.getElementById('recipe-quality-refresh').addEventListener('click',async
   const response=await fetch('/api/admin/recipe-source-status',{credentials:'same-origin'});
   if(response.ok){
    const status=await response.json();
-   sourceStatus.textContent='Source lookups: '+status.checked+' checked · '+status.with_source_lines+' with original ingredient lines · '+status.without_source_lines+' without usable source lines';
+   sourceStatus.textContent='Source lookups: '+status.checked+' checked · '+status.with_source_lines+' with original ingredient lines · '+status.without_source_lines+' without usable source lines · '+(status.with_measured_lines??'—')+' with explicit measurable lines · '+(status.names_only??'—')+' with names/units but no verified measurable lines';
   }else{sourceStatus.textContent='Source enrichment status unavailable'}
  }catch(error){sourceStatus.textContent='Source enrichment status unavailable'}
  try{
