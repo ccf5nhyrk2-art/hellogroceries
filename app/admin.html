@@ -708,6 +708,22 @@ document.getElementById('recipe-quality-refresh').addEventListener('click',async
   if(!response.ok)throw Error(data.error||'Audit failed');
   const c=data.counts;
   summary.textContent=c.recipes+' recipes, '+c.ingredients+' ingredient entries · '+(c.verified+c.verified_count)+' explicit quantities/counts · '+c.source_recovered+' recovered from stored sources · '+c.unit_labeled+' have a unit but need an amount · '+c.needs_source+' lack a measurement · '+c.invalid+' invalid';
+  const breakdown=document.createElement('div');
+  breakdown.setAttribute('aria-label','Source diagnostics for sampled unresolved entries');
+  const sample=Number(data.diagnostic_sample_size)||0;
+  const counts=data.diagnostic_counts||{};
+  const label=document.createElement('p');
+  label.textContent='Source diagnosis (sample of '+sample+' unresolved entries; not catalog-wide totals):';
+  breakdown.appendChild(label);
+  const names={unit_without_quantity:'Unit without quantity',source_without_verified_quantity:'Source without verified quantity',to_taste_no_amount:'To taste / no amount',range_requires_review:'Range requires review',conflicting_quantities:'Conflicting quantities',unsupported_unit:'Unsupported unit',ingredient_not_found:'Ingredient not found',no_source_lines:'No source lines'};
+  const diagnosticList=document.createElement('ul');
+  for(const [key,value] of Object.entries(counts).sort((a,b)=>b[1]-a[1])){
+   const li=document.createElement('li');
+   li.textContent=(names[key]||key.replaceAll('_',' '))+': '+value;
+   diagnosticList.appendChild(li);
+  }
+  breakdown.appendChild(diagnosticList);
+  issues.appendChild(breakdown);
   const heading=document.createElement('p');heading.textContent='First '+data.issues.length+' unresolved entries (read-only):';issues.appendChild(heading);
   const list=document.createElement('ol');
   for(const item of data.issues){
