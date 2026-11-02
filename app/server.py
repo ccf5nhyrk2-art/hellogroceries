@@ -254,6 +254,19 @@ def _selected_recipe_payload(payload,selected_ids):
  except (ValueError,TypeError):return False
 
 
+def recipe_source_enrichment_status():
+ with db() as c:
+  c.execute('CREATE TABLE IF NOT EXISTS hg_recipe_source_cache (recipe_id TEXT PRIMARY KEY,url TEXT NOT NULL,lines_json TEXT NOT NULL,checked_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)')
+  rows=c.execute('SELECT recipe_id,lines_json,checked_at FROM hg_recipe_source_cache ORDER BY checked_at DESC').fetchall()
+ verified=0
+ for _,raw,_ in rows:
+  try:
+   if isinstance(json.loads(raw),list) and json.loads(raw):verified+=1
+  except (ValueError,TypeError):pass
+ return {'checked':len(rows),'with_source_lines':verified,'without_source_lines':len(rows)-verified,
+         'recent':[{'recipe_id':rid,'lines_found':bool(json.loads(raw)) if raw else False,'checked_at':at} for rid,raw,at in rows[:20]]}
+
+
 def recipe_source_enrichment_worker():
  """Automatically recover original ingredient lines in small, rate-limited batches.
  Never overwrite source recipes or invent missing measurements.
@@ -2041,6 +2054,10 @@ class Handler(SimpleHTTPRequestHandler):
   if self.path=='/api/pricing-visibility':
    if not self.gate():return
    return self.sendjson({'visibility':pricing_visibility(),'is_admin':bool(getattr(request_scope,'admin',False))})
+  if self.path=='/api/admin/recipe-source-status':
+   if not self.gate():return
+   if not getattr(request_scope,'admin',False):return self.sendjson({'error':'Administrator required'},403)
+   return self.sendjson(recipe_source_enrichment_status())
   if self.path=='/api/admin/recipe-quality':
    if not self.gate():return
    if not getattr(request_scope,'admin',False):return self.sendjson({'error':'Administrator required'},403)
