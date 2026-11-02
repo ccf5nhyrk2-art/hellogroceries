@@ -712,7 +712,7 @@ document.getElementById('recipe-quality-refresh').addEventListener('click',async
   const list=document.createElement('ol');
   for(const item of data.issues){
    const li=document.createElement('li');
-   li.textContent='Recipe '+item.recipe_id+': '+item.ingredient+' — '+item.reason;
+   li.textContent='Recipe '+item.recipe_id+': '+item.ingredient+' — '+item.reason+(item.source_diagnostic?' · Source: '+item.source_diagnostic.status.replaceAll('_',' '):'');
    list.appendChild(li);
   }
   issues.appendChild(list);
