@@ -114,6 +114,7 @@ html[data-theme="dark"]{--catalog-panel-bg:#1b2520;--catalog-panel-border:#40514
   {id:'pricing',label:'Pricing & API',selectors:['#email-heading','#openai-heading','#reef-heading','#price-test-heading','#pricing-visibility-heading']},
   {id:'analytics',label:'User analytics',selectors:['#analytics-heading']},
   {id:'tasks',label:'Background tasks',selectors:['#tasks-heading','#catalog-heading','#nutrition-heading']},
+  {id:'quality',label:'Recipe quality',selectors:['#recipe-quality-heading']},
   {id:'backup',label:'Backup & restore',selectors:['#backup-heading']},
   {id:'security',label:'Session & security',selectors:['#session-heading']}
  ];
@@ -711,7 +712,7 @@ async function loadPhotoAudit(more=false){
 document.getElementById('photo-audit-refresh').onclick=()=>loadPhotoAudit();
 document.getElementById('photo-audit-more').onclick=()=>loadPhotoAudit(true);
 
-document.getElementById('recipe-quality-refresh').addEventListener('click',async()=>{
+async function scanRecipeQuality(){
  const button=document.getElementById('recipe-quality-refresh');
  const summary=document.getElementById('recipe-quality-summary');
  const issues=document.getElementById('recipe-quality-issues');
@@ -784,7 +785,9 @@ document.getElementById('recipe-quality-refresh').addEventListener('click',async
   issues.appendChild(list);
  }catch(error){summary.textContent='Audit unavailable: '+error.message}
  finally{button.disabled=false}
-});
+}
+document.getElementById('recipe-quality-refresh').addEventListener('click',scanRecipeQuality);
+scanRecipeQuality();
 refreshAiUsage();
 refreshAnalytics();
 })();
