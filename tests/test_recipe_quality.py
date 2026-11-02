@@ -86,6 +86,15 @@ class RecipeQualityTests(unittest.TestCase):
             self.assertIsNone(verified_grocery_recovery(recipe, name, 1))
         self.assertEqual(source_match_diagnostic({"ingredient_text": ["Salt, to taste"]}, "Salt")["status"], "to_taste_no_amount")
 
+    def test_source_diagnostics_distinguish_missing_quantities(self):
+        from recipe_quality import source_match_diagnostic
+        unit_only = {"ingredient_text": ["teaspoon (tsp) Salt"]}
+        plain = {"ingredient_text": ["Salt"]}
+        self.assertEqual(source_match_diagnostic(unit_only, "teaspoon (tsp) Salt")["status"], "unit_without_quantity")
+        self.assertEqual(source_match_diagnostic(plain, "Salt")["status"], "source_without_verified_quantity")
+        self.assertIsNone(verified_grocery_recovery(unit_only, "teaspoon (tsp) Salt", 1))
+        self.assertIsNone(verified_grocery_recovery(plain, "Salt", 1))
+
     def test_invalid_factor(self):
         self.assertEqual(inspect_ingredient("Garlic", -1)["status"], "invalid")
 
