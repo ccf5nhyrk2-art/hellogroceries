@@ -328,7 +328,17 @@ def inspect_alternative_recipe_fields(limit=3):
    req=urllib.request.Request(recipe['url'],headers={'User-Agent':'Mozilla/5.0 (compatible; PersonalRecipeImporter/1.0)'})
    with urllib.request.urlopen(req,timeout=12) as resp:
     if not allowed_url(resp.geturl()):raise ValueError('Unexpected redirect')
+    response_meta={'http_status':resp.status,'final_host':urllib.parse.urlsplit(resp.geturl()).hostname,'content_type':(resp.headers.get('Content-Type') or '').split(';')[0][:80],'content_length_header':(resp.headers.get('Content-Length') or '')[:20]}
     page=resp.read(1500000).decode('utf-8','replace')
+   title_match=re.search(r'<title[^>]*>(.*?)</title\\s*>',page,re.I|re.S)
+   page_title=html.unescape(re.sub(r'\\s+',' ',title_match.group(1)).strip())[:100] if title_match else ''
+   result['http_diagnostics']={**response_meta,
+    'page_title':page_title,
+    'page_bytes':len(page.encode('utf-8')),
+    'has_recipe_jsonld':bool(re.search(r'application/ld\\+json',page,re.I)),
+    'has_recipe_ingredient_key':bool(re.search(r'recipeIngredient',page,re.I)),
+    'looks_like_access_challenge':bool(re.search(r'captcha|access denied|verify you are human|unusual traffic|request blocked',page_title,re.I)),
+    'source_status':'pending'}
    # Compare the same JSON-LD Recipe field the importer actually consumes.
    # Never copy source amounts into the catalog during this diagnostic.
    source_lines=[]
@@ -352,6 +362,11 @@ def inspect_alternative_recipe_fields(limit=3):
        break
     except (ValueError,TypeError,RecursionError):pass
     if source_lines:break
+   diag=result['http_diagnostics']
+   diag['source_status']=('access_challenge' if diag['looks_like_access_challenge'] else
+    'recipe_jsonld_available' if source_lines else
+    'recipe_field_present_but_unparsed' if diag['has_recipe_ingredient_key'] else
+    'recipe_structured_data_unavailable')
    stored_lines=recipe.get('ingredient_text') or []
    if not isinstance(stored_lines,list):stored_lines=[]
    stored_lines=[str(line).strip() for line in stored_lines if str(line).strip()]
