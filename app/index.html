@@ -2218,6 +2218,9 @@ function renderShoppingList(){
  let pricedCount=0,priceTotal=0,itemCount=0;
  const groups=new Map();
  for(const item of state.list||[]){
+  // Tap water is not a grocery purchase; retain recipe data untouched.
+  const waterLabel=String(item.name||'').trim().toLowerCase().replace(/^[0-9.\/¼½¾⅓⅔]+ +/,'').replace(/^(?:cups?|liters?|milliliters?|ounces?|tablespoons?|teaspoons?|units?) +/,'');
+  if(waterLabel==='water'||waterLabel==='tap water')continue;
   const override=(state.ingredient_overrides||{})[item.name];
   const group=override&&override.department&&override.department!=='Auto'?override.department:shoppingDepartment(item.name);
   if(!groups.has(group))groups.set(group,[]);
