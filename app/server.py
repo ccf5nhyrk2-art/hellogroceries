@@ -239,10 +239,10 @@ def allrecipes():
   cached={rid:(url,lines) for rid,url,lines in c.execute('SELECT recipe_id,url,lines_json FROM hg_recipe_source_cache')}
  for recipe in recipes:
   entry=cached.get(str(recipe.get('id')))
-  if entry and entry[0]==recipe.get('url') and not recipe.get('ingredient_text'):
+  if entry and entry[0]==recipe.get('url'):
    try:
     lines=json.loads(entry[1])
-    if isinstance(lines,list):recipe['ingredient_text']=lines
+    if isinstance(lines,list) and lines:recipe['ingredient_text']=list(dict.fromkeys((recipe.get('ingredient_text') if isinstance(recipe.get('ingredient_text'),list) else [])+lines))
    except (ValueError,TypeError):pass
  with db() as c:photos=dict(c.execute('SELECT recipe_id,image_url FROM photos'))
  return [dict(r,image=photos.get(r['id'],r.get('image',''))) for r in recipes]
@@ -282,7 +282,8 @@ def recipe_source_enrichment_worker():
     url=recipe.get('url')
     rid=str(recipe.get('id',''))
     if not rid or not isinstance(url,str) or not allowed_url(url):continue
-    if recipe.get('ingredient_text') or existing.get(rid)==url:continue
+    if existing.get(rid)==url:continue
+    if isinstance(recipe.get('ingredient_text'),list) and all(recipe_quality.inspect_ingredient(k,v)['status']!='needs_source' or recipe_quality.recover_from_stored_source(recipe,k) for k,v in (recipe.get('ingredients') or {}).items()):continue
     # Only enrich recipes whose current ingredient labels lack source units.
     ingredients=recipe.get('ingredients')
     if not isinstance(ingredients,dict) or not any(recipe_quality.inspect_ingredient(k,v)['status']=='needs_source' for k,v in ingredients.items()):continue
