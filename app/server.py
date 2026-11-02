@@ -367,9 +367,9 @@ def inspect_alternative_recipe_fields(limit=3):
     'recipe_jsonld_available' if source_lines else
     'recipe_field_present_but_unparsed' if diag['has_recipe_ingredient_key'] else
     'recipe_structured_data_unavailable')
-   # Bounded, non-content-bearing diagnostics of where recipeIngredient occurs.
+   # Inspect bounded field context without storing source HTML.
    locations=[]
-   for hit in list(re.finditer(r'recipeIngredient',page,re.I))[:12]:
+   for hit in list(re.finditer('recipeIngredient',page,re.I))[:12]:
     before=page[max(0,hit.start()-240):hit.start()]
     after=page[hit.end():hit.end()+240]
     script_open=page.rfind('<script',0,hit.start())
@@ -378,11 +378,14 @@ def inspect_alternative_recipe_fields(limit=3):
     script_tag=page[script_open:page.find('>',script_open)+1] if in_script and script_open>=0 else ''
     locations.append({
      'in_script':in_script,
-     'script_type':((re.search(r'type\\s*=\\s*["\\x27]([^"\\x27]+)',script_tag,re.I) or [None,''])[1])[:70],
-     'escaped_quotes':bool(re.search(r'\\\\["\\x27]|&quot;|&#34;',before+after,re.I)),
-     'json_array_nearby':bool(re.search(r'^\\s*["\\x27]?\\s*:\\s*\\[',after)),
-     'json_string_nearby':bool(re.search(r'^\\s*["\\x27]?\\s*:\\s*["\\x27]',after)),
-     'html_attribute_context':bool(re.search(r'(?:data-[\\w-]+|content)\\s*=\\s*["\\x27][^"\\x27]*
+     'script_type':'jsonld' if 'application/ld+json' in script_tag.lower() else 'other',
+     'escaped_quotes':('\\\\' in before+after or '&quot;' in before+after),
+     'json_array_nearby':after.lstrip().startswith(':[') or after.lstrip().startswith('":['),
+     'html_attribute_context':'data-' in before[-80:],
+     'near_jsonld_marker':'application/ld+json' in script_tag.lower()
+    })
+   result['ingredient_field_locations']=locations
+   stored_lines=recipe.get('ingredient_text') or []
    if not isinstance(stored_lines,list):stored_lines=[]
    stored_lines=[str(line).strip() for line in stored_lines if str(line).strip()]
    measured=lambda lines:sum(1 for line in lines if recipe_quality.parse_source_line(line))
