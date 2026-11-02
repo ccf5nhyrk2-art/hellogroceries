@@ -32,6 +32,22 @@ def canonical_source_name(name):
             words[-1] = last[:-1]
     return " ".join(words)
 
+# Only accept a single, explicit quantity. Ranges and package-size expressions
+# are deliberately excluded until their semantics can be verified.
+TO_TASTE = re.compile(r"\\b(?:to taste|as needed|for serving|optional)\\b", re.I)
+RANGE = re.compile(r"^\\s*(?:\\d+(?:\\.\\d+)?\\s*(?:-|–|—|to)\\s*\\d+|\\d+\\s*\\([^)]*\\))", re.I)
+SOURCE_MEASURE = re.compile(r"^\\s*("+NUMBER+r")\\s*("+UNITS+r")\\.?\\s*(?:of\\s+)?(.+?)\\s*$", re.I)
+
+def parse_source_line(line):
+    if not isinstance(line, str) or TO_TASTE.search(line) or RANGE.match(line):
+        return None
+    normalized = line.strip().replace("⁄", "/")
+    normalized = re.sub(r"^(\\d+(?:/\\d+)?)\\s*(?:\\(\\s*(?:\\d+\\s*)?(?:oz|ounces?|g|grams?|ml|milliliters?)\\s*\\)\\s*)+(?:cans?|packages?|bags?)\\b", r"\\1 package", normalized, flags=re.I)
+    matched = SOURCE_MEASURE.match(normalized)
+    if not matched:
+        return None
+    return {"amount": matched.group(1), "unit": matched.group(2), "ingredient": matched.group(3), "source": line}
+
 AMBIGUOUS = re.compile(r"\b(?:garlic|grape tomatoes?|jalape(?:ñ|n)o(?: peppers?)?|salmon|pepper|salt|cilantro|parsley|sour cream|bell peppers?)\b", re.I)
 
 
@@ -88,31 +104,36 @@ def audit_catalog(recipes, limit=200):
     return {"counts": counts, "issues": issues, "complete": True, "estimates_applied": 0}
 
 def source_match_diagnostic(recipe, ingredient):
-    """Explain non-recovery without exposing unrelated recipe data."""
     if not isinstance(recipe, dict):
         return {"status": "invalid_recipe"}
     lines = recipe.get("ingredient_text")
     if not isinstance(lines, list) or not lines:
         return {"status": "no_source_lines"}
     target = canonical_source_name(ingredient)
-    exact = []
-    unsupported = 0
+    matches = []
+    related = []
     for line in lines:
         if not isinstance(line, str):
             continue
-        measured = MEASURED.match(line)
-        if measured and canonical_source_name(measured.group(3)) == target:
-            exact.append((measured.group(1), SHOPPING_UNITS.get(measured.group(2).lower()), line))
+        parsed = parse_source_line(line)
+        if parsed and canonical_source_name(parsed["ingredient"]) == target:
+            matches.append(parsed)
         elif target and target in canonical_source_name(line):
-            unsupported += 1
-    distinct = {(amount, unit) for amount, unit, _ in exact}
-    if len(distinct) > 1:
-        return {"status": "conflicting_quantities", "candidate_count": len(distinct)}
-    if exact and not all(unit for _, unit, _ in exact):
-        return {"status": "unsupported_unit"}
-    if exact:
-        return {"status": "matched", "candidate_count": len(exact)}
-    return {"status": "unparsed_source_line" if unsupported else "ingredient_not_found"}
+            related.append(line)
+    if matches:
+        unique = {(m["amount"], SHOPPING_UNITS.get(m["unit"].lower())) for m in matches}
+        if len(unique) > 1:
+            return {"status": "conflicting_quantities", "candidate_count": len(unique)}
+        if not all(SHOPPING_UNITS.get(m["unit"].lower()) for m in matches):
+            return {"status": "unsupported_unit"}
+        return {"status": "matched", "candidate_count": len(matches)}
+    if any(TO_TASTE.search(line) for line in related):
+        return {"status": "to_taste_no_amount"}
+    if any(RANGE.match(line) for line in related):
+        return {"status": "range_requires_review"}
+    if related:
+        return {"status": "unparsed_source_line", "example": related[0][:120]}
+    return {"status": "ingredient_not_found"}
 
 
 def recover_from_stored_source(recipe, ingredient):
@@ -129,14 +150,12 @@ def recover_from_stored_source(recipe, ingredient):
     for line in lines:
         if not isinstance(line, str):
             continue
-        measured = MEASURED.match(line)
+        measured = parse_source_line(line)
         if not measured:
             continue
-        name = canonical_source_name(measured.group(3))
+        name = canonical_source_name(measured["ingredient"])
         if name == target:
-            matches.append({"source": line, "amount": measured.group(1),
-                            "unit": measured.group(2), "ingredient": measured.group(3),
-                            "confidence": "verified_source"})
+            matches.append({**measured, "confidence": "verified_source"})
     # Duplicate identical source lines are not conflicting evidence.
     unique = {(m["amount"], m["unit"].casefold(), canonical_source_name(m["ingredient"])): m for m in matches}
     return next(iter(unique.values())) if len(unique) == 1 else None
