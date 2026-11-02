@@ -137,8 +137,20 @@ def evaluate(recipes, limit=1500, minimum_examples=5):
             within_50 += error <= .50
             group["within_25"] += error <= .25
             spread = sorted(abs(x - predicted_unit) / predicted_unit for x in samples)
-            variable = category(name) in ("sauces_condiments", "oils_fats", "dairy", "seasoning")
-            consensus = len(samples) >= (20 if variable else 10) and median(spread) <= (.05 if variable else .10) and spread[int(.8 * (len(spread) - 1))] <= (.10 if variable else .25)
+            ingredient_category = category(name)
+            variable = ingredient_category in ("sauces_condiments", "oils_fats", "dairy", "seasoning")
+            # Condiments vary substantially between recipes even when the median
+            # agrees. Require a larger and tighter distribution before labeling
+            # a condiment estimate high-consensus. This is validation-only.
+            if ingredient_category == "sauces_condiments":
+                min_samples, median_limit, tail_limit, tail_fraction = 30, .025, .05, .9
+            elif variable:
+                min_samples, median_limit, tail_limit, tail_fraction = 20, .05, .10, .8
+            else:
+                min_samples, median_limit, tail_limit, tail_fraction = 10, .10, .25, .8
+            consensus = (len(samples) >= min_samples
+                         and median(spread) <= median_limit
+                         and spread[int(tail_fraction * (len(spread) - 1))] <= tail_limit)
             if consensus:
                 method_stats[method]["high_consensus"] += 1
                 method_stats[method]["high_consensus_within_25"] += error <= .25
