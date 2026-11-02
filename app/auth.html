@@ -49,7 +49,7 @@ let mode='login';
 async function initialize(){
  try{
   const r=await fetch('/api/auth/status',{cache:'no-store'}),s=await r.json();
-  if(s.authenticated){location.replace('/');return}
+  if(s.authenticated){location.replace('/?login=1');return}
   mode=verification?'verify':invite?'redeem':s.setup_required?'setup':'login';
   $('mode').textContent={verify:'Verify your email address',redeem:'Accept your household invitation',setup:'Create the first administrator account',login:'Sign in to your household'}[mode];
   $('household-section').hidden=mode==='login'||mode==='verify';
@@ -84,7 +84,7 @@ $('form').onsubmit=async e=>{
    $('error').textContent=j.sent?'Verification email submitted. Check your inbox and spam folder. Delivery may take a few minutes.':(j.message||'If your registration is pending, wait 60 seconds and resend the verification email.');
    return;
   }
-  location.replace('/');
+  location.replace('/?login=1');
  }catch(e){$('error').style.color='#ffaaa7';$('error').textContent=e instanceof TypeError?'Unable to reach HelloGroceries. Please try again.':(e.message||'Unable to complete your request.')}
 };
 $('toggle').onclick=()=>{
