@@ -773,6 +773,15 @@ async function scanRecipeQuality(){
   const confidenceLine=document.createElement('p');
   confidenceLine.textContent='High-consensus suggestions (validation only): '+(confidence.eligible||0)+' tested · within 10%: '+pct(confidence.within_10_percent)+' · within 25%: '+pct(confidence.within_25_percent)+'. No automatic estimates enabled.';
   issues.appendChild(confidenceLine);
+  const gate=document.createElement('p');
+  const eligible=Number(confidence.eligible||0);
+  const accuracy=confidence.within_25_percent;
+  const minimumSample=100;
+  const minimumAccuracy=.90;
+  const passes=eligible>=minimumSample && typeof accuracy==='number' && accuracy>=minimumAccuracy;
+  gate.textContent='Automatic estimation release gate: '+(passes?'Benchmark threshold met for review':'NOT APPROVED')+' · high-consensus sample '+eligible+'/'+minimumSample+' required · within 25% accuracy '+pct(accuracy)+' / 90.0% required. Even a passing benchmark requires separate approval before enabling estimates.';
+  gate.style.cssText='font-weight:600;padding:10px 12px;border:1px solid var(--border,#555);border-radius:8px;overflow-wrap:anywhere';
+  issues.appendChild(gate);
   const categoryDetails=document.createElement('details');
   const categoryHeading=document.createElement('summary');
   categoryHeading.textContent='Accuracy by ingredient category';
