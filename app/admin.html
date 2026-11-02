@@ -114,7 +114,7 @@ html[data-theme="dark"]{--catalog-panel-bg:#1b2520;--catalog-panel-border:#40514
   {id:'pricing',label:'Pricing & API',selectors:['#email-heading','#openai-heading','#reef-heading','#price-test-heading','#pricing-visibility-heading']},
   {id:'analytics',label:'User analytics',selectors:['#analytics-heading']},
   {id:'tasks',label:'Background tasks',selectors:['#tasks-heading','#catalog-heading','#nutrition-heading']},
-  {id:'quality',label:'Recipe quality',selectors:['#recipe-quality-heading']},
+  {id:'quality',label:'Recipe quality',selectors:['#recipe-quality-heading','#photo-audit-heading']},
   {id:'backup',label:'Backup & restore',selectors:['#backup-heading']},
   {id:'security',label:'Session & security',selectors:['#session-heading']}
  ];
@@ -711,7 +711,7 @@ async function scanRecipeQuality(){
   }else document.getElementById('recipe-source-sample').textContent='Cached-source comparison unavailable';
  }catch(error){document.getElementById('recipe-source-sample').textContent='Cached-source comparison unavailable'}
  try{
-  const response=await fetch('/api/admin/recipe-quality',{credentials:'same-origin'});
+  const response=await fetch('/api/admin/recipe-quality',{credentials:'same-origin',cache:'no-store',signal:AbortSignal.timeout(45000)});
   const data=await response.json();
   if(!response.ok)throw Error(data.error||'Audit failed');
   const c=data.counts;
@@ -761,7 +761,7 @@ async function scanRecipeQuality(){
    list.appendChild(li);
   }
   issues.appendChild(list);
- }catch(error){summary.textContent='Audit unavailable: '+error.message}
+ }catch(error){summary.textContent='Audit unavailable: '+(error.name==='TimeoutError'?'Request timed out after 45 seconds. Try again or check server logs.':error.message)}
  finally{button.disabled=false}
 }
 document.getElementById('recipe-quality-refresh').addEventListener('click',scanRecipeQuality);
