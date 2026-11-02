@@ -329,17 +329,47 @@ def inspect_alternative_recipe_fields(limit=3):
    with urllib.request.urlopen(req,timeout=12) as resp:
     if not allowed_url(resp.geturl()):raise ValueError('Unexpected redirect')
     page=resp.read(1500000).decode('utf-8','replace')
+   # Parse script elements as HTML, not with a regular expression over tags.
+   # Capture only the designated Next.js payload; report metadata, never raw HTML.
+   from html.parser import HTMLParser
+   class NextDataParser(HTMLParser):
+    def __init__(self):
+     super().__init__(convert_charrefs=True)
+     self.inside=False
+     self.parts=[]
+     self.found=0
+     self.tags=0
+     self.types=[]
+    def handle_starttag(self,tag,attrs):
+     if tag.lower()!='script':return
+     self.tags+=1
+     attrs=dict(attrs)
+     if (attrs.get('id') or '').lower()=='__next_data__':
+      self.found+=1
+      self.inside=True
+      self.types.append((attrs.get('type') or '')[:60])
+    def handle_endtag(self,tag):
+     if tag.lower()=='script':self.inside=False
+    def handle_data(self,data):
+     if self.inside and sum(map(len,self.parts))<1500000:self.parts.append(data)
+   parser=NextDataParser()
+   parser.feed(page)
    result['page_signals']={
-    'next_data':bool(re.search(r'<script\b(?=[^>]*\bid\s*=\s*["\x27]__NEXT_DATA__["\x27])',page,re.I)),
-    'microdata_ingredient':bool(re.search(r'itemprop=["\\x27]recipeIngredient["\\x27]',page,re.I)),
-    'data_attributes_ingredient':bool(re.search(r'data-[\\w-]*ingredient[\\w-]*=',page,re.I)),
+    'next_data':parser.found>0,
+    'microdata_ingredient':bool(re.search(r'itemprop\\s*=\\s*["\\x27]recipeIngredient["\\x27]',page,re.I)),
+    'data_attributes_ingredient':bool(re.search(r'data-[\\w-]*ingredient[\\w-]*\\s*=',page,re.I)),
     'hydration_markers':bool(re.search(r'__NUXT__|__APOLLO_STATE__|__INITIAL_STATE__|self\\.__next_f',page,re.I))}
-   match=re.search(r'<script\b(?=[^>]*\bid\s*=\s*["\x27]__NEXT_DATA__["\x27])[^>]*>(.*?)</script\s*>',page,re.I|re.S)
-   result['next_data_inspection']['status']='script_not_found' if not match else 'content_extracted'
+   info=result['next_data_inspection']
+   info['script_tags']=parser.tags
+   info['matching_scripts']=parser.found
+   info['script_types']=parser.types
+   raw=''.join(parser.parts)
+   info['content_length']=len(raw)
+   info['status']='script_not_found' if not parser.found else ('empty_script' if not raw.strip() else 'content_extracted')
+   match=raw if raw.strip() else None
    if match:
-    result['next_data_inspection']['content_length']=len(match.group(1))
     try:
-     data=json.loads(html.unescape(match.group(1)))
+     data=json.loads(html.unescape(match))
      info=result['next_data_inspection']
      info['parsed']=True
      info['status']='parsed'
