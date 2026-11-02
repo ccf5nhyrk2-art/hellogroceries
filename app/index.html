@@ -2827,7 +2827,7 @@ $('source-correction-form').addEventListener('submit',async e=>{
  $('source-correction-dialog').close();
  await action({action:'correct_recipe_ingredient',recipe_id:rid,original,name,amount,unit});
 });
-$('items').addEventListener('change',e=>{if(e.target.dataset.items)action({action:'purchase_many',names:JSON.parse(e.target.dataset.items),purchased:e.target.checked})});$('exclude-ingredient').addEventListener('input',()=>{recipePage=0;render()});$('search').addEventListener('input',()=>{recipePage=0;render()});$('ingredient-suggestions-results').addEventListener('click',async e=>{
+$('items').addEventListener('change',e=>{if(e.target.dataset.items)action({action:'purchase_many',names:JSON.parse(e.target.dataset.items),purchased:e.target.checked})});$('exclude-ingredient').addEventListener('input',()=>{recipePage=0;render()});$('search').addEventListener('input',()=>{recipePage=0;render()});$('ingredient-suggestions-results')?.addEventListener('click',async e=>{
  const button=e.target.closest('button[data-suggest-add]');
  if(!button)return;
  button.disabled=true;
