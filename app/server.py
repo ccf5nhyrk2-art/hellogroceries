@@ -2879,27 +2879,6 @@ if __name__=='__main__':
  threading.Thread(target=nutrition_scan_worker,daemon=True,name='nutrition-background-scan').start()
  threading.Thread(target=us_import_schedule_worker,daemon=True,name='us-import-scheduler').start()
  ThreadingHTTPServer(('0.0.0.0',8080),Handler).serve_forever()
-,label,re.I)
-   if not measured:continue
-   per_item=1
-   unit=measured.group(1).lower()
-   ingredient=measured.group(2)
-  needed=consume(ingredient,unit,per_item*totals[label])
-  if needed>=per_item*totals[label]-0.000001:continue
-  original_sources=sources.pop(label,[])
-  totals.pop(label,None)
-  if needed<=0.000001:continue
-  new_label=(str(round(needed,3)).rstrip('0').rstrip('.') if needed%1 else str(int(needed)))+' '+(unit+' ' if unit!='count' else '')+ingredient
-  totals[new_label]=totals.get(new_label,0)+1
-  sources.setdefault(new_label,[]).extend(original_sources)
- old={item['name']:item for item in state.get('list',[])}
- generated=[{'name':name,'quantity':round(qty,3),'purchased':False,'sources':sources.get(name,[])} for name,qty in sorted(totals.items()) if qty>0 and (any(src.get('corrected') or src.get('quantity_unverified') for src in sources.get(name,[])) or any(isinstance(k,str) and pantry_match_name(k.rsplit('|',1)[0])==pantry_match_name(name) for k in inventory) or pantry_match_name(name) not in pantry)]
- for item in generated:
-  previous=old.get(item['name'])
-  if previous and previous.get('quantity')==item['quantity']:item['purchased']=bool(previous.get('purchased'))
- state['list']=generated
-
-
 class Handler(SimpleHTTPRequestHandler):
  def __init__(self,*a,**kw):super().__init__(*a,directory=str(BASE),**kw)
  def sendjson(self,obj,status=200):
