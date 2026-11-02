@@ -1,0 +1,20 @@
+name: Security checks
+on:
+  push:
+    branches: [develop, main]
+  pull_request:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  security:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Compile Python source
+        run: python -m compileall -q app tests
+      - name: Run security regression tests
+        run: python -m unittest discover -s tests -p 'test_security.py' -v
