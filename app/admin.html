@@ -707,7 +707,7 @@ document.getElementById('recipe-quality-refresh').addEventListener('click',async
   const data=await response.json();
   if(!response.ok)throw Error(data.error||'Audit failed');
   const c=data.counts;
-  summary.textContent=c.recipes+' recipes, '+c.ingredients+' ingredient entries · '+(c.verified+c.verified_count)+' explicit quantities/counts · '+c.source_recovered+' recovered from stored sources · '+c.needs_source+' require source verification · '+c.invalid+' invalid';
+  summary.textContent=c.recipes+' recipes, '+c.ingredients+' ingredient entries · '+(c.verified+c.verified_count)+' explicit quantities/counts · '+c.source_recovered+' recovered from stored sources · '+c.unit_labeled+' have a unit but need an amount · '+c.needs_source+' lack a measurement · '+c.invalid+' invalid';
   const heading=document.createElement('p');heading.textContent='First '+data.issues.length+' unresolved entries (read-only):';issues.appendChild(heading);
   const list=document.createElement('ol');
   for(const item of data.issues){
