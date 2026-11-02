@@ -99,7 +99,7 @@ class GroceryListRegressionTests(unittest.TestCase):
         state["selected"] = {"1": 2}
         result = generate(recipes, state)
         self.assertTrue(any("Cilantro" in name for name in result))
-        self.assertAlmostEqual(sum(item["quantity"] * 0.25 for name, item in result.items()
+        self.assertAlmostEqual(sum(item["quantity"] for name, item in result.items()
                                    if "Cilantro" in name), 0.25)
 
 
