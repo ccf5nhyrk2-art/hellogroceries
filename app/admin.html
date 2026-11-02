@@ -764,6 +764,23 @@ async function scanRecipeQuality(){
    }
    const wrap=document.createElement('div');wrap.style.cssText='overflow-x:auto';wrap.appendChild(previewTable);issues.appendChild(wrap);
   }
+  const benchmark=data.quantity_validation||{};
+  const benchmarkSummary=document.createElement('p');
+  const pct=value=>value==null?'N/A':(value*100).toFixed(1)+'%';
+  benchmarkSummary.textContent='Quantity estimation benchmark (read-only): '+(benchmark.evaluated||0)+' held-out measurements tested · '+(benchmark.covered||0)+' predictions · coverage '+pct(benchmark.coverage)+' · within 25% error '+pct(benchmark.within_25_percent)+' · median relative error '+pct(benchmark.median_relative_error)+'. No estimates applied.';
+  issues.appendChild(benchmarkSummary);
+  const benchmarkDetails=document.createElement('details');
+  const benchmarkTitle=document.createElement('summary');
+  benchmarkTitle.textContent='Show estimation benchmark examples';
+  benchmarkDetails.appendChild(benchmarkTitle);
+  const benchmarkList=document.createElement('ul');
+  for(const row of benchmark.examples||[]){
+   const li=document.createElement('li');
+   li.textContent='Recipe '+row.recipe_id+': '+row.ingredient+' — actual '+row.actual+' '+row.unit+', predicted '+row.estimated+' '+row.unit+' (error '+pct(row.relative_error)+')';
+   benchmarkList.appendChild(li);
+  }
+  benchmarkDetails.appendChild(benchmarkList);
+  issues.appendChild(benchmarkDetails);
   const groups=new Map();
   for(const item of data.issues||[]){
    const diagnostic=item.source_diagnostic||{};
