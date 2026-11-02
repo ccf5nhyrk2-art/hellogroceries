@@ -42,6 +42,13 @@ def parse_source_line(line):
     if not isinstance(line, str) or TO_TASTE.search(line) or RANGE.match(line):
         return None
     normalized = line.strip().replace("⁄", "/")
+    # Some original sources spell out a unit and repeat its abbreviation.
+    # Strip only known, equivalent parenthetical aliases after a measured unit.
+    normalized = re.sub(
+        r"^(\\s*"+NUMBER+r"\\s+)("+UNITS+r")\\s*\\((tsp|tbsp|oz|lbs?|ml|g|kg|l)\\)(?=\\s)",
+        lambda m: m.group(1) + m.group(2) if SHOPPING_UNITS.get(m.group(2).lower()) == SHOPPING_UNITS.get(m.group(3).lower()) else m.group(0),
+        normalized, flags=re.I,
+    )
     normalized = re.sub(r"^(\d+(?:/\d+)?)\s*(?:\(\s*(?:\d+\s*)?(?:oz|ounces?|g|grams?|ml|milliliters?)\s*\)\s*)+(?:cans?|packages?|bags?)\b", r"\1 package", normalized, flags=re.I)
     matched = SOURCE_MEASURE.match(normalized)
     if not matched:
