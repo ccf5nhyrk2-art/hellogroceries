@@ -477,7 +477,7 @@ async function loadTasks(){
     info.append(title,meta,progress);
    }else if(task.key==='recommendation_photos'){
     const progress=document.createElement('div');progress.className='account-meta';
-    progress.textContent='Cached photos: '+(task.cached||0)+' / '+(task.target||150)+' · Download attempts: '+(task.checked||0)+' · Errors: '+(task.errors||0)+' · Next check: '+fmt(task.next_run);
+    progress.textContent='Cached photos: '+(task.cached||0)+' / '+(task.target||0)+' eligible · Storage: '+((task.cache_bytes||0)/1048576).toFixed(1)+' MB / '+((task.cache_limit_bytes||0)/1073741824).toFixed(1)+' GB · Download attempts: '+(task.checked||0)+' · Errors: '+(task.errors||0)+' · Next check: '+fmt(task.next_run);
     info.append(title,meta,progress);
    }else info.append(title,meta);
    card.append(info);
