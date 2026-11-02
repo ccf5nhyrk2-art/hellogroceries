@@ -42,6 +42,23 @@ class RecipeQualityTests(unittest.TestCase):
         recipe["ingredient_text"] = ["1 package Salmon"]
         self.assertIsNone(verified_grocery_recovery(recipe, "Salmon", 1))
 
+    def test_unit_only_is_not_mistaken_for_unknown_unit(self):
+        for name in ("ounce Carrots", "tablespoon Mayonnaise",
+                     "teaspoon (tsp) Black Pepper", "unit Salt"):
+            if name.startswith("unit "):
+                self.assertEqual(inspect_ingredient(name, 1)["status"], "needs_source")
+            else:
+                self.assertEqual(inspect_ingredient(name, 1)["status"], "unit_labeled")
+
+    def test_source_matching_for_unit_only_ingredient(self):
+        recipe = {"id": 9, "ingredients": {"ounce Salmon": 1},
+                  "ingredient_text": ["4 ounces Salmon"]}
+        self.assertEqual(audit_catalog([recipe])["counts"]["source_recovered"], 1)
+        recovered = verified_grocery_recovery(recipe, "ounce Salmon", 1)
+        self.assertEqual(recovered["amount"], 4)
+        recipe["ingredient_text"].append("6 ounces Salmon")
+        self.assertIsNone(verified_grocery_recovery(recipe, "ounce Salmon", 1))
+
     def test_invalid_factor(self):
         self.assertEqual(inspect_ingredient("Garlic", -1)["status"], "invalid")
 
