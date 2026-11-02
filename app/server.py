@@ -388,11 +388,26 @@ def inspect_alternative_recipe_fields(limit=3):
     except (ValueError,TypeError,RecursionError):
      parse_errors+=1
     if source_lines:break
-   # Metadata-only search for separately modeled portion and serving fields.
-   portion_keys=('quantity','amount','unit','unitofmeasure','portion','serving','yield','ingredient')
-   field_paths=set()
-   candidate_count=0
-   def inspect_portions(obj,path='
+   # Read-only summary of candidate serving and portion fields in parsed JSON-LD.
+   portion_paths=set()
+   portion_candidates=0
+   def inspect_portions(obj,path='',depth=0):
+    if depth>8:return 0
+    count=0
+    if isinstance(obj,list):
+     for child in obj[:60]:count+=inspect_portions(child,path+'[]',depth+1)
+    elif isinstance(obj,dict):
+     keys={str(k).lower() for k in obj}
+     for key in keys:
+      if any(term in key for term in ('ingredient','portion','serving','quantity','amount','unit','yield')):
+       if len(portion_paths)<30:portion_paths.add((path+'.'+key)[:140])
+     if any('ingredient' in k for k in keys) and any('quantity' in k or 'amount' in k or 'portion' in k for k in keys):count+=1
+     for key,value in list(obj.items())[:60]:count+=inspect_portions(value,(path+'.'+str(key))[:130],depth+1)
+    return count
+   for block in jsonld_blocks[:30]:
+    try:portion_candidates+=inspect_portions(json.loads(block))
+    except (ValueError,TypeError,RecursionError):pass
+   result['portion_field_inspection']={'jsonld_candidate_objects':portion_candidates,'field_paths':sorted(portion_paths),'verified_matches':0}
    diag=result['http_diagnostics']
    diag['source_status']=('access_challenge' if diag['looks_like_access_challenge'] else
     'recipe_jsonld_available' if source_lines else
