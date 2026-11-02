@@ -1629,9 +1629,9 @@ def parse_grocery_measure(label):
 def grocery_display_name(name):
  """Normalize common source typos without dropping meaningful qualifiers."""
  if not isinstance(name,str):return name
- # Treat the legacy package marker "box Pepper" as ordinary pepper.
- # This is a name normalization only; do not invent a box quantity.
- name=re.sub(r'^(?:box\s+)(pepper)
+ name=name.strip()
+ name=name[4:] if name.lower()=='box pepper' else name
+ name=name.replace('Shitake','Shiitake').replace('shitake','shiitake')
  name=re.sub(r'\s+',' ',name).strip()
  # Normalize only known countable produce names; retain meaningful qualifiers.
  # Do not merge uncertain package units (e.g. box Pepper) into measured amounts.
