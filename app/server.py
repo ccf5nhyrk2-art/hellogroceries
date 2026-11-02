@@ -232,8 +232,61 @@ def allrecipes():
    code=recipe_country_from_url(recipe['url'])
    if code!='other':recipe['country']=code
  recipes=RECIPES+imported
+ # Recovered source lines are cached separately from original recipe payloads.
+ # Only apply cache entries for the exact URL they were fetched from.
+ with db() as c:
+  c.execute('CREATE TABLE IF NOT EXISTS hg_recipe_source_cache (recipe_id TEXT PRIMARY KEY,url TEXT NOT NULL,lines_json TEXT NOT NULL,checked_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)')
+  cached={rid:(url,lines) for rid,url,lines in c.execute('SELECT recipe_id,url,lines_json FROM hg_recipe_source_cache')}
+ for recipe in recipes:
+  entry=cached.get(str(recipe.get('id')))
+  if entry and entry[0]==recipe.get('url') and not recipe.get('ingredient_text'):
+   try:
+    lines=json.loads(entry[1])
+    if isinstance(lines,list):recipe['ingredient_text']=lines
+   except (ValueError,TypeError):pass
  with db() as c:photos=dict(c.execute('SELECT recipe_id,image_url FROM photos'))
  return [dict(r,image=photos.get(r['id'],r.get('image',''))) for r in recipes]
+
+def recipe_source_enrichment_worker():
+ """Automatically recover original ingredient lines in small, rate-limited batches.
+ Never overwrite source recipes or invent missing measurements.
+ """
+ while True:
+  try:
+   with db() as c:
+    c.execute('CREATE TABLE IF NOT EXISTS hg_recipe_source_cache (recipe_id TEXT PRIMARY KEY,url TEXT NOT NULL,lines_json TEXT NOT NULL,checked_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)')
+    rows=c.execute('SELECT payload FROM imported ORDER BY id DESC').fetchall()
+    existing={rid:url for rid,url in c.execute('SELECT recipe_id,url FROM hg_recipe_source_cache')}
+   processed=0
+   for (payload,) in rows:
+    if processed>=8:break
+    try:recipe=json.loads(payload)
+    except (ValueError,TypeError):continue
+    if not isinstance(recipe,dict):continue
+    url=recipe.get('url')
+    rid=str(recipe.get('id',''))
+    if not rid or not isinstance(url,str) or not allowed_url(url):continue
+    if recipe.get('ingredient_text') or existing.get(rid)==url:continue
+    # Only enrich recipes whose current ingredient labels lack source units.
+    ingredients=recipe.get('ingredients')
+    if not isinstance(ingredients,dict) or not any(recipe_quality.inspect_ingredient(k,v)['status']=='needs_source' for k,v in ingredients.items()):continue
+    processed+=1
+    try:
+     original=recipe_from_url(url)
+     lines=original.get('ingredient_text',[])
+     if not isinstance(lines,list):lines=[]
+    except (ValueError,TypeError,OSError,TimeoutError) as exc:
+     print('Recipe source enrichment unavailable:',rid,type(exc).__name__,flush=True)
+     lines=[]
+    # Cache both successful and unavailable lookups to avoid repeat requests.
+    with db() as c:
+     c.execute('INSERT OR REPLACE INTO hg_recipe_source_cache(recipe_id,url,lines_json,checked_at) VALUES (?,?,?,CURRENT_TIMESTAMP)',(rid,url,json.dumps(lines)))
+     c.commit()
+    time.sleep(2)
+  except Exception as exc:
+   print('Recipe source enrichment worker:',type(exc).__name__,str(exc)[:160],flush=True)
+  time.sleep(1800)
+
 
 def official_images(recipe):
  url=recipe.get('url','')
@@ -2891,6 +2944,7 @@ if __name__=='__main__':
   threading.Thread(target=bulk_worker,args=(job.get('country','US'),int(job.get('limit',0))),daemon=True).start()
  threading.Thread(target=recommendation_photo_warmup_worker,daemon=True,name='recommendation-photo-warmup').start()
  threading.Thread(target=nutrition_scan_worker,daemon=True,name='nutrition-background-scan').start()
+ threading.Thread(target=recipe_source_enrichment_worker,daemon=True,name='recipe-source-enrichment').start()
  threading.Thread(target=us_import_schedule_worker,daemon=True,name='us-import-scheduler').start()
  ThreadingHTTPServer(('0.0.0.0',8080),Handler).serve_forever()
 class Handler(SimpleHTTPRequestHandler):
