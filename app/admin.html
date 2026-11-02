@@ -778,8 +778,11 @@ async function scanRecipeQuality(){
   const accuracy=confidence.within_25_percent;
   const minimumSample=100;
   const minimumAccuracy=.90;
-  const passes=eligible>=minimumSample && typeof accuracy==='number' && accuracy>=minimumAccuracy;
-  gate.textContent='Automatic estimation release gate: '+(passes?'Benchmark threshold met for review':'NOT APPROVED')+' · high-consensus sample '+eligible+'/'+minimumSample+' required · within 25% accuracy '+pct(accuracy)+' / 90.0% required. Even a passing benchmark requires separate approval before enabling estimates.';
+  const categoryResults=Object.values(benchmark.categories||{});
+  const categoryMinimum=20;
+  const categoryFailures=categoryResults.filter(stats=>Number(stats.high_consensus||0)<categoryMinimum || typeof stats.high_consensus_within_25_percent!=='number' || stats.high_consensus_within_25_percent<minimumAccuracy);
+  const passes=eligible>=minimumSample && typeof accuracy==='number' && accuracy>=minimumAccuracy && categoryResults.length>0 && categoryFailures.length===0;
+  gate.textContent='Automatic estimation release gate: '+(passes?'Benchmark threshold met for review':'NOT APPROVED')+' · high-consensus sample '+eligible+'/'+minimumSample+' required · within 25% accuracy '+pct(accuracy)+' / 90.0% required · category checks '+(categoryResults.length-categoryFailures.length)+'/'+categoryResults.length+' passed (at least '+categoryMinimum+' samples and 90% accuracy each). Even a passing benchmark requires separate approval before enabling estimates.';
   gate.style.cssText='font-weight:600;padding:10px 12px;border:1px solid var(--border,#555);border-radius:8px;overflow-wrap:anywhere';
   issues.appendChild(gate);
   const categoryDetails=document.createElement('details');
