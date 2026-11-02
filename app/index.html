@@ -1714,9 +1714,11 @@ function consolidatedShoppingRows(items){
  // Do not merge across different units, varieties, or multiple possible matches.
  const mergedBare=new Set();
  for(const bare of rows){
-  if(bare.knownCount||bare.items.length!==1||bare.unit)continue;
+  if(bare.knownCount||bare.unit||!bare.items.length)continue;
+  // Do not merge custom display overrides, which may represent a distinct product.
+  if(bare.items.some(item=>(state.ingredient_overrides||{})[item.name]?.display))continue;
   const bareName=canonicalProduce(bare.label).replace(/^(?:box|pick|unit)\s+/,'').trim();
-  if(!bareName||/^(?:salt|pepper)$/.test(bareName)===false&&!/^(?:black pepper|sour cream|cilantro|parsley)$/.test(bareName))continue;
+  if(!['salt','pepper','black pepper','sour cream','cilantro','parsley'].includes(bareName))continue;
   const candidates=rows.filter(row=>row!==bare&&row.knownCount&&row.unit&&canonicalProduce(row.ingredient)===bareName);
   if(candidates.length!==1)continue;
   const target=candidates[0];
