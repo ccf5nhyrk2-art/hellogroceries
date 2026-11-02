@@ -1632,7 +1632,7 @@ function consolidatedShoppingRows(items){
   const label=override.display||display.name;
   // Only recover an implicit piece count from a source with an explicit numeric
   // ingredient count. A shopping-list multiplier alone is not proof of quantity.
-  const isWholeProduce=/^(?:(?:roma|cherry|grape|heirloom|plum|beefsteak)\s+)?(?:shallots?|tomatoes?|onions?|potatoes?|lemons?|limes?|apples?|carrots?|cucumbers?|zucchinis?|bananas?)$/i.test(label.trim());
+  const isWholeProduce=/^(?:(?:roma|cherry|grape|heirloom|plum|beefsteak)\s+)?(?:shallots?|tomatoes?|onions?|potatoes?|lemons?|limes?|apples?|carrots?|cucumbers?|zucchinis?|bananas?|(?:green|red|yellow|orange)\s+bell peppers?)$/i.test(label.trim());
   const sources=Array.isArray(item.sources)?item.sources:[];
   const sourceCounts=sources.map(source=>{
    const original=String(source.original_name||'').trim();
@@ -1648,16 +1648,31 @@ function consolidatedShoppingRows(items){
   const amount=unitSource?ingredientNumber(unitSource[1].trim()):match?ingredientNumber(match[1]):implicitCount?recoveredCount:NaN;
   const unit=unitSource?'':match&&match[2]?(ingredientUnitAliases[match[2].toLowerCase()]||match[2].toLowerCase()):'';
   const ingredient=unitSource?unitSource[2].trim():match?match[3].trim():implicitCount?label.trim():'';
-  const canonical=ingredient.toLowerCase().replace(/^(?:roma|cherry|grape|heirloom|plum|beefsteak)\s+(?=tomatoes?\b)/,'').replace(/\b(tomatoes|potatoes)\b/g,m=>m==='tomatoes'?'tomato':'potato').replace(/s$/,'');
+  // Keep varieties and colors distinct while combining singular/plural forms.
+  const canonicalProduce=name=>String(name||'').trim().toLowerCase()
+   .replace(/\b(bell peppers|bell pepper)\b/g,'bell pepper')
+   .replace(/\b(tomatoes|tomato)\b/g,'tomato')
+   .replace(/\b(potatoes|potato)\b/g,'potato')
+   .replace(/\b(onions|onion)\b/g,'onion')
+   .replace(/\b(limes|lime)\b/g,'lime')
+   .replace(/\b(lemons|lemon)\b/g,'lemon')
+   .replace(/\b(carrots|carrot)\b/g,'carrot')
+   .replace(/\b(garlic bulbs|garlic bulb)\b/g,'garlic bulb')
+   .replace(/\b(shallots|shallot)\b/g,'shallot')
+   .replace(/\b(cucumbers|cucumber)\b/g,'cucumber')
+   .replace(/\b(zucchinis|zucchini)\b/g,'zucchini')
+   .replace(/\b(eggs|egg)\b/g,'egg')
+   .replace(/\s+/g,' ');
+  const canonical=canonicalProduce(ingredient);
 
   // Bare imported names have no verified piece count; group them with a matching
   // counted ingredient for display, but never silently add an assumed quantity.
   const bareProduce=!override.display&&isWholeProduce&&!match&&!unitSource&&!implicitCount;
-  const valid=Number.isFinite(amount)&&amount>0&&(unit||countable.test(ingredient)||countable.test(canonical));
+  const valid=Number.isFinite(amount)&&amount>0&&(unit||countable.test(ingredient)||countable.test(canonical)||/^(?:green|red|yellow|orange) bell pepper$/i.test(canonical));
   const conversion=conversions[unit]||[unit,1];
   const normalizedIngredient=canonical.replace(/\s+/g,' ');
-  const bareKey=bareProduce?'|'+label.trim().toLowerCase().replace(/\b(tomatoes|potatoes)\b/g,m=>m==='tomatoes'?'tomato':'potato').replace(/s$/,''):null;
-  const key=valid?conversion[0]+'|'+normalizedIngredient:bareKey;
+  const bareKey=bareProduce?'count|'+canonicalProduce(label):null;
+  const key=valid?(unit?'measure|'+conversion[0]+'|':'count|')+normalizedIngredient:bareKey;
   if(key&&seen.has(key)){
    const row=seen.get(key);
    if(valid)row.amount+=amount*conversion[1];
