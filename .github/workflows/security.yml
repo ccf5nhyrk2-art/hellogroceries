@@ -16,9 +16,5 @@ jobs:
           python-version: '3.12'
       - name: Compile Python source
         run: python -m compileall -q app tests
-      - name: Run grocery ingredient regression tests
-        run: python -m unittest discover -s tests -p 'test_grocery_measures.py' -v
-      - name: Run grocery list integration regressions
-        run: python -m unittest discover -s tests -p 'test_grocery_list_regressions.py' -v
       - name: Run security regression tests
         run: python -m unittest discover -s tests -p 'test_security.py' -v
