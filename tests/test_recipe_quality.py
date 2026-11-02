@@ -67,6 +67,10 @@ class RecipeQualityTests(unittest.TestCase):
         self.assertEqual(counts["unit_labeled"], 3)
         self.assertEqual(counts["needs_source"], 1)
 
+    def test_plural_source_match(self):
+        recipe = {"ingredients": {"ounce Carrots": 1}, "ingredient_text": ["6 ounces Carrot"]}
+        self.assertEqual(verified_grocery_recovery(recipe, "ounce Carrots", 1)["amount"], 6)
+
     def test_invalid_factor(self):
         self.assertEqual(inspect_ingredient("Garlic", -1)["status"], "invalid")
 
