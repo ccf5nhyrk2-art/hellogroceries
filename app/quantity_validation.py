@@ -142,7 +142,26 @@ def evaluate(recipes, limit=1500, minimum_examples=5):
                     def relative_mad(values):
                         center = median(values)
                         return median(abs(value - center) for value in values) / center if center > 0 else float("inf")
-                    if relative_mad(contextual_samples) > relative_mad(baseline):
+                    # Compare the contextual and fallback predictions on the
+                    # *same* contextual training examples, leaving each example
+                    # out before scoring. This avoids choosing context solely
+                    # because its distribution happens to be narrow.
+                    if len(contextual_samples) >= 8:
+                        context_errors = []
+                        baseline_errors = []
+                        for value in contextual_samples:
+                            context_rest = list(contextual_samples)
+                            context_rest.remove(value)
+                            baseline_rest = list(baseline)
+                            baseline_rest.remove(value)
+                            if not context_rest or not baseline_rest:
+                                continue
+                            context_errors.append(abs(median(context_rest) - value) / value)
+                            baseline_errors.append(abs(median(baseline_rest) - value) / value)
+                        if context_errors and median(context_errors) >= median(baseline_errors):
+                            samples = baseline
+                            use_context = False
+                    elif relative_mad(contextual_samples) > relative_mad(baseline):
                         samples = baseline
                         use_context = False
             predicted_unit = median(samples)
