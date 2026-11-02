@@ -340,14 +340,19 @@ def inspect_alternative_recipe_fields(limit=3):
      self.found=0
      self.tags=0
      self.types=[]
+     self.script_inventory={}
+     self.next_tag_has_src=False
     def handle_starttag(self,tag,attrs):
      if tag.lower()!='script':return
      self.tags+=1
      attrs=dict(attrs)
+     script_type=(attrs.get('type') or 'unspecified').lower()[:60]
+     self.script_inventory[script_type]=self.script_inventory.get(script_type,0)+1
      if (attrs.get('id') or '').lower()=='__next_data__':
       self.found+=1
       self.inside=True
       self.types.append((attrs.get('type') or '')[:60])
+      self.next_tag_has_src=bool(attrs.get('src'))
     def handle_endtag(self,tag):
      if tag.lower()=='script':self.inside=False
     def handle_data(self,data):
@@ -363,9 +368,23 @@ def inspect_alternative_recipe_fields(limit=3):
    info['script_tags']=parser.tags
    info['matching_scripts']=parser.found
    info['script_types']=parser.types
+   info['script_inventory']=parser.script_inventory
+   info['script_external_src']=parser.next_tag_has_src
+   info['response_truncated']=len(page)>=1500000
+   info['page_length']=len(page)
+   info['next_marker_count']=page.lower().count('__next_data__')
+   info['next_closing_tag_count']=page.lower().count('</script')
+   info['alternative_payload_markers']={
+    'next_flight':bool(re.search(r'self\\.__next_f\\.push',page,re.I)),
+    'json_ld':bool(re.search(r'application/ld\\+json',page,re.I)),
+    'apollo_state':bool(re.search(r'__APOLLO_STATE__',page,re.I)),
+    'nuxt_state':bool(re.search(r'__NUXT__',page,re.I)),
+   }
    raw=''.join(parser.parts)
    info['content_length']=len(raw)
    info['status']='script_not_found' if not parser.found else ('empty_script' if not raw.strip() else 'content_extracted')
+   if parser.found and not raw.strip():
+    info['status']='empty_external_script' if parser.next_tag_has_src else ('possibly_truncated_response' if info['response_truncated'] else 'empty_inline_script')
    match=raw if raw.strip() else None
    if match:
     try:
