@@ -1630,7 +1630,14 @@ def grocery_display_name(name):
  """Normalize common source typos without dropping meaningful qualifiers."""
  if not isinstance(name,str):return name
  name=re.sub(r'\\bshitake\\b','Shiitake',name,flags=re.I)
- return re.sub(r'\\s+',' ',name).strip()
+ name=re.sub(r'\\s+',' ',name).strip()
+ # Safe singular/plural aliases for individual produce items only.
+ # Do not strip qualifiers or convert unspecified package units to measurements.
+ name=re.sub(r'\\b(bell peppers|onions|tomatoes|limes|lemons|carrots|mushrooms)\\b',
+             lambda m:{'bell peppers':'Bell Pepper','onions':'Onion','tomatoes':'Tomato',
+                       'limes':'Lime','lemons':'Lemon','carrots':'Carrot',
+                       'mushrooms':'Mushroom'}[m.group(0).lower()],name,flags=re.I)
+ return name
 
 
 def rebuild_grocery_list(state):
