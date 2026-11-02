@@ -1626,9 +1626,25 @@ def parse_grocery_measure(label):
  return {'amount':amount,'unit':unit,'ingredient':name.strip()}
 
 
+def grocery_display_name(name):
+ """Normalize common source typos without dropping meaningful qualifiers."""
+ if not isinstance(name,str):return name
+ name=re.sub(r'\\bshitake\\b','Shiitake',name,flags=re.I)
+ return re.sub(r'\\s+',' ',name).strip()
+
+
 def rebuild_grocery_list(state):
  totals={}
  sources={}
+ canonical_labels={}
+ def add_ingredient(label,amount,source):
+  label=grocery_display_name(label)
+  # Case-only and spelling differences are duplicates, but unit and
+  # qualifiers remain part of the key (e.g. herb butter != butter).
+  key=label.casefold()
+  label=canonical_labels.setdefault(key,label)
+  totals[label]=totals.get(label,0)+amount
+  sources.setdefault(label,[]).append(source)
  for recipe in allrecipes():
   servings=state['selected'].get(str(recipe['id']))
   if servings is None:continue
@@ -1668,8 +1684,7 @@ def rebuild_grocery_list(state):
     label=label_name
     amount=quantity*float(scale)
    if not (0<amount<100000):continue
-   totals[label]=totals.get(label,0)+amount
-   sources.setdefault(label,[]).append({'recipe_id':recipe['id'],'recipe':recipe['name'],'original_name':name,'corrected':bool(correction),'source_quantity':qty,'multiplier':scale,'servings':servings,'source_servings':baseline,'contribution':round(amount,3)})
+   add_ingredient(label,amount,{'recipe_id':recipe['id'],'recipe':recipe['name'],'original_name':name,'corrected':bool(correction),'source_quantity':qty,'multiplier':scale,'servings':servings,'source_servings':baseline,'contribution':round(amount,3)})
  # Do not silently discard recipe ingredients with missing or malformed amounts.
  # Keep them as unverified single entries until a correction supplies a quantity.
  for recipe in allrecipes():
@@ -1682,13 +1697,11 @@ def rebuild_grocery_list(state):
    except (ValueError,TypeError,OverflowError):valid=False
    if valid:continue
    label=name.strip()
-   totals[label]=totals.get(label,0)+1
-   sources.setdefault(label,[]).append({'recipe_id':recipe['id'],'recipe':recipe['name'],'original_name':name,'source_quantity':qty,'quantity_unverified':True,'contribution':1})
+   add_ingredient(label,1,{'recipe_id':recipe['id'],'recipe':recipe['name'],'original_name':name,'source_quantity':qty,'quantity_unverified':True,'contribution':1})
  for item in state.get('manual',[]):
   if isinstance(item,str) and item.strip():
    name=item.strip()
-   totals[name]=totals.get(name,0)+1
-   sources.setdefault(name,[]).append({'recipe':'Manually added','contribution':1})
+   add_ingredient(name,1,{'recipe':'Manually added','contribution':1})
  def pantry_match_name(value):
   value=str(value).strip().casefold()
   value=re.sub(r'^(?:\d+(?:[.,]\d+)?|\d+/\d+|[¼½¾⅓⅔])\s+', '', value)
