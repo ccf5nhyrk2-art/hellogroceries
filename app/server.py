@@ -255,16 +255,26 @@ def _selected_recipe_payload(payload,selected_ids):
 
 
 def recipe_source_enrichment_status():
+ """Read-only coverage of cached source lookups, not a recovery success claim."""
  with db() as c:
   c.execute('CREATE TABLE IF NOT EXISTS hg_recipe_source_cache (recipe_id TEXT PRIMARY KEY,url TEXT NOT NULL,lines_json TEXT NOT NULL,checked_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)')
   rows=c.execute('SELECT recipe_id,lines_json,checked_at FROM hg_recipe_source_cache ORDER BY checked_at DESC').fetchall()
- verified=0
- for _,raw,_ in rows:
-  try:
-   if isinstance(json.loads(raw),list) and json.loads(raw):verified+=1
-  except (ValueError,TypeError):pass
- return {'checked':len(rows),'with_source_lines':verified,'without_source_lines':len(rows)-verified,
-         'recent':[{'recipe_id':rid,'lines_found':bool(json.loads(raw)) if raw else False,'checked_at':at} for rid,raw,at in rows[:20]]}
+ with_lines=with_measurements=names_only=0
+ recent=[]
+ for rid,raw,at in rows:
+  try:lines=json.loads(raw)
+  except (ValueError,TypeError):lines=[]
+  if not isinstance(lines,list):lines=[]
+  lines=[line for line in lines if isinstance(line,str) and line.strip()]
+  measured=sum(1 for line in lines if recipe_quality.parse_source_line(line))
+  if lines:
+   with_lines+=1
+   if measured:with_measurements+=1
+   else:names_only+=1
+  if len(recent)<20:
+   recent.append({'recipe_id':rid,'lines_found':bool(lines),'measured_lines':measured,'checked_at':at})
+ return {'checked':len(rows),'with_source_lines':with_lines,'without_source_lines':len(rows)-with_lines,
+         'with_measured_lines':with_measurements,'names_only':names_only,'recent':recent}
 
 
 def recipe_source_enrichment_worker():
