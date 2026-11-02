@@ -18,6 +18,17 @@ class RecipeQualityTests(unittest.TestCase):
         for name in ("Garlic", "Salmon", "Grape Tomato", "Jalapeño Peppers"):
             self.assertEqual(inspect_ingredient(name, 2)["status"], "needs_source")
 
+    def test_recovers_only_exact_unique_stored_source(self):
+        recipe = {"id": 3, "ingredients": {"Salmon": 1},
+                  "ingredient_text": ["2 ounces Salmon", "1 cup Rice"]}
+        data = audit_catalog([recipe])
+        self.assertEqual(data["counts"]["source_recovered"], 1)
+        self.assertEqual(data["counts"]["needs_source"], 0)
+        recipe["ingredient_text"].append("4 ounces Salmon")
+        data = audit_catalog([recipe])
+        self.assertEqual(data["counts"]["source_recovered"], 0)
+        self.assertEqual(data["counts"]["needs_source"], 1)
+
     def test_invalid_factor(self):
         self.assertEqual(inspect_ingredient("Garlic", -1)["status"], "invalid")
 
