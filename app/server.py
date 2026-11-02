@@ -310,9 +310,7 @@ def recipe_source_sample_diagnostic(limit=20):
 
 
 def inspect_alternative_recipe_fields(limit=3):
- """On-demand, read-only probe of publicly exposed ingredient object keys.
- Does not import or treat any alternative fields as verified quantities.
- """
+ """Read-only, bounded inspection of Next.js page ingredient metadata."""
  with db() as c:
   rows=c.execute('SELECT payload FROM imported ORDER BY id DESC LIMIT 100').fetchall()
  samples=[]
@@ -325,38 +323,21 @@ def inspect_alternative_recipe_fields(limit=3):
   samples.append(recipe)
  output=[]
  for recipe in samples:
-  result={'recipe_id':str(recipe.get('id')),'alternative_ingredient_objects':0,'quantity_fields':0,'field_names':[], 'page_signals':{}}
+  result={'recipe_id':str(recipe.get('id')),'alternative_ingredient_objects':0,'quantity_fields':0,'field_names':[],'page_signals':{},'next_data_inspection':{'parsed':False,'ingredient_key_paths':[],'quantity_key_paths':[],'candidate_objects':0}}
   try:
-   url=recipe['url']
-   req=urllib.request.Request(url,headers={'User-Agent':'Mozilla/5.0 (compatible; PersonalRecipeImporter/1.0)'})
+   req=urllib.request.Request(recipe['url'],headers={'User-Agent':'Mozilla/5.0 (compatible; PersonalRecipeImporter/1.0)'})
    with urllib.request.urlopen(req,timeout=12) as resp:
     if not allowed_url(resp.geturl()):raise ValueError('Unexpected redirect')
     page=resp.read(1500000).decode('utf-8','replace')
-   # Count additional publicly visible data formats without executing scripts,
-   # exposing raw page data, or treating possible values as measurements.
    result['page_signals']={
     'next_data':bool(re.search(r'<script[^>]+id=["\\x27]__NEXT_DATA__["\\x27]',page,re.I)),
     'microdata_ingredient':bool(re.search(r'itemprop=["\\x27]recipeIngredient["\\x27]',page,re.I)),
     'data_attributes_ingredient':bool(re.search(r'data-[\\w-]*ingredient[\\w-]*=',page,re.I)),
-    'hydration_markers':bool(re.search(r'__NUXT__|__APOLLO_STATE__|__INITIAL_STATE__|self\\.__next_f',page,re.I)),
-   }
-   # Inspect JSON script objects only. Do not execute page scripts or infer amounts.
-   scripts=re.findall(r'<script\\b[^>]*type=["\\x27]application/(?:ld\\+)?json["\\x27][^>]*>(.*?)</script>',page,re.I|re.S)
-   def walk(obj,depth=0):
-    if depth>12:return
-    if isinstance(obj,list):
-     for child in obj[:1000]:yield from walk(child,depth+1)
-    elif isinstance(obj,dict):
-     keys={str(k).lower() for k in obj}
-     if ('ingredient' in keys or 'ingredientname' in keys or 'ingredientid' in keys) and keys.intersection({'amount','quantity','unit','measure','value'}):
-      yield obj
-     for child in list(obj.values())[:100]:yield from walk(child,depth+1)
-   # Next.js page payload is separate from application/json scripts.
-   next_match=re.search(r'<script\\b[^>]*id=["\\x27]__NEXT_DATA__["\\x27][^>]*>(.*?)</script>',page,re.I|re.S)
-   result['next_data_inspection']={'parsed':False,'ingredient_key_paths':[],'quantity_key_paths':[],'candidate_objects':0}
-   if next_match:
+    'hydration_markers':bool(re.search(r'__NUXT__|__APOLLO_STATE__|__INITIAL_STATE__|self\\.__next_f',page,re.I))}
+   match=re.search(r'<script\\b[^>]*id=["\\x27]__NEXT_DATA__["\\x27][^>]*>(.*?)</script>',page,re.I|re.S)
+   if match:
     try:
-     next_obj=json.loads(html.unescape(next_match.group(1)))
+     data=json.loads(html.unescape(match.group(1)))
      info=result['next_data_inspection']
      info['parsed']=True
      ingredient_paths=set()
@@ -367,21 +348,18 @@ def inspect_alternative_recipe_fields(limit=3):
        for child in obj[:150]:inspect_tree(child,path+'[]',depth+1)
       elif isinstance(obj,dict):
        keys={str(k).lower() for k in obj}
-       if any('ingredient' in k for k in keys):
-        if len(ingredient_paths)<20:ingredient_paths.add(path or '
-    try:data=json.loads(html.unescape(script))
-    except (TypeError,ValueError):continue
-    for obj in walk(data):
-     result['alternative_ingredient_objects']+=1
-     found.update(str(k)[:50] for k in obj)
-     if any(k.lower() in ('amount','quantity','value') and obj[k] is not None for k in obj):
-      result['quantity_fields']+=1
-   result['field_names']=sorted(found)[:25]
-  except (ValueError,OSError,TimeoutError) as exc:
-   result['error']=type(exc).__name__
+       if any('ingredient' in k for k in keys) and len(ingredient_paths)<20:ingredient_paths.add(path or '$')
+       if keys.intersection({'quantity','amount','unit','unitofmeasure','measure','servings','yield'}) and len(quantity_paths)<20:quantity_paths.add(path or '$')
+       if any('ingredient' in k for k in keys) and keys.intersection({'quantity','amount','unit','unitofmeasure','measure','value'}):info['candidate_objects']+=1
+       for key,value in list(obj.items())[:120]:inspect_tree(value,(path+'.'+str(key))[:160],depth+1)
+     inspect_tree(data)
+     info['ingredient_key_paths']=sorted(ingredient_paths)
+     info['quantity_key_paths']=sorted(quantity_paths)
+    except (ValueError,TypeError,RecursionError):result['next_data_inspection']['error']='Unable to parse page data'
+  except (ValueError,OSError,TimeoutError) as exc:result['error']=type(exc).__name__
   output.append(result)
   time.sleep(2)
- return {'sample_size':len(output),'results':output,'note':'JSON script object inspection only; quantities are not validated or applied'}
+ return {'sample_size':len(output),'results':output,'note':'Next.js field inspection only; no quantities validated or applied'}
 
 
 def recipe_source_enrichment_worker():
