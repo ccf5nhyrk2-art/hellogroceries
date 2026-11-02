@@ -1742,6 +1742,9 @@ def rebuild_grocery_list(state):
  canonical_labels={}
  def add_ingredient(label,amount,source):
   label=grocery_display_name(label)
+  # Water is a household utility, not a grocery purchase.
+  water_name=re.sub(r'^\\s*(?:(?:\\d+(?:\\.\\d+)?|\\d+/\\d+)\\s+)?(?:teaspoons?|tablespoons?|cups?|ounces?|pounds?|milliliters?|liters?|ml|l)\\s+', '', label, flags=re.I).strip().casefold()
+  if water_name in ('water','tap water','drinking water'):return
   # Case-only and spelling differences are duplicates, but unit and
   # qualifiers remain part of the key (e.g. herb butter != butter).
   key=label.casefold()
