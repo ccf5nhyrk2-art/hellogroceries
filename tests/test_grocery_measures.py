@@ -32,6 +32,18 @@ class GroceryMeasureTests(unittest.TestCase):
     def test_no_quantity_is_unverified(self):
         self.assertIsNone(parse("Chili Pepper"))
 
+    def test_unqualified_pepper_normalizes_but_varieties_remain_distinct(self):
+        display_fn = next(node for node in TREE.body if isinstance(node, ast.FunctionDef) and node.name == "grocery_display_name")
+        local = {"re": __import__("re")}
+        exec(compile(ast.Module(body=[display_fn], type_ignores=[]), str(SOURCE), "exec"), local)
+        normalize = local["grocery_display_name"]
+        self.assertEqual(normalize("Pepper"), "Black Pepper")
+        self.assertEqual(normalize("teaspoon Pepper"), "teaspoon Black Pepper")
+        self.assertEqual(normalize("Black Pepper"), "Black Pepper")
+        self.assertEqual(normalize("Crushed Red Pepper Flakes"), "Crushed Red Pepper Flakes")
+        self.assertEqual(normalize("Green Bell Pepper"), "Green Bell Pepper")
+        self.assertEqual(normalize("box Pepper"), "box Pepper")
+
     def test_invalid_input(self):
         self.assertIsNone(parse(None))
         self.assertIsNone(parse("not a measurement"))
