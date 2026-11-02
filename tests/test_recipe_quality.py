@@ -71,6 +71,21 @@ class RecipeQualityTests(unittest.TestCase):
         recipe = {"ingredients": {"ounce Carrots": 1}, "ingredient_text": ["6 ounces Carrot"]}
         self.assertEqual(verified_grocery_recovery(recipe, "ounce Carrots", 1)["amount"], 6)
 
+    def test_source_abbreviations_and_mixed_fraction(self):
+        recipe = {"ingredients": {"Salt": 1}, "ingredient_text": ["1 1/2 tsp. Salt"]}
+        result = verified_grocery_recovery(recipe, "Salt", 1)
+        self.assertIsNotNone(result)
+        self.assertEqual(result["amount"], 1.5)
+        self.assertEqual(result["unit"], "teaspoon")
+
+    def test_to_taste_and_ranges_are_not_guessed(self):
+        from recipe_quality import source_match_diagnostic
+        for line in ("Salt, to taste", "1-2 tsp Salt", "2 (14 oz) cans Tomatoes"):
+            recipe = {"ingredient_text": [line]}
+            name = "Tomatoes" if "Tomatoes" in line else "Salt"
+            self.assertIsNone(verified_grocery_recovery(recipe, name, 1))
+        self.assertEqual(source_match_diagnostic({"ingredient_text": ["Salt, to taste"]}, "Salt")["status"], "to_taste_no_amount")
+
     def test_invalid_factor(self):
         self.assertEqual(inspect_ingredient("Garlic", -1)["status"], "invalid")
 
