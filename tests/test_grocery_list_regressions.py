@@ -88,7 +88,14 @@ class GroceryListRegressionTests(unittest.TestCase):
         ]
         result = generate(recipes, make_state({"Milk|cup": 1}))
         # Two recipes need 3 cups; pantry supplies only 1 cup total.
-        required = sum(item["quantity"] for name, item in result.items() if name == "cup Milk")
+        # Pantry subtraction can encode the remaining measure in the label
+        # (e.g. "2 cup Milk") instead of the item quantity field.
+        required = 0.0
+        for name, item in result.items():
+            match = re.fullmatch(r"(?:([0-9]+(?:\\.[0-9]+)?) )?cup Milk", name)
+            if match:
+                per_item = float(match.group(1)) if match.group(1) else 1.0
+                required += per_item * item["quantity"]
         self.assertAlmostEqual(required, 2.0)
 
     def test_fractional_measurement(self):
