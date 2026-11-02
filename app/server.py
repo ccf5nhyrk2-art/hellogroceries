@@ -889,20 +889,41 @@ def recipe_from_url(url):
  with urllib.request.urlopen(req,timeout=12) as resp:
   if not allowed_url(resp.geturl()):raise ValueError('Unexpected redirect')
   raw=resp.read(1500000).decode('utf-8','replace')
- blocks=re.findall(r'<script[^>]+type=[\"\']application/ld\+json[\"\'][^>]*>(.*?)</script>',raw,re.I|re.S)
+ from html.parser import HTMLParser
+ class RecipeScriptParser(HTMLParser):
+  def __init__(self):
+   super().__init__(convert_charrefs=True)
+   self.blocks=[]
+   self.active=False
+   self.parts=[]
+  def handle_starttag(self,tag,attrs):
+   if tag.lower()=='script':
+    self.active=(dict(attrs).get('type') or '').strip().lower()=='application/ld+json'
+    self.parts=[]
+  def handle_data(self,data):
+   if self.active and sum(map(len,self.parts))<1500000:self.parts.append(data)
+  def handle_endtag(self,tag):
+   if tag.lower()=='script':
+    if self.active:self.blocks.append(''.join(self.parts))
+    self.active=False
+    self.parts=[]
+ parser=RecipeScriptParser()
+ parser.feed(raw)
  def nodes(o):
   if isinstance(o,list):
-   for v in o:yield from nodes(v)
+   for v in o[:200]:yield from nodes(v)
   elif isinstance(o,dict):
    if '@graph' in o:yield from nodes(o['@graph'])
    yield o
  found=None
- for block in blocks:
+ for block in parser.blocks[:30]:
   try:
-   for node in nodes(json.loads(html.unescape(block))):
+   for node in nodes(json.loads(block)):
     types=node.get('@type',[]);types=[types] if isinstance(types,str) else types
-    if 'Recipe' in types:found=node;break
-  except (ValueError,TypeError):pass
+    if any(str(t).rsplit('/',1)[-1].lower()=='recipe' for t in types):
+     found=node
+     break
+  except (ValueError,TypeError,RecursionError):pass
   if found:break
  if not found:raise ValueError('This page has no accessible structured recipe data. Try a different public recipe URL.')
  name=str(found.get('name','')).strip()
