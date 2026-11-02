@@ -34,15 +34,15 @@ def canonical_source_name(name):
 
 # Only accept a single, explicit quantity. Ranges and package-size expressions
 # are deliberately excluded until their semantics can be verified.
-TO_TASTE = re.compile(r"\\b(?:to taste|as needed|for serving|optional)\\b", re.I)
-RANGE = re.compile(r"^\\s*(?:\\d+(?:\\.\\d+)?\\s*(?:-|–|—|to)\\s*\\d+|\\d+\\s*\\([^)]*\\))", re.I)
-SOURCE_MEASURE = re.compile(r"^\\s*("+NUMBER+r")\\s*("+UNITS+r")\\.?\\s*(?:of\\s+)?(.+?)\\s*$", re.I)
+TO_TASTE = re.compile(r"\b(?:to taste|as needed|for serving|optional)\b", re.I)
+RANGE = re.compile(r"^\s*(?:\d+(?:\.\d+)?\s*(?:-|–|—|to)\s*\d+|\d+\s*\([^)]*\))", re.I)
+SOURCE_MEASURE = re.compile(r"^\s*("+NUMBER+r")\s*("+UNITS+r")\.?\s*(?:of\s+)?(.+?)\s*$", re.I)
 
 def parse_source_line(line):
     if not isinstance(line, str) or TO_TASTE.search(line) or RANGE.match(line):
         return None
     normalized = line.strip().replace("⁄", "/")
-    normalized = re.sub(r"^(\\d+(?:/\\d+)?)\\s*(?:\\(\\s*(?:\\d+\\s*)?(?:oz|ounces?|g|grams?|ml|milliliters?)\\s*\\)\\s*)+(?:cans?|packages?|bags?)\\b", r"\\1 package", normalized, flags=re.I)
+    normalized = re.sub(r"^(\d+(?:/\d+)?)\s*(?:\(\s*(?:\d+\s*)?(?:oz|ounces?|g|grams?|ml|milliliters?)\s*\)\s*)+(?:cans?|packages?|bags?)\b", r"\1 package", normalized, flags=re.I)
     matched = SOURCE_MEASURE.match(normalized)
     if not matched:
         return None
