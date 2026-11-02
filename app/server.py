@@ -277,6 +277,37 @@ def recipe_source_enrichment_status():
          'with_measured_lines':with_measurements,'names_only':names_only,'recent':recent}
 
 
+
+def recipe_source_sample_diagnostic(limit=20):
+ """Bounded, read-only comparison of cached original lines and unresolved items.
+ This does not claim to inspect other page fields or fetch external pages.
+ """
+ with db() as c:
+  c.execute('CREATE TABLE IF NOT EXISTS hg_recipe_source_cache (recipe_id TEXT PRIMARY KEY,url TEXT NOT NULL,lines_json TEXT NOT NULL,checked_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)')
+  rows=c.execute('SELECT recipe_id,lines_json FROM hg_recipe_source_cache ORDER BY checked_at DESC LIMIT ?', (limit,)).fetchall()
+  payloads={str(json.loads(payload).get('id')):json.loads(payload) for (payload,) in c.execute('SELECT payload FROM imported') if payload}
+ result={'recipes_checked':0,'unresolved_entries':0,'matched_measured':0,'matched_without_quantity':0,'unmatched':0,'examples':[]}
+ for rid,raw in rows:
+  recipe=payloads.get(str(rid))
+  if not isinstance(recipe,dict):continue
+  try:lines=json.loads(raw)
+  except (ValueError,TypeError):lines=[]
+  if not isinstance(lines,list):lines=[]
+  candidate=dict(recipe,ingredient_text=lines)
+  result['recipes_checked']+=1
+  for ingredient,factor in (recipe.get('ingredients') or {}).items():
+   if recipe_quality.inspect_ingredient(ingredient,factor)['status'] not in ('needs_source','unit_labeled'):continue
+   result['unresolved_entries']+=1
+   status=recipe_quality.source_match_diagnostic(candidate,ingredient)['status']
+   if status=='matched':result['matched_measured']+=1
+   elif status in ('unit_without_quantity','source_without_verified_quantity','to_taste_no_amount'):
+    result['matched_without_quantity']+=1
+   else:result['unmatched']+=1
+   if len(result['examples'])<8:
+    result['examples'].append({'recipe_id':rid,'ingredient':ingredient[:90],'diagnosis':status})
+ return result
+
+
 def recipe_source_enrichment_worker():
  """Automatically recover original ingredient lines in small, rate-limited batches.
  Never overwrite source recipes or invent missing measurements.
@@ -2073,6 +2104,10 @@ class Handler(SimpleHTTPRequestHandler):
   if self.path=='/api/pricing-visibility':
    if not self.gate():return
    return self.sendjson({'visibility':pricing_visibility(),'is_admin':bool(getattr(request_scope,'admin',False))})
+  if self.path=='/api/admin/recipe-source-sample':
+   if not self.gate():return
+   if not getattr(request_scope,'admin',False):return self.sendjson({'error':'Administrator required'},403)
+   return self.sendjson(recipe_source_sample_diagnostic())
   if self.path=='/api/admin/recipe-source-status':
    if not self.gate():return
    if not getattr(request_scope,'admin',False):return self.sendjson({'error':'Administrator required'},403)
