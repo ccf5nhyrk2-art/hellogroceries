@@ -101,6 +101,8 @@ def audit_recipe(recipe):
 def audit_catalog(recipes, limit=200):
     counts = {"recipes": 0, "ingredients": 0, "verified": 0, "verified_count": 0, "source_recovered": 0, "unit_labeled": 0, "needs_source": 0, "invalid": 0}
     issues = []
+    preview = []
+    eligible = 0
     match_counts = {"matched": 0, "source_missing_quantity": 0, "ingredient_not_found": 0,
                     "no_source_lines": 0, "ambiguous_or_unsupported": 0}
     for recipe in recipes:
@@ -110,6 +112,16 @@ def audit_catalog(recipes, limit=200):
             counts[item["status"]] += 1
             if item["status"] not in ("needs_source", "unit_labeled", "invalid"):
                 continue
+            factor = recipe.get("ingredients", {}).get(item["ingredient"])
+            candidate = verified_grocery_recovery(recipe, item["ingredient"], factor)
+            if candidate is not None:
+                eligible += 1
+                if len(preview) < 30:
+                    preview.append({"recipe_id": str(recipe.get("id", "")),
+                                    "ingredient": item["ingredient"],
+                                    "verified_source": candidate.get("source", ""),
+                                    "amount": candidate.get("amount"),
+                                    "unit": candidate.get("unit")})
             diagnosis = source_match_diagnostic(recipe, item["ingredient"])
             if len(issues) < limit:
                 issues.append({**item, "source_diagnostic": diagnosis})
@@ -130,6 +142,7 @@ def audit_catalog(recipes, limit=200):
         diagnostic_counts[status] = diagnostic_counts.get(status, 0) + 1
     return {"counts": counts, "issues": issues, "diagnostic_counts": diagnostic_counts,
             "diagnostic_sample_size": len(issues), "unresolved_match_counts": match_counts,
+            "recovery_preview": preview, "recovery_eligible": eligible,
             "complete": True, "estimates_applied": 0}
 
 def source_match_diagnostic(recipe, ingredient):
