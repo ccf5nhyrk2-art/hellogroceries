@@ -788,6 +788,18 @@ async function scanRecipeQuality(){
   const matchInfo=document.createElement('p');
   matchInfo.textContent='Prediction matching: '+Number(benchmark.context_matching?.contextual||0)+' contextual · '+Number(benchmark.context_matching?.fallback||0)+' ingredient/unit fallback. All estimates remain read-only.';
   issues.appendChild(matchInfo);
+  const methodDetails=document.createElement('details');
+  const methodHeading=document.createElement('summary');
+  methodHeading.textContent='Accuracy by prediction method';
+  methodDetails.appendChild(methodHeading);
+  const methodList=document.createElement('ul');
+  for(const [method,stats] of Object.entries(benchmark.method_accuracy||{})){
+   const li=document.createElement('li');
+   li.textContent=(method==='contextual'?'Recipe-context match':'Ingredient/unit fallback')+' — '+stats.covered+' predictions · within 10%: '+pct(stats.within_10_percent)+' · within 25%: '+pct(stats.within_25_percent)+' · high-consensus: '+stats.high_consensus+' tested, '+pct(stats.high_consensus_within_25_percent)+' within 25%';
+   methodList.appendChild(li);
+  }
+  methodDetails.appendChild(methodList);
+  issues.appendChild(methodDetails);
   const categoryDetails=document.createElement('details');
   const categoryHeading=document.createElement('summary');
   categoryHeading.textContent='Accuracy by ingredient category';
