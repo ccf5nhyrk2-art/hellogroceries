@@ -652,29 +652,7 @@ document.getElementById('ai-limits-save').onclick=async()=>{
   if(!Number.isFinite(budget)||budget<0||!Number.isInteger(scans)||scans<0)throw Error('Enter valid nonnegative limits.');
   const response=await fetch('/api/admin/ai-settings',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json','X-HG-CSRF':csrf()},body:JSON.stringify({monthly_budget_usd:budget,user_monthly_scans:scans})});
   const data=await response.json();if(!response.ok)throw Error(data.error||'Unable to save');
-  status.textContent='AI limits saved.';await const alternativeProbe=document.getElementById('recipe-alternative-probe');
-alternativeProbe.addEventListener('click',async()=>{
- const target=document.getElementById('recipe-alternative-results');
- alternativeProbe.disabled=true;target.textContent='Inspecting up to 3 original pages…';
- try{
-  const response=await fetch('/api/admin/recipe-alternative-source-probe',{credentials:'same-origin'});
-  const data=await response.json();
-  if(!response.ok)throw Error(data.error||'Inspection failed');
-  target.replaceChildren();
-  const summary=document.createElement('p');
-  summary.textContent='Inspected '+data.sample_size+' pages. This checks JSON script fields only; no measurements were changed.';
-  target.appendChild(summary);
-  const list=document.createElement('ul');
-  for(const item of data.results||[]){
-   const li=document.createElement('li');
-   li.textContent='Recipe '+item.recipe_id+': '+item.alternative_ingredient_objects+' alternative ingredient objects · '+item.quantity_fields+' with quantity-like fields · keys: '+(item.field_names||[]).join(', ')+(item.error?' · '+item.error:'');
-   list.appendChild(li);
-  }
-  target.appendChild(list);
- }catch(error){target.textContent='Source inspection unavailable: '+error.message}
- finally{alternativeProbe.disabled=false}
-});
-refreshAiUsage();
+  status.textContent='AI limits saved.';await refreshAiUsage();
  }catch(e){status.textContent='Unable to save: '+e.message}
 };
 document.getElementById('ai-usage-refresh').onclick=refreshAiUsage;
@@ -788,6 +766,28 @@ async function scanRecipeQuality(){
 }
 document.getElementById('recipe-quality-refresh').addEventListener('click',scanRecipeQuality);
 scanRecipeQuality();
+const alternativeProbe=document.getElementById('recipe-alternative-probe');
+alternativeProbe.addEventListener('click',async()=>{
+ const target=document.getElementById('recipe-alternative-results');
+ alternativeProbe.disabled=true;target.textContent='Inspecting up to 3 original pages…';
+ try{
+  const response=await fetch('/api/admin/recipe-alternative-source-probe',{credentials:'same-origin'});
+  const data=await response.json();
+  if(!response.ok)throw Error(data.error||'Inspection failed');
+  target.replaceChildren();
+  const summary=document.createElement('p');
+  summary.textContent='Inspected '+data.sample_size+' pages. This checks JSON script fields only; no measurements were changed.';
+  target.appendChild(summary);
+  const list=document.createElement('ul');
+  for(const item of data.results||[]){
+   const li=document.createElement('li');
+   li.textContent='Recipe '+item.recipe_id+': '+item.alternative_ingredient_objects+' alternative ingredient objects · '+item.quantity_fields+' with quantity-like fields · keys: '+(item.field_names||[]).join(', ')+(item.error?' · '+item.error:'');
+   list.appendChild(li);
+  }
+  target.appendChild(list);
+ }catch(error){target.textContent='Source inspection unavailable: '+error.message}
+ finally{alternativeProbe.disabled=false}
+});
 refreshAiUsage();
 refreshAnalytics();
 })();
