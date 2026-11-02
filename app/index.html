@@ -1542,6 +1542,8 @@ function setAllShoppingDepartments(open){
 // Prefer precise pantry matches before broad produce words; tolerate plural ingredient names.
 function shoppingDepartment(name){
  const value=String(name||'').toLowerCase();
+ // Ground pepper and spice varieties belong in the pantry, not produce.
+ if(/^(?:\\d+(?:\\.\\d+)?\\s+)?(?:(?:box|unit|pick|teaspoons?|tablespoons?|ounces?|grams?)\\s+)?(?:(?:black|white|ground|crushed red|cayenne)\\s+)?(?:pepper|peppercorns?|pepper flakes|salt)\\s*$/i.test(value))return 'Pantry & Seasonings';
  // Categorize recognizable ingredients without changing their recipe quantities.
  if(/\b(?:cashew pieces?|cashews?|ancho chil(?:e|i) powder|chili powder|chile powder)\b/i.test(value))return 'Pantry & Seasonings';
  if(/\b(?:pineapple|fresh pineapple|pineapple chunks?|yellow sweet corn|sweet corn|corn on the cob)\b/i.test(value)&&!/\b(?:canned|tinned|frozen|dried|powder|syrup|juice)\b/i.test(value))return 'Produce';
@@ -1716,7 +1718,7 @@ function consolidatedShoppingRows(items){
   else if(unit==='gram'&&amount>=1000){amount/=1000;unit='kilogram'}
   else if(unit==='milliliter'&&amount>=1000){amount/=1000;unit='liter'}
   row.label=groceryNumber(amount)+(unit?' '+ingredientPluralUnit(unit,amount):'')+' '+row.ingredient;
-  row.note=row.missingCount?'At least one recipe has no verified quantity · check recipe source':'';
+  row.note=row.missingCount?'Additional recipe amount not verified · see sources':'';
  }
  return rows;
 }
@@ -2215,6 +2217,8 @@ function renderShoppingList(){
  let pricedCount=0,priceTotal=0,itemCount=0;
  const groups=new Map();
  for(const item of state.list||[]){
+  // Hide legacy plain tap-water entries already stored in existing lists.
+  if(/^(?:(?:\\d+(?:\\.\\d+)?|[¼½¾])\\s+)?(?:(?:cups?|liters?|milliliters?|ounces?|tablespoons?|teaspoons?|units?)\\s+)?(?:tap\\s+)?water$/i.test(String(item.name||'').trim()))continue;
   const override=(state.ingredient_overrides||{})[item.name];
   const group=override&&override.department&&override.department!=='Auto'?override.department:shoppingDepartment(item.name);
   if(!groups.has(group))groups.set(group,[]);
@@ -2235,7 +2239,7 @@ function renderShoppingList(){
     !/^\s*[\d¼½¾⅓⅔⅛⅜⅝⅞.\/]+\s+(?:tsp|tbsp|teaspoons?|tablespoons?|cups?|oz|ounces?|lb|pounds?|g|grams?|ml|milliliters?)\b/i.test(suggestion.label)
     ?'Suggested purchase: '+suggestion.label:'';
    const suggestionNote=suggestion?.note||'';
-   const note=[x.note&& !/× recipe amount/.test(x.note)?x.note:'',suggestionNote]
+   const note=[x.note&& !/× recipe amount/.test(x.note)?x.note:''].filter(Boolean).join(' · ');
     .filter(Boolean).filter((v,i,a)=>a.indexOf(v)===i).join(' · ');
    const sourceCount=x.items.reduce((n,i)=>n+(Array.isArray(i.sources)?i.sources.length:0),0)||groceryRecipeBreakdown(x.items).length;
    const sourceText=sourceCount?sourceCount+' '+(sourceCount===1?'recipe':'recipes'):'Sources';
@@ -2248,7 +2252,7 @@ function renderShoppingList(){
    const reefOffers=sourceNames.flatMap(n=>reefShoppingOffers.get(reefSearchTerm(n).toLowerCase())||[]).filter(p=>{const key=p.chain+'|'+p.product+'|'+p.price;if(seenOffers.has(key))return false;seenOffers.add(key);return true}).sort((a,b)=>a.price-b.price);
    const reefMarkup=reefOffers.length?'<span class="grocery-note">Online package prices: '+reefOffers.map(p=>esc(p.chain)+' $'+Number(p.price).toFixed(2)).join(' · ')+' (sizes may differ)</span>':'';
    const priceMarkup='<span class="hg-item-price">'+(storePrice?'<span class="grocery-note">Manual price: $'+storePrice.price.toFixed(2)+' / '+esc(storePrice.unit)+'</span>':'')+reefMarkup+'</span>';
-   return '<div class="grocery-item-wrap"><div class="row grocery-row"><input type="checkbox" data-items="'+esc(JSON.stringify(names))+'" '+(purchased?'checked':'')+'><div class="grocery-description"><label class="'+(purchased?'done':'')+'">'+esc(label)+'</label>'+(review?'<span class="grocery-note">⚠ Verify recipe amount</span>':'')+(note?'<span class="grocery-note">'+esc(note)+'</span>':'')+priceMarkup+'</div><details class="grocery-actions"><summary aria-label="Item actions">•••</summary><div class="grocery-action-options"><button type="button" data-set-price="'+esc(first.name)+'">Set price</button><button type="button" data-edit-item="'+esc(first.name)+'">Edit</button></div></details></div><details class="grocery-breakdown"><summary>'+esc(sourceText)+'</summary><div class="grocery-breakdown-content">'+(packageNote?'<p class="grocery-note">'+esc(packageNote)+'</p>':'')+groceryBreakdownMarkup(x.items)+'</div></details></div>';
+   return '<div class="grocery-item-wrap"><div class="row grocery-row"><input type="checkbox" data-items="'+esc(JSON.stringify(names))+'" '+(purchased?'checked':'')+'><div class="grocery-description"><label class="'+(purchased?'done':'')+'">'+esc(label)+'</label>'+(review?'<span class="grocery-note">⚠ Verify recipe amount</span>':'')+(note?'<span class="grocery-note">'+esc(note)+'</span>':'')+priceMarkup+'</div><details class="grocery-actions"><summary aria-label="Item actions">•••</summary><div class="grocery-action-options"><button type="button" data-set-price="'+esc(first.name)+'">Set price</button><button type="button" data-edit-item="'+esc(first.name)+'">Edit</button></div></details></div><details class="grocery-breakdown"><summary>'+esc(sourceText)+'</summary><div class="grocery-breakdown-content">'+(packageNote?'<p class="grocery-note">'+esc(packageNote)+'</p>':'')+(suggestionNote?'<p class="grocery-note">'+esc(suggestionNote)+'</p>':'')+groceryBreakdownMarkup(x.items)+'</div></details></div>';
   }).join('');
   return '<details class="shopping-department" data-department="'+esc(group)+'" '+(shoppingOpenDepartments.has(group)?'open':'')+'><summary><span>'+symbol+' '+esc(group)+'</span><span class="department-count">'+done+' of '+entries.length+' purchased</span></summary><div class="department-items">'+rows+'</div></details>';
  }).join('')||'<p class="muted">'+(Object.keys(state.selected||{}).length?'Your selected meals have not produced grocery items. Check that the recipes contain ingredients and that none are excluded by your pantry; try reselecting a meal.':'No meals selected yet. Add a meal to your plan to automatically populate Shop.')+'</p>';
