@@ -5,6 +5,7 @@ A numeric ingredient multiplier is not evidence of a physical unit.
 """
 import math
 import re
+from functools import lru_cache
 
 NUMBER = r"(?:\d+(?:\.\d+)?|\d+/\d+|[¼½¾⅓⅔⅛⅜⅝⅞])"
 UNITS = r"(?:teaspoons?|tsp|tablespoons?|tbsp|cups?|ounces?|oz|pounds?|lbs?|grams?|g|kilograms?|kg|milliliters?|ml|liters?|l|cloves?|bulbs?|fillets?|pieces?|bunch(?:es)?|heads?|stalks?|slices?|cans?|packages?|bags?)"
@@ -86,3 +87,41 @@ def recover_from_stored_source(recipe, ingredient):
                             "unit": measured.group(2), "ingredient": measured.group(3),
                             "confidence": "verified_source"})
     return matches[0] if len(matches) == 1 else None
+
+FRACTIONS = {"¼": .25, "½": .5, "¾": .75, "⅓": 1/3, "⅔": 2/3,
+             "⅛": .125, "⅜": .375, "⅝": .625, "⅞": .875}
+SHOPPING_UNITS = {
+    "tsp": "teaspoon", "teaspoons": "teaspoon", "teaspoon": "teaspoon",
+    "tbsp": "tablespoon", "tablespoons": "tablespoon", "tablespoon": "tablespoon",
+    "cups": "cup", "cup": "cup", "oz": "ounce", "ounces": "ounce", "ounce": "ounce",
+    "lbs": "pound", "pounds": "pound", "pound": "pound",
+    "grams": "gram", "gram": "gram", "g": "gram",
+    "kilograms": "kilogram", "kilogram": "kilogram", "kg": "kilogram",
+    "milliliters": "milliliter", "milliliter": "milliliter", "ml": "milliliter",
+    "liters": "liter", "liter": "liter", "l": "liter",
+    "cloves": "clove", "clove": "clove",
+    "fillets": "fillet", "fillet": "fillet",
+    "pieces": "piece", "piece": "piece"
+}
+
+def verified_grocery_recovery(recipe, ingredient, factor):
+    """Safe auto-apply candidate; leave unsupported units and uncertain factors alone."""
+    try:
+        if float(factor) != 1.0:
+            return None
+    except (TypeError, ValueError, OverflowError):
+        return None
+    recovered = recover_from_stored_source(recipe, ingredient)
+    if not recovered:
+        return None
+    raw = recovered["amount"]
+    try:
+        amount = FRACTIONS[raw] if raw in FRACTIONS else (
+            float(raw.split("/")[0]) / float(raw.split("/")[1]) if "/" in raw else float(raw))
+    except (ValueError, ZeroDivisionError):
+        return None
+    unit = SHOPPING_UNITS.get(recovered["unit"].lower())
+    if not unit or not math.isfinite(amount) or not 0 < amount < 100000:
+        return None
+    return {"name": recovered["ingredient"], "unit": unit, "amount": amount,
+            "source": recovered["source"], "confidence": "verified_source"}
