@@ -19,7 +19,18 @@ def canonical_source_name(name):
         return ""
     name = SOURCE_UNIT.sub("", name.strip())
     name = re.sub(r"[^a-z0-9]+", " ", name.casefold()).strip()
-    return name
+    # Normalize only predictable inflection; do not conflate varieties,
+    # colors or qualifiers (e.g. herb butter and butter).
+    words = name.split()
+    if words:
+        last = words[-1]
+        if last.endswith("ies") and len(last) > 4:
+            words[-1] = last[:-3] + "y"
+        elif last.endswith("oes") and len(last) > 4:
+            words[-1] = last[:-2]
+        elif last.endswith("s") and not last.endswith(("ss", "us")) and len(last) > 3:
+            words[-1] = last[:-1]
+    return " ".join(words)
 
 AMBIGUOUS = re.compile(r"\b(?:garlic|grape tomatoes?|jalape(?:ñ|n)o(?: peppers?)?|salmon|pepper|salt|cilantro|parsley|sour cream|bell peppers?)\b", re.I)
 
@@ -98,7 +109,9 @@ def recover_from_stored_source(recipe, ingredient):
             matches.append({"source": line, "amount": measured.group(1),
                             "unit": measured.group(2), "ingredient": measured.group(3),
                             "confidence": "verified_source"})
-    return matches[0] if len(matches) == 1 else None
+    # Duplicate identical source lines are not conflicting evidence.
+    unique = {(m["amount"], m["unit"].casefold(), canonical_source_name(m["ingredient"])): m for m in matches}
+    return next(iter(unique.values())) if len(unique) == 1 else None
 
 FRACTIONS = {"¼": .25, "½": .5, "¾": .75, "⅓": 1/3, "⅔": 2/3,
              "⅛": .125, "⅜": .375, "⅝": .625, "⅞": .875}
