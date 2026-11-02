@@ -16,6 +16,9 @@ jobs:
       - name: Check out source
         uses: actions/checkout@v4
 
+      - name: Check Python syntax before publishing
+        run: python -m py_compile app/server.py app/cloudflare_auth.py app/households.py app/household_sharing.py
+
       - name: Verify checked-out email link code
         run: |
           grep -q "verification_host=" app/server.py
