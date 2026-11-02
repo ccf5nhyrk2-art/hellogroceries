@@ -16,6 +16,11 @@ jobs:
       - name: Check out source
         uses: actions/checkout@v4
 
+      - name: Verify checked-out email link code
+        run: |
+          grep -q "verification_host=" app/server.py
+          grep -q "staging-groceries.greenlee.uk" app/server.py
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
@@ -32,6 +37,7 @@ jobs:
           context: .
           file: ./Dockerfile
           push: true
+          no-cache: true
           tags: |
             ghcr.io/ccf5nhyrk2-art/hellogroceries:${{ github.ref_name == 'main' && 'latest' || 'develop' }}
             ghcr.io/ccf5nhyrk2-art/hellogroceries:${{ github.sha }}
