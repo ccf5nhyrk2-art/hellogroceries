@@ -88,6 +88,7 @@ def evaluate(recipes, limit=1500, minimum_examples=5):
     ordered = sorted((r for r in recipes if isinstance(r, dict)),
                      key=lambda r: str(r.get("id", "")))
     training = defaultdict(list)
+    contextual_training = defaultdict(list)
     heldout = []
     for i, recipe in enumerate(ordered):
         servings = serving_count(recipe)
@@ -98,12 +99,14 @@ def evaluate(recipes, limit=1500, minimum_examples=5):
             for name, unit, amount in rows:
                 # Never mix serving-normalized and unnormalized training examples.
                 key = (name, unit, "per_serving" if servings else "raw", recipe_context(recipe))
-                training[key].append(amount / servings if servings else amount)
+                training[(name, unit, "per_serving" if servings else "raw")].append(amount / servings if servings else amount)
+                contextual_training[key].append(amount / servings if servings else amount)
     checked = covered = within_10 = within_25 = within_50 = 0
     errors = []
     examples = []
     categories = defaultdict(lambda: {"tested": 0, "covered": 0, "within_25": 0, "high_consensus": 0, "high_consensus_within_25": 0})
     high_confidence = {"eligible": 0, "within_25": 0, "within_10": 0}
+    context_counts = {"contextual": 0, "fallback": 0}
     for recipe_id, servings, context, rows in heldout:
         for name, unit, actual in rows:
             if checked >= limit:
@@ -112,13 +115,16 @@ def evaluate(recipes, limit=1500, minimum_examples=5):
             group = categories[category(name)]
             group["tested"] += 1
             key = (name, unit, "per_serving" if servings else "raw")
-            samples = training.get(key, [])
+            contextual_samples = contextual_training.get((*key, context), [])
+            use_context = context != "unspecified" and len(contextual_samples) >= minimum_examples
+            samples = contextual_samples if use_context else training.get(key, [])
             if len(samples) < minimum_examples:
                 continue
             predicted_unit = median(samples)
             estimate = predicted_unit * servings if servings else predicted_unit
             error = abs(estimate - actual) / actual
             covered += 1
+            context_counts["contextual" if use_context else "fallback"] += 1
             group["covered"] += 1
             errors.append(error)
             within_10 += error <= .10
@@ -141,6 +147,7 @@ def evaluate(recipes, limit=1500, minimum_examples=5):
                                  "relative_error": round(error, 3),
                                  "training_examples": len(samples),
                                  "serving_normalized": bool(servings), "recipe_context": context,
+                                 "match_method": "contextual" if use_context else "fallback",
                                  "high_consensus": consensus})
         if checked >= limit:
             break
@@ -155,4 +162,5 @@ def evaluate(recipes, limit=1500, minimum_examples=5):
                 "within_10_percent": round(high_confidence["within_10"] / high_confidence["eligible"], 3) if high_confidence["eligible"] else None,
                 "within_25_percent": round(high_confidence["within_25"] / high_confidence["eligible"], 3) if high_confidence["eligible"] else None},
             "categories": {key: {**value, "within_25_percent": round(value["within_25"] / value["covered"], 3) if value["covered"] else None, "high_consensus_within_25_percent": round(value["high_consensus_within_25"] / value["high_consensus"], 3) if value["high_consensus"] else None} for key, value in sorted(categories.items())},
+            "context_matching": context_counts,
             "examples": examples, "applied_changes": 0}
