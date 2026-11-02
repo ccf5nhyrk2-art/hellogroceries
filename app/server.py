@@ -1610,6 +1610,1242 @@ def auth_rate_allowed(ip, route, limit=8, window=900):
   return True
 
 
+def parse_grocery_measure(label):
+ """Extract structured quantity/unit/name without changing the display label."""
+ if not isinstance(label,str):return None
+ number=r'(?:\\d+(?:\\.\\d+)?|\\d+/\\d+|[¼½¾⅓⅔⅛⅜⅝⅞])'
+ match=re.match(r'^\\s*('+number+r')\\s+(?:(teaspoons?|tsp|tablespoons?|tbsp|cups?|ounces?|oz|pounds?|lbs?|grams?|g|kilograms?|kg|milliliters?|ml|liters?|l|cloves?|thumbs?|pieces?|count)\\s+)?(.+?)\\s* totals={}
+ sources={}
+ for recipe in allrecipes():
+  servings=state['selected'].get(str(recipe['id']))
+  if servings is None:continue
+  # Scale against the original recipe's declared yield, when available.
+  source_servings=recipe.get('source_servings')
+  try:baseline=float(source_servings)
+  except (TypeError,ValueError):baseline=2.0
+  if not math.isfinite(baseline) or baseline<=0:baseline=2.0
+  scale=float(servings)/baseline
+  ingredients=recipe.get('ingredients')
+  if not isinstance(ingredients,dict):continue
+  for name,qty in ingredients.items():
+   if not isinstance(name,str) or not name.strip():continue
+   try:quantity=float(qty)
+   except (ValueError,TypeError,OverflowError):continue
+   if not math.isfinite(quantity) or quantity<=0:continue
+   # Recipe ingredient labels can contain the actual measure while the stored
+   # numeric value is only a source factor (often 1). Preserve both separately.
+   source_factor=quantity
+   embedded=re.match(r'^\s*(\d+(?:\.\d+)?|\d+/\d+)\s+(teaspoons?|tablespoons?|cups?|ounces?|pounds?|grams?|kilograms?|milliliters?|liters?)\s+(.+)$',name,re.I)
+   if embedded:
+    raw=embedded.group(1)
+    measured=float(raw.split('/')[0])/float(raw.split('/')[1]) if '/' in raw else float(raw)
+    quantity=source_factor*measured
+    normalized_unit={'teaspoons':'teaspoon','tablespoons':'tablespoon','cups':'cup','ounces':'ounce','pounds':'pound','grams':'gram','kilograms':'kilogram','milliliters':'milliliter','liters':'liter'}.get(embedded.group(2).lower(),embedded.group(2).lower())
+    label_name=normalized_unit+' '+embedded.group(3)
+   else:
+    label_name=name
+   correction=state.get('recipe_ingredient_corrections',{}).get(str(recipe['id'])+'|'+name)
+   if isinstance(correction,dict):
+    ingredient_name=correction['name']
+    unit=correction.get('unit','')
+    corrected_amount=float(correction['amount'])
+    label='__corrected__|'+unit+'|'+ingredient_name.casefold()
+    amount=corrected_amount*float(scale)
+   else:
+    label=label_name
+    amount=quantity*float(scale)
+   if not (0<amount<100000):continue
+   totals[label]=totals.get(label,0)+amount
+   sources.setdefault(label,[]).append({'recipe_id':recipe['id'],'recipe':recipe['name'],'original_name':name,'corrected':bool(correction),'source_quantity':qty,'multiplier':scale,'servings':servings,'source_servings':baseline,'contribution':round(amount,3)})
+ # Do not silently discard recipe ingredients with missing or malformed amounts.
+ # Keep them as unverified single entries until a correction supplies a quantity.
+ for recipe in allrecipes():
+  if str(recipe['id']) not in state.get('selected',{}):continue
+  ingredients=recipe.get('ingredients')
+  if not isinstance(ingredients,dict):continue
+  for name,qty in ingredients.items():
+   if not isinstance(name,str) or not name.strip():continue
+   try:valid=math.isfinite(float(qty)) and float(qty)>0
+   except (ValueError,TypeError,OverflowError):valid=False
+   if valid:continue
+   label=name.strip()
+   totals[label]=totals.get(label,0)+1
+   sources.setdefault(label,[]).append({'recipe_id':recipe['id'],'recipe':recipe['name'],'original_name':name,'source_quantity':qty,'quantity_unverified':True,'contribution':1})
+ for item in state.get('manual',[]):
+  if isinstance(item,str) and item.strip():
+   name=item.strip()
+   totals[name]=totals.get(name,0)+1
+   sources.setdefault(name,[]).append({'recipe':'Manually added','contribution':1})
+ def pantry_match_name(value):
+  value=str(value).strip().casefold()
+  value=re.sub(r'^(?:\d+(?:[.,]\d+)?|\d+/\d+|[¼½¾⅓⅔])\s+', '', value)
+  value=re.sub(r'^(?:tsp|tbsp|teaspoons?|tablespoons?|cups?|oz|ounces?|lbs?|pounds?|grams?|kg|ml|liters?|pieces?|units?|pick|cloves?)\s+', '', value)
+  value=re.sub(r'\s+',' ',value).strip()
+  value=value.replace('shitake mushroom','shiitake mushroom')
+  # Only singularize a simple trailing plural. Preserve ingredient qualifiers
+  # (herb butter vs butter) and words such as asparagus or couscous.
+  if value.endswith('ies') and len(value)>5:value=value[:-3]+'y'
+  elif value.endswith('s') and not value.endswith(('ss','us','is','ous')) and len(value)>3:value=value[:-1]
+  return value
+ inventory=state.get('pantry_inventory',{})
+ pantry={pantry_match_name(x) for x in state.get('pantry',[]) if isinstance(x,str) and x.strip()}
+ for key,amount in inventory.items():
+  if isinstance(key,str) and type(amount) in (int,float) and math.isfinite(amount) and amount>0:pantry.add(pantry_match_name(key.rsplit('|',1)[0]))
+ conversions={'teaspoon':('volume',4.92892159375),'tablespoon':('volume',14.78676478125),'cup':('volume',236.5882365),'milliliter':('volume',1),'liter':('volume',1000),'gram':('mass',1),'kilogram':('mass',1000),'ounce':('mass',28.349523125),'pound':('mass',453.59237)}
+ # Keep a shared pool so a pantry amount can never be subtracted twice.
+ remaining_inventory={key:float(amount) for key,amount in inventory.items() if isinstance(key,str) and type(amount) in (int,float) and math.isfinite(amount) and 0<=amount<=100000}
+ def consume(name,unit,required):
+  if required<=0:return 0
+  normalized=pantry_match_name(name)
+  keys=[k for k in remaining_inventory if '|' in k and pantry_match_name(k.rsplit('|',1)[0])==normalized]
+  if unit in conversions:
+   keys=[k for k in keys if k.rsplit('|',1)[1] in conversions and conversions[k.rsplit('|',1)[1]][0]==conversions[unit][0]]
+  else:
+   keys=[k for k in keys if k.rsplit('|',1)[1]==unit]
+  needed=required
+  for k in sorted(keys):
+   stored_unit=k.rsplit('|',1)[1]
+   factor=conversions[stored_unit][1]/conversions[unit][1] if unit in conversions else 1
+   available=remaining_inventory[k]*factor
+   taken=min(needed,available)
+   remaining_inventory[k]=max(0,remaining_inventory[k]-taken/factor)
+   needed-=taken
+   if needed<=0.000001:break
+  return max(0,needed)
+ corrected_labels=set()
+ for key in list(totals):
+  if not key.startswith('__corrected__|'):continue
+  _,unit,ingredient=key.split('|',2)
+  required=totals.pop(key)
+  needed=consume(ingredient,unit,required)
+  original_sources=sources.pop(key,[])
+  if needed<=0.000001:continue
+  label=(str(round(needed,3)).rstrip('0').rstrip('.') if needed%1 else str(int(needed)))+' '+(unit+' ' if unit and unit!='count' else '')+ingredient
+  totals[label]=totals.get(label,0)+1
+  corrected_labels.add(label)
+  sources.setdefault(label,[]).extend(original_sources)
+ for label in list(totals):
+  if label.startswith('__corrected__|') or label in corrected_labels:continue
+  match=re.match(r'^(\d+(?:\.\d+)?)\s+(?:(pick|unit|piece|pieces|count|teaspoon|tablespoon|cup|ounce|pound|gram|kilogram|milliliter|liter)\s+)?(.+)$',label,re.I)
+  parsed=parse_grocery_measure(label)
+  if not parsed:continue
+  per_item=parsed['amount']
+  unit=parsed['unit']
+  ingredient=parsed['ingredient']
+  needed=consume(ingredient,unit,per_item*totals[label])
+  if needed>=per_item*totals[label]-0.000001:continue
+  original_sources=sources.pop(label,[])
+  totals.pop(label,None)
+  if needed<=0.000001:continue
+  new_label=(str(round(needed,3)).rstrip('0').rstrip('.') if needed%1 else str(int(needed)))+' '+(unit+' ' if unit!='count' else '')+ingredient
+  totals[new_label]=totals.get(new_label,0)+1
+  sources.setdefault(new_label,[]).extend(original_sources)
+ old={item['name']:item for item in state.get('list',[])}
+ generated=[{'name':name,'quantity':round(qty,3),'purchased':False,'sources':sources.get(name,[])} for name,qty in sorted(totals.items()) if qty>0 and (any(src.get('corrected') or src.get('quantity_unverified') for src in sources.get(name,[])) or any(isinstance(k,str) and pantry_match_name(k.rsplit('|',1)[0])==pantry_match_name(name) for k in inventory) or pantry_match_name(name) not in pantry)]
+ for item in generated:
+  previous=old.get(item['name'])
+  if previous and previous.get('quantity')==item['quantity']:item['purchased']=bool(previous.get('purchased'))
+ state['list']=generated
+
+
+class Handler(SimpleHTTPRequestHandler):
+ def __init__(self,*a,**kw):super().__init__(*a,directory=str(BASE),**kw)
+ def sendjson(self,obj,status=200):
+  b=json.dumps(obj).encode();self.send_response(status);self.send_header('Content-Type','application/json');self.send_header('Cache-Control','no-store');self.send_header('Content-Length',str(len(b)));self.end_headers();self.wfile.write(b)
+ def identity(self):
+  cookie=SimpleCookie()
+  try:cookie.load(self.headers.get('Cookie',''))
+  except Exception:return None,None
+  token=cookie.get('hg_session')
+  if not token:return None,None
+  with db() as c:
+   auth.ensure_schema(c)
+   user=auth.session_user(c,token.value)
+   if not user:return None,None
+   membership=c.execute('SELECT household_id FROM hg_memberships WHERE user_id=? ORDER BY household_id LIMIT 1',(user[0],)).fetchone()
+  return user,membership[0] if membership else None
+ def gate(self,write=False):
+  # Deny every resource until setup/login. No implicit trusted-network bypass.
+  with db() as c:
+   auth.ensure_schema(c)
+   setup=auth.instance_needs_setup(c)
+  path=urllib.parse.urlsplit(self.path).path
+  if path in ('/auth.html','/api/auth/status','/api/auth/login','/api/auth/setup','/api/auth/register','/api/auth/verify','/api/auth/resend-verification'):
+   return True
+  user,hid=self.identity()
+  if user is None or hid is None:
+   if path.startswith('/api/'):
+    self.sendjson({'error':'Authentication required','setup_required':setup},401)
+   else:
+    self.send_response(302);self.send_header('Location','/auth.html');self.send_header('Content-Length','0');self.end_headers()
+   return False
+  request_scope.household_id=hid
+  request_scope.user_id=user[0]
+  request_scope.admin=bool(user[2])
+  if write:
+   origin=self.headers.get('Origin','')
+   host=self.headers.get('Host','')
+   scheme=urllib.parse.urlsplit(origin).scheme if origin else 'https'
+   if origin not in (scheme+'://'+host,):
+    self.sendjson({'error':'Invalid request origin'},403);return False
+   cookie=SimpleCookie()
+   try:cookie.load(self.headers.get('Cookie',''))
+   except Exception:pass
+   csrf=cookie.get('hg_csrf')
+   if not csrf or not secrets.compare_digest(csrf.value,self.headers.get('X-HG-CSRF','')):
+    self.sendjson({'error':'CSRF token required'},403);return False
+  return True
+ def auth_post(self):
+  path=urllib.parse.urlsplit(self.path).path
+  origin=self.headers.get('Origin','')
+  host=self.headers.get('Host','')
+  scheme=urllib.parse.urlsplit(origin).scheme if origin else 'https'
+  if origin != scheme+'://'+host:return self.sendjson({'error':'Invalid origin'},403)
+  size=int(self.headers.get('Content-Length','0'))
+  if size<1 or size>8192:return self.sendjson({'error':'Invalid request size'},400)
+  if path=='/api/auth/login' and not auth_rate_allowed(self.client_address[0], 'login', 10):return self.sendjson({'error':'Too many attempts. Try again later.'},429)
+  if path in ('/api/auth/register','/api/auth/resend-verification') and not auth_rate_allowed(self.client_address[0], 'register', 4):return self.sendjson({'error':'Too many registrations. Try again later.'},429)
+  try:
+   data=json.loads(self.rfile.read(size))
+   with db() as c:
+    auth.ensure_schema(c)
+    if path in ('/api/auth/register','/api/auth/resend-verification'):
+     if auth.instance_needs_setup(c):return self.sendjson({'error':'Administrator setup required'},403)
+     if not resend_key():return self.sendjson({'error':'Verification email service is temporarily unavailable. Please try later.'},503)
+     email=auth.validate_email(data.get('email'))
+     if path=='/api/auth/register':
+      existing=c.execute("SELECT status FROM hg_registration_requests WHERE email=?",(email,)).fetchone()
+      if not existing or (existing[0]=='approved' and not c.execute("SELECT 1 FROM hg_users WHERE email=?",(email,)).fetchone()):
+       auth.request_registration(c,email,data.get('password'),data.get('household'))
+     token=auth.issue_registration_verification(c,email)
+     c.commit()
+     if not token:
+      return self.sendjson({'ok':True,'sent':False,'message':'If verification is pending, an email may have been requested recently. Wait 60 seconds and use Resend verification email. Check Spam and Promotions.'},202)
+     verification_host='staging-groceries.greenlee.uk' if self.headers.get('Host','').split(':')[0].lower()=='staging-groceries.greenlee.uk' else 'groceries.greenlee.uk'
+     link='https://'+verification_host+'/auth.html#verify='+urllib.parse.quote(token,safe='')
+     try:
+      accepted=resend_send_email(email,'Verify your HelloGroceries email','Welcome to HelloGroceries! Verify your email within 24 hours:\n'+link+'\n\nIf you did not register, ignore this message.')
+      if not accepted:raise ValueError('Email provider did not confirm the message')
+     except Exception:
+      auth.release_failed_verification(c,email,token)
+      return self.sendjson({'error':'Verification email could not be sent. Please try Resend verification email. If this keeps happening, contact the administrator.'},502)
+     auth.confirm_verification_sent(c,email,token)
+     return self.sendjson({'ok':True,'sent':True,'message':'Verification email submitted to our email provider. Check Inbox, Spam and Promotions. Delivery may take a few minutes.'},202)
+    if path=='/api/auth/verify':
+     auth.activate_verified_registration(c,data.get('token'))
+     return self.sendjson({'ok':True,'message':'Email verified! You can now sign in.'})
+    if path=='/api/auth/setup':
+     verified_email=cloudflare_auth.verified_email(self.headers.get('Cf-Access-Jwt-Assertion',''))
+     if not verified_email or verified_email.casefold()!=auth.validate_email(data.get('email')):
+      return self.sendjson({'error':'Verified Cloudflare identity must match account email'},403)
+     uid,hid=auth.create_first_admin(c,data.get('email'),data.get('password'),data.get('household','My Household'))
+    elif path=='/api/auth/login':
+     uid=auth.authenticate(c,data.get('email'),data.get('password'))
+    else:return self.sendjson({'error':'Not found'},404)
+    token=auth.create_session(c,uid)
+    c.commit()
+   csrf=secrets.token_urlsafe(32)
+   payload=json.dumps({'ok':True}).encode()
+   self.send_response(200);self.send_header('Content-Type','application/json');self.send_header('Cache-Control','no-store')
+   secure='; Secure' if scheme=='https' else ''
+   self.send_header('Set-Cookie','hg_session='+token+'; HttpOnly; SameSite=Lax; Path=/'+secure)
+   self.send_header('Set-Cookie','hg_csrf='+csrf+'; SameSite=Lax; Path=/'+secure)
+   self.send_header('Content-Length',str(len(payload)));self.end_headers();self.wfile.write(payload)
+  except (ValueError,TypeError,KeyError) as exc:self.sendjson({'error':str(exc)},400)
+ def logout_post(self):
+  if not self.gate(write=True):return
+  cookie=SimpleCookie()
+  try:cookie.load(self.headers.get('Cookie',''))
+  except Exception:pass
+  token=cookie.get('hg_session')
+  if token:
+   with db() as c:
+    auth.revoke_session(c,token.value)
+    c.commit()
+  self.send_response(204)
+  self.send_header('Set-Cookie','hg_session=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0; Secure')
+  self.send_header('Set-Cookie','hg_csrf=; SameSite=Lax; Path=/; Max-Age=0; Secure')
+  self.send_header('Content-Length','0');self.end_headers()
+ def invite_post(self):
+  if not self.gate(write=True):return
+  if not getattr(request_scope,'admin',False):return self.sendjson({'error':'Administrator required'},403)
+  try:
+   size=int(self.headers.get('Content-Length','0'))
+   if not 0<size<=8192:raise ValueError('Invalid request size')
+   data=json.loads(self.rfile.read(size))
+   with db() as c:
+    # Shared invites join the administrator's existing household; private invites
+    # still create a separate household as before.
+    mode=data.get('mode','shared')
+    if mode not in ('shared','private'):raise ValueError('Invalid invitation type')
+    household_id=request_scope.household_id if mode=='shared' else None
+    token=auth.issue_invite(c,request_scope.user_id,data.get('email'),household_id)
+    c.commit()
+   return self.sendjson({'invite_url':'https://groceries.greenlee.uk/auth.html#invite='+urllib.parse.quote(token,safe=''),'expires_in_hours':auth.INVITE_HOURS})
+  except (ValueError,TypeError,KeyError) as exc:return self.sendjson({'error':str(exc)},400)
+ def redeem_post(self):
+  origin=self.headers.get('Origin','')
+  host=self.headers.get('Host','')
+  if origin not in ('https://'+host,'http://'+host):return self.sendjson({'error':'Invalid origin'},403)
+  try:
+   size=int(self.headers.get('Content-Length','0'))
+   if not 0<size<=8192:raise ValueError('Invalid request size')
+   data=json.loads(self.rfile.read(size))
+   with db() as c:
+    auth.ensure_schema(c)
+    uid,hid=auth.redeem_invite(c,data.get('token'),data.get('email'),data.get('password'),data.get('household'))
+    session=auth.create_session(c,uid)
+    c.commit()
+   csrf=secrets.token_urlsafe(32)
+   payload=b'{"ok":true}'
+   self.send_response(200)
+   self.send_header('Content-Type','application/json')
+   self.send_header('Cache-Control','no-store')
+   secure='; Secure' if origin.startswith('https://') else ''
+   self.send_header('Set-Cookie','hg_session='+session+'; HttpOnly; SameSite=Lax; Path=/'+secure)
+   self.send_header('Set-Cookie','hg_csrf='+csrf+'; SameSite=Lax; Path=/'+secure)
+   self.send_header('Content-Length',str(len(payload)))
+   self.end_headers();self.wfile.write(payload)
+  except (ValueError,TypeError,KeyError) as exc:return self.sendjson({'error':str(exc)},400)
+ def do_GET(self):
+  request_scope.household_id=None
+  if self.path=='/api/household':
+   if not self.gate():return
+   with db() as c:
+    auth.ensure_schema(c)
+    result=sharing.details(c,request_scope.user_id,request_scope.household_id)
+   return self.sendjson(result)
+  if self.path=='/api/pricing-visibility':
+   if not self.gate():return
+   return self.sendjson({'visibility':pricing_visibility(),'is_admin':bool(getattr(request_scope,'admin',False))})
+  if self.path=='/api/admin/pantry-activity':
+   if not self.gate():return
+   if not getattr(request_scope,'admin',False):return self.sendjson({'error':'Administrator required'},403)
+   with db() as c:
+    c.execute("""CREATE TABLE IF NOT EXISTS hg_pantry_audit (
+     id INTEGER PRIMARY KEY AUTOINCREMENT,household_id INTEGER NOT NULL,
+     user_id INTEGER NOT NULL,occurred_at TEXT NOT NULL DEFAULT (datetime('now')),
+     action TEXT NOT NULL,item TEXT NOT NULL,previous_value TEXT,new_value TEXT)""")
+    rows=c.execute("""SELECT a.occurred_at,u.email,h.name,a.action,a.item,a.previous_value,a.new_value
+     FROM hg_pantry_audit a LEFT JOIN hg_users u ON u.id=a.user_id
+     LEFT JOIN hg_households h ON h.id=a.household_id
+     ORDER BY a.id DESC LIMIT 100""").fetchall()
+   return self.sendjson({'entries':[{'at':x[0],'user':x[1] or 'Deleted account','household':x[2] or 'Unknown','action':x[3],'item':x[4],'before':x[5],'after':x[6]} for x in rows]})
+  if self.path=='/api/admin/ai-usage':
+   if not self.gate():return
+   if not getattr(request_scope,'admin',False):return self.sendjson({'error':'Administrator required'},403)
+   return self.sendjson(scan_usage_summary())
+  if self.path=='/api/admin/analytics':
+   if not self.gate():return
+   if not getattr(request_scope,'admin',False):return self.sendjson({'error':'Administrator required'},403)
+   return self.sendjson(analytics_summary())
+  if self.path=='/api/admin/recipe-photos':
+   if not self.gate():return
+   if not getattr(request_scope,'admin',False):return self.sendjson({'error':'Administrator required'},403)
+   q=urllib.parse.parse_qs(urllib.parse.urlsplit(self.path).query)
+   offset=max(0,min(100000,int(q.get('offset',['0'])[0])))
+   items=[{'id':r['id'],'name':r.get('name',''),'image_url':r.get('image',''),'recipe_url':r.get('url',''),'cached':bool(cached_photo(int(r['id'])))} for r in allrecipes() if isinstance(r.get('id'),int)]
+   missing=[r for r in items if not r['cached']]
+   return self.sendjson({'total':len(missing),'items':missing[offset:offset+50]})
+  if self.path=='/api/admin/tasks':
+   if not self.gate():return
+   if not getattr(request_scope,'admin',False):return self.sendjson({'error':'Administrator required'},403)
+   return self.sendjson({'tasks':task_overview()})
+  if self.path.startswith('/api/reef-cached-prices?'):
+   if not self.gate():return
+   q=urllib.parse.parse_qs(urllib.parse.urlsplit(self.path).query)
+   try:return self.sendjson(reef_cached_comparison(q.get('zip',[''])[0],q.get('item',[])))
+   except ValueError as exc:return self.sendjson({'error':str(exc)},400)
+  if self.path.startswith('/api/reef-test-search?'):
+   if not self.gate():return
+   if not getattr(request_scope,'admin',False):return self.sendjson({'error':'Administrator required'},403)
+   q=urllib.parse.parse_qs(urllib.parse.urlsplit(self.path).query)
+   try:return self.sendjson(reef_test_search(q.get('zip',[''])[0],q.get('item',[''])[0]))
+   except ValueError as exc:return self.sendjson({'error':str(exc)},400)
+  if self.path=='/api/admin/nutrition/run':
+   if not self.gate(write=True):return
+   if not getattr(request_scope,'admin',False):return self.sendjson({'error':'Administrator required'},403)
+   if nutrition_scan['running']:return self.sendjson({'ok':True,'message':'Nutrition scan is already running.'})
+   nutrition_wakeup.set()
+   return self.sendjson({'ok':True,'message':'Nutrition scan queued.'})
+  if self.path=='/api/admin/recommendation-photos/run':
+   if not self.gate(write=True):return
+   if not getattr(request_scope,'admin',False):return self.sendjson({'error':'Administrator required'},403)
+   if recommendation_photo_warmup['running']:
+    return self.sendjson({'ok':True,'message':'Photo caching is already running.'})
+   recommendation_photo_wakeup.set()
+   return self.sendjson({'ok':True,'message':'Photo cache check queued.'})
+  if self.path=='/api/admin/recipe-photos/repair':
+   if not self.gate(write=True):return
+   if not getattr(request_scope,'admin',False):return self.sendjson({'error':'Administrator required'},403)
+   try:
+    size=int(self.headers.get('Content-Length','0'))
+    if not 0<size<=2048:raise ValueError('Invalid request size')
+    data=json.loads(self.rfile.read(size))
+    rid=data.get('id')
+    if type(rid)!=int:raise ValueError('Invalid recipe ID')
+    recipe=next((r for r in allrecipes() if r.get('id')==rid),None)
+    if not recipe:raise ValueError('Recipe not found')
+    url=str(data.get('url','')).strip()
+    if url and not allowed_photo_url(url):raise ValueError('Photo URL must use an approved HTTPS image host')
+    with photo_locks_guard:item_lock=photo_locks.setdefault(rid,threading.Lock())
+    with item_lock:
+     result=download_photo(url,rid) if url else None
+    if not url:result=resolve_photo(recipe,refresh=True)
+    if not result:return self.sendjson({'error':'Could not retrieve a valid photo. Try a supported direct image URL.'},422)
+    return self.sendjson({'ok':True,'id':rid})
+   except (ValueError,TypeError,OSError,urllib.error.URLError,TimeoutError) as exc:return self.sendjson({'error':str(exc)},400)
+  if self.path=='/api/admin/openai-key':
+   if not self.gate():return
+   if not getattr(request_scope,'admin',False):return self.sendjson({'error':'Administrator required'},403)
+   return self.sendjson({'configured':bool(openai_scan_key())})
+  if self.path=='/api/admin/resend-key':
+   if not self.gate():return
+   if not getattr(request_scope,'admin',False):return self.sendjson({'error':'Administrator required'},403)
+   return self.sendjson({'configured':bool(resend_key()),'from':RESEND_FROM,'registration_mode':'email_verification'})
+  if self.path=='/api/admin/reef-key':
+   if not self.gate():return
+   if not getattr(request_scope,'admin',False):return self.sendjson({'error':'Administrator required'},403)
+   return self.sendjson({'configured':reef_key_configured()})
+  if self.path=='/api/auth/session-settings':
+   if not self.gate():return
+   if not getattr(request_scope,'admin',False):return self.sendjson({'error':'Administrator required'},403)
+   with db() as c:
+    auth.ensure_schema(c)
+    return self.sendjson({'days':auth.session_duration_days(c),'options':list(auth.SESSION_DAY_OPTIONS)})
+  if self.path=='/api/auth/blocked-emails':
+   if not self.gate():return
+   if not getattr(request_scope,'admin',False):return self.sendjson({'error':'Administrator required'},403)
+   with db() as c:
+    auth.ensure_schema(c)
+    return self.sendjson({'blocked':auth.blocked_emails(c,request_scope.user_id)})
+  if self.path=='/api/auth/accounts':
+   if not self.gate():return
+   if not getattr(request_scope,'admin',False):return self.sendjson({'error':'Administrator required'},403)
+   with db() as c:
+    auth.ensure_schema(c)
+    return self.sendjson({'accounts':auth.list_accounts(c,request_scope.user_id)})
+  if self.path=='/api/auth/registrations':
+   if not self.gate():return
+   if not getattr(request_scope,'admin',False):return self.sendjson({'error':'Administrator required'},403)
+   with db() as c:
+    auth.ensure_schema(c)
+    return self.sendjson({'requests':auth.pending_registrations(c)})
+  if self.path=='/api/auth/status':
+   with db() as c:
+    user,hid=self.identity()
+    return self.sendjson({'setup_required':auth.instance_needs_setup(c),'authenticated':user is not None,'admin':bool(user and user[2]),'email':user[1] if user else None})
+  if not self.gate():return
+  if self.path.startswith('/api/photo/'):
+   try:
+    parsed=urllib.parse.urlsplit(self.path)
+    rid=int(parsed.path.rsplit('/',1)[1])
+    recipe=next((r for r in allrecipes() if r['id']==rid),None)
+    if not recipe:return self.send_error(404)
+    refresh=urllib.parse.parse_qs(parsed.query).get('refresh',['0'])[0]=='1'
+    result=resolve_photo(recipe,refresh)
+    if not result:return self.send_error(404)
+    file,mime=result
+    payload=file.read_bytes()
+    self.send_response(200);self.send_header('Content-Type',mime)
+    self.send_header('Cache-Control','private, max-age=3600')
+    self.send_header('Content-Length',str(len(payload)))
+    self.end_headers();self.wfile.write(payload);return
+   except (ValueError,TypeError,OSError):return self.send_error(404)
+  if self.path.startswith('/api/compare-retailer-prices?'):
+   q=urllib.parse.parse_qs(urllib.parse.urlsplit(self.path).query)
+   try:return self.sendjson(compare_retailer_catalog_prices(q.get('item',[])))
+   except ValueError as error:return self.sendjson({'error':str(error)},400)
+  if self.path.startswith('/api/retailer-catalog-prices?'):
+   q=urllib.parse.parse_qs(urllib.parse.urlsplit(self.path).query)
+   try:return self.sendjson(retailer_catalog_prices(q.get('chain',[''])[0],q.get('store_name',[''])[0],q.get('address',[''])[0],q.get('item',[])))
+   except ValueError as error:return self.sendjson({'error':str(error)},400)
+  if self.path.startswith('/api/free-community-prices?'):
+   items=urllib.parse.parse_qs(urllib.parse.urlsplit(self.path).query).get('item',[])
+   try:return self.sendjson(free_community_prices(items))
+   except ValueError as error:return self.sendjson({'error':str(error)},400)
+  if self.path.startswith('/api/automatic-weekly-ads?'):
+   zipcode=urllib.parse.parse_qs(urllib.parse.urlsplit(self.path).query).get('zip',[''])[0]
+   try:return self.sendjson(automatic_weekly_ads(zipcode))
+   except ValueError as error:return self.sendjson({'error':str(error)},400)
+  if self.path.startswith('/api/retailer-ad?'):
+   chain=urllib.parse.parse_qs(urllib.parse.urlsplit(self.path).query).get('chain',[''])[0]
+   try:return self.sendjson(retailer_ad_preview(chain))
+   except ValueError as e:return self.sendjson({'error':str(e)},400)
+  if self.path.startswith('/api/stores/geocode-status'):
+   with RETAILER_GEOCODE_LOCK:status=dict(RETAILER_GEOCODE_STATS, running=RETAILER_GEOCODE_RUNNING)
+   try:
+    saved=json.loads(Path('/data/retailer_address_coordinates.json').read_text())
+    if not isinstance(saved,dict):saved={}
+   except (OSError,ValueError,TypeError):saved={}
+   total=len(RETAILER_PUBLISHED_STORES)
+   matched=sum(1 for chain,street,city,state,code in RETAILER_PUBLISHED_STORES if (street+', '+city+', '+state+' '+code).lower() in saved)
+   status.update(total_addresses=total,cached_coordinates=matched,remaining_estimates=total-matched)
+   return self.sendjson(status)
+  if self.path.startswith('/api/stores?'):
+   try:
+    params=urllib.parse.parse_qs(urllib.parse.urlsplit(self.path).query)
+    zipcode=params.get('zip',[''])[0]
+    radius=int(params.get('radius',['10'])[0])
+    return self.sendjson(nearby_stores(zipcode,radius))
+   except ValueError as e:return self.sendjson({'error':str(e)},400)
+   except Exception as error:
+    print('Store lookup failed:',repr(error),flush=True)
+    return self.sendjson({'error':'Store lookup could not reach the directory services. Check the HelloGroceries container logs for DNS or network errors.'},503)
+  if self.path=='/api/recommendation-photos':
+   # Cached-only lookup: never fetch external images on a page request.
+   cached_ids=[]
+   for photo in PHOTO_DIR.iterdir():
+    if photo.suffix.lower() in ('.jpg','.png','.webp','.gif') and photo.stem.isdigit() and photo.is_file() and photo.stat().st_size>0:
+     cached_ids.append(int(photo.stem))
+   return self.sendjson({'ids':cached_ids})
+  if self.path=='/api/recipes':return self.sendjson([r for r in allrecipes() if not non_recipe_reason(r)])
+  if self.path=='/api/state':
+   with lock:
+    state=read()
+    return self.sendjson(state)
+  if self.path=='/api/backup':
+   if not getattr(request_scope,'admin',False):return self.sendjson({'error':'Administrator required'},403)
+   with lock:
+    with db() as conn:
+     data={'version':1,'exported_at':datetime.datetime.now(datetime.timezone.utc).isoformat(),'state':read(),'imported':[dict(url=u,payload=json.loads(v)) for u,v in conn.execute('SELECT url,payload FROM imported')],'photos':[dict(recipe_id=i,image_url=u) for i,u in conn.execute('SELECT recipe_id,image_url FROM photos')]}
+   raw=json.dumps(data).encode()
+   self.send_response(200);self.send_header('Content-Type','application/json');self.send_header('Content-Disposition','attachment; filename="hellogroceries-backup.json"');self.send_header('Content-Length',str(len(raw)));self.end_headers();self.wfile.write(raw);return
+  if self.path=='/api/bulk-status':
+   countries=bulk_country_history()
+   us_progress=Path('/data/us_import_progress.json')
+   if us_progress.is_file():
+    try:
+     u=json.loads(us_progress.read_text())
+     if isinstance(u,dict):
+      countries['US']={'country':'US','discovered':u.get('discovered',0),'processed':u.get('processed',0),'imported':u.get('imported_this_run',0),'skipped':u.get('skipped',0),'errors':u.get('errors_this_run',0),'message':u.get('status','Idle'),'updated_at':us_progress.stat().st_mtime,'source':'us'}
+    except (OSError,ValueError):pass
+   return self.sendjson(dict(job,countries=countries,us_running=us_import_running() or (import_process is not None and import_process.poll() is None)))
+  if self.path=='/api/us-import-control-status':return self.sendjson({'running':us_import_running() or (import_process is not None and import_process.poll() is None),'message':'Importer running' if us_import_running() or (import_process is not None and import_process.poll() is None) else 'Importer idle — ready to start / resume'})
+  if self.path=='/api/us-import-status':
+   progress=Path('/data/us_import_progress.json')
+   if not progress.is_file():return self.sendjson({'available':False,'message':'No US import progress file yet'})
+   try:
+    result=json.loads(progress.read_text())
+    if not isinstance(result,dict):raise ValueError('Invalid progress file')
+    result['available']=True
+    result['updated_at']=progress.stat().st_mtime
+    return self.sendjson(result)
+   except (OSError,ValueError,json.JSONDecodeError) as exc:
+    return self.sendjson({'available':False,'message':'Progress temporarily unavailable'})
+  if self.path.startswith('/api/'):return self.sendjson({'error':'Not found'},404)
+  # Never serve application source, configuration, database or other internal files.
+  # SimpleHTTPRequestHandler otherwise exposes everything inside /app to logged-in users.
+  static_path=urllib.parse.unquote(urllib.parse.urlsplit(self.path).path)
+  if static_path=='/':static_path='/index.html'
+  allowed_pages={'/index.html','/auth.html','/admin.html','/household.html'}
+  allowed_extensions={'.css','.js','.png','.jpg','.jpeg','.webp','.gif','.svg','.ico','.woff','.woff2'}
+  if (static_path not in allowed_pages and
+      (not static_path.startswith('/assets/') or Path(static_path).suffix.lower() not in allowed_extensions)):
+   return self.send_error(404)
+  return super().do_GET()
+ def end_headers(self):
+  self.send_header('X-Content-Type-Options','nosniff')
+  self.send_header('X-Frame-Options','DENY')
+  self.send_header('Referrer-Policy','strict-origin-when-cross-origin')
+  self.send_header('Permissions-Policy','geolocation=(), microphone=(), payment=()')
+  # Static HTML/JS must be revalidated after a container image update.
+  path=urllib.parse.urlsplit(self.path).path
+  if path in ('/','/index.html','/auth.html') or path.endswith(('.js','.css')):
+   self.send_header('Cache-Control','no-cache, must-revalidate')
+  super().end_headers()
+ def do_POST(self):
+  request_scope.household_id=None
+  if self.path in ('/api/household/invite','/api/household/respond'):
+   if not self.gate(write=True):return
+   try:
+    size=int(self.headers.get('Content-Length','0'))
+    if not 0<size<=4096:raise ValueError('Invalid request size')
+    data=json.loads(self.rfile.read(size))
+    with db() as c:
+     auth.ensure_schema(c)
+     if self.path.endswith('/invite'):
+      sharing.invite(c,request_scope.user_id,request_scope.household_id,auth.validate_email(data.get('email')))
+      c.commit()
+     else:
+      if data.get('decision') not in ('accept','decline'):raise ValueError('Invalid response')
+      sharing.respond(c,request_scope.user_id,int(data.get('id')),data['decision']=='accept')
+   except (ValueError,TypeError,KeyError,sqlite3.Error) as exc:return self.sendjson({'error':str(exc)},400)
+   except PermissionError as exc:return self.sendjson({'error':str(exc)},403)
+   return self.sendjson({'ok':True})
+  if self.path=='/api/admin/ai-settings':
+   if not self.gate(write=True):return
+   if not getattr(request_scope,'admin',False):return self.sendjson({'error':'Administrator required'},403)
+   try:
+    size=int(self.headers.get('Content-Length','0'))
+    if not 0<size<=1024:raise ValueError('Invalid settings')
+    data=json.loads(self.rfile.read(size))
+    budget=float(data['monthly_budget_usd'])
+    scans=int(data['user_monthly_scans'])
+    if not math.isfinite(budget) or budget<0 or budget>100000 or scans<0 or scans>100000:raise ValueError('Invalid limits')
+    with db() as c:
+     c.execute('CREATE TABLE IF NOT EXISTS admin_preferences (key TEXT PRIMARY KEY,value TEXT NOT NULL)')
+     c.executemany('INSERT INTO admin_preferences(key,value) VALUES (?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value',[('ai_monthly_budget_usd',str(budget)),('ai_user_monthly_scans',str(scans))])
+     c.commit()
+    return self.sendjson({'ok':True,'limits':ai_scan_limits()})
+   except (ValueError,KeyError,TypeError,sqlite3.Error):return self.sendjson({'error':'Invalid AI scan limits'},400)
+  if self.path.startswith('/api/pantry/barcode?'):
+   if not self.gate():return
+   if not auth_rate_allowed(str(request_scope.user_id),'pantry-barcode',40,3600):return self.sendjson({'error':'Too many barcode lookups.'},429)
+   barcode=urllib.parse.parse_qs(urllib.parse.urlsplit(self.path).query).get('code',[''])[0].strip()
+   if not re.fullmatch(r'[0-9]{8,14}',barcode):return self.sendjson({'error':'Enter an 8 to 14 digit barcode.'},400)
+   with db() as conn:
+    conn.execute('CREATE TABLE IF NOT EXISTS barcode_products (household_id TEXT NOT NULL, barcode TEXT NOT NULL, name TEXT NOT NULL, size TEXT NOT NULL DEFAULT "", PRIMARY KEY(household_id,barcode))')
+    saved=conn.execute('SELECT name,size FROM barcode_products WHERE household_id=? AND barcode=?',(str(request_scope.household_id),barcode)).fetchone()
+   if saved:return self.sendjson({'found':True,'barcode':barcode,'item':{'name':saved[0],'quantity':1,'unit':'count','package_size':saved[1],'source':'Household saved product'}})
+   catalog_error=False
+   for host in ('world.openfoodfacts.org','world.openproductsfacts.org','world.openbeautyfacts.org'):
+    try:
+     url='https://'+host+'/api/v2/product/'+barcode+'.json?fields=code,product_name,brands,quantity'
+     req=urllib.request.Request(url,headers={'User-Agent':'HelloGroceries/1.0 (grocery pantry scanner)','Accept':'application/json'})
+     with urllib.request.urlopen(req,timeout=7) as response:data=json.load(response)
+     product=data.get('product') or {}
+     if data.get('status')!=1:continue
+     brand=str(product.get('brands') or '').split(',')[0].strip()[:65]
+     name=str(product.get('product_name') or '').strip()[:100]
+     size=str(product.get('quantity') or '').strip()[:32]
+     if not name:continue
+     if brand and not name.lower().startswith(brand.lower()):name=brand+' '+name
+     if size and size.lower() not in name.lower():name+=' '+size
+     return self.sendjson({'found':True,'barcode':barcode,'item':{'name':name[:140],'quantity':1,'unit':'count','brand':brand,'package_size':size,'source':host}})
+    except (urllib.error.URLError,TimeoutError,ValueError,TypeError,KeyError):
+     catalog_error=True
+   return self.sendjson({'found':False,'barcode':barcode,'catalog_unavailable':catalog_error})
+  if self.path=='/api/pantry/barcode/save':
+   if not self.gate(write=True):return
+   try:
+    length=int(self.headers.get('Content-Length','0'))
+    if not 0<length<=2048:raise ValueError('Invalid request')
+    body=json.loads(self.rfile.read(length))
+    barcode=str(body.get('barcode','')).strip()
+    name=str(body.get('name','')).strip()
+    size=str(body.get('size','')).strip()
+    if not re.fullmatch(r'[0-9]{8,14}',barcode) or not 1<=len(name)<=140 or len(size)>32:raise ValueError('Invalid barcode or product')
+    with db() as conn:
+     conn.execute('CREATE TABLE IF NOT EXISTS barcode_products (household_id TEXT NOT NULL, barcode TEXT NOT NULL, name TEXT NOT NULL, size TEXT NOT NULL DEFAULT "", PRIMARY KEY(household_id,barcode))')
+     conn.execute('INSERT INTO barcode_products(household_id,barcode,name,size) VALUES(?,?,?,?) ON CONFLICT(household_id,barcode) DO UPDATE SET name=excluded.name,size=excluded.size',(str(request_scope.household_id),barcode,name,size))
+    return self.sendjson({'ok':True})
+   except (ValueError,KeyError,TypeError,sqlite3.Error):return self.sendjson({'error':'Could not save product'},400)
+  if self.path=='/api/pantry/scan':
+   if not self.gate(write=True):return
+   if not auth_rate_allowed(str(request_scope.user_id),'pantry-scan',15,3600):
+    return self.sendjson({'error':'Scan limit reached. Try again later.'},429)
+   denied=ai_scan_allowed(request_scope.user_id)
+   if denied:return self.sendjson({'error':denied},429)
+   key=openai_scan_key()
+   if not key:return self.sendjson({'error':'AI scanning is not configured. Set OPENAI_API_KEY on the server.'},503)
+   try:
+    size=int(self.headers.get('Content-Length','0'))
+    if not 0<size<=8500000:raise ValueError('Photo too large (maximum 6 MB)')
+    data=json.loads(self.rfile.read(size))
+    mime=data.get('mime','')
+    photo=data.get('image','')
+    mode=data.get('mode','groceries')
+    if mime not in ('image/jpeg','image/png','image/webp') or mode not in ('groceries','receipt') or not isinstance(photo,str) or len(photo)>8400000:
+     raise ValueError('Choose a JPEG, PNG, or WebP photo')
+    import base64
+    binary=base64.b64decode(photo,validate=True)
+    if not 0<len(binary)<=6000000:raise ValueError('Photo too large (maximum 6 MB)')
+    if mime=='image/jpeg' and not binary[:2]==bytes((255,216)):raise ValueError('Invalid JPEG')
+    if mime=='image/png' and not binary[:4]==bytes((137,80,78,71)):raise ValueError('Invalid PNG')
+    if mime=='image/webp' and binary[:4]!=b'RIFF':raise ValueError('Invalid WebP')
+    instruction=('Read the grocery receipt and extract purchased food and pantry items; ignore taxes, totals, discounts, fees and non-food purchases.' if mode=='receipt' else 'Identify grocery and pantry products actually visible in this photograph.')
+    prompt=instruction+' Return JSON with items array. Each item: brand (actual manufacturer/brand printed on package, or empty if not legible), product (short canonical product name or variety, not a marketing tagline), package_size (only a legible printed net quantity, otherwise empty), quantity (number), unit (count, can, package, bag, pound, ounce, gram, kilogram, liter, milliliter, cup, bunch, head, loaf, dozen), confidence (high, medium, low). IMPORTANT: distinguish logos/brand names from advertising slogans and descriptive copy. For example, on a Miller Lite label, the product name is Miller Lite; A Fine Pilsner is marketing copy, NOT a product name. Do not treat Lite alone as the manufacturer when the manufacturer name is visible. Do not assume the image is Miller Lite merely because of this example. Only identify a specific brand or size if visual evidence supports it; otherwise use a generic descriptive product with brand and package_size empty and confidence low. If brand and product overlap, return the canonical product once, not twice. Do not add packaging type to product when it is already represented by unit. For receipts interpret abbreviated names conservatively. Never guess unreadable details or include personal data. Use quantity 1 and count if uncertain. Maximum 40 items.'
+    payload={'model':os.environ.get('PANTRY_SCAN_MODEL','gpt-4.1-mini'),'response_format':{'type':'json_object'},'messages':[{'role':'user','content':[{'type':'text','text':prompt},{'type':'image_url','image_url':{'url':'data:'+mime+';base64,'+photo,'detail':'high'}}]}],'max_tokens':1800}
+    req=urllib.request.Request('https://api.openai.com/v1/chat/completions',data=json.dumps(payload).encode(),headers={'Authorization':'Bearer '+key,'Content-Type':'application/json'},method='POST')
+    with urllib.request.urlopen(req,timeout=45) as response:result=json.load(response)
+    record_scan_usage(request_scope.user_id,payload['model'],result.get('usage') or {})
+    parsed=json.loads(result['choices'][0]['message']['content'])
+    # When the first pass sees only generic label text, inspect the image a second time.
+    # Never use a product-name guess as evidence: a missing brand remains missing.
+    initial=parsed.get('items',[])
+    if mode=='groceries' and isinstance(initial,list) and len(initial)==1 and isinstance(initial[0],dict):
+     candidate=initial[0]
+     brand_hint=str(candidate.get('brand') or '').strip().lower()
+     product_hint=str(candidate.get('product') or candidate.get('name') or '').strip().lower()
+     ambiguous=(brand_hint in ('','lite','light','original','classic','premium','fresh') or product_hint in ('beer','lite beer','a fine pilsner','lite a fine pilsner','can','drink','beverage'))
+     if ambiguous:
+      try:
+       verification_prompt=('Independently inspect this grocery package photo for small print and logos, not just the largest lettering. '
+        'Identify the actual printed brand/manufacturer, canonical product name and printed package size. '
+        'Marketing slogans are not product names. Do NOT assume a particular brand from the style or from prior examples. '
+        'If the brand is not readable, leave brand empty and confidence low. If size is not readable, leave package_size empty. '
+        'Return JSON with one item containing brand, product, package_size, confidence, quantity and unit. '
+        'Be conservative: no guesses.')
+       verify_payload={'model':payload['model'],'response_format':{'type':'json_object'},'messages':[{'role':'user','content':[{'type':'text','text':verification_prompt},{'type':'image_url','image_url':{'url':'data:'+mime+';base64,'+photo,'detail':'high'}}]}],'max_tokens':350}
+       verify_req=urllib.request.Request('https://api.openai.com/v1/chat/completions',data=json.dumps(verify_payload).encode(),headers={'Authorization':'Bearer '+key,'Content-Type':'application/json'},method='POST')
+       with urllib.request.urlopen(verify_req,timeout=45) as verify_response:verification=json.load(verify_response)
+       record_scan_usage(request_scope.user_id,payload['model'],verification.get('usage') or {})
+       verified=json.loads(verification['choices'][0]['message']['content']).get('items',[])
+       if isinstance(verified,list) and len(verified)==1 and isinstance(verified[0],dict):
+        second=verified[0]
+        second_brand=str(second.get('brand') or '').strip()
+        second_product=str(second.get('product') or '').strip()
+        if second_product:
+         candidate['product']=second_product
+         candidate['brand']=second_brand
+         candidate['package_size']=str(second.get('package_size') or '').strip()
+         candidate['confidence']=second.get('confidence','low')
+      except (urllib.error.URLError,TimeoutError,ValueError,KeyError,TypeError,IndexError):
+       pass  # Keep the initial result if the optional verification is unavailable.
+    allowed={'count','can','package','bag','pound','ounce','gram','kilogram','liter','milliliter','cup','bunch','head','loaf','dozen'}
+    items=[]
+    for item in parsed.get('items',[])[:40]:
+     if not isinstance(item,dict):continue
+     brand=str(item.get('brand') or '').strip()[:65]
+     product=str(item.get('product') or item.get('name') or '').strip()[:100]
+     package_size=str(item.get('package_size') or '').strip()[:32]
+     # Compose a readable pantry name while preserving printed package size.
+     name=' '.join(part for part in (brand,product,package_size) if part).strip()[:140]
+     if brand and product.lower().startswith(brand.lower()+' '):name=' '.join(part for part in (product,package_size) if part)[:140]
+     if not name:name=str(item.get('name') or '').strip()[:140]
+     try:quantity=float(item.get('quantity',1))
+     except (ValueError,TypeError):quantity=1
+     unit=str(item.get('unit','count')).lower()
+     if name and '|' not in name and 0<quantity<=100000:
+      items.append({'name':name,'quantity':quantity,'unit':unit if unit in allowed else 'count','confidence':str(item.get('confidence','low')) if item.get('confidence') in ('high','medium','low') else 'low','brand':brand,'product':product,'package_size':package_size})
+    return self.sendjson({'items':items,'requires_review':True})
+   except urllib.error.HTTPError as exc:
+    status=exc.code
+    # Log only the upstream status, never provider bodies or credentials.
+    print('Pantry scan OpenAI HTTP status:',status,flush=True)
+    if status==401:return self.sendjson({'error':'OpenAI rejected the API key (401). Check the saved key in Admin settings.'},502)
+    if status==403:return self.sendjson({'error':'OpenAI denied access (403). Check project permissions and model access.'},502)
+    if status==429:return self.sendjson({'error':'OpenAI rate or billing limit reached (429). Check API billing, credits, and usage limits.'},502)
+    if status==400:return self.sendjson({'error':'OpenAI rejected the scan request (400). The scanner request format may need updating.'},502)
+    return self.sendjson({'error':'OpenAI request failed (HTTP '+str(status)+'). Check API status and server logs.'},502)
+   except (ValueError,TypeError,KeyError,IndexError,UnicodeError) as exc:return self.sendjson({'error':str(exc)[:180]},400)
+   except Exception as exc:
+    print('Pantry scan provider failed:',type(exc).__name__,flush=True)
+    return self.sendjson({'error':'Scanner unavailable. Please try again later.'},502)
+  if self.path=='/api/analytics/event':
+   if not self.gate(write=True):return
+   try:
+    size=int(self.headers.get('Content-Length','0'))
+    if not 0<size<=256:raise ValueError('Invalid event')
+    event=json.loads(self.rfile.read(size)).get('event')
+    if event not in ANALYTICS_EVENTS:raise ValueError('Invalid event')
+    analytics_record(request_scope.user_id,event)
+    if event=='analytics_test':
+     with db() as c:
+      count=c.execute("SELECT count FROM hg_analytics WHERE day=date('now') AND user_id=? AND event='analytics_test'",(request_scope.user_id,)).fetchone()
+     return self.sendjson({'ok':True,'saved':bool(count),'count':count[0] if count else 0})
+    return self.sendjson({'ok':True})
+   except sqlite3.Error:
+    return self.sendjson({'error':'Analytics storage unavailable'},503)
+   except (ValueError,TypeError,AttributeError):return self.sendjson({'error':'Invalid event'},400)
+  if self.path=='/api/admin/pricing-visibility':
+   if not self.gate(write=True):return
+   if not getattr(request_scope,'admin',False):return self.sendjson({'error':'Administrator required'},403)
+   try:
+    size=int(self.headers.get('Content-Length','0'))
+    if not 0<size<=512:raise ValueError('Invalid request size')
+    values=json.loads(self.rfile.read(size))
+    if not isinstance(values,dict) or any(type(values.get(k)) is not bool for k in ('admin','user')):raise ValueError('Both visibility options must be booleans')
+    with db() as c:
+     c.execute('CREATE TABLE IF NOT EXISTS admin_preferences (key TEXT PRIMARY KEY,value TEXT NOT NULL)')
+     for role in ('admin','user'):c.execute('INSERT OR REPLACE INTO admin_preferences(key,value) VALUES (?,?)',('show_prices_'+role,'1' if values[role] else '0'))
+     c.commit()
+    return self.sendjson({'ok':True,'visibility':pricing_visibility()})
+   except (ValueError,TypeError) as exc:return self.sendjson({'error':str(exc)},400)
+  if self.path=='/api/admin/tasks/run':
+   if not self.gate(write=True):return
+   if not getattr(request_scope,'admin',False):return self.sendjson({'error':'Administrator required'},403)
+   try:
+    size=int(self.headers.get('Content-Length','0'))
+    if not 0<size<=512:raise ValueError('Invalid request size')
+    name=json.loads(self.rfile.read(size)).get('task')
+    if name=='us_import':return self.sendjson(start_us_import())
+    if name=='store_directory':
+     with ATP_LOCK:
+      ATP_CACHE_FILE.unlink(missing_ok=True)
+     with STORE_CACHE_LOCK:STORE_CACHE.clear()
+     task_record(name,'queued')
+     return self.sendjson({'ok':True,'message':'Directory cache cleared; next store search will fetch fresh nationwide data.'})
+    if name=='store_geocode':
+     global RETAILER_GEOCODE_RUNNING
+     with RETAILER_GEOCODE_LOCK:
+      if RETAILER_GEOCODE_RUNNING:raise ValueError('Geocoding is already running')
+      RETAILER_GEOCODE_RUNNING=True
+     threading.Thread(target=geocode_retailer_addresses,daemon=True).start()
+     task_record(name,'running')
+     return self.sendjson({'ok':True,'message':'Store address geocoding started.'})
+    raise ValueError('Unsupported task; use the existing nutrition or price controls')
+   except (ValueError,TypeError) as exc:return self.sendjson({'error':str(exc)},400)
+  if self.path in ('/api/auth/setup','/api/auth/login','/api/auth/register','/api/auth/verify','/api/auth/resend-verification'):return self.auth_post()
+  if self.path=='/api/admin/nutrition-batch':
+   if not self.gate(write=True):return
+   if not getattr(request_scope,'admin',False):return self.sendjson({'error':'Administrator required'},403)
+   try:
+    size=int(self.headers.get('Content-Length','0'))
+    if not 0<size<=1024:raise ValueError('Invalid request size')
+    args=json.loads(self.rfile.read(size))
+    cursor=max(0,int(args.get('cursor',0)))
+    with db() as conn:
+     rows=conn.execute('SELECT id,url,payload FROM imported WHERE id>? ORDER BY id LIMIT 3',(cursor,)).fetchall()
+     total=conn.execute('SELECT COUNT(*) FROM imported').fetchone()[0]
+    updated=skipped=failed=missing=0
+    errors=[]
+    for rid,url,payload in rows:
+     try:
+      original=json.loads(payload)
+      if original.get('nutrition'):
+       skipped+=1
+       continue
+      fresh=recipe_from_url(url)
+      nutrition=fresh.get('nutrition') or {}
+      labels=fresh.get('dietary_labels') or []
+      if not nutrition and not labels:
+       missing+=1
+       errors.append(str(rid)+': No source nutrition found')
+       continue
+      original['nutrition']=nutrition
+      original['dietary_labels']=labels
+      with lock:
+       with db() as conn:conn.execute('UPDATE imported SET payload=? WHERE id=?',(json.dumps(original),rid))
+      updated+=1
+     except (ValueError,TypeError,OSError,urllib.error.URLError,TimeoutError) as exc:
+      failed+=1
+      errors.append(str(rid)+': '+str(exc)[:120])
+    next_cursor=rows[-1][0] if rows else cursor
+    with db() as conn:remaining=conn.execute('SELECT COUNT(*) FROM imported WHERE id>?',(next_cursor,)).fetchone()[0]
+    task_record('nutrition','completed' if remaining==0 else 'running')
+    return self.sendjson({'ok':True,'cursor':next_cursor,'total':total,'processed':total-remaining,'updated':updated,'skipped':skipped,'failed':failed,'missing':missing,'errors':errors,'done':remaining==0})
+   except (ValueError,TypeError) as exc:return self.sendjson({'error':str(exc)},400)
+  if self.path=='/api/nutrition-refresh':
+   if not self.gate(write=True):return
+   try:
+    size=int(self.headers.get('Content-Length','0'))
+    if not 0<size<=2048:raise ValueError('Invalid request size')
+    data=json.loads(self.rfile.read(size));rid=int(data.get('id'))
+    with db() as c:
+     row=c.execute('SELECT url,payload FROM imported WHERE id=?',(rid-1000000,)).fetchone()
+    if not row:return self.sendjson({'error':'Nutrition refresh is available for imported HelloFresh recipes only'},400)
+    updated=recipe_from_url(row[0])
+    original=json.loads(row[1])
+    original['nutrition']=updated.get('nutrition',{})
+    original['dietary_labels']=updated.get('dietary_labels',[])
+    if updated.get('source_servings'):original['source_servings']=updated['source_servings']
+    with lock:
+     with db() as c:c.execute('UPDATE imported SET payload=? WHERE id=?',(json.dumps(original),rid-1000000))
+    return self.sendjson({'ok':True,'nutrition':original['nutrition'],'dietary_labels':original['dietary_labels']})
+   except (ValueError,TypeError,OSError,urllib.error.URLError,TimeoutError) as exc:
+    return self.sendjson({'error':str(exc)},400)
+  if self.path=='/api/reef-refresh':
+   if not self.gate(write=True):return
+   if not getattr(request_scope,'admin',False):return self.sendjson({'error':'Administrator required'},403)
+   try:
+    size=int(self.headers.get('Content-Length','0'))
+    if not 0<size<=4096:raise ValueError('Invalid request size')
+    data=json.loads(self.rfile.read(size))
+    return self.sendjson(reef_refresh_batch(data.get('zip',''),data.get('items',[])))
+   except (ValueError,TypeError,OSError) as exc:return self.sendjson({'error':str(exc)},400)
+  if self.path=='/api/admin/openai-key':
+   if not self.gate(write=True):return
+   if not getattr(request_scope,'admin',False):return self.sendjson({'error':'Administrator required'},403)
+   try:
+    size=int(self.headers.get('Content-Length','0'))
+    if not 0<size<=2048:raise ValueError('Invalid request size')
+    data=json.loads(self.rfile.read(size))
+    if data.get('remove') is True:
+     OPENAI_KEY_PATH.unlink(missing_ok=True)
+     return self.sendjson({'ok':True,'configured':bool(openai_scan_key())})
+    save_openai_scan_key(data.get('key'))
+    return self.sendjson({'ok':True,'configured':True})
+   except (ValueError,TypeError,OSError) as exc:return self.sendjson({'error':str(exc)},400)
+  if self.path in ('/api/admin/resend-key','/api/admin/resend-test'):
+   if not self.gate(write=True):return
+   if not getattr(request_scope,'admin',False):return self.sendjson({'error':'Administrator required'},403)
+   try:
+    size=int(self.headers.get('Content-Length','0'))
+    if not 0<size<=2048:raise ValueError('Invalid request size')
+    data=json.loads(self.rfile.read(size))
+    if self.path=='/api/admin/resend-test':
+     if not resend_test_email(data.get('email')):raise ValueError('Resend did not confirm the email')
+     return self.sendjson({'ok':True,'message':'Test email accepted by Resend. Check the inbox.'})
+    if data.get('remove') is True:
+     RESEND_KEY_PATH.unlink(missing_ok=True)
+     return self.sendjson({'ok':True,'configured':bool(resend_key())})
+    save_resend_key(data.get('key'))
+    return self.sendjson({'ok':True,'configured':True})
+   except (ValueError,TypeError,OSError) as exc:return self.sendjson({'error':str(exc)},400)
+  if self.path=='/api/admin/reef-key':
+   if not self.gate(write=True):return
+   if not getattr(request_scope,'admin',False):return self.sendjson({'error':'Administrator required'},403)
+   try:
+    size=int(self.headers.get('Content-Length','0'))
+    if not 0<size<=2048:raise ValueError('Invalid request size')
+    data=json.loads(self.rfile.read(size))
+    if data.get('remove') is True:
+     REEF_KEY_PATH.unlink(missing_ok=True)
+     return self.sendjson({'ok':True,'configured':reef_key_configured()})
+    save_reef_key(data.get('key'))
+    return self.sendjson({'ok':True,'configured':True})
+   except (ValueError,TypeError,OSError) as exc:return self.sendjson({'error':str(exc)},400)
+  if self.path=='/api/auth/session-settings':
+   if not self.gate(write=True):return
+   if not getattr(request_scope,'admin',False):return self.sendjson({'error':'Administrator required'},403)
+   try:
+    size=int(self.headers.get('Content-Length','0'))
+    if not 0<size<=1024:raise ValueError('Invalid request size')
+    data=json.loads(self.rfile.read(size))
+    with db() as c:
+     auth.ensure_schema(c)
+     auth.set_session_duration_days(c,data.get('days'))
+    return self.sendjson({'ok':True,'days':data['days']})
+   except (ValueError,TypeError,KeyError) as exc:return self.sendjson({'error':str(exc)},400)
+  if self.path=='/api/auth/unblock-email':
+   if not self.gate(write=True):return
+   if not getattr(request_scope,'admin',False):return self.sendjson({'error':'Administrator required'},403)
+   try:
+    size=int(self.headers.get('Content-Length','0'))
+    if not 0<size<=8192:raise ValueError('Invalid request size')
+    data=json.loads(self.rfile.read(size))
+    with db() as c:
+     auth.ensure_schema(c)
+     auth.unblock_email(c,request_scope.user_id,data.get('email'))
+    return self.sendjson({'ok':True})
+   except (ValueError,TypeError,KeyError) as exc:return self.sendjson({'error':str(exc)},400)
+  if self.path=='/api/auth/remove-account':
+   if not self.gate(write=True):return
+   if not getattr(request_scope,'admin',False):return self.sendjson({'error':'Administrator required'},403)
+   try:
+    size=int(self.headers.get('Content-Length','0'))
+    if not 0<size<=8192:raise ValueError('Invalid request size')
+    data=json.loads(self.rfile.read(size))
+    with db() as c:
+     auth.ensure_schema(c)
+     auth.remove_account(c,request_scope.user_id,data.get('id'),data.get('block_future',False))
+    return self.sendjson({'ok':True})
+   except (ValueError,TypeError,KeyError) as exc:return self.sendjson({'error':str(exc)},400)
+  if self.path=='/api/auth/review':
+   if not self.gate(write=True):return
+   if not getattr(request_scope,'admin',False):return self.sendjson({'error':'Administrator required'},403)
+   try:
+    size=int(self.headers.get('Content-Length','0'))
+    if not 0<size<=8192:raise ValueError('Invalid request size')
+    data=json.loads(self.rfile.read(size))
+    with db() as c:
+     auth.ensure_schema(c)
+     auth.review_registration(c,request_scope.user_id,data.get('id'),data.get('approve'))
+    return self.sendjson({'ok':True})
+   except (ValueError,TypeError,KeyError) as exc:return self.sendjson({'error':str(exc)},400)
+  if self.path=='/api/auth/redeem':return self.redeem_post()
+  if self.path=='/api/auth/invite':return self.invite_post()
+  if self.path=='/api/auth/logout':return self.logout_post()
+  if not self.gate(write=True):return
+  if self.path!='/api/action':return self.sendjson({'error':'Not found'},404)
+  try:
+   size=int(self.headers.get('Content-Length','0'))
+   if size<1 or size>25000000:return self.sendjson({'error':'Too large (25 MB maximum)'},413)
+   p=json.loads(self.rfile.read(size));action=p['action']
+   if action in ('start-us-import','pause-bulk','resume-bulk','restore-backup','bulk','photo') and not getattr(request_scope,'admin',False):
+    return self.sendjson({'error':'Administrator required'},403)
+   if action=='start-us-import':return self.sendjson(start_us_import())
+   if action=='pause-bulk':
+    BULK_PAUSE.set();return self.sendjson({'ok':True,'message':'Pause requested; finishes current recipe first'})
+   if action=='restore-backup':
+    backup=p.get('backup');mode=p.get('mode','merge')
+    if not isinstance(backup,dict) or backup.get('version')!=1 or mode!='merge':raise ValueError('Invalid backup or restore mode')
+    imports=backup.get('imported',[]);photos=backup.get('photos',[])
+    if not isinstance(imports,list) or len(imports)>50000 or not isinstance(photos,list) or len(photos)>50000:raise ValueError('Backup too large')
+    with lock:
+     with db() as conn:
+      added=0;idmap={}
+      for row in imports:
+       if not isinstance(row,dict) or not isinstance(row.get('url'),str) or not isinstance(row.get('payload'),dict):raise ValueError('Invalid recipe entry')
+       if not allowed_url(row['url']):raise ValueError('Invalid recipe URL')
+       cur=conn.execute('INSERT OR IGNORE INTO imported(url,payload) VALUES(?,?)',(row['url'],'{}'))
+       if cur.rowcount:
+        rid=1000000+cur.lastrowid;recipe=dict(row['payload'],id=rid)
+        conn.execute('UPDATE imported SET payload=? WHERE url=?',(json.dumps(recipe),row['url']));added+=1
+       else:rid=1000000+conn.execute('SELECT id FROM imported WHERE url=?',(row['url'],)).fetchone()[0]
+       if 'id' in row['payload']:idmap[str(row['payload']['id'])]=rid
+      for photo in photos:
+       if not isinstance(photo,dict):continue
+       rid=idmap.get(str(photo.get('recipe_id')),photo.get('recipe_id'))
+       if isinstance(rid,int) and isinstance(photo.get('image_url'),str) and len(photo['image_url'])<2048:
+        conn.execute('INSERT OR IGNORE INTO photos(recipe_id,image_url) VALUES(?,?)',(rid,photo['image_url']))
+      old=read();saved=backup.get('state',{})
+      if isinstance(saved,dict):
+       for field in ('favorites','pantry','manual'):
+        if isinstance(saved.get(field),list):
+         values=[idmap.get(str(x),x) if field=='favorites' else x for x in saved[field]]
+         old[field]=list(dict.fromkeys(old.get(field,[])+values))[:20000]
+       if isinstance(saved.get('collections'),dict):
+        collections=old.setdefault('collections',{})
+        for name,ids in saved['collections'].items():
+         if isinstance(name,str) and isinstance(ids,list) and len(name)<=60:
+          collections[name]=list(dict.fromkeys(collections.get(name,[])+[idmap.get(str(x),x) for x in ids]))[:20000]
+       if isinstance(saved.get('recipe_reviews'),dict):
+        reviews=old.setdefault('recipe_reviews',{})
+        for rid,review in saved['recipe_reviews'].items():
+         mapped=str(idmap.get(str(rid),rid))
+         if mapped not in reviews and isinstance(review,dict) and type(review.get('rating'))==int and 0<=review['rating']<=5 and isinstance(review.get('note',''),str) and len(review.get('note',''))<=2000:
+          reviews[mapped]={'rating':review['rating'],'note':review.get('note','')}
+       if not old.get('weekly') and isinstance(saved.get('weekly'),dict):old['weekly']={day:idmap.get(str(id),id) for day,id in saved['weekly'].items()}
+       if not old.get('list') and isinstance(saved.get('list'),list):old['list']=saved['list']
+       if not old.get('selected') and isinstance(saved.get('selected'),dict):old['selected']={str(idmap.get(str(k),k)):v for k,v in saved['selected'].items()}
+       old['revision']=old.get('revision',0)+1
+     # Commit recipe inserts before saving state through its own connection.
+     if isinstance(saved,dict):save(old)
+    return self.sendjson({'ok':True,'message':f'Restored {added} missing recipes and merged saved preferences; existing data retained'})
+   if action=='bulk':
+    country=str(p.get('country','US')).upper();limit=int(p.get('limit',50))
+    if country not in ('US','UK','AU','CA','DE','NL') or not 0<=limit<=10000:raise ValueError('Choose a supported country and a limit of 0–10,000')
+    with lock:
+     if job['running']:raise ValueError('An import is already running')
+     BULK_PAUSE.clear()
+     job.update(running=True,paused=False,country=country,limit=limit,discovered=0,processed=0,imported=0,skipped=0,errors=0,started_at=time.time(),message='Discovering public recipe pages');save_bulk()
+     threading.Thread(target=bulk_worker,args=(country,limit),daemon=True).start()
+    return self.sendjson({'ok':True,'message':'Bulk import started'})
+   if action=='resume-bulk':
+    if job['running']:raise ValueError('Import already running')
+    if str(p.get('country',job.get('country','US'))).upper()!=job.get('country','US'):raise ValueError('Select the paused country to resume it')
+    BULK_PAUSE.clear();country=job.get('country','US');limit=int(job.get('limit',0))
+    job.update(running=True,paused=False,discovered=0,processed=0,imported=0,skipped=0,errors=0,started_at=time.time(),message='Resuming (already imported recipes will be skipped)');save_bulk()
+    threading.Thread(target=bulk_worker,args=(country,limit),daemon=True).start()
+    return self.sendjson({'ok':True,'message':'Resuming bulk import'})
+   if action=='photo':
+    rid=int(p['id']);url=str(p.get('image','')).strip()
+    if rid not in {r['id'] for r in allrecipes()}:raise ValueError('Unknown recipe')
+    if url:
+     u=urllib.parse.urlsplit(url)
+     if u.scheme!='https' or not u.hostname or u.username or u.password or len(url)>2048:raise ValueError('Use a valid HTTPS image URL')
+    with lock:
+     with db() as c:c.execute('INSERT INTO photos(recipe_id,image_url) VALUES(?,?) ON CONFLICT(recipe_id) DO UPDATE SET image_url=excluded.image_url',(rid,url))
+     for oldfile in PHOTO_DIR.glob(str(rid)+'.*'):oldfile.unlink(missing_ok=True)
+    return self.sendjson({'ok':True})
+   if action=='import':
+    if not getattr(request_scope,'admin',False):
+     return self.sendjson({'error':'Recipe importing is restricted to administrators.'},403)
+    url=str(p.get('url','')).strip()
+    recipe=recipe_from_url(url)
+    with lock:
+     with db() as c:
+      row=c.execute('SELECT id FROM imported WHERE url=?',(url,)).fetchone()
+      if row:recipe['id']=1000000+row[0]
+      else:
+       cursor=c.execute('INSERT INTO imported(url,payload) VALUES(?,?)',(url,'{}'))
+       recipe['id']=1000000+cursor.lastrowid
+      c.execute('UPDATE imported SET payload=? WHERE url=?',(json.dumps(recipe),url))
+    return self.sendjson({'ok':True,'recipe':recipe})
+   with lock:
+    state=read()
+    pantry_before={'pantry':list(state.get('pantry',[])),'pantry_inventory':dict(state.get('pantry_inventory',{}))}
+    if action in ('preview_cooked_recipe','confirm_cooked_recipe','undo_cooked_recipe'):
+     inventory=state.setdefault('pantry_inventory',{})
+     history=state.setdefault('pantry_cooking_history',[])
+     if not isinstance(history,list):raise ValueError('Invalid cooking history')
+     if action=='undo_cooked_recipe':
+      event_id=p.get('event_id')
+      event=next((x for x in history if x.get('id')==event_id),None)
+      if not event or event.get('undone'):raise ValueError('Cooking event unavailable or already undone')
+      for key,delta in event['deductions'].items():
+       inventory[key]=round(float(inventory.get(key,0))+float(delta),4)
+      event['undone']=True
+     else:
+      rid=p.get('recipe_id')
+      if type(rid)!=int:raise ValueError('Invalid recipe')
+      recipe=next((r for r in allrecipes() if r['id']==rid),None)
+      if recipe is None:raise ValueError('Unknown recipe')
+      multiplier=p.get('servings',1)
+      if type(multiplier) not in (int,float) or not 0<float(multiplier)<=20:raise ValueError('Invalid serving multiplier')
+      corrections=state.get('recipe_ingredient_corrections',{})
+      conversions={'gram':('mass',1),'kilogram':('mass',1000),'ounce':('mass',28.349523125),'pound':('mass',453.59237),'milliliter':('volume',1),'liter':('volume',1000),'teaspoon':('volume',4.92892159375),'tablespoon':('volume',14.78676478125),'cup':('volume',236.5882365)}
+      remaining={k:float(v) for k,v in inventory.items() if type(v) in (int,float) and v>0}
+      deductions={}
+      unmatched=[]
+      for original in recipe.get('ingredients',{}):
+       correction=corrections.get(str(rid)+'|'+original)
+       if not isinstance(correction,dict):continue
+       name=str(correction.get('name','')).strip().casefold()
+       unit=correction.get('unit','')
+       amount=correction.get('amount')
+       if not name or '|' in name or type(amount) not in (int,float) or amount<=0:continue
+       required=float(amount)*float(multiplier)
+       matches=[]
+       for key,available in remaining.items():
+        if not key.startswith(name+'|') or available<=0:continue
+        stock_unit=key.rsplit('|',1)[-1]
+        if stock_unit==unit:factor=1
+        elif unit in conversions and stock_unit in conversions and conversions[unit][0]==conversions[stock_unit][0]:
+         factor=conversions[unit][1]/conversions[stock_unit][1]
+        else:continue
+        matches.append((key,factor))
+       for key,factor in matches:
+        take=min(remaining[key],required*factor)
+        if take<=0:continue
+        remaining[key]=round(remaining[key]-take,6)
+        deductions[key]=round(deductions.get(key,0)+take,6)
+        required=max(0,required-take/factor)
+        if required<0.000001:break
+       if required>0.000001:unmatched.append(name+' ('+unit+')')
+      if action=='preview_cooked_recipe':
+       return self.sendjson({'deductions':deductions,'not_deducted':unmatched,'recipe_name':recipe.get('name','Recipe')})
+      if not isinstance(p.get('event_id'),str) or not (8<=len(p['event_id'])<=80) or not re.fullmatch(r'[A-Za-z0-9_-]+',p['event_id']):raise ValueError('Invalid cooking event')
+      if any(x.get('id')==p['event_id'] for x in history):raise ValueError('This cooking event was already recorded')
+      if not deductions:raise ValueError('No verified pantry quantities to deduct')
+      for key,delta in deductions.items():inventory[key]=round(max(0,float(inventory[key])-delta),4)
+      history.append({'id':p['event_id'],'recipe_id':rid,'deductions':deductions,'undone':False,'at':time.time()})
+      if len(history)>100:del history[:-100]
+    elif action=='select':
+     rid=str(int(p['id']));servings=float(p.get('servings',1))
+     if not (0<servings<=20):raise ValueError('Serving multiplier must be 0–20')
+     if p.get('checked') and rid not in {str(r['id']) for r in allrecipes()}:raise ValueError('Unknown recipe')
+     if p.get('checked'):
+      state['selected'][rid]=servings
+     else:state['selected'].pop(rid,None)
+    elif action=='correct_recipe_ingredient':
+     rid=p.get('recipe_id');original=p.get('original')
+     if type(rid)!=int or not isinstance(original,str) or not original or len(original)>250:raise ValueError('Invalid ingredient reference')
+     recipe=next((r for r in allrecipes() if r['id']==rid),None)
+     if recipe is None or original not in recipe.get('ingredients',{}):raise ValueError('Recipe ingredient not found')
+     corrections=state.setdefault('recipe_ingredient_corrections',{})
+     key=str(rid)+'|'+original
+     if p.get('remove') is True:corrections.pop(key,None)
+     else:
+      name=p.get('name');unit=p.get('unit');amount=p.get('amount')
+      allowed={'','count','teaspoon','tablespoon','cup','ounce','pound','gram','kilogram','milliliter','liter','clove','bunch','head','stalk','slice','piece','pinch','can','package','bag'}
+      if not isinstance(name,str) or not name.strip() or len(name)>140:raise ValueError('Ingredient name required')
+      if not isinstance(unit,str) or unit not in allowed:raise ValueError('Invalid measurement unit')
+      if type(amount) not in (int,float) or not (0<float(amount)<=10000):raise ValueError('Invalid ingredient amount')
+      if len(corrections)>=5000 and key not in corrections:raise ValueError('Too many corrections')
+      corrections[key]={'name':name.strip(),'unit':unit,'amount':float(amount)}
+    elif action=='edit_ingredient':
+     name=str(p.get('name',''))
+     if not any(i['name']==name for i in state['list']):raise ValueError('Unknown item')
+     display=str(p.get('display','')).strip()
+     department=str(p.get('department','Auto'))
+     if not display or len(display)>180:raise ValueError('Ingredient label required (max 180 characters)')
+     if department not in ('Auto','Produce','Meat & Seafood','Dairy & Refrigerated','Bakery & Bread','Frozen','Pantry & Seasonings','Other / Uncategorized'):raise ValueError('Invalid department')
+     state.setdefault('ingredient_overrides',{})[name]={'display':display,'department':department}
+    elif action=='reset_ingredient':
+     state.setdefault('ingredient_overrides',{}).pop(str(p.get('name','')),None)
+    elif action=='set_preferences':
+     favorites=p.get('favorites',[]);collections=p.get('collections',{});weekly=p.get('weekly',{});pantry=p.get('pantry',[]);manual=p.get('manual',[]);previous_week=p.get('previous_week',{});recommendation_hidden=p.get('recommendation_hidden',[])
+     if not isinstance(favorites,list) or len(favorites)>20000 or not isinstance(collections,dict) or not isinstance(weekly,dict) or not isinstance(pantry,list) or not isinstance(manual,list) or not isinstance(previous_week,dict) or len(previous_week)>7 or not isinstance(recommendation_hidden,list) or len(recommendation_hidden)>2000 or any(type(v)!=int or v<0 for v in recommendation_hidden):raise ValueError('Invalid preferences')
+     if len(collections)>100 or len(weekly)>7 or len(pantry)>500 or len(manual)>500:raise ValueError('Too many items')
+     # Removing an item with the pantry X must remove every stored unit too.
+     if any(not isinstance(x,str) or not x.strip() for x in pantry):raise ValueError('Invalid pantry ingredient')
+     remaining_names={x.strip().casefold() for x in pantry}
+     removed_names={x.strip().casefold() for x in state.get('pantry',[]) if isinstance(x,str) and x.strip()}-remaining_names
+     if removed_names:
+      inventory=state.setdefault('pantry_inventory',{})
+      for key in list(inventory):
+       if isinstance(key,str) and key.rsplit('|',1)[0].strip().casefold() in removed_names:inventory.pop(key,None)
+     state.update(favorites=favorites,collections=collections,weekly=weekly,pantry=pantry,manual=manual,previous_week=previous_week,recommendation_hidden=recommendation_hidden)
+    elif action=='rate_recipe':
+     rid=p.get('id');rating=p.get('rating');note=p.get('note','')
+     if type(rid)!=int or rid<0 or rid not in {int(r['id']) for r in allrecipes()}:raise ValueError('Unknown recipe')
+     if type(rating)!=int or rating<0 or rating>5:raise ValueError('Rating must be 0–5')
+     if not isinstance(note,str) or len(note)>2000:raise ValueError('Note must be at most 2000 characters')
+     reviews=state.setdefault('recipe_reviews',{})
+     if rating or note.strip():reviews[str(rid)]={'rating':rating,'note':note.strip()}
+     else:reviews.pop(str(rid),None)
+    elif action in ('generate','preview_grocery'):
+     rebuild_grocery_list(state)
+    elif action=='pantry_scan_apply':
+     items=p.get('items',[])
+     if not isinstance(items,list) or not 0<len(items)<=40:raise ValueError('Select up to 40 items')
+     inventory=state.setdefault('pantry_inventory',{})
+     pantry=state.setdefault('pantry',[])
+     allowed={'count','can','package','bag','pound','ounce','gram','kilogram','liter','milliliter','cup','bunch','head','loaf','dozen'}
+     validated=[]
+     for item in items:
+      if not isinstance(item,dict):raise ValueError('Invalid scanned item')
+      name=item.get('name','');unit=item.get('unit','count');quantity=item.get('quantity')
+      if not isinstance(name,str) or not name.strip() or len(name)>140 or '|' in name or not isinstance(unit,str) or unit not in allowed or type(quantity) not in (int,float) or not 0<quantity<=100000:raise ValueError('Invalid scanned item')
+      validated.append((name.strip(),unit,float(quantity)))
+     if len(inventory)+len(validated)>1040 or len(pantry)+len(validated)>540:raise ValueError('Pantry capacity reached')
+     for name,unit,quantity in validated:
+      key=name.casefold()+'|'+unit
+      inventory[key]=round(float(inventory.get(key,0))+quantity,4)
+      if not any(x.casefold()==name.casefold() for x in pantry if isinstance(x,str)):pantry.append(name)
+    elif action=='delete_pantry_item':
+     name=p.get('name')
+     if not isinstance(name,str) or not name.strip() or len(name)>140:raise ValueError('Invalid pantry ingredient')
+     normalized=name.strip().casefold()
+     state['pantry']=[x for x in state.get('pantry',[]) if not (isinstance(x,str) and x.strip().casefold()==normalized)]
+     inventory=state.setdefault('pantry_inventory',{})
+     for key in list(inventory):
+      if isinstance(key,str) and key.rsplit('|',1)[0].strip().casefold()==normalized:inventory.pop(key,None)
+    elif action in ('set_pantry_inventory','adjust_pantry_inventory'):
+     name=p.get('name');unit=p.get('unit','');amount=p.get('amount')
+     allowed={'','count','teaspoon','tablespoon','cup','ounce','pound','gram','kilogram','milliliter','liter','clove','bunch','head','stalk','slice','piece','pinch','can','package','bag'}
+     if not isinstance(name,str) or not name.strip() or len(name)>140 or '|' in name:raise ValueError('Invalid pantry ingredient')
+     if not isinstance(unit,str) or unit not in allowed:raise ValueError('Invalid pantry unit')
+     if type(amount) not in (int,float) or not math.isfinite(amount) or not 0<=amount<=100000:raise ValueError('Invalid pantry amount')
+     inventory=state.setdefault('pantry_inventory',{})
+     key=name.strip().casefold()+'|'+unit
+     if len(inventory)>=1000 and key not in inventory:raise ValueError('Inventory limit reached')
+     mode=p.get('mode','set') if action=='adjust_pantry_inventory' else 'set'
+     if mode not in ('set','add','use'):raise ValueError('Invalid quantity action')
+     conversions={'teaspoon':('volume',4.92892159375),'tablespoon':('volume',14.78676478125),'cup':('volume',236.5882365),'milliliter':('volume',1),'liter':('volume',1000),'gram':('mass',1),'kilogram':('mass',1000),'ounce':('mass',28.349523125),'pound':('mass',453.59237)}
+     target_key=key
+     # For Add/Use, prefer an exact-unit entry; otherwise convert to a single compatible tracked unit.
+     if mode in ('add','use') and key not in inventory and unit in conversions:
+      compatible=[k for k in inventory if k.startswith(name.strip().casefold()+'|') and k.rsplit('|',1)[-1] in conversions and conversions[k.rsplit('|',1)[-1]][0]==conversions[unit][0]]
+      if len(compatible)>1:raise ValueError('Multiple compatible units tracked. Select one of the existing units to update')
+      if compatible:target_key=compatible[0]
+     if mode=='use' and target_key not in inventory:raise ValueError('Set a quantity before using this ingredient')
+     target_unit=target_key.rsplit('|',1)[-1]
+     factor=conversions[unit][1]/conversions[target_unit][1] if target_unit!=unit and unit in conversions and target_unit in conversions else 1
+     delta=float(amount)*factor
+     current=float(inventory.get(target_key,0))
+     if mode=='add':updated=current+delta
+     elif mode=='use':updated=current-delta
+     else:updated=float(amount)
+     if not math.isfinite(updated) or not 0<=updated<=100000:raise ValueError('Not enough pantry quantity or inventory limit exceeded')
+     if len(inventory)>=1000 and target_key not in inventory:raise ValueError('Inventory limit reached')
+     inventory[target_key]=round(updated,4)
+     pantry=state.setdefault('pantry',[])
+     if not any(isinstance(x,str) and x.casefold()==name.strip().casefold() for x in pantry):
+      if len(pantry)>=500:raise ValueError('Pantry capacity reached')
+      pantry.append(name.strip())
+    elif action=='clear':state['list']=[]
+    elif action=='purchase_many':
+     names=p.get('names',[])
+     if not isinstance(names,list) or len(names)>250 or any(not isinstance(n,str) for n in names):raise ValueError('Invalid ingredient selection')
+     available={i['name']:i for i in state['list']}
+     if not names or any(n not in available for n in names):raise ValueError('Unknown grocery item')
+     for name in names:available[name]['purchased']=bool(p['purchased'])
+    elif action=='purchase':
+     name=p['name'];found=next((i for i in state['list'] if i['name']==name),None)
+     if found is None:raise ValueError('Unknown item')
+     found['purchased']=bool(p['purchased'])
+    else:raise ValueError('Unknown action')
+    if action=='preview_grocery':return self.sendjson({'items':state['list']})
+    state['revision']+=1;save(state)
+    pantry_audit(pantry_before,state)
+   return self.sendjson(state)
+  except (ValueError,KeyError,TypeError,json.JSONDecodeError) as e:return self.sendjson({'error':str(e)},400)
+if __name__=='__main__':
+ with db() as c:
+  if auth.instance_needs_setup(c):
+   print('HelloGroceries: first administrator setup requires a verified Cloudflare Access session.',flush=True)
+ if BULK_RECOVER:
+  job.update(running=True,paused=False,processed=0,discovered=0,imported=0,skipped=0,errors=0,message='Recovering interrupted import; saved recipes will be skipped')
+  threading.Thread(target=bulk_worker,args=(job.get('country','US'),int(job.get('limit',0))),daemon=True).start()
+ threading.Thread(target=recommendation_photo_warmup_worker,daemon=True,name='recommendation-photo-warmup').start()
+ threading.Thread(target=nutrition_scan_worker,daemon=True,name='nutrition-background-scan').start()
+ threading.Thread(target=us_import_schedule_worker,daemon=True,name='us-import-scheduler').start()
+ ThreadingHTTPServer(('0.0.0.0',8080),Handler).serve_forever()
+,label,re.I)
+ if not match:return None
+ raw,unit,name=match.groups()
+ fractions={'¼':.25,'½':.5,'¾':.75,'⅓':1/3,'⅔':2/3,'⅛':.125,'⅜':.375,'⅝':.625,'⅞':.875}
+ try:amount=fractions[raw] if raw in fractions else float(raw.split('/')[0])/float(raw.split('/')[1]) if '/' in raw else float(raw)
+ except (ValueError,ZeroDivisionError):return None
+ units={'teaspoons':'teaspoon','tsp':'teaspoon','tablespoons':'tablespoon','tbsp':'tablespoon','cups':'cup','ounces':'ounce','oz':'ounce','pounds':'pound','lbs':'pound','grams':'gram','g':'gram','kilograms':'kilogram','kg':'kilogram','milliliters':'milliliter','ml':'milliliter','liters':'liter','l':'liter','cloves':'clove','thumbs':'thumb','pieces':'piece'}
+ unit=units.get((unit or '').lower(),(unit or 'count').lower())
+ return {'amount':amount,'unit':unit,'ingredient':name.strip()}
+
 def rebuild_grocery_list(state):
  totals={}
  sources={}
