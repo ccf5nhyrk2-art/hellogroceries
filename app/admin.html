@@ -764,23 +764,49 @@ async function scanRecipeQuality(){
    }
    const wrap=document.createElement('div');wrap.style.cssText='overflow-x:auto';wrap.appendChild(previewTable);issues.appendChild(wrap);
   }
-  const heading=document.createElement('p');heading.textContent='First '+data.issues.length+' unresolved entries (read-only):';issues.appendChild(heading);
-  const list=document.createElement('ol');
-  for(const item of data.issues){
-   const li=document.createElement('li');
-   const diagnostic=item.source_diagnostic;
-   li.textContent='Recipe '+item.recipe_id+': '+item.ingredient+' — '+item.reason+(diagnostic?' · Source: '+String(diagnostic.status||'unknown').replaceAll('_',' '):'');
-   if(diagnostic&&typeof diagnostic.example==='string'&&diagnostic.example.trim()){
-    const example=document.createElement('div');
-    example.className='muted';
-    // Display only a short, sanitized text excerpt, never source HTML.
-    const safe=diagnostic.example.replace(/[\x00-\x1f\x7f]/g,' ').replace(/https?:\/\/\S+/gi,'[link]').replace(/[\w.+-]+@[\w.-]+\.[a-z]{2,}/gi,'[email]').trim().slice(0,120);
-    example.textContent='Original source line: '+safe;
-    li.appendChild(example);
+  const groups=new Map();
+  for(const item of data.issues||[]){
+   const diagnostic=item.source_diagnostic||{};
+   const reason=String(diagnostic.status||item.status||'unspecified').replaceAll('_',' ');
+   const key=reason;
+   if(!groups.has(key))groups.set(key,{count:0,examples:new Map()});
+   const group=groups.get(key);
+   group.count++;
+   const name=String(item.ingredient||'Unknown ingredient').trim();
+   if(!group.examples.has(name))group.examples.set(name,[]);
+   const examples=group.examples.get(name);
+   if(examples.length<3)examples.push(item);
+  }
+  const heading=document.createElement('p');
+  heading.textContent='Unresolved ingredient summary (sample of '+(data.issues||[]).length+'; not catalog-wide totals):';
+  issues.appendChild(heading);
+  for(const [reason,group] of [...groups].sort((a,b)=>b[1].count-a[1].count)){
+   const details=document.createElement('details');
+   details.style.cssText='margin:10px 0;padding:10px;border:1px solid #444;border-radius:8px';
+   const title=document.createElement('summary');
+   title.textContent=reason+' — '+group.count+' entries, '+group.examples.size+' distinct ingredient labels';
+   details.appendChild(title);
+   const list=document.createElement('ul');
+   for(const [name,examples] of [...group.examples].sort((a,b)=>b[1].length-a[1].length).slice(0,25)){
+    const li=document.createElement('li');
+    li.textContent=name+' ('+examples.length+' sampled examples)';
+    list.appendChild(li);
    }
+   details.appendChild(list);
+   issues.appendChild(details);
+  }
+  const details=document.createElement('details');
+  const title=document.createElement('summary');
+  title.textContent='View all '+(data.issues||[]).length+' individual diagnostic entries';
+  details.appendChild(title);
+  const list=document.createElement('ol');
+  for(const item of data.issues||[]){
+   const li=document.createElement('li');
+   li.textContent='Recipe '+item.recipe_id+': '+item.ingredient+' — '+item.reason;
    list.appendChild(li);
   }
-  issues.appendChild(list);
+  details.appendChild(list);
+  issues.appendChild(details);
  }catch(error){summary.textContent='Audit unavailable: '+(error.name==='TimeoutError'?'Request timed out after 120 seconds. Try again or check server logs.':error.message)}
  finally{button.disabled=false}
 }
