@@ -37,6 +37,26 @@ html[data-theme="dark"] .mobile-bottom-nav .mobile-tab{color:#cbd2d7!important}
 html[data-theme="dark"] .mobile-bottom-nav .mobile-tab-active{background:#30363b!important;color:#f0f4f5!important}
 html[data-theme="dark"] .button-secondary,html[data-theme="dark"] button.clear,html[data-theme="dark"] .photo-edit{background:#30363b!important;color:#f0f4f5!important;border-color:#535b62!important}
 html[data-theme="dark"] #hg-theme-toggle{background:#30363b!important;border-color:#59636a!important;color:#f2f4f5!important}
+
+/* Responsive account form: fit small screens and remain usable above iOS keyboard. */
+html{box-sizing:border-box;-webkit-text-size-adjust:100%}
+*,*::before,*::after{box-sizing:inherit}
+body{margin:0;min-height:100vh;min-height:100dvh;padding:clamp(16px,4vw,32px);display:flex;align-items:center;justify-content:center}
+main{width:100%;max-width:420px;margin:auto;padding:clamp(20px,5vw,32px);min-width:0}
+main h1{font-size:clamp(28px,7vw,40px);line-height:1.12;overflow-wrap:anywhere;margin:0 0 18px}
+#mode{font-size:clamp(16px,4.5vw,20px);line-height:1.4;margin:0 0 20px}
+#form{min-width:0}
+#form input,#form button{display:block;width:100%;max-width:100%;font-size:16px;min-height:48px;margin:10px 0}
+#form input{min-width:0}
+@media(max-width:600px){
+ body{align-items:flex-start;padding:16px;overflow-x:hidden}
+ main{margin:auto 0;padding:24px 20px;border-radius:16px}
+ #hg-theme-toggle{position:static;display:block;margin:16px auto 0;width:auto;max-width:calc(100% - 32px)}
+}
+@media(max-height:650px){
+ body{align-items:flex-start}
+ main{margin-top:0;margin-bottom:0}
+}
 </style><script>(function(){try{var t=localStorage.getItem('hg-theme');document.documentElement.dataset.theme=t==='dark'||(t!=='light'&&matchMedia('(prefers-color-scheme: dark)').matches)?'dark':'light'}catch(e){document.documentElement.dataset.theme='light'}})();</script></head>
 <body><main><h1>HelloGroceries</h1><p id="mode">Checking your account…</p><form id="form" hidden><input type="email" id="email" placeholder="Email" autocomplete="email" required><input type="password" id="password" placeholder="Password (12+ characters)" autocomplete="new-password" required minlength="12"><section id="household-section" hidden><input id="household" placeholder="Household name" maxlength="80"></section><button id="submit">Continue</button></form><p id="error" role="alert"></p><p id="resend-wrap" hidden><button type="button" id="resend">Resend verification email</button></p><p id="switch" hidden><button type="button" id="toggle">Request an account</button></p></main>
 <script>
