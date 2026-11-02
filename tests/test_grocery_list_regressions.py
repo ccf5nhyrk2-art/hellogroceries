@@ -54,6 +54,24 @@ class GroceryListRegressionTests(unittest.TestCase):
         self.assertTrue(any("Shiitake" in name for name in result))
         self.assertEqual(len(next(iter(result.values()))["sources"]), 2)
 
+    def test_bell_pepper_singular_plural_merge(self):
+        recipes = [
+            {"id": 1, "name": "A", "source_servings": 2, "ingredients": {"Green Bell Pepper": 1}},
+            {"id": 2, "name": "B", "source_servings": 2, "ingredients": {"Green Bell Peppers": 1}},
+        ]
+        result = generate(recipes, make_state())
+        self.assertEqual(len(result), 1)
+        self.assertEqual(next(iter(result.values()))["quantity"], 2)
+        self.assertEqual(len(next(iter(result.values()))["sources"]), 2)
+
+    def test_unspecified_sour_cream_not_added_to_measured_amount(self):
+        recipes = [
+            {"id": 1, "name": "A", "source_servings": 2, "ingredients": {"Sour Cream": 1}},
+            {"id": 2, "name": "B", "source_servings": 2, "ingredients": {"4 tablespoons Sour Cream": 1}},
+        ]
+        result = generate(recipes, make_state())
+        self.assertEqual(len(result), 2)
+
     def test_herb_butter_not_merged_with_regular_butter(self):
         recipes = [
             {"id": 1, "name": "A", "source_servings": 2, "ingredients": {"Herb Butter": 1}},
