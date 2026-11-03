@@ -1093,10 +1093,15 @@ def parse_embedded_recipe_steps(raw):
    variants.append(json.dumps(decoded))
  except (ValueError,TypeError):pass
  for candidate in variants[:3]:
-  for match in re.finditer(r"""["'](?:recipeInstructions|preparationSteps|cookingSteps|instructions|steps)["']\s*:\s*(?=[\[{])""",candidate,re.I):
+  for match in re.finditer(r"""["'](?:recipeInstructions|preparationSteps|cookingSteps|instructions|steps)["']\s*:\s*(?=[\[{"'])""",candidate,re.I):
    try:
     value,_=json.JSONDecoder().raw_decode(candidate[match.end():])
    except (ValueError,TypeError):continue
+   # Some hydration payloads double-encode the step array as a JSON string.
+   if isinstance(value,str):
+    try:value=json.loads(value)
+    except (ValueError,TypeError):continue
+   if not isinstance(value,(list,dict)):continue
    steps=instruction_step_strings(value)
    if valid_recovered_steps(steps):return steps
  return []
