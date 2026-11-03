@@ -879,6 +879,8 @@ async function scanRecipeQuality(){
     list.appendChild(li);
    }
    details.appendChild(list);
+   const guidance=[...group.examples.values()].flat().map(item=>item.source_diagnostic?.next_action).find(Boolean);
+   if(guidance){const note=document.createElement('p');note.textContent='Recommended next step: '+guidance;details.appendChild(note)}
    issues.appendChild(details);
   }
   const details=document.createElement('details');
@@ -888,7 +890,7 @@ async function scanRecipeQuality(){
   const list=document.createElement('ol');
   for(const item of data.issues||[]){
    const li=document.createElement('li');
-   li.textContent='Recipe '+item.recipe_id+': '+diagnosticIngredientLabel(item.ingredient)+' — '+item.reason;
+   li.textContent='Recipe '+item.recipe_id+': '+diagnosticIngredientLabel(item.ingredient)+' — '+item.reason+(item.source_diagnostic?.next_action?' · Next: '+item.source_diagnostic.next_action:'');
    list.appendChild(li);
   }
   details.appendChild(list);
