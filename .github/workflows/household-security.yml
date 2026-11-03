@@ -2,7 +2,7 @@ name: Household security tests
 on:
   pull_request:
   push:
-    branches: [feature/cloudflare-households-production]
+    branches: [feature/cloudflare-households-production, develop]
 jobs:
   test:
     runs-on: ubuntu-latest
