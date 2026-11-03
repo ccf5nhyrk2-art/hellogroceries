@@ -106,7 +106,7 @@ def evaluate(recipes, limit=5000, minimum_examples=5):
         rows = [(name, unit, amount) for (name, unit), amount in unique.items()
                 if (name, unit) not in ambiguous]
         if i % 5 == 0:
-            heldout.append((recipe.get("id"), servings, recipe_context(recipe), rows))
+            heldout.append((recipe.get("id"), servings, recipe_context(recipe), rows, "independent_check" if i % 10 == 5 else "primary"))
         else:
             for name, unit, amount in rows:
                 # Never mix serving-normalized and unnormalized training examples.
@@ -117,9 +117,9 @@ def evaluate(recipes, limit=5000, minimum_examples=5):
     # the first N rows (which disproportionately samples low recipe IDs).
     # Entire recipes are held out before any training data is collected.
     heldout_by_category = defaultdict(list)
-    for recipe_id, servings, context, rows in heldout:
+    for recipe_id, servings, context, rows, cohort in heldout:
         for name, unit, actual in rows:
-            heldout_by_category[category(name)].append((recipe_id, servings, context, name, unit, actual))
+            heldout_by_category[category(name)].append((recipe_id, servings, context, name, unit, actual, cohort))
     balanced_holdout = []
     category_names = sorted(heldout_by_category)
     offsets = {name: 0 for name in category_names}
@@ -143,8 +143,11 @@ def evaluate(recipes, limit=5000, minimum_examples=5):
     high_confidence = {"eligible": 0, "within_25": 0, "within_10": 0, "over_50": 0, "over_100": 0}
     context_counts = {"contextual": 0, "fallback": 0}
     method_stats = {method: {"covered": 0, "within_10": 0, "within_25": 0, "high_consensus": 0, "high_consensus_within_25": 0} for method in ("contextual", "fallback")}
-    for recipe_id, servings, context, name, unit, actual in balanced_holdout:
+    independent = {"tested": 0, "covered": 0, "high_consensus": 0, "within_25": 0, "over_50": 0, "over_100": 0}
+    for recipe_id, servings, context, name, unit, actual, cohort in balanced_holdout:
             checked += 1
+            if cohort == "independent_check":
+                independent["tested"] += 1
             group = categories[category(name)]
             group["tested"] += 1
             key = (name, unit, "per_serving" if servings else "raw")
@@ -169,6 +172,8 @@ def evaluate(recipes, limit=5000, minimum_examples=5):
             estimate = predicted_unit * servings if servings else predicted_unit
             error = abs(estimate - actual) / actual
             covered += 1
+            if cohort == "independent_check":
+                independent["covered"] += 1
             method = "contextual" if use_context else "fallback"
             context_counts[method] += 1
             method_stats[method]["covered"] += 1
@@ -205,6 +210,11 @@ def evaluate(recipes, limit=5000, minimum_examples=5):
                 method_stats[method]["high_consensus_within_25"] += error <= .25
                 group["high_consensus"] += 1
                 group["high_consensus_within_25"] += error <= .25
+                if cohort == "independent_check":
+                    independent["high_consensus"] += 1
+                    independent["within_25"] += error <= .25
+                    independent["over_50"] += error > .50
+                    independent["over_100"] += error > 1.0
                 high_confidence["eligible"] += 1
                 high_confidence["within_25"] += error <= .25
                 high_confidence["within_10"] += error <= .10
@@ -220,7 +230,11 @@ def evaluate(recipes, limit=5000, minimum_examples=5):
                                  "match_method": "contextual" if use_context else "fallback",
                                  "high_consensus": consensus})
     return {"mode": "offline_validation_only", "evaluated": checked, "evaluation_limit": limit,
-            "holdout_strategy": "recipe_disjoint_category_round_robin",
+            "holdout_strategy": "recipe_disjoint_category_round_robin_with_independent_cohort",
+            "independent_check": {**independent,
+                "within_25_percent": round(independent["within_25"] / independent["high_consensus"], 3) if independent["high_consensus"] else None,
+                "over_50_percent": round(independent["over_50"] / independent["high_consensus"], 3) if independent["high_consensus"] else None,
+                "over_100_percent": round(independent["over_100"] / independent["high_consensus"], 3) if independent["high_consensus"] else None},
             "heldout_available_by_category": {name: len(entries) for name, entries in sorted(heldout_by_category.items())},
             "covered": covered, "coverage": round(covered / checked, 3) if checked else 0,
             "within_10_percent": round(within_10 / covered, 3) if covered else None,
