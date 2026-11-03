@@ -1,3 +1,7 @@
+## Latest staging release notes
+
+See [RELEASE_NOTES.md](RELEASE_NOTES.md) for new features, fixes, deployment status and known limitations. These notes describe the `develop` staging branch, not a production release.
+
 ## Nutrition and dietary labels
 
 Individual HelloFresh URL imports now retain available structured nutrition fields (calories, protein, carbohydrates, fat, fiber, sugar, sodium, saturated fat) and explicitly declared `suitableForDiet` classifications. Recipe cards show calories and verified dietary labels when available; **Cook / Details** shows the complete available nutrition panel. Existing imported and bundled recipes without structured nutrition data show an unavailable message. No nutritional values or allergen-free claims are inferred from recipe names or ingredients. Nutritional values may vary with substitutions and portion sizes; check the original recipe and product packaging for allergens.
