@@ -79,6 +79,29 @@ def recipe_context(recipe):
     return matches[0] if len(matches) == 1 else "unspecified"
 
 
+def robust_prediction(samples, ingredient_category):
+    """Training-only median, abstaining on strongly split quantity distributions.
+
+    A median between two distinct common package sizes can be misleading.
+    Require the middle half of observations to occupy a reasonably narrow band
+    for variable ingredient groups. This never consults held-out answers.
+    """
+    values = sorted(float(x) for x in samples if math.isfinite(x) and x > 0)
+    if not values:
+        return None
+    center = median(values)
+    if ingredient_category in ("oils_fats", "dairy", "grain_or_starch"):
+        if len(values) < 12:
+            return None
+        q1 = values[(len(values) - 1) // 4]
+        q3 = values[(3 * (len(values) - 1)) // 4]
+        # Reject ambiguous, multi-size distributions rather than pretending
+        # their median is a reliably verified ingredient amount.
+        if q3 / max(q1, 1e-9) > 1.75:
+            return None
+    return center
+
+
 def evaluate(recipes, limit=5000, minimum_examples=5):
     """Recipe-level holdout with per-serving normalization and cautious abstention.
 
@@ -170,7 +193,9 @@ def evaluate(recipes, limit=5000, minimum_examples=5):
                     if relative_mad(contextual_samples) > relative_mad(baseline):
                         samples = baseline
                         use_context = False
-            predicted_unit = median(samples)
+            predicted_unit = robust_prediction(samples, category(name))
+            if predicted_unit is None:
+                continue
             estimate = predicted_unit * servings if servings else predicted_unit
             error = abs(estimate - actual) / actual
             covered += 1
