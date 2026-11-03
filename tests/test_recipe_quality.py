@@ -125,5 +125,21 @@ class RecipeQualityTests(unittest.TestCase):
         self.assertEqual(data["estimates_applied"], 0)
 
 
+    def test_paired_estimation_baseline_is_read_only(self):
+        from quantity_validation import compare_prediction_policies, evaluate
+        recipes = [{"id": i, "ingredient_text": [f"{1 + (i % 3)} teaspoons Olive Oil",
+                                                   f"{1 + (i % 2)} cups White Rice"],
+                    "source_servings": 2, "title": "Rice bowl"} for i in range(100)]
+        report = compare_prediction_policies(recipes, limit=50)
+        self.assertTrue(report["same_holdout"])
+        self.assertEqual(report["applied_changes"], 0)
+        self.assertEqual(report["baseline"]["evaluated"], report["candidate"]["evaluated"])
+        self.assertIn("oils_fats", report["priority_categories"])
+        self.assertIn("grain_or_starch", report["priority_categories"])
+        self.assertEqual(evaluate(recipes, limit=50)["prediction_policy"], "conservative")
+        with self.assertRaises(ValueError):
+            evaluate(recipes, prediction_policy="unknown")
+
+
 if __name__ == "__main__":
     unittest.main()
