@@ -957,7 +957,7 @@ async function scanRecipeQuality(){
   }
   details.appendChild(list);
   issues.appendChild(details);
- }catch(error){summary.textContent='Audit unavailable: '+(error.name==='TimeoutError'?'Request timed out after 120 seconds. Try again or check server logs.':error.message)}
+ }catch(error){summary.textContent='Audit unavailable: '+(error.name==='TimeoutError'?'Request timed out after 120 seconds. The server may still be processing the audit; check staging logs before retrying.':error.name==='TypeError'?'Connection interrupted or response could not be read. Check staging logs and retry once.':error.message)}
  finally{button.disabled=false}
 }
 document.getElementById('recipe-quality-refresh').addEventListener('click',scanRecipeQuality);
