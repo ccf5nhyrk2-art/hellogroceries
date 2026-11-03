@@ -1046,7 +1046,7 @@ def parse_embedded_recipe_steps(raw):
    variants.append(json.dumps(decoded))
  except (ValueError,TypeError):pass
  for candidate in variants[:3]:
-  for match in re.finditer(r'["\\'](?:recipeInstructions|preparationSteps|cookingSteps|instructions|steps)["\\']\\s*:\\s*(?=[\\[{])',candidate,re.I):
+  for match in re.finditer(r"""["'](?:recipeInstructions|preparationSteps|cookingSteps|instructions|steps)["']\s*:\s*(?=[\[{])""",candidate,re.I):
    try:
     value,_=json.JSONDecoder().raw_decode(candidate[match.end():])
    except (ValueError,TypeError):continue
