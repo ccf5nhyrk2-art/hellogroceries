@@ -1182,7 +1182,7 @@ def _recover_recipe_instructions_once(url):
    page=response.read(1500000).decode('utf-8','replace')
   steps,reason=extract_cooking_steps(page)
   if steps:return steps,reason
-  if re.search(r'<script[^>]*application/ld\\+json',page,re.I):
+  if re.search(r'<script[^>]*application/ld[+]json',page,re.I):
    return [],'structured_data_without_supported_steps'
   if re.search(r'__NEXT_DATA__|__NUXT__|window\\.__INITIAL_STATE__|hydration',page,re.I):
    return [],'dynamic_app_data_unsupported'
@@ -1434,7 +1434,7 @@ def instruction_recovery_diagnostic():
    instruction_audit_schema(c)
    c.execute('INSERT OR REPLACE INTO recipe_instruction_audit (recipe_id,url,verified,checked_at,reason,version) VALUES (?,?,?,CURRENT_TIMESTAMP,?,?)',(rid,url,int(saved),reason,INSTRUCTION_AUDIT_VERSION))
    c.commit()
-  structure=diagnose_instruction_source_structure(url) if reason=='dynamic_app_data_unsupported' else None
+  structure=diagnose_instruction_source_structure(url) if reason in ('dynamic_app_data_unsupported','invalid_recovered_steps','structured_data_without_supported_steps') else None
   results.append({'recipe_id':rid,'source_host':urllib.parse.urlparse(url).hostname,'previous_reason':previous_reason,'result':reason,'validation':validation,'candidate_steps_found':step_count,'steps_found':len(steps),'saved':saved,'step_lengths':step_lengths,'page_structure':structure})
  return {'tested':len(results),'results':results,'note':'Ten live checks only. URLs and instruction text are not returned. Failed checks never exclude recipes.'}
 
