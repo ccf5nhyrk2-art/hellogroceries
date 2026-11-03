@@ -26,6 +26,10 @@ jobs:
         run: |
           npm install --no-save playwright@1.58.2
           npx playwright install --with-deps chromium
+      - name: Validate sharing module and share-link round trips
+        run: |
+          node --check app/assets/share.js
+          node tests/test_share_links.cjs
       - name: Run read-only staging smoke tests
         run: node tests/staging_recipe_browser.cjs
       - name: Run shopping pantry and admin staging smoke tests
