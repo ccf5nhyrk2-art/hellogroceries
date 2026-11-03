@@ -26,7 +26,7 @@ jobs:
           npx playwright install --with-deps chromium
       - name: Run read-only staging smoke tests
         run: node tests/staging_recipe_browser.cjs
-      - name: Upload browser diagnostics on failure
+      - name: Run shopping pantry and admin staging smoke tests\n        run: node tests/staging_other_features.cjs\n      - name: Upload browser diagnostics on failure
         if: failure()
         uses: actions/upload-artifact@v4
         with:
