@@ -1290,12 +1290,14 @@ def valid_recovered_steps(steps):
  return recovered_step_validation_reason(steps)=='valid'
 
 def instruction_json_shape_summary(page):
- """Summarize instruction-shaped JSON without exposing values or accepting them as steps."""
- counts={}
- for attrs,body in re.findall(r'<script\\b([^>]*)>(.*?)</script\\s*>',page,re.I|re.S):
-  if not re.search(r'application/(?:ld\\+)?json|__NEXT_DATA__',attrs,re.I):continue
+ """Inspect parsed JSON-LD instruction fields without exposing recipe content."""
+ summary=[]
+ for attrs,body in re.findall(r'<script\b([^>]*)>(.*?)</script\s*>',page,re.I|re.S):
+  if not re.search(r'application/(?:ld\+)?json|__NEXT_DATA__',attrs,re.I):continue
   try:root=json.loads(html.unescape(body.strip()))
-  except (ValueError,TypeError):continue
+  except (ValueError,TypeError):
+   summary.append({'parse_status':'invalid_json','script_type':'jsonld' if 'ld+json' in attrs else 'json'})
+   continue
   pending=[root]
   seen=0
   while pending and seen<5000:
@@ -1306,14 +1308,12 @@ def instruction_json_shape_summary(page):
    for key in ('recipeInstructions','instructions','steps','preparationSteps','cookingSteps'):
     if key not in node:continue
     value=node[key]
-    kind=type(value).__name__
     first=value[0] if isinstance(value,list) and value else value
     fields=sorted(str(k)[:40] for k in first.keys())[:15] if isinstance(first,dict) else []
-    signature=key+':'+kind+':'+type(first).__name__
-    entry=counts.setdefault(signature,{'count':0,'sample_fields':fields})
-    entry['count']+=1
+    summary.append({'parse_status':'ok','field':key,'value_type':type(value).__name__,'item_count':len(value) if isinstance(value,list) else None,'empty':not bool(value),'sample_fields':fields})
+    if len(summary)>=15:return summary
    pending.extend(v for v in node.values() if isinstance(v,(dict,list)))
- return list(counts.values())[:12] if counts else []
+ return summary
 
 def instruction_page_structure_diagnostic(page):
  """Report structural signals only; never return page text, scripts, or URLs."""
