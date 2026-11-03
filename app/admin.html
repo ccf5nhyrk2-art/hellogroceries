@@ -745,7 +745,7 @@ async function scanRecipeQuality(){
    issues.appendChild(list);
   }
   const recoveryTitle=document.createElement('p');
-  recoveryTitle.textContent='Verified recovery preview: '+(data.recovery_eligible||0)+' eligible entries. No changes applied.';
+  recoveryTitle.textContent='Verified recoverable quantities in stored source: '+(data.recovery_eligible||0)+'. This counts recoverable entries, not all missing-quantity entries. No changes applied. For live-page evidence, use “Inspect 3 original recipe pages” above.';
   issues.appendChild(recoveryTitle);
   if((data.recovery_preview||[]).length){
    const previewTable=document.createElement('table');
@@ -910,7 +910,7 @@ alternativeProbe.addEventListener('click',async()=>{
   if(!response.ok)throw Error(data.error||'Inspection failed');
   target.replaceChildren();
   const summary=document.createElement('p');
-  summary.textContent='Inspected '+data.sample_size+' pages. This checks JSON script fields only; no measurements were changed.';
+  const inspected=data.results||[];const matches=inspected.reduce((n,item)=>n+(item.verified_source_recovery?.verified_matches||0),0);const eligible=inspected.reduce((n,item)=>n+(item.verified_source_recovery?.eligible_ingredients||0),0);summary.textContent='Inspected '+data.sample_size+' original pages. Verified live-source matches: '+matches+' of '+eligible+' unresolved ingredients checked. '+(matches?'Review matched ingredients before any recovery.':'No matching measurable ingredient lines found in these pages; repeating the stored-source audit will not recover them.')+' No amounts changed.';
   target.appendChild(summary);
   const table=document.createElement('table');
   table.style.cssText='width:100%;border-collapse:collapse;font-size:0.9rem';
