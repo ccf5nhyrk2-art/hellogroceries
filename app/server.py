@@ -1371,13 +1371,15 @@ def instruction_page_structure_diagnostic(page):
  flight=len(re.findall(r'self\.__next_f\.push\s*\(',page))
  keys=('recipeInstructions','preparationSteps','cookingSteps','instructionSteps','instructions','steps')
  key_counts={key:len(re.findall(r'["\x27]'+re.escape(key)+r'["\x27]\s*:',page,re.I)) for key in keys}
+ pdf_links=re.findall(r'<a\\b[^>]*href=["\\x27]([^"\\x27]+\\.pdf(?:[?#][^"\\x27]*)?)["\\x27]',page,re.I)
+ recipe_card_signals=len(pdf_links)
  instruction_shapes=instruction_json_shape_summary(page)
  formats=[shape.get('text_format') for shape in instruction_shapes if isinstance(shape.get('text_format'),dict)]
  if any(fmt.get('split_candidate_steps',0)>=2 for fmt in formats):instruction_state='numbered_steps_candidate'
  elif any(fmt.get('characters',0)>0 and fmt.get('characters',0)<180 and fmt.get('sentences',0)<=2 for fmt in formats):instruction_state='short_summary_only'
  elif instruction_shapes and all(shape.get('empty') for shape in instruction_shapes):instruction_state='empty_instruction_fields'
  else:instruction_state='unrecognized_instruction_format'
- return {'script_count':len(scripts),'jsonld_scripts':jsonld,'json_scripts':json_scripts,'next_data':next_data,'next_flight_chunks':flight,'nuxt_markers':bool(re.search(r'__NUXT__|__NUXT_DATA__',page,re.I)),'initial_state_marker':bool(re.search(r'__INITIAL_STATE__',page,re.I)),'instruction_key_counts':key_counts,'json_instruction_shapes':instruction_shapes,'instruction_state':instruction_state,'javascript_required_marker':bool(re.search(r'enable javascript|javascript is required',page,re.I)),'blocked_marker':bool(re.search(r'captcha|verify you are human|access denied|just a moment',page,re.I))}
+ return {'script_count':len(scripts),'jsonld_scripts':jsonld,'json_scripts':json_scripts,'next_data':next_data,'next_flight_chunks':flight,'nuxt_markers':bool(re.search(r'__NUXT__|__NUXT_DATA__',page,re.I)),'initial_state_marker':bool(re.search(r'__INITIAL_STATE__',page,re.I)),'instruction_key_counts':key_counts,'json_instruction_shapes':instruction_shapes,'instruction_state':instruction_state,'recipe_card_pdf_links':recipe_card_signals,'javascript_required_marker':bool(re.search(r'enable javascript|javascript is required',page,re.I)),'blocked_marker':bool(re.search(r'captcha|verify you are human|access denied|just a moment',page,re.I))}
 
 def diagnose_instruction_source_structure(url):
  """Fetch one allowed recipe source and report only structural metadata."""
@@ -1436,7 +1438,14 @@ def instruction_recovery_diagnostic():
    c.commit()
   structure=diagnose_instruction_source_structure(url) if reason in ('dynamic_app_data_unsupported','invalid_recovered_steps','structured_data_without_supported_steps') else None
   results.append({'recipe_id':rid,'source_host':urllib.parse.urlparse(url).hostname,'previous_reason':previous_reason,'result':reason,'validation':validation,'candidate_steps_found':step_count,'steps_found':len(steps),'saved':saved,'step_lengths':step_lengths,'page_structure':structure})
- return {'tested':len(results),'results':results,'note':'Ten live checks only. URLs and instruction text are not returned. Failed checks never exclude recipes.'}
+ source_states={}
+ pdf_candidates=0
+ for item in results:
+  structure=item.get('page_structure') or {}
+  state=structure.get('instruction_state') or 'not_inspected'
+  source_states[state]=source_states.get(state,0)+1
+  if structure.get('recipe_card_pdf_links',0):pdf_candidates+=1
+ return {'source_quality_sample':source_states,'pdf_link_candidates':pdf_candidates,'tested':len(results),'results':results,'note':'Ten live checks only. URLs and instruction text are not returned. Failed checks never exclude recipes.'}
 
 def prepared_meal_review_samples(limit=50):
  """Read-only admin review; no recipe exclusion or modification."""
