@@ -45,7 +45,7 @@ def parse_source_line(line):
     # Some original sources spell out a unit and repeat its abbreviation.
     # Strip only known, equivalent parenthetical aliases after a measured unit.
     normalized = re.sub(
-        r"^(\\s*"+NUMBER+r"\\s+)("+UNITS+r")\\s*\\((tsp|tbsp|oz|lbs?|ml|g|kg|l)\\)(?=\\s)",
+        r"^(\s*"+NUMBER+r"\s+)("+UNITS+r")\s*\((tsp|tbsp|oz|lbs?|ml|g|kg|l)\)(?=\s)",
         lambda m: m.group(1) + m.group(2) if SHOPPING_UNITS.get(m.group(2).lower()) == SHOPPING_UNITS.get(m.group(3).lower()) else m.group(0),
         normalized, flags=re.I,
     )
