@@ -2239,6 +2239,45 @@ def rebuild_grocery_list(state):
  state['list']=generated
 
 
+# Audit results are cached and recomputed outside HTTP request threads.
+_recipe_audit_lock=threading.Lock()
+_recipe_audit_state={'running':False,'result':None,'updated_at':0,'error':None}
+def _recipe_audit_worker():
+ try:
+  recipes=allrecipes()
+  selected_ids=set()
+  with db() as c:
+   for table in ('hg_household_state','state'):
+    try:
+     for (payload,) in c.execute('SELECT payload FROM '+table):
+      state=json.loads(payload)
+      if isinstance(state,dict) and isinstance(state.get('selected'),dict):
+       selected_ids.update(str(k) for k in state['selected'])
+    except (sqlite3.Error,ValueError,TypeError):pass
+  recipes.sort(key=lambda recipe:0 if str(recipe.get('id')) in selected_ids else 1)
+  result=recipe_quality.audit_catalog(recipes)
+  import quantity_validation
+  result['quantity_validation']=quantity_validation.evaluate(recipes,limit=5000)
+  result['selected_recipes']=len(selected_ids)
+  with _recipe_audit_lock:
+   _recipe_audit_state.update(result=result,updated_at=time.time(),error=None,running=False)
+ except Exception as exc:
+  with _recipe_audit_lock:
+   _recipe_audit_state.update(error=str(exc),running=False)
+
+def _recipe_audit_response(refresh=False):
+ with _recipe_audit_lock:
+  state=_recipe_audit_state
+  expired=time.time()-state['updated_at']>86400
+  if not state['running'] and (refresh or (expired and (state['result'] is None or time.time()-state['updated_at']>86400))):
+   state['running']=True
+   threading.Thread(target=_recipe_audit_worker,daemon=True,name='recipe-quality-audit').start()
+  if state['result'] is not None:
+   return state['result'],200
+  if state['error'] and not state['running']:
+   return {'error':'Background audit failed: '+state['error']},503
+  return {'status':'running','message':'Recipe audit is running in the background'},202
+
 class Handler(SimpleHTTPRequestHandler):
  def __init__(self,*a,**kw):super().__init__(*a,directory=str(BASE),**kw)
  def sendjson(self,obj,status=200):
@@ -2427,30 +2466,12 @@ class Handler(SimpleHTTPRequestHandler):
    if not self.gate():return
    if not getattr(request_scope,'admin',False):return self.sendjson({'error':'Administrator required'},403)
    return self.sendjson(recipe_source_enrichment_status())
-  if self.path=='/api/admin/recipe-quality':
+  if self.path.startswith('/api/admin/recipe-quality') and self.path.split('?',1)[0]=='/api/admin/recipe-quality':
    if not self.gate():return
    if not getattr(request_scope,'admin',False):return self.sendjson({'error':'Administrator required'},403)
-   recipes=allrecipes()
-   selected_ids=set()
-   with db() as c:
-    try:
-     for (payload,) in c.execute('SELECT payload FROM hg_household_state'):
-      state=json.loads(payload)
-      if isinstance(state,dict) and isinstance(state.get('selected'),dict):
-       selected_ids.update(str(k) for k in state['selected'])
-    except (sqlite3.Error,ValueError,TypeError):pass
-    try:
-     for (payload,) in c.execute('SELECT payload FROM state'):
-      state=json.loads(payload)
-      if isinstance(state,dict) and isinstance(state.get('selected'),dict):
-       selected_ids.update(str(k) for k in state['selected'])
-    except (sqlite3.Error,ValueError,TypeError):pass
-   recipes.sort(key=lambda recipe: 0 if str(recipe.get('id')) in selected_ids else 1)
-   result=recipe_quality.audit_catalog(recipes)
-   import quantity_validation
-   result['quantity_validation']=quantity_validation.evaluate(recipes, limit=5000)
-   result['selected_recipes']=len(selected_ids)
-   return self.sendjson(result)
+   refresh=urllib.parse.parse_qs(urllib.parse.urlsplit(self.path).query).get('refresh',['0'])[0]=='1'
+   result,status=_recipe_audit_response(refresh=refresh)
+   return self.sendjson(result,status)
   if self.path=='/api/admin/pantry-activity':
    if not self.gate():return
    if not getattr(request_scope,'admin',False):return self.sendjson({'error':'Administrator required'},403)
