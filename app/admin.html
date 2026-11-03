@@ -810,24 +810,24 @@ async function scanRecipeQuality(){
    const table=document.createElement('table');
    table.style.cssText='width:100%;border-collapse:collapse;min-width:640px;font-size:.92rem;line-height:1.45';
    const header=document.createElement('tr');
-   for(const label of ['Metric','Fixed median baseline','Conservative estimator']){
+   for(const label of ['Metric','Fixed median baseline','Conservative estimator',...(comparison.hybrid?['Category hybrid (experimental)']:[])]){
     const th=document.createElement('th');th.textContent=label;th.style.cssText='padding:12px 14px;text-align:left;border-bottom:2px solid #526a5e70;white-space:normal';header.appendChild(th);
    }
    table.appendChild(header);
-   const addRow=(label,left,right)=>{
+   const addRow=(label,left,right,hybridValue)=>{
     const tr=document.createElement('tr');
-    for(const [i,value] of [label,left,right].entries()){const td=document.createElement('td');td.textContent=String(value);td.style.cssText='padding:10px 14px;border-bottom:1px solid #526a5e35;vertical-align:top;'+(i===0?'font-weight:600;min-width:195px;':'min-width:170px;');tr.appendChild(td)}
+    for(const [i,value] of [label,left,right,...(comparison.hybrid?[hybridValue??'—']:[])].entries()){const td=document.createElement('td');td.textContent=String(value);td.style.cssText='padding:10px 14px;border-bottom:1px solid #526a5e35;vertical-align:top;'+(i===0?'font-weight:600;min-width:195px;':'min-width:170px;');tr.appendChild(td)}
     table.appendChild(tr);
    };
-   const base=comparison.baseline||{},candidate=comparison.candidate||{};
-   addRow('Measurements evaluated',base.evaluated??'—',candidate.evaluated??'—');
-   addRow('Predictions covered',base.covered??'—',candidate.covered??'—');
-   addRow('Coverage',pct(base.coverage),pct(candidate.coverage));
-   addRow('Within 25% error',pct(base.within_25_percent),pct(candidate.within_25_percent));
-   addRow('High-consensus accuracy',pct(base.high_confidence?.within_25_percent),pct(candidate.high_confidence?.within_25_percent));
-   addRow('Independent holdout accuracy',pct(base.independent_check?.within_25_percent),pct(candidate.independent_check?.within_25_percent));
+   const base=comparison.baseline||{},candidate=comparison.candidate||{},hybrid=comparison.hybrid||{};
+   addRow('Measurements evaluated',base.evaluated??'—',candidate.evaluated??'—',hybrid.evaluated??'—');
+   addRow('Predictions covered',base.covered??'—',candidate.covered??'—',hybrid.covered??'—');
+   addRow('Coverage',pct(base.coverage),pct(candidate.coverage),pct(hybrid.coverage));
+   addRow('Within 25% error',pct(base.within_25_percent),pct(candidate.within_25_percent),pct(hybrid.within_25_percent));
+   addRow('High-consensus accuracy',pct(base.high_confidence?.within_25_percent),pct(candidate.high_confidence?.within_25_percent),pct(hybrid.high_confidence?.within_25_percent));
+   addRow('Independent holdout accuracy',pct(base.independent_check?.within_25_percent),pct(candidate.independent_check?.within_25_percent),pct(hybrid.independent_check?.within_25_percent));
    for(const [name,stats] of Object.entries(comparison.priority_categories||{})){
-    addRow(name.replaceAll('_',' ')+' within 25%',pct(stats.baseline_within_25_percent)+' ('+stats.baseline_covered+')',pct(stats.candidate_within_25_percent)+' ('+stats.candidate_covered+')');
+    addRow(name.replaceAll('_',' ')+' within 25%',pct(stats.baseline_within_25_percent)+' ('+stats.baseline_covered+')',pct(stats.candidate_within_25_percent)+' ('+stats.candidate_covered+')',pct(stats.hybrid_within_25_percent)+' ('+(stats.hybrid_covered??'—')+')');
    }
    const wrap=document.createElement('div');wrap.style.cssText='overflow-x:auto';wrap.appendChild(table);comparisonOutput.appendChild(wrap);
    const interpretation=document.createElement('p');
@@ -836,6 +836,7 @@ async function scanRecipeQuality(){
     ?(c>b?'Conservative estimator improves overall accuracy by '+((c-b)*100).toFixed(1)+' percentage points.':c<b?'Conservative estimator trails the baseline by '+((b-c)*100).toFixed(1)+' percentage points.':'Both methods have equal overall accuracy.')+' Compare coverage and each category before making any policy change.'
     :'Insufficient paired accuracy results to choose a winner.';
    comparisonOutput.appendChild(interpretation);
+   if(comparison.hybrid){const note=document.createElement('p');note.textContent='Experimental hybrid: '+pct(hybrid.coverage)+' coverage and '+pct(hybrid.within_25_percent)+' within 25% error on its predictions. Compare both metrics with the other methods; no estimates are applied.';comparisonOutput.appendChild(note);}
    const coverageNote=document.createElement('p');
    const baselineCoverage=Number(base.coverage),conservativeCoverage=Number(candidate.coverage);
    if(Number.isFinite(baselineCoverage)&&Number.isFinite(conservativeCoverage)){
