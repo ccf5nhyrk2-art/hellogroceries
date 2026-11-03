@@ -28,6 +28,8 @@ jobs:
         run: |
           npm install --no-save playwright@1.58.2
           npx playwright install --with-deps chromium
+      - name: Verify barcode route regression
+        run: python -m unittest discover -s tests -p 'test_barcode_routing.py'
       - name: Run read-only staging smoke tests
         run: node tests/staging_recipe_browser.cjs
       - name: Run shopping pantry and admin staging smoke tests
