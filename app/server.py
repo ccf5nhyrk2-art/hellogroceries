@@ -3294,6 +3294,17 @@ class Handler(SimpleHTTPRequestHandler):
    fields=('id','name','image','country','nutrition','dietary_labels','prep_time','cook_time','total_time','url')
    items=[{key:recipe[key] for key in fields if key in recipe} for recipe in matched[start:start+page_size]]
    return self.sendjson({'items':items,'page':page,'page_size':page_size,'total':total,'pages':(total+page_size-1)//page_size})
+  if urllib.parse.urlsplit(self.path).path=='/api/recipes/detail':
+   params=urllib.parse.parse_qs(urllib.parse.urlsplit(self.path).query)
+   try:
+    recipe_id=int(params.get('id',[''])[0])
+   except (ValueError,TypeError):
+    return self.sendjson({'error':'A valid recipe id is required'},400)
+   checks=instruction_audit_rows()
+   for recipe in allrecipes():
+    if int(recipe.get('id') or 0)==recipe_id and not non_recipe_reason(recipe) and visible_cooking_recipe(recipe,checks):
+     return self.sendjson(recipe)
+   return self.sendjson({'error':'Recipe not found'},404)
   if self.path=='/api/recipes':
    checks=instruction_audit_rows()
    start_instruction_audit()
