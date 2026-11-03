@@ -13,6 +13,8 @@ jobs:
       STAGING_URL: https://staging-groceries.greenlee.uk
       STAGING_TEST_EMAIL: ${{ secrets.STAGING_TEST_EMAIL }}
       STAGING_TEST_PASSWORD: ${{ secrets.STAGING_TEST_PASSWORD }}
+      CF_ACCESS_CLIENT_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
+      CF_ACCESS_CLIENT_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
