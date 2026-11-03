@@ -1222,9 +1222,9 @@ def valid_recovered_steps(steps):
  return True
 
 def instruction_recovery_diagnostic():
- """Run three bounded real source checks, saving only confirmed instructions."""
+ """Run ten bounded source checks, saving only validated instructions."""
  recipes=[r for r in allrecipes() if isinstance(r,dict) and not non_recipe_reason(r)]
- candidates=[r for r in recipes if not stored_cooking_steps(r) and allowed_url(str(r.get('instructions_url') or r.get('url') or ''))][:3]
+ candidates=[r for r in recipes if not stored_cooking_steps(r) and allowed_url(str(r.get('instructions_url') or r.get('url') or ''))][:10]
  results=[]
  for recipe in candidates:
   rid=str(recipe.get('id'))
@@ -1244,7 +1244,7 @@ def instruction_recovery_diagnostic():
    c.execute('INSERT OR REPLACE INTO recipe_instruction_audit (recipe_id,url,verified,checked_at,reason,version) VALUES (?,?,?,CURRENT_TIMESTAMP,?,?)',(rid,url,int(saved),reason,INSTRUCTION_AUDIT_VERSION))
    c.commit()
   results.append({'recipe_id':rid,'source_host':urllib.parse.urlparse(url).hostname,'result':reason,'steps_found':len(steps),'saved':saved,'step_lengths':[len(str(step)) for step in steps[:8]]})
- return {'tested':len(results),'results':results,'note':'Three live checks only. URLs and instruction text are not returned. Failed checks never exclude recipes.'}
+ return {'tested':len(results),'results':results,'note':'Ten live checks only. URLs and instruction text are not returned. Failed checks never exclude recipes.'}
 
 def instruction_audit_status():
  recipes=[r for r in allrecipes() if not non_recipe_reason(r)]
@@ -1262,7 +1262,7 @@ def instruction_audit_status():
   latest=c.execute('SELECT MAX(checked_at) FROM recipe_instruction_audit').fetchone()[0]
  recovered=sum(1 for r in applicable.values() if r[1] and r[3]>=INSTRUCTION_AUDIT_VERSION)
  failures=sum(1 for r in applicable.values() if not r[1] and r[3]>=INSTRUCTION_AUDIT_VERSION)
- return {'recovered':recovered,'failed_current_version':failures,'running':instruction_audit_running,'checked':len(applicable),'verified':verified,'unverified':len(applicable)-verified,'excluded':0,'stored_steps':stored,'total_recipes':len(recipes),'pending':sum(1 for r in recipes if not stored_cooking_steps(r) and str(r.get('id')) not in applicable),'last_checked_at':latest,'reasons':reasons,'version':INSTRUCTION_AUDIT_VERSION,'note':'Recovery runs in cautious batches of 3; successful cooking steps are cached. Unverified links never hide recipes.'}
+ return {'recovered':recovered,'failed_current_version':failures,'progress_percent':round(100*(len(recipes)-sum(1 for r in recipes if not stored_cooking_steps(r) and (str(r.get('id')) not in applicable or applicable[str(r.get('id'))][3]<INSTRUCTION_AUDIT_VERSION)))/max(1,len(recipes)),2),'running':instruction_audit_running,'checked':len(applicable),'verified':verified,'unverified':len(applicable)-verified,'excluded':0,'stored_steps':stored,'total_recipes':len(recipes),'pending':sum(1 for r in recipes if not stored_cooking_steps(r) and (str(r.get('id')) not in applicable or applicable[str(r.get('id'))][3]<INSTRUCTION_AUDIT_VERSION)),'last_checked_at':latest,'reasons':reasons,'version':INSTRUCTION_AUDIT_VERSION,'note':'Recovery runs in cautious batches of 3; successful cooking steps are cached. Unverified links never hide recipes.'}
 
 def visible_cooking_recipe(recipe,checks):
  if stored_cooking_steps(recipe):return True
