@@ -866,40 +866,56 @@ async function scanRecipeQuality(){
   issues.appendChild(categoryDetails);
   const weakCategories=Object.entries(benchmark.categories||{}).filter(([name,stats])=>(stats.covered||0)>=20 && (stats.within_25_percent||0)<0.9).sort((a,b)=>(a[1].within_25_percent||0)-(b[1].within_25_percent||0));
   if(weakCategories.length){const note=document.createElement('p');note.textContent='Estimation improvement priorities (read-only): '+weakCategories.slice(0,4).map(([name,stats])=>name.replaceAll('_',' ')+' ('+pct(stats.within_25_percent)+' within 25%)').join(' · ')+'. These categories need better validation before estimates can be enabled.';issues.appendChild(note)}
-  // Admin-only, staging-only preview. Never persists or mutates recipe data.
+  // Staging-only quantity review workspace. This is benchmark evidence, NOT a live-recipe estimate.
   if(location.hostname.toLowerCase().startsWith('staging-')){
-   const previewPanel=document.createElement('section');
-   previewPanel.style.cssText='border:1px solid var(--border,#555);border-radius:10px;padding:14px;margin:14px 0';
-   const previewTitle=document.createElement('h3');
-   previewTitle.textContent='Staging quantity suggestion preview';
-   previewPanel.appendChild(previewTitle);
-   const previewLabel=document.createElement('label');
-   const previewToggle=document.createElement('input');
-   previewToggle.type='checkbox';
-   previewToggle.style.marginRight='8px';
-   previewLabel.appendChild(previewToggle);
-   previewLabel.appendChild(document.createTextNode('Show estimated quantities (this browser session only)'));
-   previewPanel.appendChild(previewLabel);
-   const previewNote=document.createElement('p');
-   previewNote.textContent='Off by default. Read-only benchmark examples, not live recipe edits. Estimates are never sent to shopping, pantry or pricing.';
-   previewPanel.appendChild(previewNote);
-   const previewRows=document.createElement('ul');
-   previewRows.hidden=true;
-   previewPanel.appendChild(previewRows);
-   previewToggle.addEventListener('change',()=>{
-    previewRows.replaceChildren();
-    previewRows.hidden=!previewToggle.checked;
-    if(!previewToggle.checked)return;
-    for(const item of (benchmark.examples||[]).slice(0,12)){
-     const line=document.createElement('li');
-     line.textContent='Recipe '+item.recipe_id+' · '+item.ingredient+' · Suggested estimate: '+item.estimated+' '+item.unit+' (benchmark actual: '+item.actual+' '+item.unit+'). Not verified for missing-quantity recipes.';
-     previewRows.appendChild(line);
+   const panel=document.createElement('section');
+   panel.style.cssText='border:1px solid var(--border,#555);border-radius:10px;padding:16px;margin:16px 0';
+   const title=document.createElement('h3');title.textContent='Quantity suggestion review · staging';panel.appendChild(title);
+   const note=document.createElement('p');
+   note.textContent='Review historical, held-out examples only. These recipes already have verified amounts for comparison. This is NOT a list of missing-quantity recipes, and no estimates can be applied or saved.';
+   panel.appendChild(note);
+   const controls=document.createElement('div');controls.style.cssText='display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin:12px 0';
+   const toggle=document.createElement('button');toggle.type='button';toggle.textContent='Show benchmark suggestions';controls.appendChild(toggle);
+   const filter=document.createElement('select');filter.setAttribute('aria-label','Filter review results');
+   for(const [value,label] of [['all','All examples'],['accurate','Within 25%'],['inaccurate','Outside 25%'],['review','Flagged for review']]){
+    const option=document.createElement('option');option.value=value;option.textContent=label;filter.appendChild(option);
+   }
+   filter.hidden=true;controls.appendChild(filter);panel.appendChild(controls);
+   const summary=document.createElement('p');summary.hidden=true;panel.appendChild(summary);
+   const wrap=document.createElement('div');wrap.style.cssText='overflow-x:auto';wrap.hidden=true;
+   const table=document.createElement('table');table.style.cssText='width:100%;border-collapse:collapse;font-size:.9rem';
+   const head=document.createElement('tr');
+   for(const label of ['Recipe','Ingredient','Verified source','Suggested estimate','Error','Review']){
+    const th=document.createElement('th');th.textContent=label;th.style.cssText='text-align:left;padding:8px;border-bottom:1px solid #555';head.appendChild(th);
+   }
+   table.appendChild(head);wrap.appendChild(table);panel.appendChild(wrap);
+   const examples=(benchmark.examples||[]).slice(0,100);
+   const flagged=new Set();let expanded=false;
+   function renderReview(){
+    while(table.children.length>1)table.lastChild.remove();
+    let shown=0;
+    for(let index=0;index<examples.length;index++){
+     const item=examples[index];
+     const error=Number(item.relative_error);
+     const within=Number.isFinite(error)&&error<=.25;
+     if(filter.value==='accurate'&&!within)continue;
+     if(filter.value==='inaccurate'&&within)continue;
+     if(filter.value==='review'&&!flagged.has(index))continue;
+     shown++;
+     const tr=document.createElement('tr');
+     const cells=[item.recipe_id,item.ingredient,String(item.actual)+' '+String(item.unit||''),String(item.estimated)+' '+String(item.unit||''),Number.isFinite(error)?(error*100).toFixed(1)+'%':'N/A'];
+     for(const value of cells){const td=document.createElement('td');td.textContent=String(value??'');td.style.cssText='padding:8px;border-bottom:1px solid #444;overflow-wrap:anywhere';tr.appendChild(td)}
+     const td=document.createElement('td');td.style.cssText='padding:8px;border-bottom:1px solid #444';
+     const checkbox=document.createElement('input');checkbox.type='checkbox';checkbox.checked=flagged.has(index);checkbox.setAttribute('aria-label','Flag recipe '+item.recipe_id+' ingredient '+item.ingredient+' for review');
+     checkbox.addEventListener('change',()=>{if(checkbox.checked)flagged.add(index);else flagged.delete(index);renderReview()});
+     td.appendChild(checkbox);tr.appendChild(td);table.appendChild(tr);
     }
-    if(!previewRows.children.length){
-     const line=document.createElement('li');line.textContent='No benchmark examples available.';previewRows.appendChild(line);
-    }
-   });
-   issues.appendChild(previewPanel);
+    summary.textContent=shown+' of '+examples.length+' benchmark examples shown · '+flagged.size+' flagged locally (not saved).';
+   }
+   toggle.addEventListener('click',()=>{expanded=!expanded;wrap.hidden=!expanded;filter.hidden=!expanded;summary.hidden=!expanded;toggle.textContent=expanded?'Hide benchmark suggestions':'Show benchmark suggestions';if(expanded)renderReview()});
+   filter.addEventListener('change',renderReview);
+   const warning=document.createElement('p');warning.textContent='Review flags disappear when you reload this page. No recipe, shopping list, pantry or price is modified.';panel.appendChild(warning);
+   issues.appendChild(panel);
   }
   const benchmarkDetails=document.createElement('details');
   benchmarkDetails.open=false;
