@@ -957,9 +957,19 @@ NON_RECIPE_PATTERNS=(
  r'\b(?:variety|assortment|bulk)\s*(?:box|pack)\b',
  r'\b(?:ground|whole.bean|instant)\s+coffee\b.*\b(?:oz|lb|bag|roast|notes?\s+of)\b',
 )
+def confirmed_prepared_product(recipe):
+ """Conservative catalog-only exclusion of ready-made meal assemblies."""
+ title=str(recipe.get('name') or '').lower()
+ ingredients=recipe.get('ingredients') or {}
+ count=len(ingredients) if isinstance(ingredients,(list,dict)) else 0
+ if count<2 or count>3:return False
+ markers=('ready-to-eat','ready to eat','fully cooked','heat and eat','heat & eat','ready to heat','pre-made','prepared meal','microwave meal')
+ return any(marker in title for marker in markers)
+
 def non_recipe_reason(recipe):
  title=str(recipe.get('name','')).lower().strip()
  if not title:return 'Missing recipe title'
+ if confirmed_prepared_product(recipe):return 'Ready-made meal assembly'
  if any(re.search(pattern,title) for pattern in NON_RECIPE_PATTERNS):
   return 'Product or promotional listing'
  if re.search(r'\b\d+\s*(?:lb|lbs|oz|kg)\b',title) and re.search(r'\b(?:box|pack|case|bundle)\b',title):
@@ -1432,7 +1442,7 @@ def prepared_meal_review_samples(limit=50):
  """Read-only admin review; no recipe exclusion or modification."""
  samples=[]
  for recipe in allrecipes():
-  if non_recipe_reason(recipe):continue
+  if non_recipe_reason(recipe) and not confirmed_prepared_product(recipe):continue
   classification=prepared_meal_review(recipe)
   if classification=='not_flagged':continue
   ingredients=recipe.get('ingredients') or {}
