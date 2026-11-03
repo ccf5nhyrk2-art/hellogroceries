@@ -890,7 +890,7 @@ async function scanRecipeQuality(){
    }
    table.appendChild(head);wrap.appendChild(table);panel.appendChild(wrap);
    const examples=(benchmark.examples||[]).slice(0,100);
-   const flagged=new Set();let expanded=false;
+   const flagged=new Set(examples.flatMap((item,index)=>Number(item.relative_error)>.25?[index]:[]));let expanded=false;
    function renderReview(){
     while(table.children.length>1)table.lastChild.remove();
     let shown=0;
@@ -914,9 +914,32 @@ async function scanRecipeQuality(){
    }
    toggle.addEventListener('click',()=>{expanded=!expanded;wrap.hidden=!expanded;filter.hidden=!expanded;summary.hidden=!expanded;toggle.textContent=expanded?'Hide benchmark suggestions':'Show benchmark suggestions';if(expanded)renderReview()});
    filter.addEventListener('change',renderReview);
-   const warning=document.createElement('p');warning.textContent='Review flags disappear when you reload this page. No recipe, shopping list, pantry or price is modified.';panel.appendChild(warning);
+   const warning=document.createElement('p');warning.textContent='Errors above 25% are automatically flagged for review. You can change flags locally; they disappear on reload. No recipe, shopping list, pantry or price is modified.';panel.appendChild(warning);
    issues.appendChild(panel);
   }
+  const missingReview=document.createElement('details');
+  const missingHeading=document.createElement('summary');
+  missingHeading.textContent='Missing-quantity recipes · source verification queue';
+  missingReview.appendChild(missingHeading);
+  const missingNote=document.createElement('p');
+  missingNote.textContent='These are actual unresolved recipe entries from the audit sample. No amount is inferred. Each needs a verified original source quantity before it can be used in grocery calculations.';
+  missingReview.appendChild(missingNote);
+  const missingTable=document.createElement('table');
+  missingTable.style.cssText='width:100%;border-collapse:collapse;font-size:.9rem';
+  const missingHeader=document.createElement('tr');
+  for(const label of ['Recipe','Missing ingredient','Reason','Recommended next step']){
+   const th=document.createElement('th');th.textContent=label;th.style.cssText='text-align:left;padding:8px;border-bottom:1px solid #555';missingHeader.appendChild(th);
+  }
+  missingTable.appendChild(missingHeader);
+  for(const item of (data.issues||[]).slice(0,50)){
+   const tr=document.createElement('tr');
+   for(const value of [item.recipe_id,item.ingredient,item.reason,item.source_diagnostic?.next_action||'Verify original recipe source']){
+    const td=document.createElement('td');td.textContent=String(value??'');td.style.cssText='padding:8px;border-bottom:1px solid #444;overflow-wrap:anywhere';tr.appendChild(td);
+   }
+   missingTable.appendChild(tr);
+  }
+  const missingWrap=document.createElement('div');missingWrap.style.cssText='overflow-x:auto';missingWrap.appendChild(missingTable);missingReview.appendChild(missingWrap);
+  issues.appendChild(missingReview);
   const benchmarkDetails=document.createElement('details');
   benchmarkDetails.open=false;
   const benchmarkTitle=document.createElement('summary');
