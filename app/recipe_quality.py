@@ -174,10 +174,15 @@ def source_match_diagnostic(recipe, ingredient):
     if any(RANGE.match(line) for line in related):
         return {"status": "range_requires_review"}
     if any(UNIT_ONLY.match(line) for line in related):
-        return {"status": "unit_without_quantity", "example": related[0][:120]}
+        return {"status": "unit_without_quantity", "example": related[0][:120],
+                "next_action": "Source has a unit but no number; inspect original recipe quantity fields"}
     if related:
-        return {"status": "source_without_verified_quantity", "example": related[0][:120]}
-    return {"status": "ingredient_not_found"}
+        return {"status": "source_without_verified_quantity", "example": related[0][:120],
+                "next_action": "Stored source contains an ingredient name but no verified measurement"}
+    # Do not label a failed exact match as a missing quantity: the importer
+    # may have retained a differently formatted name or omitted a source line.
+    return {"status": "ingredient_not_found",
+            "next_action": "Check source-name matching and import completeness"}
 
 
 def recover_from_stored_source(recipe, ingredient):
