@@ -79,7 +79,7 @@ def recipe_context(recipe):
     return matches[0] if len(matches) == 1 else "unspecified"
 
 
-def evaluate(recipes, limit=1500, minimum_examples=5):
+def evaluate(recipes, limit=5000, minimum_examples=5):
     """Recipe-level holdout with per-serving normalization and cautious abstention.
 
     Reports overall prediction error and separately the coverage of high-consensus
@@ -113,6 +113,29 @@ def evaluate(recipes, limit=1500, minimum_examples=5):
                 key = (name, unit, "per_serving" if servings else "raw", recipe_context(recipe))
                 training[(name, unit, "per_serving" if servings else "raw")].append(amount / servings if servings else amount)
                 contextual_training[key].append(amount / servings if servings else amount)
+    # Stratify the held-out evaluation by category rather than taking only
+    # the first N rows (which disproportionately samples low recipe IDs).
+    # Entire recipes are held out before any training data is collected.
+    heldout_by_category = defaultdict(list)
+    for recipe_id, servings, context, rows in heldout:
+        for name, unit, actual in rows:
+            heldout_by_category[category(name)].append((recipe_id, servings, context, name, unit, actual))
+    balanced_holdout = []
+    category_names = sorted(heldout_by_category)
+    offsets = {name: 0 for name in category_names}
+    while len(balanced_holdout) < limit:
+        added = False
+        for group_name in category_names:
+            entries = heldout_by_category[group_name]
+            offset = offsets[group_name]
+            if offset < len(entries):
+                balanced_holdout.append(entries[offset])
+                offsets[group_name] += 1
+                added = True
+                if len(balanced_holdout) >= limit:
+                    break
+        if not added:
+            break
     checked = covered = within_10 = within_25 = within_50 = 0
     errors = []
     examples = []
@@ -120,10 +143,7 @@ def evaluate(recipes, limit=1500, minimum_examples=5):
     high_confidence = {"eligible": 0, "within_25": 0, "within_10": 0}
     context_counts = {"contextual": 0, "fallback": 0}
     method_stats = {method: {"covered": 0, "within_10": 0, "within_25": 0, "high_consensus": 0, "high_consensus_within_25": 0} for method in ("contextual", "fallback")}
-    for recipe_id, servings, context, rows in heldout:
-        for name, unit, actual in rows:
-            if checked >= limit:
-                break
+    for recipe_id, servings, context, name, unit, actual in balanced_holdout:
             checked += 1
             group = categories[category(name)]
             group["tested"] += 1
@@ -192,9 +212,9 @@ def evaluate(recipes, limit=1500, minimum_examples=5):
                                  "serving_normalized": bool(servings), "recipe_context": context,
                                  "match_method": "contextual" if use_context else "fallback",
                                  "high_consensus": consensus})
-        if checked >= limit:
-            break
-    return {"mode": "offline_validation_only", "evaluated": checked,
+    return {"mode": "offline_validation_only", "evaluated": checked, "evaluation_limit": limit,
+            "holdout_strategy": "recipe_disjoint_category_round_robin",
+            "heldout_available_by_category": {name: len(entries) for name, entries in sorted(heldout_by_category.items())},
             "covered": covered, "coverage": round(covered / checked, 3) if checked else 0,
             "within_10_percent": round(within_10 / covered, 3) if covered else None,
             "within_25_percent": round(within_25 / covered, 3) if covered else None,
