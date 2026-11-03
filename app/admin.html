@@ -808,14 +808,15 @@ async function scanRecipeQuality(){
    heading.textContent='Same recipe-disjoint holdout · validation only · no quantities changed.';
    comparisonOutput.appendChild(heading);
    const table=document.createElement('table');
+   table.style.cssText='width:100%;border-collapse:collapse;min-width:640px;font-size:.92rem;line-height:1.45';
    const header=document.createElement('tr');
    for(const label of ['Metric','Fixed median baseline','Conservative estimator']){
-    const th=document.createElement('th');th.textContent=label;header.appendChild(th);
+    const th=document.createElement('th');th.textContent=label;th.style.cssText='padding:12px 14px;text-align:left;border-bottom:2px solid #526a5e70;white-space:normal';header.appendChild(th);
    }
    table.appendChild(header);
    const addRow=(label,left,right)=>{
     const tr=document.createElement('tr');
-    for(const value of [label,left,right]){const td=document.createElement('td');td.textContent=String(value);tr.appendChild(td)}
+    for(const [i,value] of [label,left,right].entries()){const td=document.createElement('td');td.textContent=String(value);td.style.cssText='padding:10px 14px;border-bottom:1px solid #526a5e35;vertical-align:top;'+(i===0?'font-weight:600;min-width:195px;':'min-width:170px;');tr.appendChild(td)}
     table.appendChild(tr);
    };
    const base=comparison.baseline||{},candidate=comparison.candidate||{};
@@ -835,6 +836,34 @@ async function scanRecipeQuality(){
     ?(c>b?'Conservative estimator improves overall accuracy by '+((c-b)*100).toFixed(1)+' percentage points.':c<b?'Conservative estimator trails the baseline by '+((b-c)*100).toFixed(1)+' percentage points.':'Both methods have equal overall accuracy.')+' Compare coverage and each category before making any policy change.'
     :'Insufficient paired accuracy results to choose a winner.';
    comparisonOutput.appendChild(interpretation);
+   const coverageNote=document.createElement('p');
+   const baselineCoverage=Number(base.coverage),conservativeCoverage=Number(candidate.coverage);
+   if(Number.isFinite(baselineCoverage)&&Number.isFinite(conservativeCoverage)){
+    const gap=((baselineCoverage-conservativeCoverage)*100).toFixed(1);
+    coverageNote.textContent='Coverage trade-off: baseline '+pct(baselineCoverage)+' vs conservative '+pct(conservativeCoverage)+' ('+gap+' percentage points fewer predictions with conservative estimates). Accuracy is measured only where a method predicts; this is not evidence that all missing amounts are recoverable.';
+    comparisonOutput.appendChild(coverageNote);
+   }
+   const categoryHeading=document.createElement('h4');categoryHeading.textContent='Category-specific next steps (recommendations only)';comparisonOutput.appendChild(categoryHeading);
+   const categoryList=document.createElement('ul');
+   const categoryStats=comparison.priority_categories||{};
+   for(const [key,stats] of Object.entries(categoryStats)){
+    const li=document.createElement('li');
+    const label=key.replaceAll('_',' ');
+    const baseline=Number(stats.baseline_within_25_percent),conservative=Number(stats.candidate_within_25_percent);
+    const count=Number(stats.candidate_covered||0);
+    const gain=(conservative-baseline)*100;
+    let guidance='Keep under review; do not automatically apply estimates.';
+    if(Number.isFinite(gain)&&gain>=5&&count>=100)guidance='Conservative method looks promising for review; verify coverage and independent samples before rollout.';
+    else if(Number.isFinite(gain)&&gain<0)guidance='Conservative method does not improve accuracy here; investigate alternative category-specific rules.';
+    else if(count<100)guidance='Sample is too small to support a policy change; collect more independent examples.';
+    li.textContent=label+': '+guidance;
+    categoryList.appendChild(li);
+   }
+   if(!categoryList.children.length){const li=document.createElement('li');li.textContent='Category data is not available yet; rerun the read-only benchmark.';categoryList.appendChild(li);}
+   comparisonOutput.appendChild(categoryList);
+   const safety=document.createElement('p');
+   safety.textContent='No estimates are written to recipes, pantry inventory, shopping lists or grocery pricing. Automatic estimation remains disabled.';
+   comparisonOutput.appendChild(safety);
   }
   issues.appendChild(comparisonPanel);
   const confidence=benchmark.high_confidence||{};
