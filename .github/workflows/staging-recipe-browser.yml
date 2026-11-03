@@ -3,6 +3,8 @@ on:
   workflow_dispatch:
   push:
     branches: [develop]
+  pull_request:
+    branches: [develop]
 permissions:
   contents: read
 jobs:
@@ -26,6 +28,9 @@ jobs:
           npx playwright install --with-deps chromium
       - name: Run read-only staging smoke tests
         run: node tests/staging_recipe_browser.cjs
+      - name: Run shopping pantry and admin staging smoke tests
+        if: success() || failure()
+        run: node tests/staging_other_features.cjs
       - name: Upload browser diagnostics on failure
         if: failure()
         uses: actions/upload-artifact@v4
