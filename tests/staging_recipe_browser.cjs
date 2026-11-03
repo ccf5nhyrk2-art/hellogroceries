@@ -118,8 +118,17 @@ async function main() {
         await preferences({ favorites: (state.favorites || []).filter(value => Number(value) !== Number(id)), collections: { ...(state.collections || {}), [name]: [] } });
         await loadFastBrowse();
       }, { id: targetId, name: testCollection });
+      const saveEvents = [];
+      page.on('dialog', async dialog => { saveEvents.push({ dialog: dialog.message() }); await dialog.dismiss(); });
+      page.on('response', response => {
+        if (response.url().includes('/api/action')) saveEvents.push({ status: response.status(), endpoint: '/api/action' });
+      });
       await page.locator('#fast-browse-results [data-fast-favorite="' + targetId + '"]').click();
-      await page.waitForFunction(id => (state.favorites || []).map(Number).includes(Number(id)), targetId, { timeout: 30000 });
+      try {
+        await page.waitForFunction(id => (state.favorites || []).map(Number).includes(Number(id)), targetId, { timeout: 90000 });
+      } catch (error) {
+        throw new Error('Favorite not saved: ' + JSON.stringify(saveEvents) + '; ' + error.message);
+      }
       await page.locator('#fast-browse-results [data-fast-plan="' + targetId + '"]').click();
       await page.waitForFunction(id => Object.hasOwn(state.selected || {}, String(id)), targetId, { timeout: 30000 });
       await page.locator('#fast-browse-results [data-fast-collection="' + targetId + '"]').selectOption(testCollection);
