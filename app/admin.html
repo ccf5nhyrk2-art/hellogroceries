@@ -1163,13 +1163,22 @@ document.getElementById('instruction-fields-refresh')?.addEventListener('click',
 });
 document.getElementById('instruction-diagnose')?.addEventListener('click',async()=>{
  const button=document.getElementById('instruction-diagnose'),status=document.getElementById('instruction-diagnose-status'),output=document.getElementById('instruction-diagnose-results');
- button.disabled=true;status.textContent='Checking up to three source pages (this may take around 30 seconds)…';output.textContent='';
+ button.disabled=true;status.textContent='Starting background source checks…';output.textContent='';
  try{
   const response=await fetch('/api/recipe-instruction-audit/diagnose',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json','X-HG-CSRF':csrf()},body:'{}'});
-  const data=await response.json();if(!response.ok)throw Error(data.error||'Diagnostic failed');
-  status.textContent='Checked '+data.tested+' recipe sources. '+(data.note||'');
-  output.textContent=(data.results||[]).map(r=>'Recipe '+r.recipe_id+' · '+(r.source_host||'unknown host')+' · '+r.result+' · '+r.steps_found+' steps · '+(r.saved?'Saved successfully':'Not saved')).join('\n');
-  await refreshInstructionAudit();
+  const started=await response.json();if(!response.ok)throw Error(started.error||'Unable to start');
+  status.textContent=started.started?'Background diagnostic started.':'A diagnostic is already running.';
+  for(let attempt=0;attempt<45;attempt++){
+   await new Promise(resolve=>setTimeout(resolve,2000));
+   const check=await fetch('/api/recipe-instruction-audit/diagnose/status',{credentials:'same-origin',cache:'no-store'});
+   const data=await check.json();if(!check.ok)throw Error(data.error||'Unable to read status');
+   if(data.running){status.textContent='Checking recipe sources in the background…';continue}
+   if(data.error)throw Error('Server diagnostic failed: '+data.error);
+   status.textContent='Checked '+data.tested+' recipe sources.';
+   output.textContent=(data.results||[]).map(r=>'Recipe '+r.recipe_id+' · '+(r.source_host||'unknown host')+' · '+r.result+' · '+r.steps_found+' steps · '+(r.saved?'Saved successfully':'Not saved')).join('\\n');
+   await refreshInstructionAudit();return;
+  }
+  status.textContent='Diagnostic is still running. Refresh the page and check again.';
  }catch(error){status.textContent='Diagnostic error: '+error.message}
  finally{button.disabled=false}
 });
