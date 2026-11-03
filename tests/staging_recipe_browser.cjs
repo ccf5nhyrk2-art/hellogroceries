@@ -59,8 +59,15 @@ async function main() {
     assert.match(pageInfo, /Page 1 of \d+/);
     console.log('PASS: initial 24-card page and page count');
     await page.locator('#fast-browse-search').fill('chicken');
-    await page.locator('#fast-browse-search-button').click();
-    await page.waitForFunction(() => document.querySelector('#fast-browse-pageinfo')?.textContent?.includes('Page 1 of') && document.querySelector('#fast-browse-results .recipe-card'));
+    // Wait for the new API request to complete, not the previous page's existing cards.
+    await Promise.all([
+      page.waitForResponse(r => r.url().includes('/api/recipes/page') && new URL(r.url()).searchParams.get('q') === 'chicken' && r.ok(), { timeout: 30000 }),
+      page.locator('#fast-browse-search-button').click()
+    ]);
+    await page.waitForFunction(() => {
+      const cards = [...document.querySelectorAll('#fast-browse-results .recipe-card')];
+      return cards.length > 0 && cards.every(card => card.querySelector('.recipe-card-title')?.textContent?.toLowerCase().includes('chicken'));
+    }, { timeout: 30000 });
     const searchTitles = await cards.locator('.recipe-card-title').allInnerTexts();
     assert.ok(searchTitles.length > 0 && searchTitles.every(t => t.toLowerCase().includes('chicken')), 'Search results do not match chicken');
     console.log('PASS: server-side chicken search');
