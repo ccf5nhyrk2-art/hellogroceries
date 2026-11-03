@@ -7,8 +7,7 @@ const email = process.env.STAGING_TEST_EMAIL;
 const password = process.env.STAGING_TEST_PASSWORD;
 async function main() {
   if (!email || !password) {
-    console.log('SKIP: Configure STAGING_TEST_EMAIL and STAGING_TEST_PASSWORD GitHub Actions secrets for a dedicated staging-only test account.');
-    return;
+    throw new Error('Set STAGING_TEST_EMAIL and STAGING_TEST_PASSWORD secrets for a dedicated staging-only test account.');
   }
   const browser = await chromium.launch({ headless: true });
   const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
