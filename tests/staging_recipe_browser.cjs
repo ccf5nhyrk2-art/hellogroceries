@@ -135,7 +135,11 @@ async function main() {
       } catch (error) {
         throw new Error('Favorite not saved: ' + JSON.stringify(saveEvents) + '; ' + error.message);
       }
-      await page.locator('#fast-browse-results [data-fast-plan="' + targetId + '"]').click();
+      // The favorite action can re-render the entire recipe grid while Playwright
+      // waits for a stable click target. Dispatch on the currently attached button
+      // and assert the actual saved selection below instead of waiting for layout stability.
+      await page.waitForFunction(id => !!document.querySelector('#fast-browse-results [data-fast-plan="' + id + '"]'), targetId, { timeout: 90000 });
+      await page.locator('#fast-browse-results [data-fast-plan="' + targetId + '"]').evaluate(button => button.click());
       await page.waitForFunction(id => Object.hasOwn(state.selected || {}, String(id)), targetId, { timeout: 30000 });
       await page.locator('#fast-browse-results [data-fast-collection="' + targetId + '"]').selectOption(testCollection);
       await page.waitForFunction(([id, name]) => (state.collections?.[name] || []).map(Number).includes(Number(id)), [targetId, testCollection], { timeout: 30000 });
