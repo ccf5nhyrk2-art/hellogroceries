@@ -1501,7 +1501,20 @@ def prepared_meal_review_samples(limit=50):
   if len(samples)>=limit:break
  return samples
 
+# Short-lived status snapshot avoids repeated full-catalog scans during admin polling.
+_instruction_status_cache=None
+_instruction_status_cache_at=0.0
+_instruction_status_cache_lock=threading.Lock()
+
 def instruction_audit_status():
+ global _instruction_status_cache,_instruction_status_cache_at
+ now=time.monotonic()
+ with _instruction_status_cache_lock:
+  if _instruction_status_cache is not None and now-_instruction_status_cache_at<10:
+   return dict(_instruction_status_cache)
+ return _compute_instruction_audit_status()
+
+def _compute_instruction_audit_status():
  catalog=allrecipes()
  excluded_prepared=sum(1 for r in catalog if confirmed_prepared_product(r))
  recipes=[r for r in catalog if not non_recipe_reason(r)]
@@ -1513,7 +1526,9 @@ def instruction_audit_status():
   reason=row[2] if row[3]>=INSTRUCTION_AUDIT_VERSION else 'legacy_unverified'
   reasons[reason]=reasons.get(reason,0)+1
  verified=sum(int(row[1] and row[3]>=INSTRUCTION_AUDIT_VERSION) for row in applicable.values())
- stored=sum(int(stored_cooking_steps(r)) for r in recipes)
+ stored_ids={str(r.get('id')) for r in recipes if stored_cooking_steps(r)}
+ stored=len(stored_ids)
+ pending=sum(1 for r in recipes if str(r.get('id')) not in stored_ids and (str(r.get('id')) not in applicable or applicable[str(r.get('id'))][3]<INSTRUCTION_AUDIT_VERSION))
  with db() as c:
   instruction_audit_schema(c)
   latest=c.execute('SELECT MAX(checked_at) FROM recipe_instruction_audit').fetchone()[0]
@@ -1523,7 +1538,13 @@ def instruction_audit_status():
  for recipe in catalog:
   if non_recipe_reason(recipe) and not confirmed_prepared_product(recipe):continue
   prepared_review[prepared_meal_review(recipe)]+=1
- return {'recovery_success_rate':round(100*recovered/max(1,recovered+failures),1),'completed_current_version':recovered+failures,'recovered':recovered,'failed_current_version':failures,'progress_percent':round(100*(len(recipes)-sum(1 for r in recipes if not stored_cooking_steps(r) and (str(r.get('id')) not in applicable or applicable[str(r.get('id'))][3]<INSTRUCTION_AUDIT_VERSION)))/max(1,len(recipes)),2),'running':instruction_audit_running and (recovered+failures<len(recipes)),'phase':('paused' if instruction_audit_paused else 'completed_with_unverified' if recovered+failures>=len(recipes) and failures else 'completed' if recovered+failures>=len(recipes) else 'running' if instruction_audit_running else 'idle'),'paused':instruction_audit_paused,'processed_this_process':instruction_audit_completed,'worker_errors':instruction_audit_errors,'checked':len(applicable),'verified':verified,'unverified':len(applicable)-verified,'excluded':excluded_prepared,'prepared_meal_review':prepared_review,'stored_steps':stored,'total_recipes':len(recipes),'pending':sum(1 for r in recipes if not stored_cooking_steps(r) and (str(r.get('id')) not in applicable or applicable[str(r.get('id'))][3]<INSTRUCTION_AUDIT_VERSION)),'last_checked_at':latest,'reasons':reasons,'version':INSTRUCTION_AUDIT_VERSION,'note':'Initial checks complete; failed or unsupported sources remain unverified and can be retried separately.' if recovered+failures>=len(recipes) else 'Recovery continues automatically in rate-limited batches of 25 until paused or completed. Verified steps are cached; unverified links never hide recipes.'}
+ result={'recovery_success_rate':round(100*recovered/max(1,recovered+failures),1),'completed_current_version':recovered+failures,'recovered':recovered,'failed_current_version':failures,'progress_percent':round(100*(len(recipes)-pending)/max(1,len(recipes)),2),'running':instruction_audit_running and (recovered+failures<len(recipes)),'phase':('paused' if instruction_audit_paused else 'completed_with_unverified' if recovered+failures>=len(recipes) and failures else 'completed' if recovered+failures>=len(recipes) else 'running' if instruction_audit_running else 'idle'),'paused':instruction_audit_paused,'processed_this_process':instruction_audit_completed,'worker_errors':instruction_audit_errors,'checked':len(applicable),'verified':verified,'unverified':len(applicable)-verified,'excluded':excluded_prepared,'prepared_meal_review':prepared_review,'stored_steps':stored,'total_recipes':len(recipes),'pending':pending,'last_checked_at':latest,'reasons':reasons,'version':INSTRUCTION_AUDIT_VERSION,'note':'Initial checks complete; failed or unsupported sources remain unverified and can be retried separately.' if recovered+failures>=len(recipes) else 'Recovery continues automatically in rate-limited batches of 25 until paused or completed. Verified steps are cached; unverified links never hide recipes.'}
+
+ with _instruction_status_cache_lock:
+  global _instruction_status_cache,_instruction_status_cache_at
+  _instruction_status_cache=result
+  _instruction_status_cache_at=time.monotonic()
+ return dict(result)
 
 def visible_cooking_recipe(recipe,checks):
  if stored_cooking_steps(recipe):return True
