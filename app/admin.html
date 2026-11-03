@@ -784,6 +784,59 @@ async function scanRecipeQuality(){
   const pct=value=>value==null?'N/A':(value*100).toFixed(1)+'%';
   benchmarkSummary.textContent='Quantity estimation benchmark (read-only): '+(benchmark.evaluated||0)+' held-out measurements tested · '+(benchmark.covered||0)+' predictions · coverage '+pct(benchmark.coverage)+' · within 25% error '+pct(benchmark.within_25_percent)+' · median relative error '+pct(benchmark.median_relative_error)+'. No estimates applied.';
   issues.appendChild(benchmarkSummary);
+  const comparison=data.quantity_comparison;
+  const comparisonPanel=document.createElement('section');
+  comparisonPanel.style.cssText='margin:14px 0;padding:12px;border:1px solid var(--border,#555);border-radius:9px';
+  const compareButton=document.createElement('button');
+  compareButton.type='button';
+  compareButton.textContent='Compare estimation methods';
+  comparisonPanel.appendChild(compareButton);
+  const comparisonOutput=document.createElement('div');
+  comparisonOutput.hidden=true;
+  comparisonPanel.appendChild(comparisonOutput);
+  compareButton.onclick=()=>{
+   comparisonOutput.hidden=!comparisonOutput.hidden;
+   compareButton.textContent=comparisonOutput.hidden?'Compare estimation methods':'Hide estimation comparison';
+  };
+  if(!comparison){
+   compareButton.disabled=true;
+   const message=document.createElement('p');
+   message.textContent='Comparison not cached yet. Click Scan recipe catalog to run the paired benchmark in the background.';
+   comparisonPanel.appendChild(message);
+  }else{
+   const heading=document.createElement('p');
+   heading.textContent='Same recipe-disjoint holdout · validation only · no quantities changed.';
+   comparisonOutput.appendChild(heading);
+   const table=document.createElement('table');
+   const header=document.createElement('tr');
+   for(const label of ['Metric','Fixed median baseline','Conservative estimator']){
+    const th=document.createElement('th');th.textContent=label;header.appendChild(th);
+   }
+   table.appendChild(header);
+   const addRow=(label,left,right)=>{
+    const tr=document.createElement('tr');
+    for(const value of [label,left,right]){const td=document.createElement('td');td.textContent=String(value);tr.appendChild(td)}
+    table.appendChild(tr);
+   };
+   const base=comparison.baseline||{},candidate=comparison.candidate||{};
+   addRow('Measurements evaluated',base.evaluated??'—',candidate.evaluated??'—');
+   addRow('Predictions covered',base.covered??'—',candidate.covered??'—');
+   addRow('Coverage',pct(base.coverage),pct(candidate.coverage));
+   addRow('Within 25% error',pct(base.within_25_percent),pct(candidate.within_25_percent));
+   addRow('High-consensus accuracy',pct(base.high_confidence?.within_25_percent),pct(candidate.high_confidence?.within_25_percent));
+   addRow('Independent holdout accuracy',pct(base.independent_check?.within_25_percent),pct(candidate.independent_check?.within_25_percent));
+   for(const [name,stats] of Object.entries(comparison.priority_categories||{})){
+    addRow(name.replaceAll('_',' ')+' within 25%',pct(stats.baseline_within_25_percent)+' ('+stats.baseline_covered+')',pct(stats.candidate_within_25_percent)+' ('+stats.candidate_covered+')');
+   }
+   const wrap=document.createElement('div');wrap.style.cssText='overflow-x:auto';wrap.appendChild(table);comparisonOutput.appendChild(wrap);
+   const interpretation=document.createElement('p');
+   const b=base.within_25_percent,c=candidate.within_25_percent;
+   interpretation.textContent=typeof b==='number'&&typeof c==='number'
+    ?(c>b?'Conservative estimator improves overall accuracy by '+((c-b)*100).toFixed(1)+' percentage points.':c<b?'Conservative estimator trails the baseline by '+((b-c)*100).toFixed(1)+' percentage points.':'Both methods have equal overall accuracy.')+' Compare coverage and each category before making any policy change.'
+    :'Insufficient paired accuracy results to choose a winner.';
+   comparisonOutput.appendChild(interpretation);
+  }
+  issues.appendChild(comparisonPanel);
   const confidence=benchmark.high_confidence||{};
   const confidenceLine=document.createElement('p');
   confidenceLine.textContent='High-consensus suggestions (validation only): '+(confidence.eligible||0)+' tested · within 10%: '+pct(confidence.within_10_percent)+' · within 25%: '+pct(confidence.within_25_percent)+'. No automatic estimates enabled.';
