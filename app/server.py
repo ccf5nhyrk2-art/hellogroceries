@@ -1019,10 +1019,26 @@ def verify_cooking_link(url):
  except urllib.error.HTTPError as exc:return False,'http_'+str(exc.code)
  except (OSError,ValueError,TimeoutError,UnicodeError):return False,'network_error'
 
+def split_numbered_cooking_steps(value):
+ """Split only clearly numbered multi-step directions; never invent or rewrite text."""
+ if not isinstance(value,str) or len(value)>30000:return []
+ plain=html.unescape(re.sub(r'<[^>]+>',' ',value))
+ plain=re.sub(r'\s+',' ',plain).strip()
+ # Require explicit 'Step 1:' / 'Step 2:' markers, not quantities or times.
+ markers=list(re.finditer(r'(?<!\w)Step\s+([1-9]\d?)\s*[:.)-]\s+',plain,re.I))
+ if len(markers)<2 or len(markers)>40:return []
+ numbers=[int(match.group(1)) for match in markers]
+ if numbers!=list(range(1,len(markers)+1)):return []
+ if plain[:markers[0].start()].strip():return []
+ parts=[plain[match.end():(markers[i+1].start() if i+1<len(markers) else len(plain))].strip() for i,match in enumerate(markers)]
+ return parts if valid_recovered_steps(parts) else []
+
 def instruction_step_strings(value):
  """Accept substantive instruction steps, never ingredient lists or marketing copy."""
  if isinstance(value,str):
   clean=re.sub(r'\s+',' ',html.unescape(re.sub(r'<[^>]+>',' ',value))).strip()
+  numbered=split_numbered_cooking_steps(value)
+  if numbered:return numbered
   return [clean] if len(clean)>=25 else []
  if isinstance(value,list):
   result=[]
