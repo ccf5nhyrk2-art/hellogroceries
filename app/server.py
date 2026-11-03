@@ -966,14 +966,21 @@ def stored_cooking_steps(recipe):
    for step in steps)
  return False
 
+def instruction_text_ok(value):
+ if isinstance(value,str):return len(re.sub(r'<[^>]*>',' ',html.unescape(value)).strip())>=25
+ if isinstance(value,list):return any(instruction_text_ok(x) for x in value)
+ if isinstance(value,dict):return any(instruction_text_ok(value.get(k)) for k in ('text','description','instructions','steps','recipeInstructions','body'))
+ return False
+
 def verify_cooking_link(url):
- if not isinstance(url,str) or not allowed_url(url):return False
+ """Return (verified, reason); network failures are never evidence of missing steps."""
+ if not isinstance(url,str) or not allowed_url(url):return False,'invalid_url'
  try:
-  req=urllib.request.Request(url,headers={'User-Agent':'Mozilla/5.0 (compatible; HelloGroceriesRecipeAudit/1.0)','Accept':'text/html'})
+  req=urllib.request.Request(url,headers={'User-Agent':'Mozilla/5.0 (compatible; HelloGroceriesRecipeAudit/2.0)','Accept':'text/html'})
   with urllib.request.urlopen(req,timeout=9) as response:
-   if not allowed_url(response.geturl()) or response.status!=200:return False
-   page=response.read(850000).decode('utf-8','replace')
-  # A working page alone is not sufficient: require structured cooking steps.
+   if not allowed_url(response.geturl()):return False,'unsafe_redirect'
+   if response.status!=200:return False,'http_error'
+   page=response.read(1200000).decode('utf-8','replace')
   for raw in re.findall(r'<script[^>]*application/ld\\+json[^>]*>(.*?)</script>',page,re.I|re.S):
    try:root=json.loads(html.unescape(raw))
    except (ValueError,TypeError):continue
@@ -984,53 +991,88 @@ def verify_cooking_link(url):
     if not isinstance(node,dict):continue
     typ=node.get('@type',[])
     if isinstance(typ,str):typ=[typ]
-    if any(str(t).lower().endswith('recipe') for t in typ) and stored_cooking_steps(node):return True
+    if any(str(t).lower().endswith('recipe') for t in typ) and instruction_text_ok(node.get('recipeInstructions')):return True,'jsonld'
     pending.extend(v for v in node.values() if isinstance(v,(dict,list)))
-  return False
- except (OSError,ValueError,TimeoutError,UnicodeError):return False
+  # HelloFresh pages commonly serialize preparation steps in application data.
+  # Require step-like keys AND substantive instructional text, not merely a page link.
+  for key in ('instructions','recipeInstructions','preparationSteps','cookingSteps','steps'):
+   pattern=r'["\\\']'+key+r'["\\\']\\s*:\\s*(\\[[\\s\\S]{0,18000}?\\]|\\{[\\s\\S]{0,18000}?\\})'
+   for match in re.finditer(pattern,page,re.I):
+    snippet=html.unescape(match.group(1))
+    if len(re.findall(r'["\\\'](?:text|description|instruction|body)["\\\']\\s*:',snippet,re.I))>=2 and len(re.sub(r'<[^>]+>',' ',snippet))>=160:return True,'embedded_steps'
+  return False,'unsupported_or_missing_steps'
+ except urllib.error.HTTPError as exc:return False,'http_'+str(exc.code)
+ except (OSError,ValueError,TimeoutError,UnicodeError):return False,'network_error'
+
+def instruction_audit_schema(c):
+ c.execute('CREATE TABLE IF NOT EXISTS recipe_instruction_audit (recipe_id TEXT PRIMARY KEY, url TEXT NOT NULL, verified INTEGER NOT NULL, checked_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)')
+ cols={row[1] for row in c.execute('PRAGMA table_info(recipe_instruction_audit)')}
+ if 'reason' not in cols:c.execute("ALTER TABLE recipe_instruction_audit ADD COLUMN reason TEXT NOT NULL DEFAULT 'legacy_unverified'")
+ if 'version' not in cols:c.execute('ALTER TABLE recipe_instruction_audit ADD COLUMN version INTEGER NOT NULL DEFAULT 1')
+
+instruction_audit_lock=threading.Lock()
+instruction_audit_running=False
+instruction_audit_requested=False
+INSTRUCTION_AUDIT_VERSION=2
 
 def instruction_audit_rows():
  with db() as c:
-  c.execute('CREATE TABLE IF NOT EXISTS recipe_instruction_audit (recipe_id TEXT PRIMARY KEY, url TEXT NOT NULL, verified INTEGER NOT NULL, checked_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)')
-  return {rid:(url,bool(ok)) for rid,url,ok in c.execute('SELECT recipe_id,url,verified FROM recipe_instruction_audit')}
+  instruction_audit_schema(c)
+  return {rid:(url,bool(ok),reason,version) for rid,url,ok,reason,version in c.execute('SELECT recipe_id,url,verified,reason,version FROM recipe_instruction_audit')}
 
 def instruction_audit_worker():
  global instruction_audit_running
  try:
-  for recipe in allrecipes():
+  recipes=allrecipes()
+  checked=instruction_audit_rows()
+  completed=0;success=0
+  for recipe in recipes:
+   if completed>=25:break
    if non_recipe_reason(recipe) or stored_cooking_steps(recipe):continue
-   # Stop broad verification when source extraction is clearly failing.
-   with db() as c:
-    sample=c.execute('SELECT COUNT(*),COALESCE(SUM(verified),0) FROM recipe_instruction_audit').fetchone()
-   if sample[0]>=25 and sample[1]==0:break
    url=str(recipe.get('instructions_url') or recipe.get('url') or '')
    rid=str(recipe.get('id'))
    if not url or not allowed_url(url):continue
+   previous=checked.get(rid)
+   if previous and previous[0]==url and previous[3]>=INSTRUCTION_AUDIT_VERSION:continue
+   ok,reason=verify_cooking_link(url)
    with db() as c:
-    c.execute('CREATE TABLE IF NOT EXISTS recipe_instruction_audit (recipe_id TEXT PRIMARY KEY, url TEXT NOT NULL, verified INTEGER NOT NULL, checked_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)')
-    row=c.execute('SELECT verified FROM recipe_instruction_audit WHERE recipe_id=? AND url=?',(rid,url)).fetchone()
-   if row is not None:continue
-   ok=verify_cooking_link(url)
-   with db() as c:
-    c.execute('INSERT OR REPLACE INTO recipe_instruction_audit (recipe_id,url,verified,checked_at) VALUES (?,?,?,CURRENT_TIMESTAMP)',(rid,url,int(ok)))
+    instruction_audit_schema(c)
+    c.execute('INSERT OR REPLACE INTO recipe_instruction_audit (recipe_id,url,verified,checked_at,reason,version) VALUES (?,?,?,CURRENT_TIMESTAMP,?,?)',(rid,url,int(ok),reason,INSTRUCTION_AUDIT_VERSION))
     c.commit()
+   completed+=1;success+=int(ok)
+  # A failed batch does not automatically retry or hide any recipes.
  finally:
   with instruction_audit_lock:instruction_audit_running=False
 
 def start_instruction_audit():
  global instruction_audit_running
  with instruction_audit_lock:
-  if instruction_audit_running:return
+  if instruction_audit_running:return False
   instruction_audit_running=True
  threading.Thread(target=instruction_audit_worker,name='recipe-instruction-audit',daemon=True).start()
+ return True
+
+def instruction_audit_status():
+ recipes=[r for r in allrecipes() if not non_recipe_reason(r)]
+ rows=instruction_audit_rows()
+ current={str(r.get('id')):r for r in recipes}
+ applicable={rid:row for rid,row in rows.items() if rid in current and row[0]==str(current[rid].get('instructions_url') or current[rid].get('url') or '')}
+ reasons={}
+ for row in applicable.values():
+  reason=row[2] if row[3]>=INSTRUCTION_AUDIT_VERSION else 'legacy_unverified'
+  reasons[reason]=reasons.get(reason,0)+1
+ verified=sum(int(row[1] and row[3]>=INSTRUCTION_AUDIT_VERSION) for row in applicable.values())
+ stored=sum(int(stored_cooking_steps(r)) for r in recipes)
+ last=max((row[3] for row in []),default=None)
+ with db() as c:
+  instruction_audit_schema(c)
+  latest=c.execute('SELECT MAX(checked_at) FROM recipe_instruction_audit').fetchone()[0]
+ return {'running':instruction_audit_running,'checked':len(applicable),'verified':verified,'unverified':len(applicable)-verified,'excluded':0,'stored_steps':stored,'total_recipes':len(recipes),'pending':sum(1 for r in recipes if not stored_cooking_steps(r) and str(r.get('id')) not in applicable),'last_checked_at':latest,'reasons':reasons,'version':INSTRUCTION_AUDIT_VERSION,'note':'Checks run in batches of 25; unverified links never hide recipes. Legacy checks are marked for re-verification.'}
 
 def visible_cooking_recipe(recipe,checks):
  if stored_cooking_steps(recipe):return True
  url=str(recipe.get('instructions_url') or recipe.get('url') or '')
- if not url or not allowed_url(url):return False
- checked=checks.get(str(recipe.get('id')))
- # Keep unreviewed recipes visible during the initial background audit.
- return True  # A failed or inconclusive remote fetch cannot prove cooking steps are absent.
+ return bool(url and allowed_url(url)) # Fail open for inconclusive checks; no deletion.
 
 def validate_import_recipe(recipe):
  """Apply catalog policy at the import boundary; do not delete prior entries."""
@@ -2747,8 +2789,8 @@ class Handler(SimpleHTTPRequestHandler):
    start_instruction_audit()
    return self.sendjson([r for r in allrecipes() if not non_recipe_reason(r) and visible_cooking_recipe(r,checks)])
   if self.path=='/api/recipe-instruction-audit/status':
-   checks=instruction_audit_rows()
-   return self.sendjson({'running':instruction_audit_running,'checked':len(checks),'verified':sum(int(v[1]) for v in checks.values()),'excluded':0,'unverified':sum(int(not v[1]) for v in checks.values()),'note':'Remote checks are inconclusive and do not hide recipes. Audit pauses after 25 checks without a verified source.'})
+   if not getattr(request_scope,'admin',False):return self.sendjson({'error':'Administrator required'},403)
+   return self.sendjson(instruction_audit_status())
   if self.path=='/api/state':
    with lock:
     state=read()
