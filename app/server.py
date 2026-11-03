@@ -2242,7 +2242,13 @@ def rebuild_grocery_list(state):
 class Handler(SimpleHTTPRequestHandler):
  def __init__(self,*a,**kw):super().__init__(*a,directory=str(BASE),**kw)
  def sendjson(self,obj,status=200):
-  b=json.dumps(obj).encode();self.send_response(status);self.send_header('Content-Type','application/json');self.send_header('Cache-Control','no-store');self.send_header('Content-Length',str(len(b)));self.end_headers();self.wfile.write(b)
+  b=json.dumps(obj).encode();self.send_response(status);self.send_header('Content-Type','application/json');self.send_header('Cache-Control','no-store');self.send_header('Content-Length',str(len(b)))
+  try:
+   self.end_headers();self.wfile.write(b)
+  except (BrokenPipeError,ConnectionResetError,ConnectionAbortedError):
+   # The browser/proxy disconnected while an expensive admin request was running.
+   # Do not flood server logs with a traceback for a closed client socket.
+   return
  def identity(self):
   cookie=SimpleCookie()
   try:cookie.load(self.headers.get('Cookie',''))
