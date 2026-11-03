@@ -5,10 +5,13 @@ import pathlib
 import re
 import sys
 import unittest
-sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1] / 'app'))
+APP_DIR = pathlib.Path(__file__).resolve().parents[1] / 'app'
+if not (APP_DIR / 'server.py').is_file():
+    APP_DIR = pathlib.Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(APP_DIR))
 import recipe_quality
 
-SOURCE = pathlib.Path(__file__).resolve().parents[1] / "app" / "server.py"
+SOURCE = APP_DIR / "server.py"
 tree = ast.parse(SOURCE.read_text(encoding="utf-8"), filename=str(SOURCE))
 functions = [node for node in tree.body if isinstance(node, ast.FunctionDef) and node.name in ("parse_grocery_measure", "grocery_display_name", "rebuild_grocery_list")]
 ns = {"math": math, "re": re, "recipe_quality": recipe_quality}
