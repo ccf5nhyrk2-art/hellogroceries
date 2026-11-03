@@ -1175,7 +1175,7 @@ document.getElementById('instruction-diagnose')?.addEventListener('click',async(
    if(data.running){status.textContent='Checking recipe sources in the background…';continue}
    if(data.error)throw Error('Server diagnostic failed: '+data.error);
    status.textContent='Checked '+data.tested+' recipe sources.';
-   output.textContent=(data.results||[]).map(r=>'Recipe '+r.recipe_id+' · '+(r.source_host||'unknown host')+' · '+r.result+' · '+r.steps_found+' steps · '+(r.saved?'Saved successfully':'Not saved')).join('\\n');
+   output.textContent=(data.results||[]).map(r=>'Recipe '+r.recipe_id+' · '+(r.source_host||'unknown host')+' · '+r.result+' · '+r.steps_found+' steps · '+(r.saved?'Saved successfully':'Not saved')).join('\n');
    await refreshInstructionAudit();return;
   }
   status.textContent='Diagnostic is still running. Refresh the page and check again.';
