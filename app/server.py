@@ -1052,6 +1052,27 @@ def start_instruction_audit():
  threading.Thread(target=instruction_audit_worker,name='recipe-instruction-audit',daemon=True).start()
  return True
 
+def instruction_field_diagnostics(limit=12):
+ """Admin-only summary of instruction-shaped fields; no recipe text or URLs exposed."""
+ recipes=[r for r in allrecipes() if isinstance(r,dict) and not non_recipe_reason(r)]
+ fields={}
+ samples=[]
+ keys=('instructions','recipeInstructions','steps','preparationSteps','cookingSteps','method','directions','preparation','instruction','instructionSteps')
+ for r in recipes:
+  present=[]
+  for key in keys:
+   value=r.get(key)
+   if value is None or value=='' or value==[]:continue
+   present.append(key)
+   record=fields.setdefault(key,{'present':0,'usable':0,'types':{}})
+   record['present']+=1
+   kind=type(value).__name__
+   record['types'][kind]=record['types'].get(kind,0)+1
+   if instruction_text_ok(value):record['usable']+=1
+  if len(samples)<limit and (present or len(samples)<min(4,limit)):
+   samples.append({'recipe_id':str(r.get('id',''))[:64],'fields':present,'has_source_link':bool(r.get('instructions_url') or r.get('url')),'stored_steps_detected':stored_cooking_steps(r)})
+ return {'total_recipes':len(recipes),'field_summary':fields,'samples':samples,'note':'Diagnostic samples show field names and presence only, not cooking text.'}
+
 def instruction_audit_status():
  recipes=[r for r in allrecipes() if not non_recipe_reason(r)]
  rows=instruction_audit_rows()
@@ -2787,6 +2808,9 @@ class Handler(SimpleHTTPRequestHandler):
    checks=instruction_audit_rows()
    start_instruction_audit()
    return self.sendjson([r for r in allrecipes() if not non_recipe_reason(r) and visible_cooking_recipe(r,checks)])
+  if self.path=='/api/recipe-instruction-audit/diagnostics':
+   if not getattr(request_scope,'admin',False):return self.sendjson({'error':'Administrator required'},403)
+   return self.sendjson(instruction_field_diagnostics())
   if self.path=='/api/recipe-instruction-audit/status':
    if not getattr(request_scope,'admin',False):return self.sendjson({'error':'Administrator required'},403)
    return self.sendjson(instruction_audit_status())
