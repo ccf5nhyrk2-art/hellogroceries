@@ -967,6 +967,9 @@ def non_recipe_reason(recipe):
 # Cooking-step audit: cache remote checks, never block the recipe API on network.
 instruction_audit_lock=threading.Lock()
 instruction_audit_running=False
+instruction_audit_paused=False
+instruction_audit_completed=0
+instruction_audit_errors=0
 def stored_cooking_steps(recipe):
  steps=recipe.get('instructions') or recipe.get('recipeInstructions') or recipe.get('steps')
  if isinstance(steps,str):return len(steps.strip())>=35
@@ -1136,46 +1139,62 @@ def instruction_audit_rows():
   return {rid:(url,bool(ok),reason,version) for rid,url,ok,reason,version in c.execute('SELECT recipe_id,url,verified,reason,version FROM recipe_instruction_audit')}
 
 def instruction_audit_worker():
- global instruction_audit_running
+ global instruction_audit_running,instruction_audit_completed,instruction_audit_errors
  try:
-  recipes=allrecipes()
-  checked=instruction_audit_rows()
-  completed=0;success=0
-  # Process newest recipes first; successful cached instructions are skipped.
-  for recipe in sorted(recipes,key=lambda r: -int(r.get('id')) if str(r.get('id')).isdigit() else 0):
-   if completed>=25:break
-   if non_recipe_reason(recipe) or stored_cooking_steps(recipe):continue
-   url=str(recipe.get('instructions_url') or recipe.get('url') or '')
-   rid=str(recipe.get('id'))
-   if not url or not allowed_url(url):continue
-   previous=checked.get(rid)
-   if previous and previous[0]==url and previous[3]>=INSTRUCTION_AUDIT_VERSION:continue
-   steps,reason=recover_recipe_instructions(url)
-   ok=valid_recovered_steps(steps)
-   if steps and not ok:reason='invalid_recovered_steps'
-   if ok:
-    with db() as c:
-     recipe_instruction_cache_schema(c)
-     c.execute('INSERT OR REPLACE INTO recipe_instruction_cache (recipe_id,url,steps_json,source_format,checked_at) VALUES (?,?,?,?,CURRENT_TIMESTAMP)',(rid,url,json.dumps(steps),reason))
-     c.commit()
-   with db() as c:
-    instruction_audit_schema(c)
-    c.execute('INSERT OR REPLACE INTO recipe_instruction_audit (recipe_id,url,verified,checked_at,reason,version) VALUES (?,?,?,CURRENT_TIMESTAMP,?,?)',(rid,url,int(ok),reason,INSTRUCTION_AUDIT_VERSION))
-    c.commit()
-   completed+=1;success+=int(ok)
-   # Bound request rate even when remote servers respond immediately.
-   time.sleep(0.4)
-  # A failed batch does not automatically retry or hide any recipes.
+  # Continue until paused or the available catalog has been checked.
+  while True:
+   with instruction_audit_lock:
+    if instruction_audit_paused:break
+   recipes=allrecipes()
+   checked=instruction_audit_rows()
+   completed=0
+   for recipe in sorted(recipes,key=lambda r: -int(r.get('id')) if str(r.get('id')).isdigit() else 0):
+    with instruction_audit_lock:
+     if instruction_audit_paused:break
+    if completed>=25:break
+    if non_recipe_reason(recipe) or stored_cooking_steps(recipe):continue
+    url=str(recipe.get('instructions_url') or recipe.get('url') or '')
+    rid=str(recipe.get('id'))
+    if not url or not allowed_url(url):continue
+    previous=checked.get(rid)
+    if previous and previous[0]==url and previous[3]>=INSTRUCTION_AUDIT_VERSION:continue
+    try:
+     steps,reason=recover_recipe_instructions(url)
+     ok=valid_recovered_steps(steps)
+     if steps and not ok:reason='invalid_recovered_steps'
+     if ok:
+      with db() as c:
+       recipe_instruction_cache_schema(c)
+       c.execute('INSERT OR REPLACE INTO recipe_instruction_cache (recipe_id,url,steps_json,source_format,checked_at) VALUES (?,?,?,?,CURRENT_TIMESTAMP)',(rid,url,json.dumps(steps),reason))
+       c.commit()
+     with db() as c:
+      instruction_audit_schema(c)
+      c.execute('INSERT OR REPLACE INTO recipe_instruction_audit (recipe_id,url,verified,checked_at,reason,version) VALUES (?,?,?,CURRENT_TIMESTAMP,?,?)',(rid,url,int(ok),reason,INSTRUCTION_AUDIT_VERSION))
+      c.commit()
+    except Exception:
+     with instruction_audit_lock:instruction_audit_errors+=1
+     # Do not spin indefinitely on a failing source.
+     with db() as c:
+      instruction_audit_schema(c)
+      c.execute('INSERT OR REPLACE INTO recipe_instruction_audit (recipe_id,url,verified,checked_at,reason,version) VALUES (?,?,0,CURRENT_TIMESTAMP,?,?)',(rid,url,'recovery_error',INSTRUCTION_AUDIT_VERSION))
+      c.commit()
+    completed+=1
+    with instruction_audit_lock:instruction_audit_completed+=1
+    time.sleep(0.4)
+   if completed==0:break
+   # Allow the host and upstream sources to recover between batches.
+   time.sleep(3)
  finally:
   with instruction_audit_lock:instruction_audit_running=False
 
 def start_instruction_audit():
  global instruction_audit_running
  with instruction_audit_lock:
-  if instruction_audit_running:return False
+  if instruction_audit_running or instruction_audit_paused:return False
   instruction_audit_running=True
  threading.Thread(target=instruction_audit_worker,name='recipe-instruction-audit',daemon=True).start()
  return True
+
 
 def instruction_field_diagnostics(limit=12):
  """Admin-only summary of instruction-shaped fields; no recipe text or URLs exposed."""
@@ -1269,7 +1288,7 @@ def instruction_audit_status():
   latest=c.execute('SELECT MAX(checked_at) FROM recipe_instruction_audit').fetchone()[0]
  recovered=sum(1 for r in applicable.values() if r[1] and r[3]>=INSTRUCTION_AUDIT_VERSION)
  failures=sum(1 for r in applicable.values() if not r[1] and r[3]>=INSTRUCTION_AUDIT_VERSION)
- return {'recovery_success_rate':round(100*recovered/max(1,recovered+failures),1),'completed_current_version':recovered+failures,'recovered':recovered,'failed_current_version':failures,'progress_percent':round(100*(len(recipes)-sum(1 for r in recipes if not stored_cooking_steps(r) and (str(r.get('id')) not in applicable or applicable[str(r.get('id'))][3]<INSTRUCTION_AUDIT_VERSION)))/max(1,len(recipes)),2),'running':instruction_audit_running,'checked':len(applicable),'verified':verified,'unverified':len(applicable)-verified,'excluded':0,'stored_steps':stored,'total_recipes':len(recipes),'pending':sum(1 for r in recipes if not stored_cooking_steps(r) and (str(r.get('id')) not in applicable or applicable[str(r.get('id'))][3]<INSTRUCTION_AUDIT_VERSION)),'last_checked_at':latest,'reasons':reasons,'version':INSTRUCTION_AUDIT_VERSION,'note':'Recovery runs in rate-limited batches of up to 25 when the recipe catalog is opened; verified steps are cached and skipped. Unverified links never hide recipes.'}
+ return {'recovery_success_rate':round(100*recovered/max(1,recovered+failures),1),'completed_current_version':recovered+failures,'recovered':recovered,'failed_current_version':failures,'progress_percent':round(100*(len(recipes)-sum(1 for r in recipes if not stored_cooking_steps(r) and (str(r.get('id')) not in applicable or applicable[str(r.get('id'))][3]<INSTRUCTION_AUDIT_VERSION)))/max(1,len(recipes)),2),'running':instruction_audit_running,'paused':instruction_audit_paused,'processed_this_process':instruction_audit_completed,'worker_errors':instruction_audit_errors,'checked':len(applicable),'verified':verified,'unverified':len(applicable)-verified,'excluded':0,'stored_steps':stored,'total_recipes':len(recipes),'pending':sum(1 for r in recipes if not stored_cooking_steps(r) and (str(r.get('id')) not in applicable or applicable[str(r.get('id'))][3]<INSTRUCTION_AUDIT_VERSION)),'last_checked_at':latest,'reasons':reasons,'version':INSTRUCTION_AUDIT_VERSION,'note':'Recovery continues automatically in rate-limited batches of 25 until paused or completed. Verified steps are cached; unverified links never hide recipes.'}
 
 def visible_cooking_recipe(recipe,checks):
  if stored_cooking_steps(recipe):return True
@@ -3258,6 +3277,14 @@ class Handler(SimpleHTTPRequestHandler):
    if not getattr(request_scope,'admin',False):return self.sendjson({'error':'Administrator required'},403)
    if instruction_audit_running:return self.sendjson({'error':'Wait for the active audit to finish'},409)
    return self.sendjson({'started':start_instruction_recovery_diagnostic()},202)
+  if self.path in ('/api/recipe-instruction-audit/pause','/api/recipe-instruction-audit/resume'):
+   if not self.gate(write=True):return
+   if not getattr(request_scope,'admin',False):return self.sendjson({'error':'Administrator required'},403)
+   global instruction_audit_paused
+   with instruction_audit_lock:
+    instruction_audit_paused=self.path.endswith('/pause')
+   started=start_instruction_audit() if not instruction_audit_paused else False
+   return self.sendjson({'ok':True,'paused':instruction_audit_paused,'started':started})
   if self.path=='/api/recipe-instruction-audit/retry':
    if not self.gate(write=True):return
    if not getattr(request_scope,'admin',False):return self.sendjson({'error':'Administrator required'},403)
