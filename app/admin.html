@@ -824,6 +824,13 @@ async function scanRecipeQuality(){
   }
   benchmarkDetails.appendChild(benchmarkList);
   issues.appendChild(benchmarkDetails);
+  // Presentation-only cleanup: preserve the original ingredient key and source evidence.
+  function diagnosticIngredientLabel(raw){
+   let label=String(raw||'Unknown ingredient').trim();
+   label=label.replace(/^unit\s+(?=\S)/i,'');
+   label=label.replace(/^(teaspoons?|tsp|tablespoons?|tbsp|cups?|ounces?|oz|pounds?|lbs?|grams?|g|kilograms?|kg|milliliters?|ml|liters?|l)\s*\((?:tsp|tbsp|oz|lbs?|ml|g|kg|l)\)\s+/i, match=>match.replace(/\s*\([^)]*\)/,''));
+   return label;
+  }
   const groups=new Map();
   for(const item of data.issues||[]){
    const diagnostic=item.source_diagnostic||{};
@@ -832,7 +839,7 @@ async function scanRecipeQuality(){
    if(!groups.has(key))groups.set(key,{count:0,examples:new Map()});
    const group=groups.get(key);
    group.count++;
-   const name=String(item.ingredient||'Unknown ingredient').trim();
+   const name=diagnosticIngredientLabel(item.ingredient);
    if(!group.examples.has(name))group.examples.set(name,[]);
    const examples=group.examples.get(name);
    if(examples.length<3)examples.push(item);
@@ -862,7 +869,7 @@ async function scanRecipeQuality(){
   const list=document.createElement('ol');
   for(const item of data.issues||[]){
    const li=document.createElement('li');
-   li.textContent='Recipe '+item.recipe_id+': '+item.ingredient+' — '+item.reason;
+   li.textContent='Recipe '+item.recipe_id+': '+diagnosticIngredientLabel(item.ingredient)+' — '+item.reason;
    list.appendChild(li);
   }
   details.appendChild(list);
