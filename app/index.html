@@ -3245,7 +3245,16 @@ function updateEnhancements(){
 $('recipes').addEventListener('click',async e=>{
  const close=e.target.closest('[data-close-inline-detail]');if(close){const card=close.closest('.recipe-card');card?.querySelector('.recipe-inline-detail')?.remove();card?.querySelector('[data-detail]')?.setAttribute('aria-expanded','false');return;}
  const fav=e.target.closest('[data-favorite]'),detail=e.target.closest('[data-detail]');
- if(fav){const id=Number(fav.dataset.favorite),f=new Set(state.favorites||[]);f.has(id)?f.delete(id):f.add(id);await preferences({favorites:[...f]});}
+ if(fav){
+  const id=Number(fav.dataset.favorite);
+  if(!Number.isSafeInteger(id))return;
+  const f=new Set((state.favorites||[]).map(Number).filter(Number.isSafeInteger));
+  const adding=!f.has(id);adding?f.add(id):f.delete(id);
+  fav.disabled=true;
+  try{await preferences({favorites:[...f]});}
+  catch(err){fav.disabled=false;alert('Could not save favorite: '+(err.message||'Please try again'));}
+  return;
+ }
  if(detail){
   const r=recipes.find(x=>String(x.id)===String(detail.dataset.detail));if(!r){alert('Recipe details are not available for this recipe.');return;}
   $('recipe-photo-admin').dataset.photo=String(r.id);
@@ -3282,7 +3291,13 @@ $('recipes').addEventListener('submit',async e=>{
 });
 $('recipes').addEventListener('change',async e=>{
  const el=e.target.closest('[data-collection-add]');if(!el||!el.value)return;
- const c=structuredClone(state.collections||{});c[el.value]=[...new Set([...(c[el.value]||[]),Number(el.dataset.collectionAdd)])];await preferences({collections:c});
+ const id=Number(el.dataset.collectionAdd),name=el.value;
+ if(!Number.isSafeInteger(id))return;
+ const c=structuredClone(state.collections||{});
+ c[name]=[...new Set([...(c[name]||[]).map(Number).filter(Number.isSafeInteger),id])];
+ el.disabled=true;
+ try{await preferences({collections:c});}
+ catch(err){el.disabled=false;alert('Could not add recipe to collection: '+(err.message||'Please try again'));}
 });
 
 function renderManagedCollection(){
