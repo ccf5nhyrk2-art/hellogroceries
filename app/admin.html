@@ -458,6 +458,11 @@ async function loadTasks(){
    const meta=document.createElement('div');meta.className='account-meta';
    const fmt=value=>value?new Date(value).toLocaleString():'Not recorded';
    meta.textContent='Frequency: '+task.frequency+' · Last started/activity: '+fmt(task.last_started)+' · Last finished: '+fmt(task.last_finished)+' · Status: '+(task.running?'Running':task.status);
+   if(task.key==='instruction_recovery'){
+    const detail=document.createElement('div');detail.className='account-meta';
+    detail.textContent='Verified steps: '+Number(task.recovered||0).toLocaleString()+' · Checked (current version): '+Number(task.processed||0).toLocaleString()+' · Failed: '+Number(task.failed||0).toLocaleString()+' · Pending: '+Number(task.pending||0).toLocaleString()+' · Progress: '+Number(task.progress_percent||0).toFixed(2)+'% · Worker errors: '+Number(task.worker_errors||0);
+    info.append(detail);
+   }
    if(task.key==='us_import'){
     const progress=document.createElement('div');progress.className='account-meta';
     progress.textContent='Next catalog check: '+fmt(task.next_run)+(task.status&&task.status.startsWith('Error:')?' · '+task.status:'');
