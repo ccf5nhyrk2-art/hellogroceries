@@ -487,6 +487,24 @@ def inspect_alternative_recipe_fields(limit=3):
     'new_measured_lines':len(set(line for line in source_lines if recipe_quality.parse_source_line(line))-set(stored_lines)),
     'source_has_measurements_missing_from_import':bool(set(line for line in source_lines if recipe_quality.parse_source_line(line))-set(stored_lines))
    }
+   # Verify each candidate against the exact ingredient label before considering recovery.
+   # This is read-only: never mutate imported recipes or household data.
+   verified=[]
+   unresolved=[]
+   for ingredient,value in list((recipe.get('ingredients') or {}).items())[:150]:
+    if recipe_quality.inspect_ingredient(ingredient,value)['status'] not in ('needs_source','unit_labeled'):continue
+    probe={'ingredients':{ingredient:value},'ingredient_text':source_lines}
+    recovered=recipe_quality.recover_from_stored_source(probe,ingredient) if source_lines else None
+    if recovered:
+     verified.append({'ingredient':str(ingredient)[:100],'source':'current_recipe_jsonld'})
+    else:
+     unresolved.append(str(ingredient)[:100])
+   result['verified_source_recovery']={
+    'eligible_ingredients':len(verified)+len(unresolved),
+    'verified_matches':len(verified),
+    'unresolved':len(unresolved),
+    'verified_examples':verified[:12],
+    'note':'Read-only source verification; no amounts applied'}
    # Parse script elements as HTML, not with a regular expression over tags.
    # Capture only the designated Next.js payload; report metadata, never raw HTML.
    from html.parser import HTMLParser
