@@ -1423,7 +1423,7 @@ $('store-lookup-form').addEventListener('submit',e=>{
  lookupStores(zip);
 });
 try{const savedZip=localStorage.getItem(STORE_ZIP_KEY)||'';$('store-zip').value=savedZip;if(/^[0-9]{5}$/.test(savedZip))lookupStores(savedZip)}catch(e){}
-async function load(){[recipes,state]=await Promise.all([fetch('/api/recipes/summary').then(r=>{if(!r.ok)throw Error('Could not load recipe catalog');return r.json()}),fetch('/api/state').then(r=>r.json())]);render()}
+async function load(){const stateRequest=fetch('/api/state',{cache:'no-store'}).then(async r=>{if(!r.ok)throw Error('Could not load saved data');state=await r.json()});const recipeRequest=fetch('/api/recipes/summary').then(r=>{if(!r.ok)throw Error('Could not load recipe catalog');return r.json()}).then(data=>{recipes=data});await Promise.all([stateRequest,recipeRequest]);render()}
 async function fetchRecipeDetail(id){
  const cached=recipes.find(r=>String(r.id)===String(id));
  if(cached&&Array.isArray(cached.instructions))return cached;
