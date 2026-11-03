@@ -1390,7 +1390,16 @@ $('store-lookup-form').addEventListener('submit',e=>{
  lookupStores(zip);
 });
 try{const savedZip=localStorage.getItem(STORE_ZIP_KEY)||'';$('store-zip').value=savedZip;if(/^[0-9]{5}$/.test(savedZip))lookupStores(savedZip)}catch(e){}
-async function load(){[recipes,state]=await Promise.all([fetch('/api/recipes').then(r=>r.json()),fetch('/api/state').then(r=>r.json())]);render()}
+async function load(){[recipes,state]=await Promise.all([fetch('/api/recipes/summary').then(r=>{if(!r.ok)throw Error('Could not load recipe catalog');return r.json()}),fetch('/api/state').then(r=>r.json())]);render()}
+async function fetchRecipeDetail(id){
+ const cached=recipes.find(r=>String(r.id)===String(id));
+ if(cached&&Array.isArray(cached.instructions))return cached;
+ const response=await fetch('/api/recipes/detail?id='+encodeURIComponent(id));
+ const full=await response.json();
+ if(!response.ok)throw Error(full.error||'Could not load recipe details');
+ if(cached)Object.assign(cached,full);
+ return cached||full;
+}
 async function refreshShopFromServer(){
  try{
   const response=await fetch('/api/state',{cache:'no-store'});
@@ -1413,7 +1422,7 @@ function selectMealAndRefresh(id,checked,servings){
  }).catch(error=>{$('error').textContent='Could not update selected meals: '+error.message;});
  return mealSelectionQueue;
 }
-async function action(payload){try{const r=await fetch('/api/action',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});const v=await r.json();if(!r.ok)throw Error(v.error);state=v;if(payload.action==='import'){recipes=await fetch('/api/recipes').then(r=>r.json());$('recipeurl').value=''}render()}catch(e){$('error').textContent=e.message}}
+async function action(payload){try{const r=await fetch('/api/action',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});const v=await r.json();if(!r.ok)throw Error(v.error);state=v;if(payload.action==='import'){recipes=await fetch('/api/recipes/summary').then(r=>r.json());$('recipeurl').value=''}render()}catch(e){$('error').textContent=e.message}}
 let recipePage=0;const PAGE_SIZE=24;
 function recipeGroup(r){const n=(r.name||'').toLowerCase();if(/chicken|turkey/.test(n))return 'chicken';if(/beef|steak|meatball|ground beef/.test(n))return 'beef';if(/pork|bacon|sausage|ham\b/.test(n))return 'pork';if(/shrimp|salmon|fish|tilapia|cod\b|tuna|scallop/.test(n))return 'seafood';if(/tofu|chickpea|lentil|falafel|vegetarian|vegan|plant.based/.test(n))return 'vegetarian';return 'other'}
 function cuisineGroup(r){const n=(r.name||'').toLowerCase();if(/italian|risotto|parmesan|pesto|marinara|gnocchi|alfredo/.test(n))return 'italian';if(/mexican|taco|quesadilla|enchilada|fajita|burrito|tex.mex|chipotle/.test(n))return 'mexican';if(/korean|japanese|chinese|thai|teriyaki|ginger|soy.glazed|sesame|szechuan|curry|ramen/.test(n))return 'asian';if(/mediterranean|greek|tzatziki|shawarma|hummus|harissa/.test(n))return 'mediterranean';if(/american|bbq|barbecue|ranch|buffalo|mac.and.cheese|southern/.test(n))return 'american';return 'other'}
@@ -2814,7 +2823,7 @@ $('recipes').innerHTML=pageRecipes.map(r=>{let checked=Object.hasOwn(selected,St
 }
 $('prevpage').onclick=()=>navigateRecipePage(-1);
 $('nextpage').onclick=()=>navigateRecipePage(1);
-async function handleRecipePhotoClick(e){let id=e.target.dataset.photo;if(!id)return;let r=recipes.find(x=>String(x.id)===id);let url=prompt('Paste an HTTPS image URL for '+r.name+' (leave blank to remove the photo):',r.image||'');if(url===null)return;try{let response=await fetch('/api/action',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'photo',id:Number(id),image:url.trim()})});let data=await response.json();if(!response.ok)throw Error(data.error);recipes=await fetch('/api/recipes').then(x=>x.json());render()}catch(err){$('error').textContent=err.message}}$('recipe-photo-admin').addEventListener('click',handleRecipePhotoClick);$('recipes').addEventListener('change',e=>{let id=e.target.dataset.id||e.target.dataset.scale;if(!id)return;let row=e.target.closest('.recipe-card');const multiplier=Number(row.querySelector('select[data-scale]').value);action({action:'select',id:Number(id),checked:e.target.dataset.scale?true:e.target.checked,servings:multiplier})});$('items').addEventListener('toggle',e=>{const d=e.target.closest('details[data-department]');if(d){if(d.open)shoppingOpenDepartments.add(d.dataset.department);else shoppingOpenDepartments.delete(d.dataset.department)}},true);let ingredientEditingKey=null;
+async function handleRecipePhotoClick(e){let id=e.target.dataset.photo;if(!id)return;let r=recipes.find(x=>String(x.id)===id);let url=prompt('Paste an HTTPS image URL for '+r.name+' (leave blank to remove the photo):',r.image||'');if(url===null)return;try{let response=await fetch('/api/action',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'photo',id:Number(id),image:url.trim()})});let data=await response.json();if(!response.ok)throw Error(data.error);recipes=await fetch('/api/recipes/summary').then(x=>x.json());render()}catch(err){$('error').textContent=err.message}}$('recipe-photo-admin').addEventListener('click',handleRecipePhotoClick);$('recipes').addEventListener('change',e=>{let id=e.target.dataset.id||e.target.dataset.scale;if(!id)return;let row=e.target.closest('.recipe-card');const multiplier=Number(row.querySelector('select[data-scale]').value);action({action:'select',id:Number(id),checked:e.target.dataset.scale?true:e.target.checked,servings:multiplier})});$('items').addEventListener('toggle',e=>{const d=e.target.closest('details[data-department]');if(d){if(d.open)shoppingOpenDepartments.add(d.dataset.department);else shoppingOpenDepartments.delete(d.dataset.department)}},true);let ingredientEditingKey=null;
 function ingredientParts(label){
  const m=String(label||'').trim().match(/^(\d+(?:\.\d+)?(?:\s+[¼½¾⅓⅔⅛⅜⅝⅞])?|\d+\/\d+|[¼½¾⅓⅔⅛⅜⅝⅞])\s+(.+)$/);
  if(!m)return {amount:'1',unit:'',name:String(label||'').trim()};
@@ -3329,7 +3338,10 @@ $('recipes').addEventListener('click',async e=>{
   return;
  }
  if(detail){
-  const r=recipes.find(x=>String(x.id)===String(detail.dataset.detail));if(!r){alert('Recipe details are not available for this recipe.');return;}
+  let r;
+  try{r=await fetchRecipeDetail(detail.dataset.detail)}
+  catch(error){alert('Recipe details are not available: '+error.message);return;}
+  if(!r){alert('Recipe details are not available for this recipe.');return;}
   $('recipe-photo-admin').dataset.photo=String(r.id);
   $('recipe-photo-admin').textContent=r.image?'Change recipe photo':'Add recipe photo';
   const entries=Object.entries(r.ingredients||{});
