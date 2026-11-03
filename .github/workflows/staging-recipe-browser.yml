@@ -1,0 +1,33 @@
+name: Staging recipe browser smoke test
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '30 12 * * *'
+permissions:
+  contents: read
+jobs:
+  staging-browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    env:
+      STAGING_URL: https://staging-groceries.greenlee.uk
+      STAGING_TEST_EMAIL: ${{ secrets.STAGING_TEST_EMAIL }}
+      STAGING_TEST_PASSWORD: ${{ secrets.STAGING_TEST_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install Playwright
+        run: |
+          npm install --no-save playwright@1.58.2
+          npx playwright install --with-deps chromium
+      - name: Run read-only staging smoke tests
+        run: node tests/staging_recipe_browser.cjs
+      - name: Upload browser diagnostics on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: staging-recipe-browser-diagnostics
+          path: test-results/
+          if-no-files-found: ignore
