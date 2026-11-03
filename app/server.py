@@ -341,7 +341,7 @@ def inspect_alternative_recipe_fields(limit=3):
     response_meta={'http_status':resp.status,'final_host':urllib.parse.urlsplit(resp.geturl()).hostname,'content_type':(resp.headers.get('Content-Type') or '').split(';')[0][:80],'content_length_header':(resp.headers.get('Content-Length') or '')[:20]}
     page=resp.read(1500000).decode('utf-8','replace')
    title_match=re.search(r'<title[^>]*>(.*?)</title\\s*>',page,re.I|re.S)
-   page_title=html.unescape(re.sub(r'\\s+',' ',title_match.group(1)).strip())[:100] if title_match else ''
+   page_title=html.unescape(re.sub(r'\s+',' ',title_match.group(1)).strip())[:100] if title_match else ''
    result['http_diagnostics']={**response_meta,
     'page_title':page_title,
     'page_bytes':len(page.encode('utf-8')),
