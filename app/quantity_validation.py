@@ -140,7 +140,7 @@ def evaluate(recipes, limit=5000, minimum_examples=5):
     errors = []
     examples = []
     categories = defaultdict(lambda: {"tested": 0, "covered": 0, "within_25": 0, "high_consensus": 0, "high_consensus_within_25": 0})
-    high_confidence = {"eligible": 0, "within_25": 0, "within_10": 0}
+    high_confidence = {"eligible": 0, "within_25": 0, "within_10": 0, "over_50": 0, "over_100": 0}
     context_counts = {"contextual": 0, "fallback": 0}
     method_stats = {method: {"covered": 0, "within_10": 0, "within_25": 0, "high_consensus": 0, "high_consensus_within_25": 0} for method in ("contextual", "fallback")}
     for recipe_id, servings, context, name, unit, actual in balanced_holdout:
@@ -192,6 +192,11 @@ def evaluate(recipes, limit=5000, minimum_examples=5):
                 min_samples, median_limit, tail_limit, tail_fraction = 20, .05, .10, .8
             else:
                 min_samples, median_limit, tail_limit, tail_fraction = 10, .10, .25, .8
+            # Stricter consensus for categories that failed the larger holdout.
+            if ingredient_category == "seasoning":
+                min_samples, median_limit, tail_limit, tail_fraction = 35, .025, .05, .95
+            elif ingredient_category == "other":
+                min_samples, median_limit, tail_limit, tail_fraction = 25, .05, .10, .9
             consensus = (len(samples) >= min_samples
                          and median(spread) <= median_limit
                          and spread[int(tail_fraction * (len(spread) - 1))] <= tail_limit)
@@ -203,6 +208,8 @@ def evaluate(recipes, limit=5000, minimum_examples=5):
                 high_confidence["eligible"] += 1
                 high_confidence["within_25"] += error <= .25
                 high_confidence["within_10"] += error <= .10
+                high_confidence["over_50"] += error > .50
+                high_confidence["over_100"] += error > 1.0
             if len(examples) < 25:
                 examples.append({"recipe_id": str(recipe_id), "ingredient": name,
                                  "unit": unit, "actual": actual,
@@ -223,7 +230,9 @@ def evaluate(recipes, limit=5000, minimum_examples=5):
             "high_confidence": {
                 "eligible": high_confidence["eligible"],
                 "within_10_percent": round(high_confidence["within_10"] / high_confidence["eligible"], 3) if high_confidence["eligible"] else None,
-                "within_25_percent": round(high_confidence["within_25"] / high_confidence["eligible"], 3) if high_confidence["eligible"] else None},
+                "within_25_percent": round(high_confidence["within_25"] / high_confidence["eligible"], 3) if high_confidence["eligible"] else None,
+                "over_50_percent": round(high_confidence["over_50"] / high_confidence["eligible"], 3) if high_confidence["eligible"] else None,
+                "over_100_percent": round(high_confidence["over_100"] / high_confidence["eligible"], 3) if high_confidence["eligible"] else None},
             "categories": {key: {**value, "within_25_percent": round(value["within_25"] / value["covered"], 3) if value["covered"] else None, "high_consensus_within_25_percent": round(value["high_consensus_within_25"] / value["high_consensus"], 3) if value["high_consensus"] else None} for key, value in sorted(categories.items())},
             "context_matching": context_counts,
             "method_accuracy": {method: {
