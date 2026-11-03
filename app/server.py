@@ -2958,7 +2958,7 @@ class Handler(SimpleHTTPRequestHandler):
    if path.startswith('/api/'):
     self.sendjson({'error':'Authentication required','setup_required':setup},401)
    else:
-    self.send_response(302);self.send_header('Location','/auth.html');self.send_header('Content-Length','0');self.end_headers()
+    self.send_response(302);self.send_header('Location','/auth.html'+('?share='+urllib.parse.quote(urllib.parse.parse_qs(urllib.parse.urlsplit(self.path).query).get('share',[''])[0]) if re.fullmatch(r'[A-Za-z0-9_-]{1,6000}',urllib.parse.parse_qs(urllib.parse.urlsplit(self.path).query).get('share',[''])[0]) else ''));self.send_header('Content-Length','0');self.end_headers()
    return False
   request_scope.household_id=hid
   request_scope.user_id=user[0]
