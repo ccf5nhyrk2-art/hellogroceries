@@ -1141,7 +1141,7 @@ async function refreshInstructionAudit(){
    const el=document.getElementById('instruction-audit-'+key);if(el)el.textContent=Number(value||0).toLocaleString();
   }
   const extra=document.getElementById('instruction-audit-extra');
-  if(extra)extra.textContent='Recipes with available steps: '+(data.stored_steps??'—')+' · Total recipes: '+(data.total_recipes??'—')+' · Pending source checks: '+(data.pending??'—')+' · Last check: '+(data.last_checked_at||'Never');
+  if(extra)extra.textContent='Recipes with available steps: '+(data.stored_steps??'—')+' · Total recipes: '+(data.total_recipes??'—')+' · Verified recoveries: '+(data.recovered??'—')+' · Failed current-version checks: '+(data.failed_current_version??'—')+' · Pending source checks: '+(data.pending??'—')+' · Last check: '+(data.last_checked_at||'Never');
   const reasons=document.getElementById('instruction-audit-reasons');
   if(reasons){reasons.replaceChildren();for(const [reason,count] of Object.entries(data.reasons||{}).sort((a,b)=>b[1]-a[1])){const p=document.createElement('p');p.textContent=reason.replaceAll('_',' ')+': '+count;reasons.appendChild(p)}}
   const paused=!data.running&&data.checked>=3&&data.verified===0;
