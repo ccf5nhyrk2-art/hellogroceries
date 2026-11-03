@@ -10,7 +10,16 @@ async function main() {
     throw new Error('Set STAGING_TEST_EMAIL and STAGING_TEST_PASSWORD secrets for a dedicated staging-only test account.');
   }
   const browser = await chromium.launch({ headless: true });
-  const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+  const accessId = process.env.CF_ACCESS_CLIENT_ID;
+  const accessSecret = process.env.CF_ACCESS_CLIENT_SECRET;
+  if (Boolean(accessId) !== Boolean(accessSecret)) throw new Error('Configure both CF_ACCESS_CLIENT_ID and CF_ACCESS_CLIENT_SECRET.');
+  const page = await browser.newPage({
+    viewport: { width: 1280, height: 900 },
+    extraHTTPHeaders: accessId ? {
+      'CF-Access-Client-Id': accessId,
+      'CF-Access-Client-Secret': accessSecret
+    } : {}
+  });
   fs.mkdirSync('test-results', { recursive: true });
   const errors = [];
   page.on('pageerror', e => errors.push('page: ' + e.message));
@@ -18,7 +27,10 @@ async function main() {
   page.on('response', r => { if (r.status() >= 400 && r.url().startsWith(base)) errors.push('HTTP ' + r.status() + ' ' + r.url()); });
   try {
     const initial = await page.goto(base + '/auth.html', { waitUntil: 'domcontentloaded' });
-    console.log('Login landing: status=' + (initial?.status() ?? 'unknown') + ' url=' + page.url());
+    console.log('Login landing: status=' + (initial?.status() ?? 'unknown') + ' origin=' + new URL(page.url()).origin);
+    if (new URL(page.url()).hostname.endsWith('.cloudflareaccess.com')) {
+      throw new Error('Cloudflare Access blocked the test. Configure a staging-scoped Cloudflare Access service token and GitHub secrets CF_ACCESS_CLIENT_ID / CF_ACCESS_CLIENT_SECRET; allow Service Auth for the staging Access application. Do not disable Cloudflare Access.');
+    }
     try {
       await page.locator('#form').waitFor({ state: 'visible', timeout: 20000 });
     } catch (error) {
