@@ -1422,6 +1422,18 @@ def instruction_recovery_diagnostic():
   results.append({'recipe_id':rid,'source_host':urllib.parse.urlparse(url).hostname,'previous_reason':previous_reason,'result':reason,'validation':validation,'candidate_steps_found':step_count,'steps_found':len(steps),'saved':saved,'step_lengths':step_lengths,'page_structure':structure})
  return {'tested':len(results),'results':results,'note':'Ten live checks only. URLs and instruction text are not returned. Failed checks never exclude recipes.'}
 
+def prepared_meal_review_samples(limit=50):
+ """Read-only admin review; no recipe exclusion or modification."""
+ samples=[]
+ for recipe in allrecipes():
+  if non_recipe_reason(recipe):continue
+  classification=prepared_meal_review(recipe)
+  if classification=='not_flagged':continue
+  ingredients=recipe.get('ingredients') or {}
+  samples.append({'id':str(recipe.get('id') or ''),'title':str(recipe.get('name') or recipe.get('title') or '')[:160],'classification':classification,'ingredient_count':len(ingredients) if isinstance(ingredients,(dict,list)) else 0,'url':str(recipe.get('instructions_url') or recipe.get('url') or '')[:400]})
+  if len(samples)>=limit:break
+ return samples
+
 def instruction_audit_status():
  recipes=[r for r in allrecipes() if not non_recipe_reason(r)]
  rows=instruction_audit_rows()
@@ -3169,6 +3181,10 @@ class Handler(SimpleHTTPRequestHandler):
   if self.path=='/api/recipe-instruction-audit/diagnostics':
    if not getattr(request_scope,'admin',False):return self.sendjson({'error':'Administrator required'},403)
    return self.sendjson(instruction_field_diagnostics())
+  if self.path=='/api/recipe-instruction-audit/prepared-review':
+   if not self.gate():return
+   if not getattr(request_scope,'admin',False):return self.sendjson({'error':'Administrator required'},403)
+   return self.sendjson({'recipes':prepared_meal_review_samples(),'note':'Review only; no recipes are hidden or removed.'})
   if self.path=='/api/recipe-instruction-audit/status':
    if not self.gate():return
    if not getattr(request_scope,'admin',False):return self.sendjson({'error':'Administrator required'},403)
