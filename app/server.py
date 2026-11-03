@@ -1282,13 +1282,13 @@ def valid_recovered_steps(steps):
 
 def instruction_page_structure_diagnostic(page):
  """Report structural signals only; never return page text, scripts, or URLs."""
- scripts=re.findall(r'<script\\b([^>]*)>(.*?)</script\\s*>',page,re.I|re.S)
- jsonld=sum(bool(re.search(r'application/ld\\+json',attrs,re.I)) for attrs,_ in scripts)
+ scripts=re.findall(r'<script\b([^>]*)>(.*?)</script\s*>',page,re.I|re.S)
+ jsonld=sum(bool(re.search(r'application/ld\+json',attrs,re.I)) for attrs,_ in scripts)
  json_scripts=sum(bool(re.search(r'application/json',attrs,re.I)) for attrs,_ in scripts)
  next_data=any(bool(re.search(r'__NEXT_DATA__',attrs,re.I)) for attrs,_ in scripts)
- flight=len(re.findall(r'self\\.__next_f\\.push\\s*\\(',page))
+ flight=len(re.findall(r'self\.__next_f\.push\s*\(',page))
  keys=('recipeInstructions','preparationSteps','cookingSteps','instructionSteps','instructions','steps')
- key_counts={key:len(re.findall(r"""["']"""+re.escape(key)+r"""["']\s*:""",page,re.I)) for key in keys}
+ key_counts={key:len(re.findall(r'["\x27]'+re.escape(key)+r'["\x27]\s*:',page,re.I)) for key in keys}
  return {'script_count':len(scripts),'jsonld_scripts':jsonld,'json_scripts':json_scripts,'next_data':next_data,'next_flight_chunks':flight,'nuxt_markers':bool(re.search(r'__NUXT__|__NUXT_DATA__',page,re.I)),'initial_state_marker':bool(re.search(r'__INITIAL_STATE__',page,re.I)),'instruction_key_counts':key_counts,'javascript_required_marker':bool(re.search(r'enable javascript|javascript is required',page,re.I)),'blocked_marker':bool(re.search(r'captcha|verify you are human|access denied|just a moment',page,re.I))}
 
 def diagnose_instruction_source_structure(url):
