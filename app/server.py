@@ -1101,6 +1101,14 @@ def recipe_instruction_cache_schema(c):
  c.execute('CREATE TABLE IF NOT EXISTS recipe_instruction_cache (recipe_id TEXT PRIMARY KEY,url TEXT NOT NULL,steps_json TEXT NOT NULL,source_format TEXT NOT NULL,checked_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)')
 
 def recover_recipe_instructions(url):
+ """Retry transient upstream failures once; never retry unsupported content."""
+ steps,reason=_recover_recipe_instructions_once(url)
+ if reason not in ('network_error','http_429','http_500','http_502','http_503','http_504'):
+  return steps,reason
+ time.sleep(1.5)
+ return _recover_recipe_instructions_once(url)
+
+def _recover_recipe_instructions_once(url):
  if not isinstance(url,str) or not allowed_url(url):return [],'invalid_url'
  try:
   req=urllib.request.Request(url,headers={'User-Agent':'Mozilla/5.0 (compatible; HelloGroceriesRecipeRecovery/1.1)','Accept':'text/html'})
