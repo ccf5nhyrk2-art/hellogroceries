@@ -35,6 +35,9 @@ jobs:
       - name: Run shopping pantry and admin staging smoke tests
         if: success() || failure()
         run: node tests/staging_other_features.cjs
+      - name: Run deployed staging sharing UI checks
+        if: success() || failure()
+        run: node tests/staging_share_links.cjs
       - name: Upload browser diagnostics on failure
         if: failure()
         uses: actions/upload-artifact@v4
