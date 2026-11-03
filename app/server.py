@@ -996,10 +996,10 @@ def verify_cooking_link(url):
   # HelloFresh pages commonly serialize preparation steps in application data.
   # Require step-like keys AND substantive instructional text, not merely a page link.
   for key in ('instructions','recipeInstructions','preparationSteps','cookingSteps','steps'):
-   pattern=r'["\\\']'+key+r'["\\\']\\s*:\\s*(\\[[\\s\\S]{0,18000}?\\]|\\{[\\s\\S]{0,18000}?\\})'
+   pattern=r'"'+key+r'"\\s*:\\s*(\\[[\\s\\S]{0,18000}?\\]|\\{[\\s\\S]{0,18000}?\\})'
    for match in re.finditer(pattern,page,re.I):
     snippet=html.unescape(match.group(1))
-    if len(re.findall(r'["\\\'](?:text|description|instruction|body)["\\\']\\s*:',snippet,re.I))>=2 and len(re.sub(r'<[^>]+>',' ',snippet))>=160:return True,'embedded_steps'
+    if len(re.findall(r'"(?:text|description|instruction|body)"\\s*:',snippet,re.I))>=2 and len(re.sub(r'<[^>]+>',' ',snippet))>=160:return True,'embedded_steps'
   return False,'unsupported_or_missing_steps'
  except urllib.error.HTTPError as exc:return False,'http_'+str(exc.code)
  except (OSError,ValueError,TimeoutError,UnicodeError):return False,'network_error'
@@ -1063,7 +1063,6 @@ def instruction_audit_status():
   reasons[reason]=reasons.get(reason,0)+1
  verified=sum(int(row[1] and row[3]>=INSTRUCTION_AUDIT_VERSION) for row in applicable.values())
  stored=sum(int(stored_cooking_steps(r)) for r in recipes)
- last=max((row[3] for row in []),default=None)
  with db() as c:
   instruction_audit_schema(c)
   latest=c.execute('SELECT MAX(checked_at) FROM recipe_instruction_audit').fetchone()[0]
