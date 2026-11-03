@@ -112,11 +112,12 @@ async function main() {
       selected: Object.hasOwn(state.selected || {}, String(id))
     }), targetId);
     try {
-      // Prepare an isolated temporary collection, without altering existing collections.
-      await page.evaluate(async name => {
-        await preferences({ collections: { ...(state.collections || {}), [name]: [] } });
+      // Start from a known state, preserving the original snapshot for cleanup.
+      await page.evaluate(async ({ id, name }) => {
+        if (Object.hasOwn(state.selected || {}, String(id))) await selectMealAndRefresh(Number(id), false, 2);
+        await preferences({ favorites: (state.favorites || []).filter(value => Number(value) !== Number(id)), collections: { ...(state.collections || {}), [name]: [] } });
         await loadFastBrowse();
-      }, testCollection);
+      }, { id: targetId, name: testCollection });
       await page.locator('#fast-browse-results [data-fast-favorite="' + targetId + '"]').click();
       await page.waitForFunction(id => (state.favorites || []).map(Number).includes(Number(id)), targetId, { timeout: 30000 });
       await page.locator('#fast-browse-results [data-fast-plan="' + targetId + '"]').click();
