@@ -1305,6 +1305,15 @@ def recovered_step_validation_reason(steps):
 def valid_recovered_steps(steps):
  return recovered_step_validation_reason(steps)=='valid'
 
+def instruction_text_format_summary(value):
+ """Only return aggregate text features, never source text."""
+ if not isinstance(value,str):return None
+ plain=html.unescape(re.sub(r'<[^>]+>',' ',value))
+ clean=re.sub(r'\s+',' ',plain).strip()
+ markers=re.findall(r'(?<!\w)Step\s+[1-9]\d?\s*[:.)-]\s+',clean,re.I)
+ paragraphs=[part for part in re.split(r'\n\s*\n|<br\s*/?>|</p>',value,flags=re.I) if part.strip()]
+ return {'characters':len(clean),'sentences':len(re.findall(r'[.!?](?:\s|$)',clean)),'paragraphs':len(paragraphs),'numbered_step_markers':len(markers),'html_step_markers':len(re.findall(r'<(?:li|p|br)\b',value,re.I)),'split_candidate_steps':len(split_numbered_cooking_steps(value)),'single_step_length_valid':25<=len(clean)<=3500}
+
 def instruction_json_shape_summary(page):
  """Inspect parsed JSON-LD instruction fields without exposing recipe content."""
  summary=[]
@@ -1326,7 +1335,7 @@ def instruction_json_shape_summary(page):
     value=node[key]
     first=value[0] if isinstance(value,list) and value else value
     fields=sorted(str(k)[:40] for k in first.keys())[:15] if isinstance(first,dict) else []
-    summary.append({'parse_status':'ok','field':key,'value_type':type(value).__name__,'item_count':len(value) if isinstance(value,list) else None,'empty':not bool(value),'sample_fields':fields})
+    summary.append({'parse_status':'ok','field':key,'value_type':type(value).__name__,'item_count':len(value) if isinstance(value,list) else None,'empty':not bool(value),'sample_fields':fields,'text_format':instruction_text_format_summary(first.get('text')) if isinstance(first,dict) else instruction_text_format_summary(first)})
     if len(summary)>=15:return summary
    pending.extend(v for v in node.values() if isinstance(v,(dict,list)))
  return summary
