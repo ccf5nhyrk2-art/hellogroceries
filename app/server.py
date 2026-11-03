@@ -3295,6 +3295,18 @@ class Handler(SimpleHTTPRequestHandler):
     instruction_audit_paused=self.path.endswith('/pause')
    started=start_instruction_audit() if not instruction_audit_paused else False
    return self.sendjson({'ok':True,'paused':instruction_audit_paused,'started':started})
+  if self.path=='/api/recipe-instruction-audit/retry-validation':
+   if not self.gate(write=True):return
+   if not getattr(request_scope,'admin',False):return self.sendjson({'error':'Administrator required'},403)
+   if instruction_audit_running:return self.sendjson({'error':'Audit already running'},409)
+   # Recheck only a small batch of validation failures, preserving successful caches.
+   with db() as c:
+    instruction_audit_schema(c)
+    ids=[row[0] for row in c.execute("SELECT recipe_id FROM recipe_instruction_audit WHERE verified=0 AND reason='invalid_recovered_steps' AND version=? ORDER BY checked_at,recipe_id LIMIT 25",(INSTRUCTION_AUDIT_VERSION,))]
+    if ids:
+     c.executemany('UPDATE recipe_instruction_audit SET version=1 WHERE recipe_id=? AND verified=0',[(rid,) for rid in ids])
+     c.commit()
+   return self.sendjson({'selected':len(ids),'started':start_instruction_audit() if ids else False,'message':'Retrying up to 25 previously invalid instruction recoveries; verified caches remain unchanged.'})
   if self.path=='/api/recipe-instruction-audit/retry':
    if not self.gate(write=True):return
    if not getattr(request_scope,'admin',False):return self.sendjson({'error':'Administrator required'},403)
