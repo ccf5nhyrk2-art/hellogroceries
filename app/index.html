@@ -626,6 +626,10 @@ html[data-theme="dark"] .recipe-dialog{background:#20272a;color:#edf0f2;border-c
  #mobile-recipe-filters .filter-actions button{padding:8px 12px!important}
 }
 
+/* Favorite action stays visible on desktop and mobile recommendation cards. */
+#recommend-list .recommend-photo-wrap{position:relative}
+#recommend-list .recommend-favorite{position:absolute;top:7px;right:7px;z-index:1;width:36px;height:36px;border-radius:50%;background:#17241fe8;color:#fff;border:1px solid #fff8;font-size:24px;line-height:1;padding:0}
+#recommend-list .recommend-favorite[aria-pressed="true"]{color:#ff7d90}
 /* Compact, swipeable recommendations on phones; retain the desktop grid. */
 #recommend-list .recommend-card{padding:12px;border:1px solid #405247;border-radius:11px;overflow:hidden;min-width:0}
 #recommend-list .recommend-photo{display:block;width:100%;height:125px;object-fit:cover;border-radius:8px;margin-bottom:9px}
@@ -2663,7 +2667,7 @@ function renderRecommendations(){
  if(generation!==recommendationRenderGeneration)return;
  const choices=[...results,...rotated.filter(x=>!used.has(String(x.r.id)))];
  const verified=choices.filter(item=>recommendationCachedPhotoIds.has(String(item.r.id))&&!recommendationFailedPhotos.has(String(item.r.id))).slice(0,5);
-  panel.innerHTML=verified.length?verified.map(({r,reason})=>'<article class="recommend-card">'+('<img class="recommend-photo" src="/api/photo/'+encodeURIComponent(r.id)+'" alt="" loading="lazy">')+'<strong class="recommend-title">'+esc(cleanRecipeName(r.name))+'</strong><div class="muted recommend-reason" style="font-size:12px;margin:6px 0">'+esc(reason)+'</div><div class="recommend-actions"><button type="button" data-recommend-detail="'+r.id+'">View recipe</button><button type="button" data-recommend-plan="'+r.id+'">Add to plan</button></div><select data-recommend-collection="'+r.id+'" aria-label="Add recommended recipe to collection" style="width:100%;margin-top:8px;min-height:40px"><option value="">Add to collection…</option>'+Object.keys(state.collections||{}).map(n=>'<option value="'+esc(n)+'">'+esc(n)+'</option>').join('')+'</select><button type="button" data-recommend-more="'+r.id+'" class="recommend-dismiss">Show me more like this</button><button type="button" data-recommend-hide="'+r.id+'" class="recommend-dismiss">Not interested</button></article>').join(''):'<p class="muted">'+(terms.length?'No suggestions match this search. Try clearing the search.':'No suggestions available yet.')+'</p>';
+  panel.innerHTML=verified.length?verified.map(({r,reason})=>'<article class="recommend-card"><div class="recommend-photo-wrap"><button type="button" class="recommend-favorite" data-recommend-favorite="'+r.id+'" aria-pressed="'+(state.favorites||[]).map(Number).includes(Number(r.id))+'" aria-label="Toggle favorite">'+((state.favorites||[]).map(Number).includes(Number(r.id))?'♥':'♡')+'</button>'+('<img class="recommend-photo" src="/api/photo/'+encodeURIComponent(r.id)+'" alt="" loading="lazy">')+'</div><strong class="recommend-title">'+esc(cleanRecipeName(r.name))+'</strong><div class="muted recommend-reason" style="font-size:12px;margin:6px 0">'+esc(reason)+'</div><div class="recommend-actions"><button type="button" data-recommend-detail="'+r.id+'">View recipe</button><button type="button" data-recommend-plan="'+r.id+'">Add to plan</button></div><select data-recommend-collection="'+r.id+'" aria-label="Add recommended recipe to collection" style="width:100%;margin-top:8px;min-height:40px"><option value="">Add to collection…</option>'+Object.keys(state.collections||{}).map(n=>'<option value="'+esc(n)+'">'+esc(n)+'</option>').join('')+'</select><button type="button" data-recommend-more="'+r.id+'" class="recommend-dismiss">Show me more like this</button><button type="button" data-recommend-hide="'+r.id+'" class="recommend-dismiss">Not interested</button></article>').join(''):'<p class="muted">'+(terms.length?'No suggestions match this search. Try clearing the search.':'No suggestions available yet.')+'</p>';
  if(verified.length<5&&verified.length>0){
   const note=document.createElement('p');note.className='muted';note.style.gridColumn='1/-1';
   note.textContent='More recommendations will appear as recipe photos become available.';
@@ -2697,7 +2701,7 @@ function recommendationPhotoFailed(img){
    img.style.visibility='';
    card.querySelector('.recommend-title').textContent=cleanRecipeName(candidate.name);
    card.querySelector('.recommend-reason').textContent=item.reason;
-   for(const [attribute,selector] of [['data-recommend-detail','[data-recommend-detail]'],['data-recommend-plan','[data-recommend-plan]'],['data-recommend-collection','[data-recommend-collection]'],['data-recommend-more','[data-recommend-more]'],['data-recommend-hide','[data-recommend-hide]']]){
+   for(const [attribute,selector] of [['data-recommend-detail','[data-recommend-detail]'],['data-recommend-plan','[data-recommend-plan]'],['data-recommend-favorite','[data-recommend-favorite]'],['data-recommend-collection','[data-recommend-collection]'],['data-recommend-more','[data-recommend-more]'],['data-recommend-hide','[data-recommend-hide]']]){
     const el=card.querySelector(selector);if(el)el.setAttribute(attribute,String(candidate.id));
    }
    recommendationReplacementBusy.delete(card);
@@ -2711,16 +2715,18 @@ function updateRecommendationCarousel(){const list=$('recommend-list'),controls=
 $('recommend-list').addEventListener('change',async e=>{
  const el=e.target.closest('[data-recommend-collection]');if(!el||!el.value)return;
  const name=el.value,id=Number(el.dataset.recommendCollection),collections=structuredClone(state.collections||{});
- collections[name]=[...new Set([...(collections[name]||[]),id])];
+ if(!Number.isSafeInteger(id)||!Object.hasOwn(collections,name))return;
+ collections[name]=[...new Set([...(collections[name]||[]).map(Number).filter(Number.isSafeInteger),id])];
  el.disabled=true;
- try{await preferences({collections});el.value='';}
+ try{await preferences({collections});const notice=document.createElement('div');notice.className='muted';notice.setAttribute('role','status');notice.textContent='Added to '+name;const card=document.querySelector('#recommend-list [data-recommend-collection="'+id+'"]')?.closest('.recommend-card');if(card){card.querySelector('.recommend-save-status')?.remove();notice.classList.add('recommend-save-status');card.appendChild(notice);}}
  catch(err){alert('Could not add to collection: '+err.message)}
  finally{el.disabled=false}
 });
 $('recommend-list').addEventListener('scroll',updateRecommendationCarousel,{passive:true});window.addEventListener('resize',updateRecommendationCarousel);
 $('recommend-refresh').onclick=()=>{recommendationCachedPhotoIds=null;recommendationMemory.recent=[...new Set([...recommendationMemory.recent,...[...document.querySelectorAll('#recommend-list [data-recommend-detail]')].map(el=>String(el.dataset.recommendDetail))])].slice(-30);saveRecommendationMemory();recommendationOffset+=5;renderRecommendations()};
 $('recommend-list').addEventListener('click',async e=>{
- const detail=e.target.closest('[data-recommend-detail]'),hide=e.target.closest('[data-recommend-hide]'),plan=e.target.closest('[data-recommend-plan]'),more=e.target.closest('[data-recommend-more]');
+ const favorite=e.target.closest('[data-recommend-favorite]'),detail=e.target.closest('[data-recommend-detail]'),hide=e.target.closest('[data-recommend-hide]'),plan=e.target.closest('[data-recommend-plan]'),more=e.target.closest('[data-recommend-more]');
+ if(favorite){const id=Number(favorite.dataset.recommendFavorite);if(!Number.isSafeInteger(id))return;const favorites=new Set((state.favorites||[]).map(Number));favorites.has(id)?favorites.delete(id):favorites.add(id);favorite.disabled=true;try{await preferences({favorites:[...favorites]});}catch(err){favorite.disabled=false;alert('Could not save favorite: '+err.message)}return;}
  if(more){recommendationMemory.more=[...new Set([...recommendationMemory.more,String(more.dataset.recommendMore)])].slice(-30);saveRecommendationMemory();recommendationRankCache=null;renderRecommendations();return;}
  if(plan){await selectMealAndRefresh(Number(plan.dataset.recommendPlan),true,2);return;}
  if(detail){const id=detail.dataset.recommendDetail;const target=document.querySelector('#recipes [data-detail="'+id+'"]');if(target)target.click();else{const trigger=document.createElement('button');trigger.type='button';trigger.dataset.detail=id;trigger.hidden=true;$('recipes').appendChild(trigger);trigger.click();trigger.remove()}}
