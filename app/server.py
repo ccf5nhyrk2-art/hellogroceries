@@ -1141,8 +1141,9 @@ def instruction_audit_worker():
   recipes=allrecipes()
   checked=instruction_audit_rows()
   completed=0;success=0
-  for recipe in recipes:
-   if completed>=3:break
+  # Process newest recipes first; successful cached instructions are skipped.
+  for recipe in sorted(recipes,key=lambda r: -int(r.get('id')) if str(r.get('id')).isdigit() else 0):
+   if completed>=25:break
    if non_recipe_reason(recipe) or stored_cooking_steps(recipe):continue
    url=str(recipe.get('instructions_url') or recipe.get('url') or '')
    rid=str(recipe.get('id'))
@@ -1162,6 +1163,8 @@ def instruction_audit_worker():
     c.execute('INSERT OR REPLACE INTO recipe_instruction_audit (recipe_id,url,verified,checked_at,reason,version) VALUES (?,?,?,CURRENT_TIMESTAMP,?,?)',(rid,url,int(ok),reason,INSTRUCTION_AUDIT_VERSION))
     c.commit()
    completed+=1;success+=int(ok)
+   # Bound request rate even when remote servers respond immediately.
+   time.sleep(0.4)
   # A failed batch does not automatically retry or hide any recipes.
  finally:
   with instruction_audit_lock:instruction_audit_running=False
@@ -1266,7 +1269,7 @@ def instruction_audit_status():
   latest=c.execute('SELECT MAX(checked_at) FROM recipe_instruction_audit').fetchone()[0]
  recovered=sum(1 for r in applicable.values() if r[1] and r[3]>=INSTRUCTION_AUDIT_VERSION)
  failures=sum(1 for r in applicable.values() if not r[1] and r[3]>=INSTRUCTION_AUDIT_VERSION)
- return {'recovery_success_rate':round(100*recovered/max(1,recovered+failures),1),'completed_current_version':recovered+failures,'recovered':recovered,'failed_current_version':failures,'progress_percent':round(100*(len(recipes)-sum(1 for r in recipes if not stored_cooking_steps(r) and (str(r.get('id')) not in applicable or applicable[str(r.get('id'))][3]<INSTRUCTION_AUDIT_VERSION)))/max(1,len(recipes)),2),'running':instruction_audit_running,'checked':len(applicable),'verified':verified,'unverified':len(applicable)-verified,'excluded':0,'stored_steps':stored,'total_recipes':len(recipes),'pending':sum(1 for r in recipes if not stored_cooking_steps(r) and (str(r.get('id')) not in applicable or applicable[str(r.get('id'))][3]<INSTRUCTION_AUDIT_VERSION)),'last_checked_at':latest,'reasons':reasons,'version':INSTRUCTION_AUDIT_VERSION,'note':'Recovery runs in cautious batches of 3; successful cooking steps are cached. Unverified links never hide recipes.'}
+ return {'recovery_success_rate':round(100*recovered/max(1,recovered+failures),1),'completed_current_version':recovered+failures,'recovered':recovered,'failed_current_version':failures,'progress_percent':round(100*(len(recipes)-sum(1 for r in recipes if not stored_cooking_steps(r) and (str(r.get('id')) not in applicable or applicable[str(r.get('id'))][3]<INSTRUCTION_AUDIT_VERSION)))/max(1,len(recipes)),2),'running':instruction_audit_running,'checked':len(applicable),'verified':verified,'unverified':len(applicable)-verified,'excluded':0,'stored_steps':stored,'total_recipes':len(recipes),'pending':sum(1 for r in recipes if not stored_cooking_steps(r) and (str(r.get('id')) not in applicable or applicable[str(r.get('id'))][3]<INSTRUCTION_AUDIT_VERSION)),'last_checked_at':latest,'reasons':reasons,'version':INSTRUCTION_AUDIT_VERSION,'note':'Recovery runs in rate-limited batches of up to 25 when the recipe catalog is opened; verified steps are cached and skipped. Unverified links never hide recipes.'}
 
 def visible_cooking_recipe(recipe,checks):
  if stored_cooking_steps(recipe):return True
