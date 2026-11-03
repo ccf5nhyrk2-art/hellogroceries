@@ -102,6 +102,46 @@ async function main() {
     const json = await api.json();
     assert.ok(Array.isArray(json.items) && Number.isInteger(json.total) && Number.isInteger(json.pages));
     console.log('PASS: paginated API response');
+    // Mutations are restricted to the dedicated staging test account and restored in finally.
+    assert.equal(new URL(base).hostname, 'staging-groceries.greenlee.uk', 'Persistence tests must never run against PROD');
+    const targetId = await cards.first().locator('[data-fast-favorite]').getAttribute('data-fast-favorite');
+    const testCollection = '__staging_smoke_test__';
+    const original = await page.evaluate(id => ({
+      favorites: structuredClone(state.favorites || []),
+      collections: structuredClone(state.collections || {}),
+      selected: Object.hasOwn(state.selected || {}, String(id))
+    }), targetId);
+    try {
+      // Prepare an isolated temporary collection, without altering existing collections.
+      await page.evaluate(async name => {
+        await preferences({ collections: { ...(state.collections || {}), [name]: [] } });
+        await loadFastBrowse();
+      }, testCollection);
+      await page.locator('#fast-browse-results [data-fast-favorite="' + targetId + '"]').click();
+      await page.waitForFunction(id => (state.favorites || []).map(Number).includes(Number(id)), targetId, { timeout: 30000 });
+      await page.locator('#fast-browse-results [data-fast-plan="' + targetId + '"]').click();
+      await page.waitForFunction(id => Object.hasOwn(state.selected || {}, String(id)), targetId, { timeout: 30000 });
+      await page.locator('#fast-browse-results [data-fast-collection="' + targetId + '"]').selectOption(testCollection);
+      await page.waitForFunction(([id, name]) => (state.collections?.[name] || []).map(Number).includes(Number(id)), [targetId, testCollection], { timeout: 30000 });
+      await page.reload({ waitUntil: 'domcontentloaded' });
+      await page.locator('.page-nav-button[data-page="recipes"]').waitFor({ state: 'attached', timeout: 30000 });
+      await page.locator('.page-nav-button[data-page="recipes"]').evaluate(button => button.click());
+      await page.locator('#fast-browse-toggle').click();
+      await page.waitForFunction(([id, name]) => {
+        return (state.favorites || []).map(Number).includes(Number(id))
+          && Object.hasOwn(state.selected || {}, String(id))
+          && (state.collections?.[name] || []).map(Number).includes(Number(id));
+      }, [targetId, testCollection], { timeout: 30000 });
+      console.log('PASS: favorite, meal plan and collection persisted after reload');
+    } finally {
+      // Restore the test account even when an assertion fails.
+      await page.evaluate(async ({ id, saved }) => {
+        const isSelected = Object.hasOwn(state.selected || {}, String(id));
+        if (isSelected !== saved.selected) await selectMealAndRefresh(Number(id), saved.selected, 2);
+        await preferences({ favorites: saved.favorites, collections: saved.collections });
+      }, { id: targetId, saved: original });
+    }
+
   } catch (error) {
     await page.screenshot({ path: 'test-results/failure.png', fullPage: true }).catch(() => {});
     fs.writeFileSync('test-results/page.html', await page.content().catch(() => 'Unavailable'));
