@@ -244,6 +244,16 @@ def allrecipes():
     lines=json.loads(entry[1])
     if isinstance(lines,list) and lines:recipe['ingredient_text']=list(dict.fromkeys((recipe.get('ingredient_text') if isinstance(recipe.get('ingredient_text'),list) else [])+lines))
    except (ValueError,TypeError):pass
+ with db() as c:
+  recipe_instruction_cache_schema(c)
+  instruction_cache={rid:(url,steps) for rid,url,steps in c.execute('SELECT recipe_id,url,steps_json FROM recipe_instruction_cache')}
+ for recipe in recipes:
+  entry=instruction_cache.get(str(recipe.get('id')))
+  if entry and entry[0]==str(recipe.get('instructions_url') or recipe.get('url') or ''):
+   try:
+    steps=json.loads(entry[1])
+    if isinstance(steps,list) and steps:recipe['instructions']=steps
+   except (ValueError,TypeError):pass
  with db() as c:photos=dict(c.execute('SELECT recipe_id,image_url FROM photos'))
  return [dict(r,image=photos.get(r['id'],r.get('image',''))) for r in recipes]
 
@@ -1004,6 +1014,60 @@ def verify_cooking_link(url):
  except urllib.error.HTTPError as exc:return False,'http_'+str(exc.code)
  except (OSError,ValueError,TimeoutError,UnicodeError):return False,'network_error'
 
+def instruction_step_strings(value):
+ """Extract human-readable step text from supported structured recipe formats."""
+ if isinstance(value,str):
+  clean=re.sub(r'\\s+',' ',html.unescape(re.sub(r'<[^>]+>',' ',value))).strip()
+  return [clean] if len(clean)>=25 else []
+ if isinstance(value,list):
+  result=[]
+  for item in value:result.extend(instruction_step_strings(item))
+  return result[:40]
+ if isinstance(value,dict):
+  for key in ('itemListElement','steps','recipeInstructions','instructions'):
+   if key in value:return instruction_step_strings(value[key])
+  for key in ('text','description','body'):
+   if key in value:return instruction_step_strings(value[key])
+ return []
+
+def extract_cooking_steps(page):
+ for raw in re.findall(r'<script[^>]*application/ld\\+json[^>]*>(.*?)</script>',page,re.I|re.S):
+  try:root=json.loads(html.unescape(raw))
+  except (ValueError,TypeError):continue
+  pending=[root]
+  while pending:
+   node=pending.pop()
+   if isinstance(node,list):pending.extend(node);continue
+   if not isinstance(node,dict):continue
+   types=node.get('@type',[])
+   if isinstance(types,str):types=[types]
+   if any(str(t).lower().endswith('recipe') for t in types):
+    steps=instruction_step_strings(node.get('recipeInstructions'))
+    if steps:return steps,'jsonld'
+   pending.extend(v for v in node.values() if isinstance(v,(dict,list)))
+ decoder=json.JSONDecoder()
+ for match in re.finditer(r'["\\x27](?:recipeInstructions|preparationSteps|cookingSteps|instructions|steps)["\\x27]\\s*:\\s*(?=[\\[{])',page,re.I):
+  try:value,_=decoder.raw_decode(page[match.end():])
+  except (ValueError,TypeError):continue
+  steps=instruction_step_strings(value)
+  if len(steps)>=2:return steps,'embedded_steps'
+ return [],'unsupported_or_missing_steps'
+
+def recipe_instruction_cache_schema(c):
+ c.execute('CREATE TABLE IF NOT EXISTS recipe_instruction_cache (recipe_id TEXT PRIMARY KEY,url TEXT NOT NULL,steps_json TEXT NOT NULL,source_format TEXT NOT NULL,checked_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)')
+
+def recover_recipe_instructions(url):
+ if not isinstance(url,str) or not allowed_url(url):return [],'invalid_url'
+ try:
+  req=urllib.request.Request(url,headers={'User-Agent':'Mozilla/5.0 (compatible; HelloGroceriesRecipeRecovery/1.0)','Accept':'text/html'})
+  with urllib.request.urlopen(req,timeout=9) as response:
+   if not allowed_url(response.geturl()):return [],'unsafe_redirect'
+   if response.status!=200:return [],'http_error'
+   page=response.read(1500000).decode('utf-8','replace')
+  return extract_cooking_steps(page)
+ except urllib.error.HTTPError as exc:return [],'http_'+str(exc.code)
+ except (OSError,ValueError,TimeoutError,UnicodeError):return [],'network_error'
+
 def instruction_audit_schema(c):
  c.execute('CREATE TABLE IF NOT EXISTS recipe_instruction_audit (recipe_id TEXT PRIMARY KEY, url TEXT NOT NULL, verified INTEGER NOT NULL, checked_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)')
  cols={row[1] for row in c.execute('PRAGMA table_info(recipe_instruction_audit)')}
@@ -1013,7 +1077,7 @@ def instruction_audit_schema(c):
 instruction_audit_lock=threading.Lock()
 instruction_audit_running=False
 instruction_audit_requested=False
-INSTRUCTION_AUDIT_VERSION=3
+INSTRUCTION_AUDIT_VERSION=4
 
 def instruction_audit_rows():
  with db() as c:
@@ -1027,14 +1091,20 @@ def instruction_audit_worker():
   checked=instruction_audit_rows()
   completed=0;success=0
   for recipe in recipes:
-   if completed>=25:break
+   if completed>=3:break
    if non_recipe_reason(recipe) or stored_cooking_steps(recipe):continue
    url=str(recipe.get('instructions_url') or recipe.get('url') or '')
    rid=str(recipe.get('id'))
    if not url or not allowed_url(url):continue
    previous=checked.get(rid)
    if previous and previous[0]==url and previous[3]>=INSTRUCTION_AUDIT_VERSION:continue
-   ok,reason=verify_cooking_link(url)
+   steps,reason=recover_recipe_instructions(url)
+   ok=bool(steps)
+   if ok:
+    with db() as c:
+     recipe_instruction_cache_schema(c)
+     c.execute('INSERT OR REPLACE INTO recipe_instruction_cache (recipe_id,url,steps_json,source_format,checked_at) VALUES (?,?,?,?,CURRENT_TIMESTAMP)',(rid,url,json.dumps(steps),reason))
+     c.commit()
    with db() as c:
     instruction_audit_schema(c)
     c.execute('INSERT OR REPLACE INTO recipe_instruction_audit (recipe_id,url,verified,checked_at,reason,version) VALUES (?,?,?,CURRENT_TIMESTAMP,?,?)',(rid,url,int(ok),reason,INSTRUCTION_AUDIT_VERSION))
@@ -1087,7 +1157,7 @@ def instruction_audit_status():
  with db() as c:
   instruction_audit_schema(c)
   latest=c.execute('SELECT MAX(checked_at) FROM recipe_instruction_audit').fetchone()[0]
- return {'running':instruction_audit_running,'checked':len(applicable),'verified':verified,'unverified':len(applicable)-verified,'excluded':0,'stored_steps':stored,'total_recipes':len(recipes),'pending':sum(1 for r in recipes if not stored_cooking_steps(r) and str(r.get('id')) not in applicable),'last_checked_at':latest,'reasons':reasons,'version':INSTRUCTION_AUDIT_VERSION,'note':'Checks run in batches of 25; unverified links never hide recipes. Legacy checks are marked for re-verification.'}
+ return {'running':instruction_audit_running,'checked':len(applicable),'verified':verified,'unverified':len(applicable)-verified,'excluded':0,'stored_steps':stored,'total_recipes':len(recipes),'pending':sum(1 for r in recipes if not stored_cooking_steps(r) and str(r.get('id')) not in applicable),'last_checked_at':latest,'reasons':reasons,'version':INSTRUCTION_AUDIT_VERSION,'note':'Recovery runs in cautious batches of 3; successful cooking steps are cached. Unverified links never hide recipes.'}
 
 def visible_cooking_recipe(recipe,checks):
  if stored_cooking_steps(recipe):return True
