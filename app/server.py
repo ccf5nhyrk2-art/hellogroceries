@@ -1607,6 +1607,10 @@ def recipe_from_url(url):
   except (ValueError,TypeError,RecursionError):pass
   if found:break
  if not found:raise ValueError('This page has no accessible structured recipe data. Try a different public recipe URL.')
+ # Capture only validated instructions from the selected JSON-LD Recipe node.
+ # Never borrow instructions from unrelated embedded recipes or UI translations.
+ source_steps=instruction_step_strings(found.get('recipeInstructions'))
+ if not valid_recovered_steps(source_steps):source_steps=[]
  name=str(found.get('name','')).strip()
  if not name:raise ValueError('Recipe title missing')
  photo=found.get('image','');photo=photo[0] if isinstance(photo,list) and photo else photo
@@ -1641,7 +1645,9 @@ def recipe_from_url(url):
  serving_match=re.search(r'\d+(?:\.\d+)?',str(source_yield or ''))
  source_servings=float(serving_match.group()) if serving_match else None
  if source_servings is not None and not (0<source_servings<=20):source_servings=None
- return validate_import_recipe({'name':name,'country':recipe_country_from_url(url),'url':url,'image':str(photo),'ingredients':ingredients,'ingredient_text':items,'source':'HelloFresh page','source_servings':source_servings,'instructions_url':url,'nutrition':nutrition,'dietary_labels':diet_labels})
+ recipe_payload={'name':name,'country':recipe_country_from_url(url),'url':url,'image':str(photo),'ingredients':ingredients,'ingredient_text':items,'source':'HelloFresh page','source_servings':source_servings,'instructions_url':url,'nutrition':nutrition,'dietary_labels':diet_labels}
+ if source_steps:recipe_payload['instructions']=source_steps
+ return validate_import_recipe(recipe_payload)
 
 def discover_sitemap(country,limit):
  roots={'US':'https://www.hellofresh.com/sitemap_recipe_pages.xml','UK':'https://www.hellofresh.co.uk/sitemap.xml','AU':'https://www.hellofresh.com.au/sitemap.xml','CA':'https://www.hellofresh.ca/sitemap.xml','DE':'https://www.hellofresh.de/sitemap.xml','NL':'https://www.hellofresh.nl/sitemap.xml'}
