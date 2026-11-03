@@ -915,7 +915,7 @@ alternativeProbe.addEventListener('click',async()=>{
   const table=document.createElement('table');
   table.style.cssText='width:100%;border-collapse:collapse;font-size:0.9rem';
   const head=document.createElement('tr');
-  for(const label of ['Recipe','HTTP','Source status','Stored measured','Live measured','Field context','Portion fields','Other source signals','Keyword context']){
+  for(const label of ['Recipe','HTTP','Source status','Stored measured','Live measured','Verified ingredient matches','Field context','Portion fields','Other source signals','Keyword context']){
    const th=document.createElement('th');th.textContent=label;th.style.cssText='text-align:left;padding:10px 8px;border-bottom:1px solid #555';head.appendChild(th);
   }
   table.appendChild(head);
@@ -923,7 +923,7 @@ alternativeProbe.addEventListener('click',async()=>{
    const row=document.createElement('tr');
    const d=item.http_diagnostics||{},c=item.import_source_comparison||{},loc=item.ingredient_field_locations||[];
    const contexts=loc.map(x=>(x.in_script?'script '+(x.script_type||'unknown'):'HTML')+(x.escaped_quotes?' escaped':'')+(x.json_array_nearby?' array':'')+(x.html_attribute_context?' attribute':''));
-   const cells=[item.recipe_id,d.http_status??item.error??'—',d.source_status||'—',c.stored_measured_lines??'—',c.current_measured_lines??'—',contexts.join('; ')||'not found',(item.portion_field_inspection?.field_paths||[]).join(', ')||'none',Object.entries(item.alternate_source_signals||{}).filter(([name,found])=>found).map(([name])=>name.replaceAll('_',' ')).join(', ')||'none',(()=>{const c=item.portion_keyword_context||{};return 'JSON-LD: '+(c.matching_jsonld_scripts||0)+' · Other scripts: '+(c.matching_other_scripts||0)+' · HTML text: '+(c.matching_html_text_nodes||0)+' · Structured objects: '+(c.structured_portion_objects||0)})()];
+   const cells=[item.recipe_id,d.http_status??item.error??'—',d.source_status||'—',c.stored_measured_lines??'—',c.current_measured_lines??'—',(()=>{const v=item.verified_source_recovery||{};return v.eligible_ingredients===undefined?'—':v.verified_matches+' / '+v.eligible_ingredients})(),contexts.join('; ')||'not found',(item.portion_field_inspection?.field_paths||[]).join(', ')||'none',Object.entries(item.alternate_source_signals||{}).filter(([name,found])=>found).map(([name])=>name.replaceAll('_',' ')).join(', ')||'none',(()=>{const c=item.portion_keyword_context||{};return 'JSON-LD: '+(c.matching_jsonld_scripts||0)+' · Other scripts: '+(c.matching_other_scripts||0)+' · HTML text: '+(c.matching_html_text_nodes||0)+' · Structured objects: '+(c.structured_portion_objects||0)})()];
    for(const value of cells){const td=document.createElement('td');td.textContent=String(value);td.style.cssText='padding:10px 8px;border-bottom:1px solid #444;vertical-align:top;overflow-wrap:anywhere';row.appendChild(td)}
    table.appendChild(row);
   }
