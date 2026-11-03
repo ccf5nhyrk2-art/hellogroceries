@@ -797,6 +797,17 @@ async function scanRecipeQuality(){
   gate.textContent='Automatic estimation release gate: '+(passes?'Benchmark threshold met for review':'NOT APPROVED')+' · high-consensus sample '+eligible+'/'+minimumSample+' required · within 25% accuracy '+pct(accuracy)+' / 90.0% required · category checks '+(categoryResults.length-categoryFailures.length)+'/'+categoryResults.length+' passed (at least '+categoryMinimum+' samples and 90% accuracy each) · independent holdout '+independentEligible+'/'+minimumSample+' required, accuracy '+pct(independentAccuracy)+' / 90.0% required. Even a passing benchmark requires separate approval before enabling estimates.';
   gate.style.cssText='font-weight:600;padding:10px 12px;border:1px solid var(--border,#555);border-radius:8px;overflow-wrap:anywhere';
   issues.appendChild(gate);
+  const rollout=document.createElement('details');
+  const rolloutHeading=document.createElement('summary');
+  rolloutHeading.textContent='Controlled estimation rollout · currently disabled';
+  rollout.appendChild(rolloutHeading);
+  const rolloutInfo=document.createElement('p');
+  rolloutInfo.textContent='Phase 1: read-only suggestions on staging, clearly marked as estimates. Phase 2: verify real recipe examples and ingredient units. Phase 3: separate administrator approval before any production enablement. This panel does not activate estimates.';
+  rollout.appendChild(rolloutInfo);
+  const rolloutSafety=document.createElement('p');
+  rolloutSafety.textContent='Required safeguards: never replace original quantities; never use estimates in shopping lists, pantry deductions, store totals, or grocery pricing; disable the feature immediately if validation fails.';
+  rollout.appendChild(rolloutSafety);
+  issues.appendChild(rollout);
   const safety=document.createElement('p');
   safety.textContent='Safety status: estimates are suggestions only. Original source quantities remain authoritative; no predicted amount is written to recipes, pantry inventory, shopping lists, or grocery pricing.';
   safety.style.cssText='font-size:.93em;line-height:1.5';
