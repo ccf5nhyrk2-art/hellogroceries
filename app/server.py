@@ -1030,9 +1030,18 @@ def instruction_step_strings(value):
   return result[:40]
  if isinstance(value,dict):
   for key in ('itemListElement','steps','recipeInstructions','instructions','preparationSteps','cookingSteps'):
-   if key in value:return instruction_step_strings(value[key])
-  for key in ('text','description','body','instruction'):
-   if key in value:return instruction_step_strings(value[key])
+   if key in value:
+    result=instruction_step_strings(value[key])
+    if result:return result
+  for key in ('text','description','body','instruction','content'):
+   if key in value:
+    result=instruction_step_strings(value[key])
+    if result:return result
+  # Some source formats wrap each instruction in an object rather than a text field.
+  for key in ('step','stepDescription','instructionText','stepText'):
+   if key in value:
+    result=instruction_step_strings(value[key])
+    if result:return result
  return []
 
 def parse_embedded_recipe_steps(raw):
@@ -1280,6 +1289,32 @@ def recovered_step_validation_reason(steps):
 def valid_recovered_steps(steps):
  return recovered_step_validation_reason(steps)=='valid'
 
+def instruction_json_shape_summary(page):
+ """Summarize instruction-shaped JSON without exposing values or accepting them as steps."""
+ counts={}
+ for attrs,body in re.findall(r'<script\\b([^>]*)>(.*?)</script\\s*>',page,re.I|re.S):
+  if not re.search(r'application/(?:ld\\+)?json|__NEXT_DATA__',attrs,re.I):continue
+  try:root=json.loads(html.unescape(body.strip()))
+  except (ValueError,TypeError):continue
+  pending=[root]
+  seen=0
+  while pending and seen<5000:
+   node=pending.pop();seen+=1
+   if isinstance(node,list):
+    pending.extend(node[:100]);continue
+   if not isinstance(node,dict):continue
+   for key in ('recipeInstructions','instructions','steps','preparationSteps','cookingSteps'):
+    if key not in node:continue
+    value=node[key]
+    kind=type(value).__name__
+    first=value[0] if isinstance(value,list) and value else value
+    fields=sorted(str(k)[:40] for k in first.keys())[:15] if isinstance(first,dict) else []
+    signature=key+':'+kind+':'+type(first).__name__
+    entry=counts.setdefault(signature,{'count':0,'sample_fields':fields})
+    entry['count']+=1
+   pending.extend(v for v in node.values() if isinstance(v,(dict,list)))
+ return list(counts.values())[:12] if counts else []
+
 def instruction_page_structure_diagnostic(page):
  """Report structural signals only; never return page text, scripts, or URLs."""
  scripts=re.findall(r'<script\b([^>]*)>(.*?)</script\s*>',page,re.I|re.S)
@@ -1289,7 +1324,7 @@ def instruction_page_structure_diagnostic(page):
  flight=len(re.findall(r'self\.__next_f\.push\s*\(',page))
  keys=('recipeInstructions','preparationSteps','cookingSteps','instructionSteps','instructions','steps')
  key_counts={key:len(re.findall(r'["\x27]'+re.escape(key)+r'["\x27]\s*:',page,re.I)) for key in keys}
- return {'script_count':len(scripts),'jsonld_scripts':jsonld,'json_scripts':json_scripts,'next_data':next_data,'next_flight_chunks':flight,'nuxt_markers':bool(re.search(r'__NUXT__|__NUXT_DATA__',page,re.I)),'initial_state_marker':bool(re.search(r'__INITIAL_STATE__',page,re.I)),'instruction_key_counts':key_counts,'javascript_required_marker':bool(re.search(r'enable javascript|javascript is required',page,re.I)),'blocked_marker':bool(re.search(r'captcha|verify you are human|access denied|just a moment',page,re.I))}
+ return {'script_count':len(scripts),'jsonld_scripts':jsonld,'json_scripts':json_scripts,'next_data':next_data,'next_flight_chunks':flight,'nuxt_markers':bool(re.search(r'__NUXT__|__NUXT_DATA__',page,re.I)),'initial_state_marker':bool(re.search(r'__INITIAL_STATE__',page,re.I)),'instruction_key_counts':key_counts,'json_instruction_shapes':instruction_json_shape_summary(page),'javascript_required_marker':bool(re.search(r'enable javascript|javascript is required',page,re.I)),'blocked_marker':bool(re.search(r'captcha|verify you are human|access denied|just a moment',page,re.I))}
 
 def diagnose_instruction_source_structure(url):
  """Fetch one allowed recipe source and report only structural metadata."""
