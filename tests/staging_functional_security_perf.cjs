@@ -38,9 +38,12 @@ async function main() {
       if(elapsed>budget)console.warn('PERFORMANCE WARNING: recipe API exceeded '+budget+'ms; investigate backend scan/indexing');
       console.log('PASS: real recipe API response and timing');
       // Preview computes the shopping list without overwriting the existing list.
-      const preview = await page.request.post(base+'/api/action',{data:{action:'preview_grocery'},timeout:90000});
-      assert.equal(preview.status(),200,'Shopping list preview API: '+(await preview.text()).slice(0,300));
-      const result=await preview.json();
+      const preview = await page.evaluate(async () => {
+        const response = await fetch('/api/action', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'preview_grocery'})});
+        return {status:response.status,body:await response.text()};
+      });
+      assert.equal(preview.status,200,'Shopping list preview API: '+preview.body.slice(0,300));
+      const result=JSON.parse(preview.body);
       assert.ok(Array.isArray(result.items),'Shopping preview missing items array');
       console.log('PASS: shopping list generation preview returns structured ingredients (no list mutation)');
       // Bad barcode input is rejected before any paid or external product lookup.
