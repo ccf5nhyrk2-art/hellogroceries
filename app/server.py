@@ -1244,7 +1244,7 @@ def instruction_recovery_diagnostic_status():
 
 def valid_recovered_steps(steps):
  if not isinstance(steps,list) or len(steps)<2 or len(steps)>40:return False
- cleaned=[re.sub(r'\\s+',' ',str(step)).strip() for step in steps]
+ cleaned=[re.sub(r'\s+',' ',str(step)).strip() for step in steps]
  # Short cooking directions can be valid; reject fragments and require substance.
  if any(len(step)<12 or len(step)>3500 for step in cleaned):return False
  if not any(len(step)>=25 for step in cleaned):return False
