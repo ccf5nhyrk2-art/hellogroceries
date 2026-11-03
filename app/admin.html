@@ -1165,7 +1165,7 @@ document.getElementById('instruction-diagnose')?.addEventListener('click',async(
  const button=document.getElementById('instruction-diagnose'),status=document.getElementById('instruction-diagnose-status'),output=document.getElementById('instruction-diagnose-results');
  button.disabled=true;status.textContent='Checking up to three source pages (this may take around 30 seconds)…';output.textContent='';
  try{
-  const response=await fetch('/api/recipe-instruction-audit/diagnose',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:'{}'});
+  const response=await fetch('/api/recipe-instruction-audit/diagnose',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json','X-HG-CSRF':csrf()},body:'{}'});
   const data=await response.json();if(!response.ok)throw Error(data.error||'Diagnostic failed');
   status.textContent='Checked '+data.tested+' recipe sources. '+(data.note||'');
   output.textContent=(data.results||[]).map(r=>'Recipe '+r.recipe_id+' · '+(r.source_host||'unknown host')+' · '+r.result+' · '+r.steps_found+' steps · '+(r.saved?'Saved successfully':'Not saved')).join('\n');
@@ -1176,7 +1176,7 @@ document.getElementById('instruction-diagnose')?.addEventListener('click',async(
 document.getElementById('instruction-audit-refresh')?.addEventListener('click',refreshInstructionAudit);
 document.getElementById('instruction-audit-retry')?.addEventListener('click',async()=>{
  const button=document.getElementById('instruction-audit-retry');button.disabled=true;
- try{const response=await fetch('/api/recipe-instruction-audit/retry',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:'{}'});const data=await response.json();if(!response.ok)throw Error(data.error||'Retry failed');document.getElementById('instruction-audit-status').textContent=data.message||'Retry started';}
+ try{const response=await fetch('/api/recipe-instruction-audit/retry',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json','X-HG-CSRF':csrf()},body:'{}'});const data=await response.json();if(!response.ok)throw Error(data.error||'Retry failed');document.getElementById('instruction-audit-status').textContent=data.message||'Retry started';}
  catch(error){document.getElementById('instruction-audit-status').textContent='Unable to retry: '+error.message}
  finally{button.disabled=false;refreshInstructionAudit()}
 });
