@@ -201,7 +201,30 @@ def recover_from_stored_source(recipe, ingredient):
         if name == target:
             matches.append({**measured, "confidence": "verified_source"})
     # Duplicate identical source lines are not conflicting evidence.
-    unique = {(m["amount"], m["unit"].casefold(), canonical_source_name(m["ingredient"])): m for m in matches}
+    # Equivalent source spellings (1 tsp / 1 teaspoon) must not look like
+    # conflicting evidence. Compare numeric values and canonical units,
+    # but never merge different measurements or ingredient variants.
+    def normalized_amount(raw):
+        try:
+            if raw in FRACTIONS:
+                return FRACTIONS[raw]
+            if "/" in raw:
+                parts = raw.split()
+                if len(parts) == 2:
+                    numerator, denominator = parts[1].split("/")
+                    return float(parts[0]) + float(numerator) / float(denominator)
+                numerator, denominator = raw.split("/")
+                return float(numerator) / float(denominator)
+            return float(raw)
+        except (ValueError, ZeroDivisionError, OverflowError):
+            return None
+    unique = {}
+    for match in matches:
+        amount = normalized_amount(match["amount"])
+        unit = SHOPPING_UNITS.get(match["unit"].casefold())
+        if amount is None or not math.isfinite(amount) or amount <= 0 or not unit:
+            return None
+        unique[(amount, unit, canonical_source_name(match["ingredient"]))] = match
     return next(iter(unique.values())) if len(unique) == 1 else None
 
 FRACTIONS = {"¼": .25, "½": .5, "¾": .75, "⅓": 1/3, "⅔": 2/3,
