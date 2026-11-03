@@ -2958,7 +2958,7 @@ class Handler(SimpleHTTPRequestHandler):
    if path.startswith('/api/'):
     self.sendjson({'error':'Authentication required','setup_required':setup},401)
    else:
-    self.send_response(302);self.send_header('Location','/auth.html'+('?share='+urllib.parse.quote(urllib.parse.parse_qs(urllib.parse.urlsplit(self.path).query).get('share',[''])[0]) if re.fullmatch(r'[A-Za-z0-9_-]{1,6000}',urllib.parse.parse_qs(urllib.parse.urlsplit(self.path).query).get('share',[''])[0]) else ''));self.send_header('Content-Length','0');self.end_headers()
+    self.send_response(302);self.send_header('Location','/auth.html');self.send_header('Content-Length','0');self.end_headers()
    return False
   request_scope.household_id=hid
   request_scope.user_id=user[0]
@@ -3096,6 +3096,33 @@ class Handler(SimpleHTTPRequestHandler):
     auth.ensure_schema(c)
     result=sharing.details(c,request_scope.user_id,request_scope.household_id)
    return self.sendjson(result)
+  if self.path.startswith('/api/pantry/barcode?'):
+   if not self.gate():return
+   if not auth_rate_allowed(str(request_scope.user_id),'pantry-barcode',40,3600):return self.sendjson({'error':'Too many barcode lookups.'},429)
+   barcode=urllib.parse.parse_qs(urllib.parse.urlsplit(self.path).query).get('code',[''])[0].strip()
+   if not re.fullmatch(r'[0-9]{8,14}',barcode):return self.sendjson({'error':'Enter an 8 to 14 digit barcode.'},400)
+   with db() as conn:
+    conn.execute('CREATE TABLE IF NOT EXISTS barcode_products (household_id TEXT NOT NULL, barcode TEXT NOT NULL, name TEXT NOT NULL, size TEXT NOT NULL DEFAULT "", PRIMARY KEY(household_id,barcode))')
+    saved=conn.execute('SELECT name,size FROM barcode_products WHERE household_id=? AND barcode=?',(str(request_scope.household_id),barcode)).fetchone()
+   if saved:return self.sendjson({'found':True,'barcode':barcode,'item':{'name':saved[0],'quantity':1,'unit':'count','package_size':saved[1],'source':'Household saved product'}})
+   catalog_error=False
+   for host in ('world.openfoodfacts.org','world.openproductsfacts.org','world.openbeautyfacts.org'):
+    try:
+     url='https://'+host+'/api/v2/product/'+barcode+'.json?fields=code,product_name,brands,quantity'
+     req=urllib.request.Request(url,headers={'User-Agent':'HelloGroceries/1.0 (grocery pantry scanner)','Accept':'application/json'})
+     with urllib.request.urlopen(req,timeout=7) as response:data=json.load(response)
+     product=data.get('product') or {}
+     if data.get('status')!=1:continue
+     brand=str(product.get('brands') or '').split(',')[0].strip()[:65]
+     name=str(product.get('product_name') or '').strip()[:100]
+     size=str(product.get('quantity') or '').strip()[:32]
+     if not name:continue
+     if brand and not name.lower().startswith(brand.lower()):name=brand+' '+name
+     if size and size.lower() not in name.lower():name+=' '+size
+     return self.sendjson({'found':True,'barcode':barcode,'item':{'name':name[:140],'quantity':1,'unit':'count','brand':brand,'package_size':size,'source':host}})
+    except (urllib.error.URLError,TimeoutError,ValueError,TypeError,KeyError):
+     catalog_error=True
+   return self.sendjson({'found':False,'barcode':barcode,'catalog_unavailable':catalog_error})
   if self.path=='/api/pricing-visibility':
    if not self.gate():return
    return self.sendjson({'visibility':pricing_visibility(),'is_admin':bool(getattr(request_scope,'admin',False))})
@@ -3452,33 +3479,6 @@ class Handler(SimpleHTTPRequestHandler):
      c.commit()
     return self.sendjson({'ok':True,'limits':ai_scan_limits()})
    except (ValueError,KeyError,TypeError,sqlite3.Error):return self.sendjson({'error':'Invalid AI scan limits'},400)
-  if self.path.startswith('/api/pantry/barcode?'):
-   if not self.gate():return
-   if not auth_rate_allowed(str(request_scope.user_id),'pantry-barcode',40,3600):return self.sendjson({'error':'Too many barcode lookups.'},429)
-   barcode=urllib.parse.parse_qs(urllib.parse.urlsplit(self.path).query).get('code',[''])[0].strip()
-   if not re.fullmatch(r'[0-9]{8,14}',barcode):return self.sendjson({'error':'Enter an 8 to 14 digit barcode.'},400)
-   with db() as conn:
-    conn.execute('CREATE TABLE IF NOT EXISTS barcode_products (household_id TEXT NOT NULL, barcode TEXT NOT NULL, name TEXT NOT NULL, size TEXT NOT NULL DEFAULT "", PRIMARY KEY(household_id,barcode))')
-    saved=conn.execute('SELECT name,size FROM barcode_products WHERE household_id=? AND barcode=?',(str(request_scope.household_id),barcode)).fetchone()
-   if saved:return self.sendjson({'found':True,'barcode':barcode,'item':{'name':saved[0],'quantity':1,'unit':'count','package_size':saved[1],'source':'Household saved product'}})
-   catalog_error=False
-   for host in ('world.openfoodfacts.org','world.openproductsfacts.org','world.openbeautyfacts.org'):
-    try:
-     url='https://'+host+'/api/v2/product/'+barcode+'.json?fields=code,product_name,brands,quantity'
-     req=urllib.request.Request(url,headers={'User-Agent':'HelloGroceries/1.0 (grocery pantry scanner)','Accept':'application/json'})
-     with urllib.request.urlopen(req,timeout=7) as response:data=json.load(response)
-     product=data.get('product') or {}
-     if data.get('status')!=1:continue
-     brand=str(product.get('brands') or '').split(',')[0].strip()[:65]
-     name=str(product.get('product_name') or '').strip()[:100]
-     size=str(product.get('quantity') or '').strip()[:32]
-     if not name:continue
-     if brand and not name.lower().startswith(brand.lower()):name=brand+' '+name
-     if size and size.lower() not in name.lower():name+=' '+size
-     return self.sendjson({'found':True,'barcode':barcode,'item':{'name':name[:140],'quantity':1,'unit':'count','brand':brand,'package_size':size,'source':host}})
-    except (urllib.error.URLError,TimeoutError,ValueError,TypeError,KeyError):
-     catalog_error=True
-   return self.sendjson({'found':False,'barcode':barcode,'catalog_unavailable':catalog_error})
   if self.path=='/api/pantry/barcode/save':
    if not self.gate(write=True):return
    try:
