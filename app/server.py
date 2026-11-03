@@ -974,7 +974,7 @@ def verify_cooking_link(url):
    if not allowed_url(response.geturl()) or response.status!=200:return False
    page=response.read(850000).decode('utf-8','replace')
   # A working page alone is not sufficient: require structured cooking steps.
-  for raw in re.findall(r'<script[^>]*type=["\\\']application/ld\\+json["\\\'][^>]*>(.*?)</script>',page,re.I|re.S):
+  for raw in re.findall(r'<script[^>]*application/ld\\+json[^>]*>(.*?)</script>',page,re.I|re.S):
    try:root=json.loads(html.unescape(raw))
    except (ValueError,TypeError):continue
    pending=[root]
