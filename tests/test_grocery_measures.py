@@ -3,7 +3,10 @@ import ast
 import pathlib
 import unittest
 
-SOURCE = pathlib.Path(__file__).resolve().parents[1] / "app" / "server.py"
+APP_DIR = pathlib.Path(__file__).resolve().parents[1] / "app"
+if not (APP_DIR / "server.py").is_file():
+    APP_DIR = pathlib.Path(__file__).resolve().parents[1]
+SOURCE = APP_DIR / "server.py"
 TREE = ast.parse(SOURCE.read_text(encoding="utf-8"), filename=str(SOURCE))
 PARSER = next(node for node in TREE.body if isinstance(node, ast.FunctionDef) and node.name == "parse_grocery_measure")
 # Compile only the pure parser to avoid starting the HTTP server or opening a database.

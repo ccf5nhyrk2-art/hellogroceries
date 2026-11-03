@@ -75,7 +75,9 @@ def task_overview():
   return {'key':key,'name':name,'frequency':frequency,'running':bool(running),'last_started':row.get('last_started') or last,'last_finished':row.get('last_finished'),'status':'running' if running else row.get('status','Not recorded'),'action':action}
  progress=Path('/data/us_import_progress.json')
  nutrition=history.get('nutrition',{})
+ audit=instruction_audit_status()
  return [
+  {'key':'instruction_recovery','name':'Cooking instructions recovery','frequency':'Automatic, rate-limited batches of up to 25; resumes when catalog or audit status is opened','running':audit['running'],'last_started':None,'last_finished':None,'status':'Paused' if audit['paused'] else ('Running' if audit['running'] else 'Idle'),'processed':audit['completed_current_version'],'total':audit['total_recipes'],'recovered':audit['recovered'],'failed':audit['failed_current_version'],'pending':audit['pending'],'progress_percent':audit['progress_percent'],'worker_errors':audit['worker_errors'],'action':None},
   {'key':'us_import','name':'HelloFresh US recipe import','frequency':'Automatic initial import; weekly thereafter','running':us_import_running() or us_import_schedule['running'],'last_started':us_import_schedule['last_started'],'last_finished':us_import_schedule['last_finished'],'next_run':us_import_schedule['next_run'],'status':'Running' if us_import_schedule['running'] else ('Error: '+str(us_import_schedule['last_error']) if us_import_schedule['last_error'] else 'Waiting for next cycle'),'action':'us_import'},
   {'key':'nutrition','name':'Bulk recipe nutrition scan','frequency':'Automatic initial scan; weekly thereafter (2 seconds between recipes)','running':nutrition_scan['running'],'last_started':nutrition_scan['last_started'],'last_finished':nutrition_scan['last_finished'],'next_run':nutrition_scan['next_run'],'status':'Running' if nutrition_scan['running'] else 'Waiting for next cycle','processed':nutrition_scan['processed'],'total':nutrition_scan['total'],'updated':nutrition_scan['updated'],'missing':nutrition_scan['missing'],'failed':nutrition_scan['failed'],'servings_backfilled':nutrition_scan.get('servings_backfilled',0),'servings_coverage':serving_coverage(),'action':None},
   item('store_directory','Nationwide store directory refresh','Automatic when cache expires (7 days) or store search needs it',False,datetime.datetime.fromtimestamp(ATP_CACHE_FILE.stat().st_mtime,datetime.timezone.utc).isoformat() if ATP_CACHE_FILE.exists() else None,'store_directory'),
@@ -244,6 +246,16 @@ def allrecipes():
     lines=json.loads(entry[1])
     if isinstance(lines,list) and lines:recipe['ingredient_text']=list(dict.fromkeys((recipe.get('ingredient_text') if isinstance(recipe.get('ingredient_text'),list) else [])+lines))
    except (ValueError,TypeError):pass
+ with db() as c:
+  recipe_instruction_cache_schema(c)
+  instruction_cache={rid:(url,steps) for rid,url,steps in c.execute('SELECT recipe_id,url,steps_json FROM recipe_instruction_cache')}
+ for recipe in recipes:
+  entry=instruction_cache.get(str(recipe.get('id')))
+  if entry and entry[0]==str(recipe.get('instructions_url') or recipe.get('url') or ''):
+   try:
+    steps=json.loads(entry[1])
+    if isinstance(steps,list) and steps:recipe['instructions']=steps
+   except (ValueError,TypeError):pass
  with db() as c:photos=dict(c.execute('SELECT recipe_id,image_url FROM photos'))
  return [dict(r,image=photos.get(r['id'],r.get('image',''))) for r in recipes]
 
@@ -331,7 +343,7 @@ def inspect_alternative_recipe_fields(limit=3):
     response_meta={'http_status':resp.status,'final_host':urllib.parse.urlsplit(resp.geturl()).hostname,'content_type':(resp.headers.get('Content-Type') or '').split(';')[0][:80],'content_length_header':(resp.headers.get('Content-Length') or '')[:20]}
     page=resp.read(1500000).decode('utf-8','replace')
    title_match=re.search(r'<title[^>]*>(.*?)</title\\s*>',page,re.I|re.S)
-   page_title=html.unescape(re.sub(r'\\s+',' ',title_match.group(1)).strip())[:100] if title_match else ''
+   page_title=html.unescape(re.sub(r'\s+',' ',title_match.group(1)).strip())[:100] if title_match else ''
    result['http_diagnostics']={**response_meta,
     'page_title':page_title,
     'page_bytes':len(page.encode('utf-8')),
@@ -910,7 +922,7 @@ def nutrition_fallback(page):
  # Parse embedded HelloFresh nutrition arrays without inferring missing values.
  fields={'energyKcal':'calories','calories':'calories','protein':'proteinContent','carbohydrate':'carbohydrateContent','fat':'fatContent','fiber':'fiberContent','sugar':'sugarContent','sodium':'sodiumContent','saturatedFat':'saturatedFatContent'}
  output={}
- for match in re.finditer(r'"(?:nutrition|nutritionalValues|nutritionalInformation)"\\s*:\\s*(\\[[^\\]\\n]{0,12000}\\]|\\{[^}\\n]{0,12000}\\})',page,re.I):
+ for match in re.finditer(r'"(?:nutrition|nutritionalValues|nutritionalInformation)"\s*:\s*(\[[^\[\]\n]{0,12000}\]|\{[^}\n]{0,12000}\})',page,re.I):
   try:data=json.loads(match.group(1))
   except (ValueError,TypeError):continue
   if isinstance(data,dict):data=[dict(name=k,amount=v) for k,v in data.items()]
@@ -945,14 +957,604 @@ NON_RECIPE_PATTERNS=(
  r'\b(?:variety|assortment|bulk)\s*(?:box|pack)\b',
  r'\b(?:ground|whole.bean|instant)\s+coffee\b.*\b(?:oz|lb|bag|roast|notes?\s+of)\b',
 )
+def confirmed_prepared_product(recipe):
+ """Conservative catalog-only exclusion of ready-made meal assemblies."""
+ title=str(recipe.get('name') or '').lower()
+ ingredients=recipe.get('ingredients') or {}
+ count=len(ingredients) if isinstance(ingredients,(list,dict)) else 0
+ if count<2 or count>3:return False
+ markers=('ready-to-eat','ready to eat','fully cooked','heat and eat','heat & eat','ready to heat','pre-made','prepared meal','microwave meal')
+ return any(marker in title for marker in markers)
+
 def non_recipe_reason(recipe):
  title=str(recipe.get('name','')).lower().strip()
  if not title:return 'Missing recipe title'
+ if confirmed_prepared_product(recipe):return 'Ready-made meal assembly'
  if any(re.search(pattern,title) for pattern in NON_RECIPE_PATTERNS):
   return 'Product or promotional listing'
  if re.search(r'\b\d+\s*(?:lb|lbs|oz|kg)\b',title) and re.search(r'\b(?:box|pack|case|bundle)\b',title):
   return 'Bulk packaged product'
  return None
+
+def prepared_meal_review(recipe):
+ """Review-only classification; never removes or hides recipes."""
+ title=str(recipe.get('name') or recipe.get('title') or '').lower()
+ category=' '.join(str(recipe.get(k) or '') for k in ('category','meal_type','tags','description')).lower()
+ combined=title+' '+category
+ terms=('heat and eat','heat & eat','ready to heat','ready-to-eat','fully cooked','pre-made','prepared meal','microwave meal')
+ matches=[term for term in terms if term in combined]
+ if not matches:return 'not_flagged'
+ ingredients=recipe.get('ingredients') or {}
+ ingredient_count=len(ingredients) if isinstance(ingredients,(dict,list)) else 0
+ return 'needs_review' if ingredient_count>=5 else 'likely_prepared_review'
+
+# Cooking-step audit: cache remote checks, never block the recipe API on network.
+instruction_audit_lock=threading.Lock()
+instruction_audit_running=False
+instruction_audit_paused=False
+instruction_audit_completed=0
+instruction_audit_errors=0
+def stored_cooking_steps(recipe):
+ steps=recipe.get('instructions') or recipe.get('recipeInstructions') or recipe.get('steps')
+ if isinstance(steps,str):return len(steps.strip())>=35
+ if isinstance(steps,list):
+  return any((isinstance(step,str) and len(step.strip())>=20) or
+   (isinstance(step,dict) and len(str(step.get('text') or step.get('description') or '').strip())>=20)
+   for step in steps)
+ return False
+
+def instruction_text_ok(value):
+ if isinstance(value,str):return len(re.sub(r'<[^>]*>',' ',html.unescape(value)).strip())>=25
+ if isinstance(value,list):return any(instruction_text_ok(x) for x in value)
+ if isinstance(value,dict):return any(instruction_text_ok(value.get(k)) for k in ('text','description','instructions','steps','recipeInstructions','body'))
+ return False
+
+def verify_cooking_link(url):
+ """Verify actual cooking directions; return diagnostic reason on failure."""
+ if not isinstance(url,str) or not allowed_url(url):return False,'invalid_url'
+ try:
+  req=urllib.request.Request(url,headers={'User-Agent':'Mozilla/5.0 (compatible; HelloGroceriesRecipeAudit/3.0)','Accept':'text/html'})
+  with urllib.request.urlopen(req,timeout=9) as response:
+   if not allowed_url(response.geturl()):return False,'unsafe_redirect'
+   if response.status!=200:return False,'http_error'
+   page=response.read(1500000).decode('utf-8','replace')
+  # JSON-LD Recipe instructions, including HowToStep and HowToSection.
+  for raw in re.findall(r'<script[^>]*application/ld\+json[^>]*>(.*?)</script>',page,re.I|re.S):
+   try:root=json.loads(html.unescape(raw))
+   except (ValueError,TypeError):continue
+   pending=[root]
+   while pending:
+    node=pending.pop()
+    if isinstance(node,list):pending.extend(node);continue
+    if not isinstance(node,dict):continue
+    typ=node.get('@type',[])
+    if isinstance(typ,str):typ=[typ]
+    if any(str(t).lower().endswith('recipe') for t in typ) and instruction_text_ok(node.get('recipeInstructions')):return True,'jsonld'
+    pending.extend(v for v in node.values() if isinstance(v,(dict,list)))
+  # Serialized app state: find step arrays and parse complete JSON values.
+  decoder=json.JSONDecoder()
+  for match in re.finditer(r'["\x27](?:instructions|recipeInstructions|preparationSteps|cookingSteps|steps)["\x27]\s*:\s*(?=[\[{])',page,re.I):
+   try:value,_=decoder.raw_decode(page[match.end():])
+   except (ValueError,TypeError):continue
+   if isinstance(value,(dict,list)) and instruction_text_ok(value):return True,'embedded_steps'
+  return False,'unsupported_or_missing_steps'
+ except urllib.error.HTTPError as exc:return False,'http_'+str(exc.code)
+ except (OSError,ValueError,TimeoutError,UnicodeError):return False,'network_error'
+
+def split_numbered_cooking_steps(value):
+ """Split only clearly numbered multi-step directions; never invent or rewrite text."""
+ if not isinstance(value,str) or len(value)>30000:return []
+ plain=html.unescape(re.sub(r'<[^>]+>',' ',value))
+ plain=re.sub(r'\s+',' ',plain).strip()
+ # Require explicit 'Step 1:' / 'Step 2:' markers, not quantities or times.
+ markers=list(re.finditer(r'(?<!\w)Step\s+([1-9]\d?)\s*[:.)-]\s+',plain,re.I))
+ if len(markers)<2 or len(markers)>40:return []
+ numbers=[int(match.group(1)) for match in markers]
+ if numbers!=list(range(1,len(markers)+1)):return []
+ if plain[:markers[0].start()].strip():return []
+ parts=[plain[match.end():(markers[i+1].start() if i+1<len(markers) else len(plain))].strip() for i,match in enumerate(markers)]
+ return parts if valid_recovered_steps(parts) else []
+
+def instruction_step_strings(value):
+ """Accept substantive instruction steps, never ingredient lists or marketing copy."""
+ if isinstance(value,str):
+  clean=re.sub(r'\s+',' ',html.unescape(re.sub(r'<[^>]+>',' ',value))).strip()
+  numbered=split_numbered_cooking_steps(value)
+  if numbered:return numbered
+  return [clean] if len(clean)>=25 else []
+ if isinstance(value,list):
+  result=[]
+  for item in value:result.extend(instruction_step_strings(item))
+  return result[:40]
+ if isinstance(value,dict):
+  for key in ('itemListElement','steps','recipeInstructions','instructions','preparationSteps','cookingSteps'):
+   if key in value:
+    result=instruction_step_strings(value[key])
+    if result:return result
+  for key in ('text','description','body','instruction','content'):
+   if key in value:
+    result=instruction_step_strings(value[key])
+    if result:return result
+  # Some source formats wrap each instruction in an object rather than a text field.
+  for key in ('step','stepDescription','instructionText','stepText'):
+   if key in value:
+    result=instruction_step_strings(value[key])
+    if result:return result
+ return []
+
+def parse_embedded_recipe_steps(raw):
+ """Extract validated steps from JSON or escaped JSON inside hydration strings."""
+ if not isinstance(raw,str):return []
+ variants=[raw]
+ try:
+  decoded=json.loads(raw)
+  if isinstance(decoded,str):variants.append(decoded)
+  elif isinstance(decoded,(dict,list)):
+   variants.append(json.dumps(decoded))
+ except (ValueError,TypeError):pass
+ for candidate in variants[:3]:
+  for match in re.finditer(r"""["'](?:recipeInstructions|preparationSteps|cookingSteps|instructions|steps)["']\s*:\s*(?=[\[{"'])""",candidate,re.I):
+   try:
+    value,_=json.JSONDecoder().raw_decode(candidate[match.end():])
+   except (ValueError,TypeError):continue
+   # Some hydration payloads double-encode the step array as a JSON string.
+   if isinstance(value,str):
+    try:value=json.loads(value)
+    except (ValueError,TypeError):continue
+   if not isinstance(value,(list,dict)):continue
+   steps=instruction_step_strings(value)
+   if valid_recovered_steps(steps):return steps
+ return []
+
+def hydration_cooking_steps(page):
+ """Read structured recipe steps from server-rendered app hydration data."""
+ payloads=[]
+ for match in re.finditer(r'<script\b([^>]*)>(.*?)</script\s*>',page,re.I|re.S):
+  attrs,body=match.groups()
+  if re.search(r'id=["\']__NEXT_DATA__["\']|application/json',attrs,re.I):
+   try:payloads.append(json.loads(html.unescape(body.strip())))
+   except (ValueError,TypeError):pass
+ # Next.js streaming flight payloads are JavaScript-escaped strings.
+ for raw in re.findall(r'self\.__next_f\.push\(\s*(\[.*?\])\s*\)\s*;',page,re.S)[:60]:
+  try:
+   flight=json.loads(raw)
+   if isinstance(flight,list):payloads.extend(v for v in flight if isinstance(v,(dict,list)))
+   # Flight strings can contain escaped serialized recipe objects.
+   if isinstance(flight,list):
+    for part in flight:
+     if isinstance(part,str):
+      steps=parse_embedded_recipe_steps(part)
+      if steps:return steps,'next_flight_steps'
+  except (ValueError,TypeError):pass
+ pending=payloads[:]
+ seen=0
+ while pending and seen<12000:
+  node=pending.pop();seen+=1
+  if isinstance(node,list):pending.extend(node[:150]);continue
+  if not isinstance(node,dict):continue
+  for key in ('recipeInstructions','preparationSteps','cookingSteps','instructions','steps'):
+   if key in node:
+    steps=instruction_step_strings(node[key])
+    if valid_recovered_steps(steps):return steps,'hydration_steps'
+  pending.extend(v for v in node.values() if isinstance(v,(dict,list)))
+ return [],'dynamic_app_data_unsupported' if re.search(r'__NEXT_DATA__|__NUXT__|__next_f|window\\.__INITIAL_STATE__|hydration',page,re.I) else 'no_supported_hydration_data'
+
+def extract_cooking_steps(page):
+ for raw in re.findall(r'<script[^>]*application/ld\+json[^>]*>(.*?)</script>',page,re.I|re.S):
+  try:root=json.loads(html.unescape(raw))
+  except (ValueError,TypeError):continue
+  pending=[root]
+  while pending:
+   node=pending.pop()
+   if isinstance(node,list):pending.extend(node);continue
+   if not isinstance(node,dict):continue
+   types=node.get('@type',[])
+   if isinstance(types,str):types=[types]
+   if any(str(t).lower().endswith('recipe') for t in types):
+    steps=instruction_step_strings(node.get('recipeInstructions'))
+    if valid_recovered_steps(steps):return steps,'jsonld'
+   pending.extend(v for v in node.values() if isinstance(v,(dict,list)))
+ steps,reason=hydration_cooking_steps(page)
+ if steps:return steps,reason
+ decoder=json.JSONDecoder()
+ for match in re.finditer(r'["\'](?:recipeInstructions|preparationSteps|cookingSteps|instructions|steps)["\']\s*:\s*(?=[\[{])',page,re.I):
+  try:value,_=decoder.raw_decode(page[match.end():])
+  except (ValueError,TypeError):continue
+  steps=instruction_step_strings(value)
+  if valid_recovered_steps(steps):return steps,'embedded_steps'
+ return [],'unsupported_or_missing_steps'
+
+def recipe_instruction_cache_schema(c):
+ c.execute('CREATE TABLE IF NOT EXISTS recipe_instruction_cache (recipe_id TEXT PRIMARY KEY,url TEXT NOT NULL,steps_json TEXT NOT NULL,source_format TEXT NOT NULL,checked_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)')
+
+def public_recipe_card_pdf_urls(page,source_url):
+ """Discover explicit PDF links only; never synthesize private API endpoints."""
+ matches=re.findall(r'(?:https?:)?//[^\\s"\\x27<>\\\\]{1,350}\\.pdf(?:[?#][^\\s"\\x27<>\\\\]{0,100})?',html.unescape(page),re.I)
+ matches+=re.findall(r'["\\x27](/[^"\\x27<>]{1,350}\\.pdf(?:[?#][^"\\x27<>]{0,100})?)["\\x27]',html.unescape(page),re.I)
+ output=[]
+ for raw in matches:
+  url=urllib.parse.urljoin(source_url,raw)
+  host=(urllib.parse.urlsplit(url).hostname or '').lower()
+  if url.startswith('https://') and (host=='hellofresh.com' or host.endswith('.hellofresh.com')) and url not in output:output.append(url)
+ return output[:2]
+
+def recover_public_recipe_card_pdf(page,source_url):
+ """Bounded, optional PDF text fallback; never save unvalidated instructions."""
+ for pdf_url in public_recipe_card_pdf_urls(page,source_url):
+  try:
+   req=urllib.request.Request(pdf_url,headers={'User-Agent':'HelloGroceriesRecipeRecovery/1.1','Accept':'application/pdf'})
+   with urllib.request.urlopen(req,timeout=8) as response:
+    final=response.geturl()
+    host=(urllib.parse.urlsplit(final).hostname or '').lower()
+    if not final.startswith('https://') or not (host=='hellofresh.com' or host.endswith('.hellofresh.com')):continue
+    if 'pdf' not in response.headers.get('Content-Type','').lower():continue
+    payload=response.read(3000001)
+   if len(payload)>3000000 or not payload.startswith(b'%PDF'):continue
+   # Run a bounded local PDF text extractor if the deployment includes one.
+   result=subprocess.run(['pdftotext','-layout','-','-'],input=payload,stdout=subprocess.PIPE,stderr=subprocess.DEVNULL,timeout=5,check=False)
+   if result.returncode:continue
+   content=result.stdout[:120000].decode('utf-8','replace')
+   steps=split_numbered_cooking_steps(content)
+   if valid_recovered_steps(steps):return steps,'public_recipe_card_pdf'
+  except (OSError,ValueError,TimeoutError,subprocess.TimeoutExpired,urllib.error.URLError):continue
+ return [],'pdf_unavailable_or_unverified'
+
+def recover_recipe_instructions(url):
+ """Retry transient upstream failures once; never retry unsupported content."""
+ steps,reason=_recover_recipe_instructions_once(url)
+ if reason not in ('network_error','http_429','http_500','http_502','http_503','http_504'):
+  return steps,reason
+ time.sleep(1.5)
+ return _recover_recipe_instructions_once(url)
+
+def _recover_recipe_instructions_once(url):
+ if not isinstance(url,str) or not allowed_url(url):return [],'invalid_url'
+ try:
+  req=urllib.request.Request(url,headers={'User-Agent':'Mozilla/5.0 (compatible; HelloGroceriesRecipeRecovery/1.1)','Accept':'text/html'})
+  with urllib.request.urlopen(req,timeout=9) as response:
+   if not allowed_url(response.geturl()):return [],'unsafe_redirect'
+   if response.status!=200:return [],'http_error'
+   content_type=response.headers.get('Content-Type','').lower()
+   if 'html' not in content_type:return [],'non_html_source'
+   page=response.read(1500000).decode('utf-8','replace')
+  steps,reason=extract_cooking_steps(page)
+  if steps:return steps,reason
+  pdf_steps,pdf_reason=recover_public_recipe_card_pdf(page,url)
+  if pdf_steps:return pdf_steps,pdf_reason
+  if re.search(r'<script[^>]*application/ld[+]json',page,re.I):
+   # Classify genuinely unavailable source data rather than retrying it blindly.
+   structure=instruction_page_structure_diagnostic(page)
+   state=structure.get('instruction_state')
+   if state=='short_summary_only':return [],'source_short_summary_only'
+   if state=='empty_instruction_fields':return [],'source_empty_instruction_fields'
+   return [],'structured_data_without_supported_steps'
+  if re.search(r'__NEXT_DATA__|__NUXT__|window\\.__INITIAL_STATE__|hydration',page,re.I):
+   return [],'dynamic_app_data_unsupported'
+  if re.search(r'captcha|verify you are human|access denied|enable javascript|just a moment',page,re.I):
+   return [],'blocked_or_javascript_required'
+  if re.search(r'cook(?:ing)? directions|method|preparation|instructions|step\\s*1',page,re.I):
+   return [],'instructions_in_unrecognized_html'
+  return [],'no_instruction_markers_found'
+ except urllib.error.HTTPError as exc:return [],'http_'+str(exc.code)
+ except (OSError,ValueError,TimeoutError,UnicodeError):return [],'network_error'
+
+def instruction_audit_schema(c):
+ c.execute('CREATE TABLE IF NOT EXISTS recipe_instruction_audit (recipe_id TEXT PRIMARY KEY, url TEXT NOT NULL, verified INTEGER NOT NULL, checked_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)')
+ cols={row[1] for row in c.execute('PRAGMA table_info(recipe_instruction_audit)')}
+ if 'reason' not in cols:c.execute("ALTER TABLE recipe_instruction_audit ADD COLUMN reason TEXT NOT NULL DEFAULT 'legacy_unverified'")
+ if 'version' not in cols:c.execute('ALTER TABLE recipe_instruction_audit ADD COLUMN version INTEGER NOT NULL DEFAULT 1')
+
+instruction_audit_lock=threading.Lock()
+instruction_audit_running=False
+instruction_audit_requested=False
+INSTRUCTION_AUDIT_VERSION=5
+
+def instruction_audit_rows():
+ with db() as c:
+  instruction_audit_schema(c)
+  return {rid:(url,bool(ok),reason,version) for rid,url,ok,reason,version in c.execute('SELECT recipe_id,url,verified,reason,version FROM recipe_instruction_audit')}
+
+def instruction_audit_worker():
+ global instruction_audit_running,instruction_audit_completed,instruction_audit_errors
+ try:
+  # Continue until paused or the available catalog has been checked.
+  while True:
+   with instruction_audit_lock:
+    if instruction_audit_paused:break
+   recipes=allrecipes()
+   checked=instruction_audit_rows()
+   completed=0
+   for recipe in sorted(recipes,key=lambda r: -int(r.get('id')) if str(r.get('id')).isdigit() else 0):
+    with instruction_audit_lock:
+     if instruction_audit_paused:break
+    if completed>=25:break
+    if non_recipe_reason(recipe) or stored_cooking_steps(recipe):continue
+    url=str(recipe.get('instructions_url') or recipe.get('url') or '')
+    rid=str(recipe.get('id'))
+    if not url or not allowed_url(url):continue
+    previous=checked.get(rid)
+    if previous and previous[0]==url and previous[3]>=INSTRUCTION_AUDIT_VERSION:continue
+    try:
+     steps,reason=recover_recipe_instructions(url)
+     ok=valid_recovered_steps(steps)
+     if steps and not ok:reason='invalid_recovered_steps'
+     if ok:
+      with db() as c:
+       recipe_instruction_cache_schema(c)
+       c.execute('INSERT OR REPLACE INTO recipe_instruction_cache (recipe_id,url,steps_json,source_format,checked_at) VALUES (?,?,?,?,CURRENT_TIMESTAMP)',(rid,url,json.dumps(steps),reason))
+       c.commit()
+     with db() as c:
+      instruction_audit_schema(c)
+      c.execute('INSERT OR REPLACE INTO recipe_instruction_audit (recipe_id,url,verified,checked_at,reason,version) VALUES (?,?,?,CURRENT_TIMESTAMP,?,?)',(rid,url,int(ok),reason,INSTRUCTION_AUDIT_VERSION))
+      c.commit()
+    except Exception:
+     with instruction_audit_lock:instruction_audit_errors+=1
+     # Do not spin indefinitely on a failing source.
+     with db() as c:
+      instruction_audit_schema(c)
+      c.execute('INSERT OR REPLACE INTO recipe_instruction_audit (recipe_id,url,verified,checked_at,reason,version) VALUES (?,?,0,CURRENT_TIMESTAMP,?,?)',(rid,url,'recovery_error',INSTRUCTION_AUDIT_VERSION))
+      c.commit()
+    completed+=1
+    with instruction_audit_lock:instruction_audit_completed+=1
+    time.sleep(0.4)
+   if completed==0:break
+   # Allow the host and upstream sources to recover between batches.
+   time.sleep(3)
+ except Exception:
+  import traceback
+  traceback.print_exc()
+  with instruction_audit_lock:instruction_audit_errors+=1
+ finally:
+  with instruction_audit_lock:instruction_audit_running=False
+
+def start_instruction_audit():
+ global instruction_audit_running
+ with instruction_audit_lock:
+  if instruction_audit_running or instruction_audit_paused:return False
+  instruction_audit_running=True
+ threading.Thread(target=instruction_audit_worker,name='recipe-instruction-audit',daemon=True).start()
+ return True
+
+
+def instruction_field_diagnostics(limit=12):
+ """Admin-only summary of instruction-shaped fields; no recipe text or URLs exposed."""
+ recipes=[r for r in allrecipes() if isinstance(r,dict) and not non_recipe_reason(r)]
+ fields={}
+ samples=[]
+ keys=('instructions','recipeInstructions','steps','preparationSteps','cookingSteps','method','directions','preparation','instruction','instructionSteps')
+ for r in recipes:
+  present=[]
+  for key in keys:
+   value=r.get(key)
+   if value is None or value=='' or value==[]:continue
+   present.append(key)
+   record=fields.setdefault(key,{'present':0,'usable':0,'types':{}})
+   record['present']+=1
+   kind=type(value).__name__
+   record['types'][kind]=record['types'].get(kind,0)+1
+   if instruction_text_ok(value):record['usable']+=1
+  if len(samples)<limit and (present or len(samples)<min(4,limit)):
+   samples.append({'recipe_id':str(r.get('id',''))[:64],'fields':present,'has_source_link':bool(r.get('instructions_url') or r.get('url')),'stored_steps_detected':stored_cooking_steps(r)})
+ return {'total_recipes':len(recipes),'field_summary':fields,'samples':samples,'note':'Diagnostic samples show field names and presence only, not cooking text.'}
+
+instruction_diagnostic_lock=threading.Lock()
+instruction_diagnostic_state={'running':False,'results':[],'error':None,'tested':0}
+
+def start_instruction_recovery_diagnostic():
+ with instruction_diagnostic_lock:
+  if instruction_diagnostic_state['running']:return False
+  instruction_diagnostic_state.update(running=True,results=[],error=None,tested=0)
+ def worker():
+  try:
+   result=instruction_recovery_diagnostic()
+   with instruction_diagnostic_lock:instruction_diagnostic_state.update(running=False,results=result['results'],tested=result['tested'])
+  except Exception as exc:
+   with instruction_diagnostic_lock:instruction_diagnostic_state.update(running=False,error=type(exc).__name__)
+ threading.Thread(target=worker,daemon=True,name='recipe-instruction-diagnostic').start()
+ return True
+
+def instruction_recovery_diagnostic_status():
+ with instruction_diagnostic_lock:return dict(instruction_diagnostic_state)
+
+def recovered_step_validation_reason(steps):
+ """Explain rejected candidates without exposing recipe text."""
+ if not isinstance(steps,list):return 'not_a_step_list'
+ if len(steps)<2:return 'fewer_than_two_steps'
+ if len(steps)>40:return 'too_many_steps'
+ cleaned=[re.sub(r'\s+',' ',str(step)).strip() for step in steps]
+ if any(len(step)<12 for step in cleaned):return 'step_too_short'
+ if any(len(step)>3500 for step in cleaned):return 'step_too_long'
+ if not any(len(step)>=25 for step in cleaned):return 'no_substantive_step'
+ if len(set(step.lower() for step in cleaned))<2:return 'duplicate_steps'
+ return 'valid'
+
+def valid_recovered_steps(steps):
+ return recovered_step_validation_reason(steps)=='valid'
+
+def instruction_text_format_summary(value):
+ """Only return aggregate text features, never source text."""
+ if not isinstance(value,str):return None
+ plain=html.unescape(re.sub(r'<[^>]+>',' ',value))
+ clean=re.sub(r'\s+',' ',plain).strip()
+ markers=re.findall(r'(?<!\w)Step\s+[1-9]\d?\s*[:.)-]\s+',clean,re.I)
+ paragraphs=[part for part in re.split(r'\n\s*\n|<br\s*/?>|</p>',value,flags=re.I) if part.strip()]
+ return {'characters':len(clean),'sentences':len(re.findall(r'[.!?](?:\s|$)',clean)),'paragraphs':len(paragraphs),'numbered_step_markers':len(markers),'html_step_markers':len(re.findall(r'<(?:li|p|br)\b',value,re.I)),'split_candidate_steps':len(split_numbered_cooking_steps(value)),'single_step_length_valid':25<=len(clean)<=3500}
+
+def instruction_json_shape_summary(page):
+ """Inspect parsed JSON-LD instruction fields without exposing recipe content."""
+ summary=[]
+ for attrs,body in re.findall(r'<script\b([^>]*)>(.*?)</script\s*>',page,re.I|re.S):
+  if not re.search(r'application/(?:ld\+)?json|__NEXT_DATA__',attrs,re.I):continue
+  try:root=json.loads(html.unescape(body.strip()))
+  except (ValueError,TypeError):
+   summary.append({'parse_status':'invalid_json','script_type':'jsonld' if 'ld+json' in attrs else 'json'})
+   continue
+  pending=[root]
+  seen=0
+  while pending and seen<5000:
+   node=pending.pop();seen+=1
+   if isinstance(node,list):
+    pending.extend(node[:100]);continue
+   if not isinstance(node,dict):continue
+   for key in ('recipeInstructions','instructions','steps','preparationSteps','cookingSteps'):
+    if key not in node:continue
+    value=node[key]
+    first=value[0] if isinstance(value,list) and value else value
+    fields=sorted(str(k)[:40] for k in first.keys())[:15] if isinstance(first,dict) else []
+    summary.append({'parse_status':'ok','field':key,'value_type':type(value).__name__,'item_count':len(value) if isinstance(value,list) else None,'empty':not bool(value),'sample_fields':fields,'text_format':instruction_text_format_summary(first.get('text')) if isinstance(first,dict) else instruction_text_format_summary(first)})
+    if len(summary)>=15:return summary
+   pending.extend(v for v in node.values() if isinstance(v,(dict,list)))
+ return summary
+
+def instruction_page_structure_diagnostic(page):
+ """Report structural signals only; never return page text, scripts, or URLs."""
+ scripts=re.findall(r'<script\b([^>]*)>(.*?)</script\s*>',page,re.I|re.S)
+ jsonld=sum(bool(re.search(r'application/ld\+json',attrs,re.I)) for attrs,_ in scripts)
+ json_scripts=sum(bool(re.search(r'application/json',attrs,re.I)) for attrs,_ in scripts)
+ next_data=any(bool(re.search(r'__NEXT_DATA__',attrs,re.I)) for attrs,_ in scripts)
+ flight=len(re.findall(r'self\.__next_f\.push\s*\(',page))
+ keys=('recipeInstructions','preparationSteps','cookingSteps','instructionSteps','instructions','steps')
+ key_counts={key:len(re.findall(r'["\x27]'+re.escape(key)+r'["\x27]\s*:',page,re.I)) for key in keys}
+ # Inspect only public page metadata; do not guess endpoints or download files.
+ pdf_links=re.findall(r'(?:https?:)?//[^\\s"\\x27<>\\\\]{1,350}\\.pdf(?:[?#][^\\s"\\x27<>\\\\]{0,100})?',html.unescape(page),re.I)
+ pdf_links+=re.findall(r'["\\x27](/[^"\\x27<>]{1,350}\\.pdf(?:[?#][^"\\x27<>]{0,100})?)["\\x27]',html.unescape(page),re.I)
+ recipe_card_signals=len(set(pdf_links))
+ recipe_card_markers=len(re.findall(r'(?:recipe.?card|download.?pdf|pdf.?download|recipe.?pdf)',page,re.I))
+ instruction_shapes=instruction_json_shape_summary(page)
+ formats=[shape.get('text_format') for shape in instruction_shapes if isinstance(shape.get('text_format'),dict)]
+ if any(fmt.get('split_candidate_steps',0)>=2 for fmt in formats):instruction_state='numbered_steps_candidate'
+ elif any(fmt.get('characters',0)>0 and fmt.get('characters',0)<180 and fmt.get('sentences',0)<=2 for fmt in formats):instruction_state='short_summary_only'
+ elif instruction_shapes and all(shape.get('empty') for shape in instruction_shapes):instruction_state='empty_instruction_fields'
+ else:instruction_state='unrecognized_instruction_format'
+ return {'script_count':len(scripts),'jsonld_scripts':jsonld,'json_scripts':json_scripts,'next_data':next_data,'next_flight_chunks':flight,'nuxt_markers':bool(re.search(r'__NUXT__|__NUXT_DATA__',page,re.I)),'initial_state_marker':bool(re.search(r'__INITIAL_STATE__',page,re.I)),'instruction_key_counts':key_counts,'json_instruction_shapes':instruction_shapes,'instruction_state':instruction_state,'recipe_card_pdf_links':recipe_card_signals,'recipe_card_markers':recipe_card_markers,'javascript_required_marker':bool(re.search(r'enable javascript|javascript is required',page,re.I)),'blocked_marker':bool(re.search(r'captcha|verify you are human|access denied|just a moment',page,re.I))}
+
+def diagnose_instruction_source_structure(url):
+ """Fetch one allowed recipe source and report only structural metadata."""
+ if not allowed_url(url):return {'error':'invalid_url'}
+ try:
+  req=urllib.request.Request(url,headers={'User-Agent':'Mozilla/5.0 (compatible; HelloGroceriesRecipeRecovery/1.1)','Accept':'text/html'})
+  with urllib.request.urlopen(req,timeout=9) as response:
+   if not allowed_url(response.geturl()):return {'error':'unsafe_redirect'}
+   if 'html' not in response.headers.get('Content-Type','').lower():return {'error':'non_html_source'}
+   page=response.read(1500000).decode('utf-8','replace')
+  return instruction_page_structure_diagnostic(page)
+ except urllib.error.HTTPError as exc:return {'error':'http_'+str(exc.code)}
+ except (OSError,ValueError,TimeoutError,UnicodeError):return {'error':'network_error'}
+
+def instruction_recovery_diagnostic():
+ """Run ten bounded source checks, saving only validated instructions."""
+ recipes=[r for r in allrecipes() if isinstance(r,dict) and not non_recipe_reason(r)]
+ checked=instruction_audit_rows()
+ candidates=[r for r in recipes if not stored_cooking_steps(r) and allowed_url(str(r.get('instructions_url') or r.get('url') or ''))]
+ # Prefer fresh sources, then older failed checks; avoid repeatedly sampling one ID range.
+ # Sample known failure categories rather than only the newest recipe IDs.
+ priority={'invalid_recovered_steps':0,'dynamic_app_data_unsupported':1,'network_error':2}
+ candidates.sort(key=lambda r: (priority.get(checked.get(str(r.get('id')),(None,None,'',0))[2],3),-int(r.get('id')) if str(r.get('id')).isdigit() else 0))
+ groups={}
+ for recipe in candidates:
+  reason=checked.get(str(recipe.get('id')),(None,None,'unverified',0))[2]
+  groups.setdefault(reason,[]).append(recipe)
+ selected=[]
+ for reason in ('invalid_recovered_steps','dynamic_app_data_unsupported','network_error'):
+  selected.extend(groups.get(reason,[])[:3])
+ for recipe in candidates:
+  if len(selected)>=10:break
+  if recipe not in selected:selected.append(recipe)
+ candidates=selected[:10]
+ results=[]
+ for recipe in candidates:
+  rid=str(recipe.get('id'))
+  url=str(recipe.get('instructions_url') or recipe.get('url') or '')
+  previous_reason=checked.get(rid,(None,None,'unverified',0))[2]
+  steps,reason=recover_recipe_instructions(url)
+  step_count=len(steps) if isinstance(steps,list) else 0
+  step_lengths=[len(str(step)) for step in steps[:8]] if isinstance(steps,list) else []
+  validation=recovered_step_validation_reason(steps) if steps else 'no_candidate'
+  saved=False
+  if steps and validation!='valid':
+   steps=[];reason='invalid_recovered_steps'
+  if steps:
+   with db() as c:
+    recipe_instruction_cache_schema(c)
+    c.execute('INSERT OR REPLACE INTO recipe_instruction_cache (recipe_id,url,steps_json,source_format,checked_at) VALUES (?,?,?,?,CURRENT_TIMESTAMP)',(rid,url,json.dumps(steps),reason))
+    c.commit()
+    saved=bool(c.execute('SELECT 1 FROM recipe_instruction_cache WHERE recipe_id=? AND url=?',(rid,url)).fetchone())
+  with db() as c:
+   instruction_audit_schema(c)
+   c.execute('INSERT OR REPLACE INTO recipe_instruction_audit (recipe_id,url,verified,checked_at,reason,version) VALUES (?,?,?,CURRENT_TIMESTAMP,?,?)',(rid,url,int(saved),reason,INSTRUCTION_AUDIT_VERSION))
+   c.commit()
+  structure=diagnose_instruction_source_structure(url) if reason in ('dynamic_app_data_unsupported','invalid_recovered_steps','structured_data_without_supported_steps','source_short_summary_only','source_empty_instruction_fields') else None
+  results.append({'recipe_id':rid,'source_host':urllib.parse.urlparse(url).hostname,'previous_reason':previous_reason,'result':reason,'validation':validation,'candidate_steps_found':step_count,'steps_found':len(steps),'saved':saved,'step_lengths':step_lengths,'page_structure':structure})
+ source_states={}
+ pdf_candidates=0
+ for item in results:
+  structure=item.get('page_structure') or {}
+  state=structure.get('instruction_state') or 'not_inspected'
+  source_states[state]=source_states.get(state,0)+1
+  if structure.get('recipe_card_pdf_links',0):pdf_candidates+=1
+ return {'source_quality_sample':source_states,'pdf_link_candidates':pdf_candidates,'tested':len(results),'results':results,'note':'Ten live checks only. URLs and instruction text are not returned. Failed checks never exclude recipes.'}
+
+def prepared_meal_review_samples(limit=50):
+ """Read-only admin review; no recipe exclusion or modification."""
+ samples=[]
+ for recipe in allrecipes():
+  if non_recipe_reason(recipe) and not confirmed_prepared_product(recipe):continue
+  classification=prepared_meal_review(recipe)
+  if classification=='not_flagged':continue
+  ingredients=recipe.get('ingredients') or {}
+  samples.append({'id':str(recipe.get('id') or ''),'title':str(recipe.get('name') or recipe.get('title') or '')[:160],'classification':classification,'ingredient_count':len(ingredients) if isinstance(ingredients,(dict,list)) else 0,'url':str(recipe.get('instructions_url') or recipe.get('url') or '')[:400]})
+  if len(samples)>=limit:break
+ return samples
+
+# Short-lived status snapshot avoids repeated full-catalog scans during admin polling.
+_instruction_status_cache=None
+_instruction_status_cache_at=0.0
+_instruction_status_cache_lock=threading.Lock()
+
+def instruction_audit_status():
+ global _instruction_status_cache,_instruction_status_cache_at
+ now=time.monotonic()
+ with _instruction_status_cache_lock:
+  if _instruction_status_cache is not None and now-_instruction_status_cache_at<10:
+   return dict(_instruction_status_cache)
+ return _compute_instruction_audit_status()
+
+def _compute_instruction_audit_status():
+ catalog=allrecipes()
+ excluded_prepared=sum(1 for r in catalog if confirmed_prepared_product(r))
+ recipes=[r for r in catalog if not non_recipe_reason(r)]
+ rows=instruction_audit_rows()
+ current={str(r.get('id')):r for r in recipes}
+ applicable={rid:row for rid,row in rows.items() if rid in current and row[0]==str(current[rid].get('instructions_url') or current[rid].get('url') or '')}
+ reasons={}
+ for row in applicable.values():
+  reason=row[2] if row[3]>=INSTRUCTION_AUDIT_VERSION else 'legacy_unverified'
+  reasons[reason]=reasons.get(reason,0)+1
+ verified=sum(int(row[1] and row[3]>=INSTRUCTION_AUDIT_VERSION) for row in applicable.values())
+ stored_ids={str(r.get('id')) for r in recipes if stored_cooking_steps(r)}
+ stored=len(stored_ids)
+ pending=sum(1 for r in recipes if str(r.get('id')) not in stored_ids and (str(r.get('id')) not in applicable or applicable[str(r.get('id'))][3]<INSTRUCTION_AUDIT_VERSION))
+ with db() as c:
+  instruction_audit_schema(c)
+  latest=c.execute('SELECT MAX(checked_at) FROM recipe_instruction_audit').fetchone()[0]
+ recovered=sum(1 for r in applicable.values() if r[1] and r[3]>=INSTRUCTION_AUDIT_VERSION)
+ failures=sum(1 for r in applicable.values() if not r[1] and r[3]>=INSTRUCTION_AUDIT_VERSION)
+ prepared_review={'likely_prepared_review':0,'needs_review':0,'not_flagged':0}
+ for recipe in catalog:
+  if non_recipe_reason(recipe) and not confirmed_prepared_product(recipe):continue
+  prepared_review[prepared_meal_review(recipe)]+=1
+ result={'recovery_success_rate':round(100*recovered/max(1,recovered+failures),1),'completed_current_version':recovered+failures,'recovered':recovered,'failed_current_version':failures,'progress_percent':round(100*(len(recipes)-pending)/max(1,len(recipes)),2),'running':instruction_audit_running and (recovered+failures<len(recipes)),'phase':('paused' if instruction_audit_paused else 'completed_with_unverified' if recovered+failures>=len(recipes) and failures else 'completed' if recovered+failures>=len(recipes) else 'running' if instruction_audit_running else 'idle'),'paused':instruction_audit_paused,'processed_this_process':instruction_audit_completed,'worker_errors':instruction_audit_errors,'checked':len(applicable),'verified':verified,'unverified':len(applicable)-verified,'excluded':excluded_prepared,'prepared_meal_review':prepared_review,'stored_steps':stored,'total_recipes':len(recipes),'pending':pending,'last_checked_at':latest,'reasons':reasons,'version':INSTRUCTION_AUDIT_VERSION,'note':'Initial checks complete; failed or unsupported sources remain unverified and can be retried separately.' if recovered+failures>=len(recipes) else 'Recovery continues automatically in rate-limited batches of 25 until paused or completed. Verified steps are cached; unverified links never hide recipes.'}
+
+ with _instruction_status_cache_lock:
+  global _instruction_status_cache,_instruction_status_cache_at
+  _instruction_status_cache=result
+  _instruction_status_cache_at=time.monotonic()
+ return dict(result)
+
+def visible_cooking_recipe(recipe,checks):
+ if stored_cooking_steps(recipe):return True
+ url=str(recipe.get('instructions_url') or recipe.get('url') or '')
+ return bool(url and allowed_url(url)) # Fail open for inconclusive checks; no deletion.
 
 def validate_import_recipe(recipe):
  """Apply catalog policy at the import boundary; do not delete prior entries."""
@@ -1005,6 +1607,10 @@ def recipe_from_url(url):
   except (ValueError,TypeError,RecursionError):pass
   if found:break
  if not found:raise ValueError('This page has no accessible structured recipe data. Try a different public recipe URL.')
+ # Capture only validated instructions from the selected JSON-LD Recipe node.
+ # Never borrow instructions from unrelated embedded recipes or UI translations.
+ source_steps=instruction_step_strings(found.get('recipeInstructions'))
+ if not valid_recovered_steps(source_steps):source_steps=[]
  name=str(found.get('name','')).strip()
  if not name:raise ValueError('Recipe title missing')
  photo=found.get('image','');photo=photo[0] if isinstance(photo,list) and photo else photo
@@ -1039,7 +1645,9 @@ def recipe_from_url(url):
  serving_match=re.search(r'\d+(?:\.\d+)?',str(source_yield or ''))
  source_servings=float(serving_match.group()) if serving_match else None
  if source_servings is not None and not (0<source_servings<=20):source_servings=None
- return validate_import_recipe({'name':name,'country':recipe_country_from_url(url),'url':url,'image':str(photo),'ingredients':ingredients,'ingredient_text':items,'source':'HelloFresh page','source_servings':source_servings,'instructions_url':url,'nutrition':nutrition,'dietary_labels':diet_labels})
+ recipe_payload={'name':name,'country':recipe_country_from_url(url),'url':url,'image':str(photo),'ingredients':ingredients,'ingredient_text':items,'source':'HelloFresh page','source_servings':source_servings,'instructions_url':url,'nutrition':nutrition,'dietary_labels':diet_labels}
+ if source_steps:recipe_payload['instructions']=source_steps
+ return validate_import_recipe(recipe_payload)
 
 def discover_sitemap(country,limit):
  roots={'US':'https://www.hellofresh.com/sitemap_recipe_pages.xml','UK':'https://www.hellofresh.co.uk/sitemap.xml','AU':'https://www.hellofresh.com.au/sitemap.xml','CA':'https://www.hellofresh.ca/sitemap.xml','DE':'https://www.hellofresh.de/sitemap.xml','NL':'https://www.hellofresh.nl/sitemap.xml'}
@@ -2664,7 +3272,26 @@ class Handler(SimpleHTTPRequestHandler):
     if photo.suffix.lower() in ('.jpg','.png','.webp','.gif') and photo.stem.isdigit() and photo.is_file() and photo.stat().st_size>0:
      cached_ids.append(int(photo.stem))
    return self.sendjson({'ids':cached_ids})
-  if self.path=='/api/recipes':return self.sendjson([r for r in allrecipes() if not non_recipe_reason(r)])
+  if self.path=='/api/recipes':
+   checks=instruction_audit_rows()
+   start_instruction_audit()
+   return self.sendjson([r for r in allrecipes() if not non_recipe_reason(r) and visible_cooking_recipe(r,checks)])
+  if self.path=='/api/recipe-instruction-audit/diagnose/status':
+   if not self.gate():return
+   if not getattr(request_scope,'admin',False):return self.sendjson({'error':'Administrator required'},403)
+   return self.sendjson(instruction_recovery_diagnostic_status())
+  if self.path=='/api/recipe-instruction-audit/diagnostics':
+   if not getattr(request_scope,'admin',False):return self.sendjson({'error':'Administrator required'},403)
+   return self.sendjson(instruction_field_diagnostics())
+  if self.path=='/api/recipe-instruction-audit/prepared-review':
+   if not self.gate():return
+   if not getattr(request_scope,'admin',False):return self.sendjson({'error':'Administrator required'},403)
+   return self.sendjson({'recipes':prepared_meal_review_samples(),'note':'Review only; no recipes are hidden or removed.'})
+  if self.path=='/api/recipe-instruction-audit/status':
+   if not self.gate():return
+   if not getattr(request_scope,'admin',False):return self.sendjson({'error':'Administrator required'},403)
+   start_instruction_audit()
+   return self.sendjson(instruction_audit_status())
   if self.path=='/api/state':
    with lock:
     state=read()
@@ -2918,6 +3545,40 @@ class Handler(SimpleHTTPRequestHandler):
      c.commit()
     return self.sendjson({'ok':True,'visibility':pricing_visibility()})
    except (ValueError,TypeError) as exc:return self.sendjson({'error':str(exc)},400)
+  if self.path=='/api/recipe-instruction-audit/diagnose':
+   if not self.gate(write=True):return
+   if not getattr(request_scope,'admin',False):return self.sendjson({'error':'Administrator required'},403)
+   if instruction_audit_running:return self.sendjson({'error':'Wait for the active audit to finish'},409)
+   return self.sendjson({'started':start_instruction_recovery_diagnostic()},202)
+  if self.path in ('/api/recipe-instruction-audit/pause','/api/recipe-instruction-audit/resume'):
+   if not self.gate(write=True):return
+   if not getattr(request_scope,'admin',False):return self.sendjson({'error':'Administrator required'},403)
+   global instruction_audit_paused
+   with instruction_audit_lock:
+    instruction_audit_paused=self.path.endswith('/pause')
+   started=start_instruction_audit() if not instruction_audit_paused else False
+   return self.sendjson({'ok':True,'paused':instruction_audit_paused,'started':started})
+  if self.path=='/api/recipe-instruction-audit/retry-validation':
+   if not self.gate(write=True):return
+   if not getattr(request_scope,'admin',False):return self.sendjson({'error':'Administrator required'},403)
+   if instruction_audit_running:return self.sendjson({'error':'Audit already running'},409)
+   # Recheck only a small batch of validation failures, preserving successful caches.
+   with db() as c:
+    instruction_audit_schema(c)
+    ids=[row[0] for row in c.execute("SELECT recipe_id FROM recipe_instruction_audit WHERE verified=0 AND reason='invalid_recovered_steps' AND version=? ORDER BY checked_at,recipe_id LIMIT 25",(INSTRUCTION_AUDIT_VERSION,))]
+    if ids:
+     c.executemany('UPDATE recipe_instruction_audit SET version=1 WHERE recipe_id=? AND verified=0',[(rid,) for rid in ids])
+     c.commit()
+   return self.sendjson({'selected':len(ids),'started':start_instruction_audit() if ids else False,'message':'Retrying up to 25 previously invalid instruction recoveries; verified caches remain unchanged.'})
+  if self.path=='/api/recipe-instruction-audit/retry':
+   if not self.gate(write=True):return
+   if not getattr(request_scope,'admin',False):return self.sendjson({'error':'Administrator required'},403)
+   if instruction_audit_running:return self.sendjson({'error':'Audit already running'},409)
+   with db() as c:
+    instruction_audit_schema(c)
+    c.execute('UPDATE recipe_instruction_audit SET version=1 WHERE verified=0')
+    c.commit()
+   return self.sendjson({'started':start_instruction_audit(),'message':'Retrying unverified source links in a batch of up to 25.'})
   if self.path=='/api/admin/tasks/run':
    if not self.gate(write=True):return
    if not getattr(request_scope,'admin',False):return self.sendjson({'error':'Administrator required'},403)
