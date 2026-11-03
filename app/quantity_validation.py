@@ -102,7 +102,9 @@ def robust_prediction(samples, ingredient_category):
     return center
 
 
-def evaluate(recipes, limit=5000, minimum_examples=5):
+def evaluate(recipes, limit=5000, minimum_examples=5, prediction_policy="conservative"):
+    if prediction_policy not in ("conservative", "median_baseline"):
+        raise ValueError("Unknown prediction policy")
     """Recipe-level holdout with per-serving normalization and cautious abstention.
 
     Reports overall prediction error and separately the coverage of high-consensus
@@ -193,7 +195,8 @@ def evaluate(recipes, limit=5000, minimum_examples=5):
                     if relative_mad(contextual_samples) > relative_mad(baseline):
                         samples = baseline
                         use_context = False
-            predicted_unit = robust_prediction(samples, category(name))
+            predicted_unit = (median(samples) if prediction_policy == "median_baseline"
+                              else robust_prediction(samples, category(name)))
             if predicted_unit is None:
                 continue
             estimate = predicted_unit * servings if servings else predicted_unit
@@ -256,7 +259,7 @@ def evaluate(recipes, limit=5000, minimum_examples=5):
                                  "serving_normalized": bool(servings), "recipe_context": context,
                                  "match_method": "contextual" if use_context else "fallback",
                                  "high_consensus": consensus})
-    return {"mode": "offline_validation_only", "evaluated": checked, "evaluation_limit": limit,
+    return {"mode": "offline_validation_only", "prediction_policy": prediction_policy, "evaluated": checked, "evaluation_limit": limit,
             "holdout_strategy": "recipe_disjoint_category_round_robin_with_independent_cohort",
             "independent_check": {**independent,
                 "within_25_percent": round(independent["within_25"] / independent["high_consensus"], 3) if independent["high_consensus"] else None,
@@ -284,3 +287,34 @@ def evaluate(recipes, limit=5000, minimum_examples=5):
                 "high_consensus_within_25_percent": round(stats["high_consensus_within_25"] / stats["high_consensus"], 3) if stats["high_consensus"] else None,
             } for method, stats in method_stats.items()},
             "examples": examples, "applied_changes": 0}
+
+
+def compare_prediction_policies(recipes, limit=5000, minimum_examples=5):
+    """Read-only paired comparison on identical recipe-disjoint holdouts.
+
+    The unfiltered median is a fixed reference, not a proposed rollout model.
+    Accuracy and coverage must both be considered before changing policy.
+    """
+    recipes = list(recipes)
+    baseline = evaluate(recipes, limit=limit, minimum_examples=minimum_examples,
+                        prediction_policy="median_baseline")
+    candidate = evaluate(recipes, limit=limit, minimum_examples=minimum_examples,
+                         prediction_policy="conservative")
+    categories = {}
+    for name in sorted(set(baseline["categories"]) | set(candidate["categories"])):
+        old = baseline["categories"].get(name, {})
+        new = candidate["categories"].get(name, {})
+        categories[name] = {
+            "baseline_covered": old.get("covered", 0),
+            "candidate_covered": new.get("covered", 0),
+            "baseline_within_25_percent": old.get("within_25_percent"),
+            "candidate_within_25_percent": new.get("within_25_percent"),
+        }
+    return {
+        "mode": "offline_validation_only", "applied_changes": 0,
+        "same_holdout": baseline["evaluated"] == candidate["evaluated"],
+        "baseline": {k: baseline[k] for k in ("evaluated", "covered", "coverage", "within_25_percent", "high_confidence", "independent_check")},
+        "candidate": {k: candidate[k] for k in ("evaluated", "covered", "coverage", "within_25_percent", "high_confidence", "independent_check")},
+        "priority_categories": {k: categories[k] for k in ("oils_fats", "dairy", "grain_or_starch") if k in categories},
+        "categories": categories,
+    }
