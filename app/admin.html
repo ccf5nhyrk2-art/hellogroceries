@@ -1210,7 +1210,9 @@ document.getElementById('instruction-diagnose')?.addEventListener('click',async(
    const data=await check.json();if(!check.ok)throw Error(data.error||'Unable to read status');
    if(data.running){status.textContent='Checking up to 10 recipe sources in the background…';continue}
    if(data.error)throw Error('Server diagnostic failed: '+data.error);
-   status.textContent='Checked '+data.tested+' recipe sources.';
+   const quality=Object.entries(data.source_quality_sample||{}).map(([name,count])=>name.replaceAll('_',' ')+': '+count).join(' · ');
+   status.textContent='Checked '+data.tested+' recipe sources. '+quality+' · Recipe-card PDF link candidates: '+(data.pdf_link_candidates??0)+' (sample only)';
+
    output.textContent=(data.results||[]).map(r=>{
     const lines=['Recipe '+r.recipe_id+' · '+(r.source_host||'unknown host')+' · '+r.result+' · '+r.steps_found+' steps · '+(r.saved?'Saved successfully':'Not saved')];
     if(r.previous_reason)lines.push('  Previous: '+r.previous_reason);
@@ -1220,6 +1222,7 @@ document.getElementById('instruction-diagnose')?.addEventListener('click',async(
      const p=r.page_structure;
      if(p.error)lines.push('  Page inspection: '+p.error);
      else{
+      lines.push('  Recipe-card PDF links: '+(p.recipe_card_pdf_links??0));
       lines.push('  Page scripts: '+p.script_count+' · JSON-LD: '+p.jsonld_scripts+' · JSON scripts: '+p.json_scripts);
       lines.push('  Next.js data: '+(p.next_data?'yes':'no')+' · Flight chunks: '+p.next_flight_chunks+' · Nuxt: '+(p.nuxt_markers?'yes':'no')+' · Initial state: '+(p.initial_state_marker?'yes':'no'));
       lines.push('  Instruction keys: '+Object.entries(p.instruction_key_counts||{}).filter(([key,count])=>count>0).map(([key,count])=>key+'='+count).join(', ') || '  Instruction keys: none');
