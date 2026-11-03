@@ -1766,7 +1766,7 @@ function consolidatedShoppingRows(items){
   let amount=row.amount,unit=row.baseUnit;
   if(unit==='teaspoon'&&amount>=48&&Math.abs(amount/48-Math.round(amount/48*8)/8)<0.002){amount/=48;unit='cup'}
   else if(unit==='teaspoon'&&amount>=3&&Math.abs(amount/3-Math.round(amount/3*8)/8)<0.002){amount/=3;unit='tablespoon'}
-  else if(unit==='ounce'&&amount>=16){amount/=16;unit='pound'}
+  else if(unit==='ounce'&&amount>=16&&!/\b(?:sauce|marinara|salsa|dressing|mayonnaise|mayo|ketchup|mustard|jam|jelly|honey|syrup|broth|stock)\b/i.test(row.ingredient)){amount/=16;unit='pound'}
   else if(unit==='gram'&&amount>=1000){amount/=1000;unit='kilogram'}
   else if(unit==='milliliter'&&amount>=1000){amount/=1000;unit='liter'}
   row.label=groceryNumber(amount)+(unit?' '+ingredientPluralUnit(unit,amount):'')+' '+(canonicalProduce(row.ingredient)==='black pepper'?'Black Pepper':row.ingredient);
@@ -1782,6 +1782,11 @@ function purchaseSuggestion(row){
  const item=(quantity,size,kind,description,note)=>({label:quantity+' × '+size+' '+description+' '+(quantity===1?kind:kind+'s'),note});
  const measured=(unitLabel)=>groceryNumber(amount)+' '+unitLabel+' needed';
  const has=(pattern)=>pattern.test(lower);
+ // Jar sizes are suggestions only; never treat weight ounces as fluid ounces.
+ if(unit==='ounce'&&/\b(?:marinara|pasta sauce|tomato sauce)\b/.test(lower)&&Number.isFinite(amount)&&amount>0){
+  const jars=Math.ceil((amount-1e-8)/24);
+  return {label:jars+' × 24 oz '+name+' '+(jars===1?'jar':'jars'),note:measured('oz (weight)')+' · suggested jar size; check package net weight'};
+ }
  // "pick" is a HelloFresh source marker, not a unit of measurement.
  if(/^\s*(?:\d+(?:\.\d+)?\s+)?pick\s+/i.test(row.label)){
   return {label:name.replace(/^pick\s+/i,''),note:'⚠ Quantity needs review — source recipe says “pick”'};
