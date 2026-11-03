@@ -1204,6 +1204,10 @@ document.getElementById('instruction-diagnose')?.addEventListener('click',async(
        shapes.forEach((shape,index)=>{
         const fields=Array.isArray(shape.sample_fields)?shape.sample_fields:[];
         lines.push('    '+(index+1)+'. '+(shape.parse_status==='invalid_json'?'Malformed JSON':(shape.field||'unknown')+' · '+(shape.value_type||'unknown')+' · '+(shape.empty?'empty':'populated')+(shape.item_count===null?'':' · '+shape.item_count+' item(s)'))+' · Fields: '+(fields.length?fields.join(', '):'none'));
+        if(shape.text_format){
+         const t=shape.text_format;
+         lines.push('       Text format: '+t.characters+' characters · '+t.sentences+' sentences · '+t.paragraphs+' paragraphs · '+t.numbered_step_markers+' numbered markers · '+t.html_step_markers+' HTML markers · '+t.split_candidate_steps+' valid split steps');
+        }
        });
       }else lines.push('  JSON instruction structures: none detected');
       if(p.blocked_marker||p.javascript_required_marker)lines.push('  Blocked: '+(p.blocked_marker?'yes':'no')+' · JavaScript required: '+(p.javascript_required_marker?'yes':'no'));
