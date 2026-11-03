@@ -8,14 +8,16 @@ const headers = process.env.CF_ACCESS_CLIENT_ID && process.env.CF_ACCESS_CLIENT_
   ? {'CF-Access-Client-Id':process.env.CF_ACCESS_CLIENT_ID,'CF-Access-Client-Secret':process.env.CF_ACCESS_CLIENT_SECRET} : {};
 const budget = Number(process.env.STAGING_RECIPE_LATENCY_WARN_MS || 10000);
 async function login(browser, email, password) {
-  const context = await browser.newContext({extraHTTPHeaders:headers});
+  const context = await browser.newContext({extraHTTPHeaders:headers,storageState:(process.env.STAGING_AUTH_STATE && email===process.env.STAGING_TEST_EMAIL)?process.env.STAGING_AUTH_STATE:undefined});
   const page = await context.newPage();
+  if(process.env.STAGING_AUTH_STATE && email===process.env.STAGING_TEST_EMAIL){await page.goto(base+'/',{waitUntil:'domcontentloaded'});}else{
   await page.goto(base+'/auth.html', {waitUntil:'domcontentloaded'});
   await page.locator('#form').waitFor({state:'visible',timeout:30000});
   await page.locator('#email').fill(email);
   await page.locator('#password').fill(password);
   await page.locator('#submit').click();
   await page.waitForURL(u=>!u.pathname.endsWith('/auth.html'),{timeout:30000});
+  }
   return {context,page};
 }
 async function probe(page, path) {

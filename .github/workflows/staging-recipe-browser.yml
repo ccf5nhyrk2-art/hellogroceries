@@ -5,6 +5,9 @@ on:
     branches: [develop]
   pull_request:
     branches: [develop]
+concurrency:
+  group: hellogroceries-staging-browser-shared-account
+  cancel-in-progress: false
 permissions:
   contents: read
 jobs:
@@ -13,6 +16,7 @@ jobs:
     timeout-minutes: 12
     env:
       STAGING_URL: https://staging-groceries.greenlee.uk
+      STAGING_AUTH_STATE: test-results/staging-auth-state.json
       STAGING_TEST_EMAIL: ${{ secrets.STAGING_TEST_EMAIL }}
       STAGING_TEST_PASSWORD: ${{ secrets.STAGING_TEST_PASSWORD }}
       CF_ACCESS_CLIENT_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
@@ -36,6 +40,8 @@ jobs:
           node tests/test_share_links.cjs
       - name: Verify standalone Home dashboard layout
         run: node tests/test_home_layout.cjs
+      - name: Authenticate staging account once
+        run: node tests/staging_auth_once.cjs
       - name: Run read-only staging smoke tests
         run: node tests/staging_recipe_browser.cjs
       - name: Run shopping pantry and admin staging smoke tests
@@ -52,5 +58,8 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: staging-recipe-browser-diagnostics
-          path: test-results/
+          path: |
+            test-results/failure.png
+            test-results/page.html
+            test-results/diagnostics.json
           if-no-files-found: ignore

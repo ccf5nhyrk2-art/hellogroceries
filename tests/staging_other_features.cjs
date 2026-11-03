@@ -13,14 +13,16 @@ async function main() {
     'CF-Access-Client-Id':process.env.CF_ACCESS_CLIENT_ID,
     'CF-Access-Client-Secret':process.env.CF_ACCESS_CLIENT_SECRET
   } : {};
-  const page = await browser.newPage({viewport:{width:1280,height:900},extraHTTPHeaders:headers});
+  const page = await browser.newPage({viewport:{width:1280,height:900},extraHTTPHeaders:headers,storageState:process.env.STAGING_AUTH_STATE||undefined});
   try {
+    if(process.env.STAGING_AUTH_STATE){await page.goto(base+'/',{waitUntil:'domcontentloaded'});}else{
     await page.goto(base+'/auth.html',{waitUntil:'domcontentloaded'});
     await page.locator('#form').waitFor({state:'visible',timeout:30000});
     await page.locator('#email').fill(email);
     await page.locator('#password').fill(password);
     await page.locator('#submit').click();
     await page.waitForURL(url=>!url.pathname.endsWith('/auth.html'),{timeout:30000});
+    }
     await page.locator('#generate-grocery').waitFor({state:'attached',timeout:30000});
     // Shopping controls are present and wired; avoid generating or clearing user data.
     assert.ok(await page.locator('#shop-generate-tour').count());
