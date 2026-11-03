@@ -1143,6 +1143,29 @@ def instruction_field_diagnostics(limit=12):
    samples.append({'recipe_id':str(r.get('id',''))[:64],'fields':present,'has_source_link':bool(r.get('instructions_url') or r.get('url')),'stored_steps_detected':stored_cooking_steps(r)})
  return {'total_recipes':len(recipes),'field_summary':fields,'samples':samples,'note':'Diagnostic samples show field names and presence only, not cooking text.'}
 
+def instruction_recovery_diagnostic():
+ """Run three bounded real source checks, saving only confirmed instructions."""
+ recipes=[r for r in allrecipes() if isinstance(r,dict) and not non_recipe_reason(r)]
+ candidates=[r for r in recipes if not stored_cooking_steps(r) and allowed_url(str(r.get('instructions_url') or r.get('url') or ''))][:3]
+ results=[]
+ for recipe in candidates:
+  rid=str(recipe.get('id'))
+  url=str(recipe.get('instructions_url') or recipe.get('url') or '')
+  steps,reason=recover_recipe_instructions(url)
+  saved=False
+  if steps:
+   with db() as c:
+    recipe_instruction_cache_schema(c)
+    c.execute('INSERT OR REPLACE INTO recipe_instruction_cache (recipe_id,url,steps_json,source_format,checked_at) VALUES (?,?,?,?,CURRENT_TIMESTAMP)',(rid,url,json.dumps(steps),reason))
+    c.commit()
+    saved=bool(c.execute('SELECT 1 FROM recipe_instruction_cache WHERE recipe_id=? AND url=?',(rid,url)).fetchone())
+  with db() as c:
+   instruction_audit_schema(c)
+   c.execute('INSERT OR REPLACE INTO recipe_instruction_audit (recipe_id,url,verified,checked_at,reason,version) VALUES (?,?,?,CURRENT_TIMESTAMP,?,?)',(rid,url,int(saved),reason,INSTRUCTION_AUDIT_VERSION))
+   c.commit()
+  results.append({'recipe_id':rid,'source_host':urllib.parse.urlparse(url).hostname,'result':reason,'steps_found':len(steps),'saved':saved})
+ return {'tested':len(results),'results':results,'note':'Three live checks only. URLs and instruction text are not returned. Failed checks never exclude recipes.'}
+
 def instruction_audit_status():
  recipes=[r for r in allrecipes() if not non_recipe_reason(r)]
  rows=instruction_audit_rows()
@@ -3137,6 +3160,11 @@ class Handler(SimpleHTTPRequestHandler):
      c.commit()
     return self.sendjson({'ok':True,'visibility':pricing_visibility()})
    except (ValueError,TypeError) as exc:return self.sendjson({'error':str(exc)},400)
+  if self.path=='/api/recipe-instruction-audit/diagnose':
+   if not self.gate(write=True):return
+   if not getattr(request_scope,'admin',False):return self.sendjson({'error':'Administrator required'},403)
+   if instruction_audit_running:return self.sendjson({'error':'Wait for the active audit to finish'},409)
+   return self.sendjson(instruction_recovery_diagnostic())
   if self.path=='/api/recipe-instruction-audit/retry':
    if not self.gate(write=True):return
    if not getattr(request_scope,'admin',False):return self.sendjson({'error':'Administrator required'},403)
