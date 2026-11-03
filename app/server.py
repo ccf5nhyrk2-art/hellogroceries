@@ -1280,6 +1280,30 @@ def recovered_step_validation_reason(steps):
 def valid_recovered_steps(steps):
  return recovered_step_validation_reason(steps)=='valid'
 
+def instruction_page_structure_diagnostic(page):
+ """Report structural signals only; never return page text, scripts, or URLs."""
+ scripts=re.findall(r'<script\\b([^>]*)>(.*?)</script\\s*>',page,re.I|re.S)
+ jsonld=sum(bool(re.search(r'application/ld\\+json',attrs,re.I)) for attrs,_ in scripts)
+ json_scripts=sum(bool(re.search(r'application/json',attrs,re.I)) for attrs,_ in scripts)
+ next_data=any(bool(re.search(r'__NEXT_DATA__',attrs,re.I)) for attrs,_ in scripts)
+ flight=len(re.findall(r'self\\.__next_f\\.push\\s*\\(',page))
+ keys=('recipeInstructions','preparationSteps','cookingSteps','instructionSteps','instructions','steps')
+ key_counts={key:len(re.findall(r'["\\\\\\']'+key+r'["\\\\\\']\\s*:',page,re.I)) for key in keys}
+ return {'script_count':len(scripts),'jsonld_scripts':jsonld,'json_scripts':json_scripts,'next_data':next_data,'next_flight_chunks':flight,'nuxt_markers':bool(re.search(r'__NUXT__|__NUXT_DATA__',page,re.I)),'initial_state_marker':bool(re.search(r'__INITIAL_STATE__',page,re.I)),'instruction_key_counts':key_counts,'javascript_required_marker':bool(re.search(r'enable javascript|javascript is required',page,re.I)),'blocked_marker':bool(re.search(r'captcha|verify you are human|access denied|just a moment',page,re.I))}
+
+def diagnose_instruction_source_structure(url):
+ """Fetch one allowed recipe source and report only structural metadata."""
+ if not allowed_url(url):return {'error':'invalid_url'}
+ try:
+  req=urllib.request.Request(url,headers={'User-Agent':'Mozilla/5.0 (compatible; HelloGroceriesRecipeRecovery/1.1)','Accept':'text/html'})
+  with urllib.request.urlopen(req,timeout=9) as response:
+   if not allowed_url(response.geturl()):return {'error':'unsafe_redirect'}
+   if 'html' not in response.headers.get('Content-Type','').lower():return {'error':'non_html_source'}
+   page=response.read(1500000).decode('utf-8','replace')
+  return instruction_page_structure_diagnostic(page)
+ except urllib.error.HTTPError as exc:return {'error':'http_'+str(exc.code)}
+ except (OSError,ValueError,TimeoutError,UnicodeError):return {'error':'network_error'}
+
 def instruction_recovery_diagnostic():
  """Run ten bounded source checks, saving only validated instructions."""
  recipes=[r for r in allrecipes() if isinstance(r,dict) and not non_recipe_reason(r)]
@@ -1322,7 +1346,8 @@ def instruction_recovery_diagnostic():
    instruction_audit_schema(c)
    c.execute('INSERT OR REPLACE INTO recipe_instruction_audit (recipe_id,url,verified,checked_at,reason,version) VALUES (?,?,?,CURRENT_TIMESTAMP,?,?)',(rid,url,int(saved),reason,INSTRUCTION_AUDIT_VERSION))
    c.commit()
-  results.append({'recipe_id':rid,'source_host':urllib.parse.urlparse(url).hostname,'previous_reason':previous_reason,'result':reason,'validation':validation,'candidate_steps_found':step_count,'steps_found':len(steps),'saved':saved,'step_lengths':step_lengths})
+  structure=diagnose_instruction_source_structure(url) if reason=='dynamic_app_data_unsupported' else None
+  results.append({'recipe_id':rid,'source_host':urllib.parse.urlparse(url).hostname,'previous_reason':previous_reason,'result':reason,'validation':validation,'candidate_steps_found':step_count,'steps_found':len(steps),'saved':saved,'step_lengths':step_lengths,'page_structure':structure})
  return {'tested':len(results),'results':results,'note':'Ten live checks only. URLs and instruction text are not returned. Failed checks never exclude recipes.'}
 
 def instruction_audit_status():
