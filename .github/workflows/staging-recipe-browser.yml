@@ -34,6 +34,8 @@ jobs:
         run: |
           node --check app/assets/share.js
           node tests/test_share_links.cjs
+      - name: Verify standalone Home dashboard layout
+        run: node tests/test_home_layout.cjs
       - name: Run read-only staging smoke tests
         run: node tests/staging_recipe_browser.cjs
       - name: Run shopping pantry and admin staging smoke tests
