@@ -6,7 +6,8 @@ async function main(){
  const browser=await chromium.launch({headless:true});
  try{
   const headers=process.env.CF_ACCESS_CLIENT_ID&&process.env.CF_ACCESS_CLIENT_SECRET?{'CF-Access-Client-Id':process.env.CF_ACCESS_CLIENT_ID,'CF-Access-Client-Secret':process.env.CF_ACCESS_CLIENT_SECRET}:{};
-  const page=await browser.newPage({extraHTTPHeaders:headers});
+  const page=await browser.newPage({extraHTTPHeaders:headers,storageState:process.env.STAGING_AUTH_STATE||undefined});
+  if(process.env.STAGING_AUTH_STATE){await page.goto(base+'/',{waitUntil:'domcontentloaded'});}else{
   await page.goto(base+'/auth.html',{waitUntil:'domcontentloaded'});
   await page.locator('#form').waitFor({state:'visible',timeout:30000});
   await page.locator('#email').fill(process.env.STAGING_TEST_EMAIL);
@@ -15,6 +16,7 @@ async function main(){
   await page.waitForFunction(()=>location.pathname!='/auth.html'||!!document.querySelector('.page-nav-button[data-page="recipes"]'),null,{timeout:90000}).catch(async error=>{
     throw new Error('Sharing test login did not complete: url='+page.url()+'; authError='+(await page.locator('#error').textContent().catch(()=>''))+'; '+error.message);
   });
+  }
   await page.locator('.page-nav-button[data-page="recipes"]').waitFor({state:'attached',timeout:30000});
   const installed=await page.evaluate(()=>Boolean(window.HelloGroceriesShare));
   if(!installed){console.log('SKIP: share UI is not deployed to staging yet; update staging container before E2E validation');return}
