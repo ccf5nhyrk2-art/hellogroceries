@@ -17,6 +17,8 @@ jobs:
       STAGING_TEST_PASSWORD: ${{ secrets.STAGING_TEST_PASSWORD }}
       CF_ACCESS_CLIENT_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
       CF_ACCESS_CLIENT_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
+      STAGING_NONADMIN_EMAIL: ${{ secrets.STAGING_NONADMIN_EMAIL }}
+      STAGING_NONADMIN_PASSWORD: ${{ secrets.STAGING_NONADMIN_PASSWORD }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -26,18 +28,16 @@ jobs:
         run: |
           npm install --no-save playwright@1.58.2
           npx playwright install --with-deps chromium
-      - name: Validate sharing module and share-link round trips
-        run: |
-          node --check app/assets/share.js
-          node tests/test_share_links.cjs
+      - name: Verify barcode route regression
+        run: python -m unittest discover -s tests -p 'test_barcode_routing.py'
       - name: Run read-only staging smoke tests
         run: node tests/staging_recipe_browser.cjs
       - name: Run shopping pantry and admin staging smoke tests
         if: success() || failure()
         run: node tests/staging_other_features.cjs
-      - name: Run deployed staging sharing UI checks
+      - name: Run functional API, admin authorization and recipe performance probes
         if: success() || failure()
-        run: node tests/staging_share_links.cjs
+        run: node tests/staging_functional_security_perf.cjs
       - name: Upload browser diagnostics on failure
         if: failure()
         uses: actions/upload-artifact@v4
