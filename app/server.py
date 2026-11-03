@@ -2257,6 +2257,8 @@ def _recipe_audit_worker():
   recipes.sort(key=lambda recipe:0 if str(recipe.get('id')) in selected_ids else 1)
   result=recipe_quality.audit_catalog(recipes)
   import quantity_validation
+  comparison=quantity_validation.compare_prediction_policies(recipes,limit=5000)
+  result['quantity_comparison']=comparison
   result['quantity_validation']=quantity_validation.evaluate(recipes,limit=5000)
   result['selected_recipes']=len(selected_ids)
   with _recipe_audit_lock:
