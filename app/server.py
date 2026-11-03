@@ -3272,6 +3272,28 @@ class Handler(SimpleHTTPRequestHandler):
     if photo.suffix.lower() in ('.jpg','.png','.webp','.gif') and photo.stem.isdigit() and photo.is_file() and photo.stat().st_size>0:
      cached_ids.append(int(photo.stem))
    return self.sendjson({'ids':cached_ids})
+  if urllib.parse.urlsplit(self.path).path=='/api/recipes/page':
+   # Opt-in paginated endpoint; the legacy endpoint stays unchanged for existing clients.
+   params=urllib.parse.parse_qs(urllib.parse.urlsplit(self.path).query)
+   try:
+    page=max(1,int(params.get('page',['1'])[0]))
+    page_size=max(1,min(48,int(params.get('page_size',['24'])[0])))
+   except ValueError:
+    return self.sendjson({'error':'Invalid pagination parameters'},400)
+   query=params.get('q',[''])[0].strip().casefold()[:200]
+   checks=instruction_audit_rows()
+   start_instruction_audit()
+   catalog=(r for r in allrecipes() if not non_recipe_reason(r) and visible_cooking_recipe(r,checks))
+   if query:
+    catalog=(r for r in catalog if query in str(r.get('name','')).casefold())
+   matched=list(catalog)
+   total=len(matched)
+   start=(page-1)*page_size
+   # Full recipe details remain available through the existing endpoint.
+   # Only compact card metadata is transmitted for each page.
+   fields=('id','name','image','country','nutrition','dietary_labels','prep_time','cook_time','total_time','url')
+   items=[{key:recipe[key] for key in fields if key in recipe} for recipe in matched[start:start+page_size]]
+   return self.sendjson({'items':items,'page':page,'page_size':page_size,'total':total,'pages':(total+page_size-1)//page_size})
   if self.path=='/api/recipes':
    checks=instruction_audit_rows()
    start_instruction_audit()
