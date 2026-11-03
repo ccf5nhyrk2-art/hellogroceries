@@ -785,6 +785,25 @@ async function scanRecipeQuality(){
   gate.textContent='Automatic estimation release gate: '+(passes?'Benchmark threshold met for review':'NOT APPROVED')+' · high-consensus sample '+eligible+'/'+minimumSample+' required · within 25% accuracy '+pct(accuracy)+' / 90.0% required · category checks '+(categoryResults.length-categoryFailures.length)+'/'+categoryResults.length+' passed (at least '+categoryMinimum+' samples and 90% accuracy each). Even a passing benchmark requires separate approval before enabling estimates.';
   gate.style.cssText='font-weight:600;padding:10px 12px;border:1px solid var(--border,#555);border-radius:8px;overflow-wrap:anywhere';
   issues.appendChild(gate);
+  const safety=document.createElement('p');
+  safety.textContent='Safety status: estimates are suggestions only. Original source quantities remain authoritative; no predicted amount is written to recipes, pantry inventory, shopping lists, or grocery pricing.';
+  safety.style.cssText='font-size:.93em;line-height:1.5';
+  issues.appendChild(safety);
+  if(categoryFailures.length){
+   const failures=document.createElement('details');
+   const heading=document.createElement('summary');
+   heading.textContent='Categories requiring improvement ('+categoryFailures.length+')';
+   failures.appendChild(heading);
+   const failureList=document.createElement('ul');
+   for(const [name,stats] of Object.entries(benchmark.categories||{})){
+    if(Number(stats.high_consensus||0)>=categoryMinimum && typeof stats.high_consensus_within_25_percent==='number' && stats.high_consensus_within_25_percent>=minimumAccuracy)continue;
+    const item=document.createElement('li');
+    item.textContent=name.replaceAll('_',' ')+': '+Number(stats.high_consensus||0)+' validated (minimum '+categoryMinimum+'), '+pct(stats.high_consensus_within_25_percent)+' within 25% (minimum 90%).';
+    failureList.appendChild(item);
+   }
+   failures.appendChild(failureList);
+   issues.appendChild(failures);
+  }
   const matchInfo=document.createElement('p');
   matchInfo.textContent='Prediction matching: '+Number(benchmark.context_matching?.contextual||0)+' contextual · '+Number(benchmark.context_matching?.fallback||0)+' ingredient/unit fallback. All estimates remain read-only.';
   issues.appendChild(matchInfo);
