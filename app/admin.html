@@ -1154,13 +1154,20 @@ document.getElementById('instruction-prepared-load')?.addEventListener('click',a
  }catch(error){target.textContent='Unable to load flagged recipes: '+error.message}
  finally{button.disabled=false}
 });
+let instructionAuditRefreshPromise=null;
 async function refreshInstructionAudit(){
+ if(instructionAuditRefreshPromise)return instructionAuditRefreshPromise;
+ instructionAuditRefreshPromise=loadInstructionAuditStatus();
+ try{return await instructionAuditRefreshPromise}
+ finally{instructionAuditRefreshPromise=null}
+}
+async function loadInstructionAuditStatus(){
  const status=document.getElementById('instruction-audit-status');
  if(!status)return;
  const button=document.getElementById('instruction-audit-refresh');if(button)button.disabled=true;
  status.textContent='Loading cooking-instructions audit…';
  try{
-  const response=await fetch('/api/recipe-instruction-audit/status',{credentials:'same-origin',cache:'no-store'});
+  const response=await fetch('/api/recipe-instruction-audit/status',{credentials:'same-origin',cache:'no-store',signal:AbortSignal.timeout(15000)});
   const data=await response.json();if(!response.ok)throw Error(data.error||'Status request failed');
   for(const [key,value] of Object.entries({checked:data.checked,verified:data.verified,unverified:data.unverified??data.excluded,excluded:data.excluded})){
    const el=document.getElementById('instruction-audit-'+key);if(el)el.textContent=Number(value||0).toLocaleString();
@@ -1182,7 +1189,7 @@ async function refreshInstructionAudit(){
   }
   const paused=!data.running&&data.checked>=3&&data.verified===0;
   status.textContent=(data.running?'Audit running. ':paused?'Audit idle: no source links verified yet. ':'Audit idle. ')+(data.note||'')+(paused?' Source extraction needs improvement before further verification.':'');
- }catch(error){status.textContent='Unable to load audit status: '+error.message}
+ }catch(error){status.textContent=error.name==='TimeoutError'?'Audit status timed out after 15 seconds. Try Refresh audit again.':'Unable to load audit status: '+error.message}
  finally{if(button)button.disabled=false}
 }
 document.getElementById('instruction-fields-refresh')?.addEventListener('click',async()=>{
