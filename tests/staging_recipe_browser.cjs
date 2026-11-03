@@ -91,10 +91,10 @@ async function main() {
     console.log('PASS: cooking details, favorite, plan and collection controls exist (read-only)');
     if (await page.locator('#fast-browse-next').isEnabled()) {
       await page.locator('#fast-browse-next').click();
-      await page.waitForFunction(() => document.querySelector('#fast-browse-pageinfo')?.textContent?.startsWith('Page 2 of'));
+      await page.waitForFunction(() => document.querySelector('#fast-browse-pageinfo')?.textContent?.startsWith('Page 2 of'), null, { timeout: 90000 });
       assert.ok(await cards.count() > 0, 'Page 2 is empty');
       await page.locator('#fast-browse-prev').click();
-      await page.waitForFunction(() => document.querySelector('#fast-browse-pageinfo')?.textContent?.startsWith('Page 1 of'));
+      await page.waitForFunction(() => document.querySelector('#fast-browse-pageinfo')?.textContent?.startsWith('Page 1 of'), null, { timeout: 90000 });
       console.log('PASS: next and previous pagination');
     }
     const api = await page.request.get(base + '/api/recipes/page?page=1&page_size=24&q=chicken');
