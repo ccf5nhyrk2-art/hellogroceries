@@ -261,6 +261,21 @@ def allrecipes():
  with db() as c:photos=dict(c.execute('SELECT recipe_id,image_url FROM photos'))
  return [dict(r,image=photos.get(r['id'],r.get('image',''))) for r in recipes]
 
+# Browse requests should not repeatedly rebuild the imported catalog, enrichment
+# caches and photo lookup for each page/search. Expire automatically so imports
+# and recovered instructions become visible without a manual restart.
+_recipe_browse_cache_lock=threading.Lock()
+_recipe_browse_cache=(0.0,None)
+def browse_catalog():
+ global _recipe_browse_cache
+ now=time.monotonic()
+ with _recipe_browse_cache_lock:
+  if _recipe_browse_cache[1] is not None and now-_recipe_browse_cache[0]<60:
+   return _recipe_browse_cache[1]
+  recipes=allrecipes()
+  _recipe_browse_cache=(time.monotonic(),recipes)
+  return recipes
+
 def recipe_page_matches(recipe,query='',country='ALL',protein='all'):
  """Server-side browse filters for the opt-in paginated catalog."""
  name=str(recipe.get('name') or '').casefold()
@@ -3341,7 +3356,7 @@ class Handler(SimpleHTTPRequestHandler):
     return self.sendjson({'error':'Invalid recipe filter'},400)
    checks=instruction_audit_rows()
    start_instruction_audit()
-   catalog=(r for r in allrecipes() if not non_recipe_reason(r) and visible_cooking_recipe(r,checks))
+   catalog=(r for r in browse_catalog() if not non_recipe_reason(r) and visible_cooking_recipe(r,checks))
    matched=[r for r in catalog if recipe_page_matches(r,query,country,protein)]
    if sort=='newest':matched.sort(key=lambda r:int(r.get('id') or 0),reverse=True)
    else:matched.sort(key=lambda r:str(r.get('name') or '').casefold(),reverse=sort=='reverse')
