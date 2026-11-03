@@ -1143,6 +1143,25 @@ def instruction_field_diagnostics(limit=12):
    samples.append({'recipe_id':str(r.get('id',''))[:64],'fields':present,'has_source_link':bool(r.get('instructions_url') or r.get('url')),'stored_steps_detected':stored_cooking_steps(r)})
  return {'total_recipes':len(recipes),'field_summary':fields,'samples':samples,'note':'Diagnostic samples show field names and presence only, not cooking text.'}
 
+instruction_diagnostic_lock=threading.Lock()
+instruction_diagnostic_state={'running':False,'results':[],'error':None,'tested':0}
+
+def start_instruction_recovery_diagnostic():
+ with instruction_diagnostic_lock:
+  if instruction_diagnostic_state['running']:return False
+  instruction_diagnostic_state.update(running=True,results=[],error=None,tested=0)
+ def worker():
+  try:
+   result=instruction_recovery_diagnostic()
+   with instruction_diagnostic_lock:instruction_diagnostic_state.update(running=False,results=result['results'],tested=result['tested'])
+  except Exception as exc:
+   with instruction_diagnostic_lock:instruction_diagnostic_state.update(running=False,error=type(exc).__name__)
+ threading.Thread(target=worker,daemon=True,name='recipe-instruction-diagnostic').start()
+ return True
+
+def instruction_recovery_diagnostic_status():
+ with instruction_diagnostic_lock:return dict(instruction_diagnostic_state)
+
 def instruction_recovery_diagnostic():
  """Run three bounded real source checks, saving only confirmed instructions."""
  recipes=[r for r in allrecipes() if isinstance(r,dict) and not non_recipe_reason(r)]
@@ -2901,6 +2920,10 @@ class Handler(SimpleHTTPRequestHandler):
    checks=instruction_audit_rows()
    start_instruction_audit()
    return self.sendjson([r for r in allrecipes() if not non_recipe_reason(r) and visible_cooking_recipe(r,checks)])
+  if self.path=='/api/recipe-instruction-audit/diagnose/status':
+   if not self.gate():return
+   if not getattr(request_scope,'admin',False):return self.sendjson({'error':'Administrator required'},403)
+   return self.sendjson(instruction_recovery_diagnostic_status())
   if self.path=='/api/recipe-instruction-audit/diagnostics':
    if not getattr(request_scope,'admin',False):return self.sendjson({'error':'Administrator required'},403)
    return self.sendjson(instruction_field_diagnostics())
@@ -3164,7 +3187,7 @@ class Handler(SimpleHTTPRequestHandler):
    if not self.gate(write=True):return
    if not getattr(request_scope,'admin',False):return self.sendjson({'error':'Administrator required'},403)
    if instruction_audit_running:return self.sendjson({'error':'Wait for the active audit to finish'},409)
-   return self.sendjson(instruction_recovery_diagnostic())
+   return self.sendjson({'started':start_instruction_recovery_diagnostic()},202)
   if self.path=='/api/recipe-instruction-audit/retry':
    if not self.gate(write=True):return
    if not getattr(request_scope,'admin',False):return self.sendjson({'error':'Administrator required'},403)
