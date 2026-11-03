@@ -12,9 +12,23 @@ async function main() {
   const browser = await chromium.launch({ headless: true });
   const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
   fs.mkdirSync('test-results', { recursive: true });
+  const errors = [];
+  page.on('pageerror', e => errors.push('page: ' + e.message));
+  page.on('console', m => { if (m.type() === 'error') errors.push('console: ' + m.text()); });
+  page.on('response', r => { if (r.status() >= 400 && r.url().startsWith(base)) errors.push('HTTP ' + r.status() + ' ' + r.url()); });
   try {
-    await page.goto(base + '/auth.html', { waitUntil: 'domcontentloaded' });
-    await page.locator('#form').waitFor({ state: 'visible', timeout: 20000 });
+    const initial = await page.goto(base + '/auth.html', { waitUntil: 'domcontentloaded' });
+    console.log('Login landing: status=' + (initial?.status() ?? 'unknown') + ' url=' + page.url());
+    try {
+      await page.locator('#form').waitFor({ state: 'visible', timeout: 20000 });
+    } catch (error) {
+      const status = await page.locator('#mode').textContent().catch(() => 'missing');
+      const message = await page.locator('#error').textContent().catch(() => 'missing');
+      const title = await page.title().catch(() => 'unknown');
+      const diagnosis = { status: initial?.status(), url: page.url(), title, authMode: status, authError: message, consoleErrors: errors };
+      fs.writeFileSync('test-results/diagnostics.json', JSON.stringify(diagnosis, null, 2));
+      throw new Error('Staging login form not visible: ' + JSON.stringify(diagnosis) + '; ' + error.message);
+    }
     await page.locator('#email').fill(email);
     await page.locator('#password').fill(password);
     await page.locator('#submit').click();
@@ -56,6 +70,8 @@ async function main() {
     console.log('PASS: paginated API response');
   } catch (error) {
     await page.screenshot({ path: 'test-results/failure.png', fullPage: true }).catch(() => {});
+    fs.writeFileSync('test-results/page.html', await page.content().catch(() => 'Unavailable'));
+    if (!fs.existsSync('test-results/diagnostics.json')) fs.writeFileSync('test-results/diagnostics.json', JSON.stringify({ url: page.url(), consoleErrors: errors }, null, 2));
     throw error;
   } finally {
     await browser.close();
