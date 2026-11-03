@@ -1225,7 +1225,7 @@ document.getElementById('instruction-diagnose')?.addEventListener('click',async(
       lines.push('  Instruction keys: '+Object.entries(p.instruction_key_counts||{}).filter(([key,count])=>count>0).map(([key,count])=>key+'='+count).join(', ') || '  Instruction keys: none');
       const shapes=Array.isArray(p.json_instruction_shapes)?p.json_instruction_shapes:[];
       if(shapes.length){
-       lines.push('  JSON instruction structures:');
+       lines.push('  Source instruction state: '+(p.instruction_state||'unknown'));lines.push('  JSON instruction structures:');
        shapes.forEach((shape,index)=>{
         const fields=Array.isArray(shape.sample_fields)?shape.sample_fields:[];
         lines.push('    '+(index+1)+'. '+(shape.parse_status==='invalid_json'?'Malformed JSON':(shape.field||'unknown')+' · '+(shape.value_type||'unknown')+' · '+(shape.empty?'empty':'populated')+(shape.item_count===null?'':' · '+shape.item_count+' item(s)'))+' · Fields: '+(fields.length?fields.join(', '):'none'));
