@@ -2095,7 +2095,11 @@ def rebuild_grocery_list(state):
   # qualifiers remain part of the key (e.g. herb butter != butter).
   key=label.casefold()
   label=canonical_labels.setdefault(key,label)
-  totals[label]=totals.get(label,0)+amount
+  # Unmeasured cooking oil is a pantry reminder, not a numeric requirement.
+  if label.casefold().endswith(' (as needed)'):
+   totals[label]=1
+  else:
+   totals[label]=totals.get(label,0)+amount
   sources.setdefault(label,[]).append(source)
  for recipe in allrecipes():
   servings=state['selected'].get(str(recipe['id']))
@@ -2138,6 +2142,11 @@ def rebuild_grocery_list(state):
    elif recovered:
     label=recovered['unit']+' '+recovered['name']
     amount=recovered['amount']*float(scale)
+   elif re.fullmatch(r'(?:olive|extra virgin olive|vegetable|canola|avocado|sunflower|rapeseed|grapeseed|coconut|cooking) oil',name.strip(),re.I):
+    # Only bare oil labels with no verified measure qualify. Never change
+    # measured oils, recipe corrections, dressings, sauces or marinades.
+    label=name.strip()+' (as needed)'
+    amount=1
    else:
     label=label_name
     amount=quantity*float(scale)
