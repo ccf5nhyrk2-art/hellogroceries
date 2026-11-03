@@ -1198,6 +1198,14 @@ document.getElementById('instruction-diagnose')?.addEventListener('click',async(
       lines.push('  Page scripts: '+p.script_count+' · JSON-LD: '+p.jsonld_scripts+' · JSON scripts: '+p.json_scripts);
       lines.push('  Next.js data: '+(p.next_data?'yes':'no')+' · Flight chunks: '+p.next_flight_chunks+' · Nuxt: '+(p.nuxt_markers?'yes':'no')+' · Initial state: '+(p.initial_state_marker?'yes':'no'));
       lines.push('  Instruction keys: '+Object.entries(p.instruction_key_counts||{}).filter(([key,count])=>count>0).map(([key,count])=>key+'='+count).join(', ') || '  Instruction keys: none');
+      const shapes=Array.isArray(p.json_instruction_shapes)?p.json_instruction_shapes:[];
+      if(shapes.length){
+       lines.push('  JSON instruction structures:');
+       shapes.forEach((shape,index)=>{
+        const fields=Array.isArray(shape.sample_fields)?shape.sample_fields:[];
+        lines.push('    '+(index+1)+'. '+(shape.count||0)+' occurrence(s) · Fields: '+(fields.length?fields.join(', '):'none'));
+       });
+      }else lines.push('  JSON instruction structures: none detected');
       if(p.blocked_marker||p.javascript_required_marker)lines.push('  Blocked: '+(p.blocked_marker?'yes':'no')+' · JavaScript required: '+(p.javascript_required_marker?'yes':'no'));
      }
     }
