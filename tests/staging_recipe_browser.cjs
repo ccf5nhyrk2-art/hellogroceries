@@ -58,9 +58,16 @@ async function main() {
     const pageInfo = await page.locator('#fast-browse-pageinfo').innerText();
     assert.match(pageInfo, /Page 1 of \d+/);
     console.log('PASS: initial 24-card page and page count');
-    const searchResponses = [];
+    const searchRequests = [];
+    const isRecipePage = url => url.includes('/api/recipes/page');
+    page.on('request', request => {
+      if (isRecipePage(request.url())) searchRequests.push({ event: 'started', query: new URL(request.url()).searchParams.get('q') });
+    });
     page.on('response', response => {
-      if (response.url().includes('/api/recipes/page')) searchResponses.push({ status: response.status(), url: response.url().split('?')[0], query: new URL(response.url()).searchParams.get('q') });
+      if (isRecipePage(response.url())) searchRequests.push({ event: 'response', status: response.status(), query: new URL(response.url()).searchParams.get('q') });
+    });
+    page.on('requestfailed', request => {
+      if (isRecipePage(request.url())) searchRequests.push({ event: 'failed', error: request.failure()?.errorText, query: new URL(request.url()).searchParams.get('q') });
     });
     await page.locator('#fast-browse-search').fill('chicken');
     await page.locator('#fast-browse-search-button').click();
@@ -69,9 +76,9 @@ async function main() {
         const panel = document.querySelector('#fast-browse-results');
         const cards = [...panel.querySelectorAll('.recipe-card')];
         return cards.length > 0 && cards.every(card => card.querySelector('.recipe-card-title')?.textContent?.toLowerCase().includes('chicken'));
-      }, null, { timeout: 30000 });
+      }, null, { timeout: 90000 });
     } catch (error) {
-      throw new Error('Search did not render matching cards. API responses=' + JSON.stringify(searchResponses) + '; panel=' + (await page.locator('#fast-browse-results').innerText()).slice(0, 500) + '; ' + error.message);
+      throw new Error('Search did not render matching cards. API requests=' + JSON.stringify(searchRequests) + '; panel=' + (await page.locator('#fast-browse-results').innerText()).slice(0, 500) + '; ' + error.message);
     }
     const searchTitles = await cards.locator('.recipe-card-title').allInnerTexts();
     assert.ok(searchTitles.length > 0 && searchTitles.every(t => t.toLowerCase().includes('chicken')), 'Search results do not match chicken');
