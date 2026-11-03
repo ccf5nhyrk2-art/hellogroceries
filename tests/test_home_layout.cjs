@@ -1,0 +1,12 @@
+const fs=require('node:fs');
+const assert=require('node:assert/strict');
+const html=fs.readFileSync('app/index.html','utf8');
+assert.match(html,/body\[data-active-page="all"\] main > \.layout/);
+assert.match(html,/const homeActive=key==='all'/);
+assert.match(html,/child\.style\.setProperty\('display','none','important'\)/);
+assert.match(html,/data-home-go="recipes"/);
+assert.match(html,/data-home-go="planner"/);
+assert.match(html,/data-home-go="shopping"/);
+assert.match(html,/data-home-go="pantry"/);
+assert.doesNotMatch(html,/data-home-go="stores"/);
+console.log('PASS: standalone desktop/mobile Home navigation and legacy-panel isolation');
