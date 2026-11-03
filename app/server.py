@@ -152,7 +152,9 @@ def us_import_schedule_worker():
    save_us_import_schedule()
 
 def db():
- c=sqlite3.connect(DB)
+ # Give concurrent background jobs time to finish their short writes.
+ c=sqlite3.connect(DB,timeout=20)
+ c.execute('PRAGMA busy_timeout=20000')
  c.execute('CREATE TABLE IF NOT EXISTS state (id INTEGER PRIMARY KEY CHECK(id=1), payload TEXT NOT NULL)')
  c.execute('CREATE TABLE IF NOT EXISTS imported (id INTEGER PRIMARY KEY AUTOINCREMENT, url TEXT UNIQUE, payload TEXT NOT NULL)')
  c.execute('CREATE TABLE IF NOT EXISTS photos (recipe_id INTEGER PRIMARY KEY, image_url TEXT NOT NULL)')
@@ -4128,6 +4130,12 @@ class Handler(SimpleHTTPRequestHandler):
    return self.sendjson(state)
   except (ValueError,KeyError,TypeError,json.JSONDecodeError) as e:return self.sendjson({'error':str(e)},400)
 if __name__=='__main__':
+ # WAL permits recipe scans to read while foreground actions write. Set once,
+ # before any background workers start; never switch journal mode per request.
+ with sqlite3.connect(DB,timeout=20) as startup_db:
+  startup_db.execute('PRAGMA busy_timeout=20000')
+  mode=startup_db.execute('PRAGMA journal_mode=WAL').fetchone()[0]
+  print('HelloGroceries SQLite journal mode:',mode,flush=True)
  with db() as c:
   if auth.instance_needs_setup(c):
    print('HelloGroceries: first administrator setup requires a verified Cloudflare Access session.',flush=True)
