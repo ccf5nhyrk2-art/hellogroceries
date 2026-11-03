@@ -3930,7 +3930,11 @@ class Handler(SimpleHTTPRequestHandler):
        recipe['id']=1000000+cursor.lastrowid
       c.execute('UPDATE imported SET payload=? WHERE url=?',(json.dumps(recipe),url))
     return self.sendjson({'ok':True,'recipe':recipe})
+   action_wait_started=time.monotonic()
    with lock:
+    lock_wait=time.monotonic()-action_wait_started
+    if lock_wait>2:
+     print(f'HelloGroceries slow action lock: action={action!r} wait_seconds={lock_wait:.2f}',flush=True)
     state=read()
     pantry_before={'pantry':list(state.get('pantry',[])),'pantry_inventory':dict(state.get('pantry_inventory',{}))}
     if action in ('preview_cooked_recipe','confirm_cooked_recipe','undo_cooked_recipe'):
@@ -4118,6 +4122,9 @@ class Handler(SimpleHTTPRequestHandler):
     if action=='preview_grocery':return self.sendjson({'items':state['list']})
     state['revision']+=1;save(state)
     pantry_audit(pantry_before,state)
+   action_elapsed=time.monotonic()-action_wait_started
+   if action_elapsed>2:
+    print(f'HelloGroceries slow action completed: action={action!r} seconds={action_elapsed:.2f} lock_wait={lock_wait:.2f}',flush=True)
    return self.sendjson(state)
   except (ValueError,KeyError,TypeError,json.JSONDecodeError) as e:return self.sendjson({'error':str(e)},400)
 if __name__=='__main__':
