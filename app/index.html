@@ -1617,6 +1617,9 @@ function shoppingDepartment(name){
  if(/\b(?:peanut|almond|cashew|sunflower) butter\b/i.test(value))return 'Pantry & Seasonings';
  if(/\b(?:pepper|fruit|onion|tomato|chili|chilli)\s+(?:jam|jelly|preserves?|chutney|relish)\b/i.test(value))return 'Pantry & Seasonings';
  if(/\b(?:crushed|diced|canned|tinned|whole peeled)\s+tomatoes?\b/i.test(value))return 'Pantry & Seasonings';
+ // Canned/processed tomato products belong in the pantry, not fresh produce.
+ // Handle singular, plural, and recipe amounts (e.g. "1 Crushed Tomato").
+ if(/\b(?:crushed|diced|chopped|canned|tinned|whole[ -]peeled|strained|pureed|puréed|passata)\s+tomato(?:es|s)?\b|\btomato(?:es|s)?\s+(?:puree|purée|passata|paste|sauce|concentrate)\b/i.test(value))return 'Pantry & Seasonings';
  // Prioritize prepared, packaged and frozen foods over their ingredient names.
  if(/\b(?:frozen|ice cream|frozen vegetables?|frozen fruit)\b/i.test(value))return 'Frozen';
  if(/\b(?:tomato|pepper|onion|garlic|herb|fruit)\s+(?:sauce|paste|jam|jelly|relish|chutney|powder|seasoning)\b/i.test(value))return 'Pantry & Seasonings';
@@ -2320,7 +2323,7 @@ function renderShoppingList(){
   const displayName=shoppingDisplay(item).name;
   const pepperName=displayName.replace(/^\s*(?:(?:\d+(?:\.\d+)?|\d+\/\d+|[¼½¾⅓⅔⅛⅜⅝⅞])\s+)?(?:(?:teaspoons?|tablespoons?|cups?|ounces?|pounds?|grams?|kilograms?|milliliters?|liters?|units?)\s+)?/i,'').trim().toLowerCase();
   const isBlackPepper=pepperName==='pepper'||pepperName==='black pepper';
-  const group=isBlackPepper?'Pantry & Seasonings':override&&override.department&&override.department!=='Auto'?override.department:shoppingDepartment(item.name);
+  const processedTomato=/\b(?:crushed|diced|chopped|canned|tinned|whole[ -]peeled|strained|pureed|puréed|passata)\s+tomato(?:es|s)?\b|\btomato(?:es|s)?\s+(?:puree|purée|passata|paste|sauce|concentrate)\b/i.test(item.name);const group=processedTomato?'Pantry & Seasonings':isBlackPepper?'Pantry & Seasonings':override&&override.department&&override.department!=='Auto'?override.department:shoppingDepartment(item.name);
   if(!groups.has(group))groups.set(group,[]);
   groups.get(group).push(item);
  }
