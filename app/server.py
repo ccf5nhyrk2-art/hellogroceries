@@ -1065,7 +1065,7 @@ def hydration_cooking_steps(page):
     steps=instruction_step_strings(node[key])
     if len(steps)>=2:return steps,'hydration_steps'
   pending.extend(v for v in node.values() if isinstance(v,(dict,list)))
- return [],'dynamic_app_data_unsupported'
+ return [],'dynamic_app_data_unsupported' if re.search(r'__NEXT_DATA__|__NUXT__|__next_f|window\\.__INITIAL_STATE__|hydration',page,re.I) else 'no_supported_hydration_data'
 
 def extract_cooking_steps(page):
  for raw in re.findall(r'<script[^>]*application/ld\+json[^>]*>(.*?)</script>',page,re.I|re.S):
@@ -1226,7 +1226,8 @@ def instruction_recovery_diagnostic():
  recipes=[r for r in allrecipes() if isinstance(r,dict) and not non_recipe_reason(r)]
  checked=instruction_audit_rows()
  candidates=[r for r in recipes if not stored_cooking_steps(r) and allowed_url(str(r.get('instructions_url') or r.get('url') or ''))]
- candidates.sort(key=lambda r: (int(str(r.get('id')) in checked and checked[str(r.get('id'))][0]==str(r.get('instructions_url') or r.get('url') or '') and checked[str(r.get('id'))][3]>=INSTRUCTION_AUDIT_VERSION),str(r.get('id'))))
+ # Prefer fresh sources, then older failed checks; avoid repeatedly sampling one ID range.
+ candidates.sort(key=lambda r: (int(str(r.get('id')) in checked and checked[str(r.get('id'))][0]==str(r.get('instructions_url') or r.get('url') or '') and checked[str(r.get('id'))][3]>=INSTRUCTION_AUDIT_VERSION),-int(r.get('id')) if str(r.get('id')).isdigit() else 0))
  candidates=candidates[:10]
  results=[]
  for recipe in candidates:
