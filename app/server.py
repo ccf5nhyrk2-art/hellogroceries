@@ -1361,7 +1361,13 @@ def instruction_page_structure_diagnostic(page):
  flight=len(re.findall(r'self\.__next_f\.push\s*\(',page))
  keys=('recipeInstructions','preparationSteps','cookingSteps','instructionSteps','instructions','steps')
  key_counts={key:len(re.findall(r'["\x27]'+re.escape(key)+r'["\x27]\s*:',page,re.I)) for key in keys}
- return {'script_count':len(scripts),'jsonld_scripts':jsonld,'json_scripts':json_scripts,'next_data':next_data,'next_flight_chunks':flight,'nuxt_markers':bool(re.search(r'__NUXT__|__NUXT_DATA__',page,re.I)),'initial_state_marker':bool(re.search(r'__INITIAL_STATE__',page,re.I)),'instruction_key_counts':key_counts,'json_instruction_shapes':instruction_json_shape_summary(page),'javascript_required_marker':bool(re.search(r'enable javascript|javascript is required',page,re.I)),'blocked_marker':bool(re.search(r'captcha|verify you are human|access denied|just a moment',page,re.I))}
+ instruction_shapes=instruction_json_shape_summary(page)
+ formats=[shape.get('text_format') for shape in instruction_shapes if isinstance(shape.get('text_format'),dict)]
+ if any(fmt.get('split_candidate_steps',0)>=2 for fmt in formats):instruction_state='numbered_steps_candidate'
+ elif any(fmt.get('characters',0)>0 and fmt.get('characters',0)<180 and fmt.get('sentences',0)<=2 for fmt in formats):instruction_state='short_summary_only'
+ elif instruction_shapes and all(shape.get('empty') for shape in instruction_shapes):instruction_state='empty_instruction_fields'
+ else:instruction_state='unrecognized_instruction_format'
+ return {'script_count':len(scripts),'jsonld_scripts':jsonld,'json_scripts':json_scripts,'next_data':next_data,'next_flight_chunks':flight,'nuxt_markers':bool(re.search(r'__NUXT__|__NUXT_DATA__',page,re.I)),'initial_state_marker':bool(re.search(r'__INITIAL_STATE__',page,re.I)),'instruction_key_counts':key_counts,'json_instruction_shapes':instruction_shapes,'instruction_state':instruction_state,'javascript_required_marker':bool(re.search(r'enable javascript|javascript is required',page,re.I)),'blocked_marker':bool(re.search(r'captcha|verify you are human|access denied|just a moment',page,re.I))}
 
 def diagnose_instruction_source_structure(url):
  """Fetch one allowed recipe source and report only structural metadata."""
