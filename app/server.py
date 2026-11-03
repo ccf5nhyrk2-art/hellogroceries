@@ -3305,6 +3305,13 @@ class Handler(SimpleHTTPRequestHandler):
     if int(recipe.get('id') or 0)==recipe_id and not non_recipe_reason(recipe) and visible_cooking_recipe(recipe,checks):
      return self.sendjson(recipe)
    return self.sendjson({'error':'Recipe not found'},404)
+  if self.path=='/api/recipes/summary':
+   # Lightweight catalog retains filter, recommendation and meal-planning metadata.
+   # Full cooking steps are fetched only when a recipe is opened.
+   checks=instruction_audit_rows()
+   start_instruction_audit()
+   catalog=(r for r in allrecipes() if not non_recipe_reason(r) and visible_cooking_recipe(r,checks))
+   return self.sendjson([{k:v for k,v in r.items() if k not in ('instructions','description','raw_json','source_html','recipeInstructions')} for r in catalog])
   if self.path=='/api/recipes':
    checks=instruction_audit_rows()
    start_instruction_audit()
