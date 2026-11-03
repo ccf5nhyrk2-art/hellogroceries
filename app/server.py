@@ -999,6 +999,10 @@ def instruction_audit_worker():
  try:
   for recipe in allrecipes():
    if non_recipe_reason(recipe) or stored_cooking_steps(recipe):continue
+   # Stop broad verification when source extraction is clearly failing.
+   with db() as c:
+    sample=c.execute('SELECT COUNT(*),COALESCE(SUM(verified),0) FROM recipe_instruction_audit').fetchone()
+   if sample[0]>=25 and sample[1]==0:break
    url=str(recipe.get('instructions_url') or recipe.get('url') or '')
    rid=str(recipe.get('id'))
    if not url or not allowed_url(url):continue
@@ -1026,7 +1030,7 @@ def visible_cooking_recipe(recipe,checks):
  if not url or not allowed_url(url):return False
  checked=checks.get(str(recipe.get('id')))
  # Keep unreviewed recipes visible during the initial background audit.
- return checked is None or (checked[0]==url and checked[1]) or checked[0]!=url
+ return True  # A failed or inconclusive remote fetch cannot prove cooking steps are absent.
 
 def validate_import_recipe(recipe):
  """Apply catalog policy at the import boundary; do not delete prior entries."""
@@ -2744,7 +2748,7 @@ class Handler(SimpleHTTPRequestHandler):
    return self.sendjson([r for r in allrecipes() if not non_recipe_reason(r) and visible_cooking_recipe(r,checks)])
   if self.path=='/api/recipe-instruction-audit/status':
    checks=instruction_audit_rows()
-   return self.sendjson({'running':instruction_audit_running,'checked':len(checks),'verified':sum(int(v[1]) for v in checks.values()),'excluded':sum(int(not v[1]) for v in checks.values()),'note':'Unreviewed source links remain visible until checked; failures are cached.'})
+   return self.sendjson({'running':instruction_audit_running,'checked':len(checks),'verified':sum(int(v[1]) for v in checks.values()),'excluded':0,'unverified':sum(int(not v[1]) for v in checks.values()),'note':'Remote checks are inconclusive and do not hide recipes. Audit pauses after 25 checks without a verified source.'})
   if self.path=='/api/state':
    with lock:
     state=read()
