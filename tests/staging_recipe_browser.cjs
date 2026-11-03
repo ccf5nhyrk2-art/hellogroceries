@@ -58,16 +58,21 @@ async function main() {
     const pageInfo = await page.locator('#fast-browse-pageinfo').innerText();
     assert.match(pageInfo, /Page 1 of \d+/);
     console.log('PASS: initial 24-card page and page count');
+    const searchResponses = [];
+    page.on('response', response => {
+      if (response.url().includes('/api/recipes/page')) searchResponses.push({ status: response.status(), url: response.url().split('?')[0], query: new URL(response.url()).searchParams.get('q') });
+    });
     await page.locator('#fast-browse-search').fill('chicken');
-    // Wait for the new API request to complete, not the previous page's existing cards.
-    await Promise.all([
-      page.waitForResponse(r => r.url().includes('/api/recipes/page') && new URL(r.url()).searchParams.get('q') === 'chicken' && r.ok(), { timeout: 30000 }),
-      page.locator('#fast-browse-search-button').click()
-    ]);
-    await page.waitForFunction(() => {
-      const cards = [...document.querySelectorAll('#fast-browse-results .recipe-card')];
-      return cards.length > 0 && cards.every(card => card.querySelector('.recipe-card-title')?.textContent?.toLowerCase().includes('chicken'));
-    }, null, { timeout: 30000 });
+    await page.locator('#fast-browse-search-button').click();
+    try {
+      await page.waitForFunction(() => {
+        const panel = document.querySelector('#fast-browse-results');
+        const cards = [...panel.querySelectorAll('.recipe-card')];
+        return cards.length > 0 && cards.every(card => card.querySelector('.recipe-card-title')?.textContent?.toLowerCase().includes('chicken'));
+      }, null, { timeout: 30000 });
+    } catch (error) {
+      throw new Error('Search did not render matching cards. API responses=' + JSON.stringify(searchResponses) + '; panel=' + (await page.locator('#fast-browse-results').innerText()).slice(0, 500) + '; ' + error.message);
+    }
     const searchTitles = await cards.locator('.recipe-card-title').allInnerTexts();
     assert.ok(searchTitles.length > 0 && searchTitles.every(t => t.toLowerCase().includes('chicken')), 'Search results do not match chicken');
     console.log('PASS: server-side chicken search');
