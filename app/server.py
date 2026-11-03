@@ -259,6 +259,30 @@ def allrecipes():
  with db() as c:photos=dict(c.execute('SELECT recipe_id,image_url FROM photos'))
  return [dict(r,image=photos.get(r['id'],r.get('image',''))) for r in recipes]
 
+def recipe_page_matches(recipe,query='',country='ALL',protein='all'):
+ """Server-side browse filters for the opt-in paginated catalog."""
+ name=str(recipe.get('name') or '').casefold()
+ code=str(recipe.get('country') or '').upper()
+ if query and query not in name and query not in code.casefold():return False
+ if country not in ('ALL','OTHER') and code!=country:return False
+ if country=='OTHER' and code in ('US','UK','AU','CA','DE','NL'):return False
+ if protein!='all':
+  groups={
+   'chicken':r'chicken|turkey',
+   'beef':r'beef|steak|meatball|ground beef',
+   'pork':r'pork|bacon|sausage|ham\\b',
+   'seafood':r'shrimp|salmon|fish|tilapia|cod\\b|tuna|scallop',
+   'vegetarian':r'tofu|chickpea|lentil|falafel|vegetarian|vegan|plant.based'
+  }
+  matched='other'
+  for group,pattern in groups.items():
+   if re.search(pattern,name):
+    matched=group
+    break
+  if matched!=protein:return False
+ return True
+
+
 def _selected_recipe_payload(payload,selected_ids):
  try:
   recipe=json.loads(payload)
@@ -3281,12 +3305,17 @@ class Handler(SimpleHTTPRequestHandler):
    except ValueError:
     return self.sendjson({'error':'Invalid pagination parameters'},400)
    query=params.get('q',[''])[0].strip().casefold()[:200]
+   country=params.get('country',['all'])[0].strip().upper()[:8]
+   protein=params.get('protein',['all'])[0].strip().lower()[:24]
+   sort=params.get('sort',['name'])[0].strip().lower()
+   if sort not in ('name','reverse','newest') or protein not in ('all','chicken','beef','pork','seafood','vegetarian','other'):
+    return self.sendjson({'error':'Invalid recipe filter'},400)
    checks=instruction_audit_rows()
    start_instruction_audit()
    catalog=(r for r in allrecipes() if not non_recipe_reason(r) and visible_cooking_recipe(r,checks))
-   if query:
-    catalog=(r for r in catalog if query in str(r.get('name','')).casefold())
-   matched=list(catalog)
+   matched=[r for r in catalog if recipe_page_matches(r,query,country,protein)]
+   if sort=='newest':matched.sort(key=lambda r:int(r.get('id') or 0),reverse=True)
+   else:matched.sort(key=lambda r:str(r.get('name') or '').casefold(),reverse=sort=='reverse')
    total=len(matched)
    start=(page-1)*page_size
    # Full recipe details remain available through the existing endpoint.
