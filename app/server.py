@@ -1265,14 +1265,20 @@ def start_instruction_recovery_diagnostic():
 def instruction_recovery_diagnostic_status():
  with instruction_diagnostic_lock:return dict(instruction_diagnostic_state)
 
-def valid_recovered_steps(steps):
- if not isinstance(steps,list) or len(steps)<2 or len(steps)>40:return False
+def recovered_step_validation_reason(steps):
+ """Explain rejected candidates without exposing recipe text."""
+ if not isinstance(steps,list):return 'not_a_step_list'
+ if len(steps)<2:return 'fewer_than_two_steps'
+ if len(steps)>40:return 'too_many_steps'
  cleaned=[re.sub(r'\s+',' ',str(step)).strip() for step in steps]
- # Short cooking directions can be valid; reject fragments and require substance.
- if any(len(step)<12 or len(step)>3500 for step in cleaned):return False
- if not any(len(step)>=25 for step in cleaned):return False
- if len(set(step.lower() for step in cleaned))<2:return False
- return True
+ if any(len(step)<12 for step in cleaned):return 'step_too_short'
+ if any(len(step)>3500 for step in cleaned):return 'step_too_long'
+ if not any(len(step)>=25 for step in cleaned):return 'no_substantive_step'
+ if len(set(step.lower() for step in cleaned))<2:return 'duplicate_steps'
+ return 'valid'
+
+def valid_recovered_steps(steps):
+ return recovered_step_validation_reason(steps)=='valid'
 
 def instruction_recovery_diagnostic():
  """Run ten bounded source checks, saving only validated instructions."""
@@ -1280,15 +1286,31 @@ def instruction_recovery_diagnostic():
  checked=instruction_audit_rows()
  candidates=[r for r in recipes if not stored_cooking_steps(r) and allowed_url(str(r.get('instructions_url') or r.get('url') or ''))]
  # Prefer fresh sources, then older failed checks; avoid repeatedly sampling one ID range.
- candidates.sort(key=lambda r: (int(str(r.get('id')) in checked and checked[str(r.get('id'))][0]==str(r.get('instructions_url') or r.get('url') or '') and checked[str(r.get('id'))][3]>=INSTRUCTION_AUDIT_VERSION),-int(r.get('id')) if str(r.get('id')).isdigit() else 0))
- candidates=candidates[:10]
+ # Sample known failure categories rather than only the newest recipe IDs.
+ priority={'invalid_recovered_steps':0,'dynamic_app_data_unsupported':1,'network_error':2}
+ candidates.sort(key=lambda r: (priority.get(checked.get(str(r.get('id')),(None,None,'',0))[2],3),-int(r.get('id')) if str(r.get('id')).isdigit() else 0))
+ groups={}
+ for recipe in candidates:
+  reason=checked.get(str(recipe.get('id')),(None,None,'unverified',0))[2]
+  groups.setdefault(reason,[]).append(recipe)
+ selected=[]
+ for reason in ('invalid_recovered_steps','dynamic_app_data_unsupported','network_error'):
+  selected.extend(groups.get(reason,[])[:3])
+ for recipe in candidates:
+  if len(selected)>=10:break
+  if recipe not in selected:selected.append(recipe)
+ candidates=selected[:10]
  results=[]
  for recipe in candidates:
   rid=str(recipe.get('id'))
   url=str(recipe.get('instructions_url') or recipe.get('url') or '')
+  previous_reason=checked.get(rid,(None,None,'unverified',0))[2]
   steps,reason=recover_recipe_instructions(url)
+  step_count=len(steps) if isinstance(steps,list) else 0
+  step_lengths=[len(str(step)) for step in steps[:8]] if isinstance(steps,list) else []
+  validation=recovered_step_validation_reason(steps) if steps else 'no_candidate'
   saved=False
-  if steps and not valid_recovered_steps(steps):
+  if steps and validation!='valid':
    steps=[];reason='invalid_recovered_steps'
   if steps:
    with db() as c:
@@ -1300,7 +1322,7 @@ def instruction_recovery_diagnostic():
    instruction_audit_schema(c)
    c.execute('INSERT OR REPLACE INTO recipe_instruction_audit (recipe_id,url,verified,checked_at,reason,version) VALUES (?,?,?,CURRENT_TIMESTAMP,?,?)',(rid,url,int(saved),reason,INSTRUCTION_AUDIT_VERSION))
    c.commit()
-  results.append({'recipe_id':rid,'source_host':urllib.parse.urlparse(url).hostname,'result':reason,'steps_found':len(steps),'saved':saved,'step_lengths':[len(str(step)) for step in steps[:8]]})
+  results.append({'recipe_id':rid,'source_host':urllib.parse.urlparse(url).hostname,'previous_reason':previous_reason,'result':reason,'validation':validation,'candidate_steps_found':step_count,'steps_found':len(steps),'saved':saved,'step_lengths':step_lengths})
  return {'tested':len(results),'results':results,'note':'Ten live checks only. URLs and instruction text are not returned. Failed checks never exclude recipes.'}
 
 def instruction_audit_status():
