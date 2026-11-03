@@ -690,6 +690,7 @@ async function loadPhotoAudit(more=false){
 document.getElementById('photo-audit-refresh').onclick=()=>loadPhotoAudit();
 document.getElementById('photo-audit-more').onclick=()=>loadPhotoAudit(true);
 
+let recipeAuditFirstLoad=true;
 async function scanRecipeQuality(){
  const button=document.getElementById('recipe-quality-refresh');
  const summary=document.getElementById('recipe-quality-summary');
@@ -711,8 +712,17 @@ async function scanRecipeQuality(){
   }else document.getElementById('recipe-source-sample').textContent='Cached-source comparison unavailable';
  }catch(error){document.getElementById('recipe-source-sample').textContent='Cached-source comparison unavailable'}
  try{
-  const response=await fetch('/api/admin/recipe-quality',{credentials:'same-origin',cache:'no-store',signal:AbortSignal.timeout(120000)});
-  const data=await response.json();
+  const refresh=!recipeAuditFirstLoad;
+  recipeAuditFirstLoad=false;
+  let response=await fetch('/api/admin/recipe-quality'+(refresh?'?refresh=1':''),{credentials:'same-origin',cache:'no-store',signal:AbortSignal.timeout(30000)});
+  let data=await response.json();
+  for(let attempt=0;response.status===202 && attempt<90;attempt++){
+   summary.textContent='Audit running in the background… checking for results ('+(attempt+1)+')';
+   await new Promise(resolve=>setTimeout(resolve,2000));
+   response=await fetch('/api/admin/recipe-quality',{credentials:'same-origin',cache:'no-store',signal:AbortSignal.timeout(30000)});
+   data=await response.json();
+  }
+  if(response.status===202)throw Error('Audit is still running. Refresh this page later.');
   if(!response.ok)throw Error(data.error||'Audit failed');
   const c=data.counts;
   summary.textContent=c.recipes+' recipes, '+c.ingredients+' ingredient entries · '+(c.verified+c.verified_count)+' explicit quantities/counts · '+c.source_recovered+' recovered from stored sources · '+c.unit_labeled+' have a unit but need an amount · '+c.needs_source+' lack a measurement · '+c.invalid+' invalid';
