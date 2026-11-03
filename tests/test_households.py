@@ -1,6 +1,13 @@
 import sqlite3
+import sys
 import unittest
-from app import households as auth
+from pathlib import Path
+
+APP_DIR = Path(__file__).resolve().parents[1] / 'app'
+if not (APP_DIR / 'households.py').is_file():
+    APP_DIR = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(APP_DIR))
+import households as auth
 
 class HouseholdSecurityTests(unittest.TestCase):
     def setUp(self):
