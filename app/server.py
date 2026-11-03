@@ -1150,7 +1150,8 @@ def instruction_audit_worker():
    previous=checked.get(rid)
    if previous and previous[0]==url and previous[3]>=INSTRUCTION_AUDIT_VERSION:continue
    steps,reason=recover_recipe_instructions(url)
-   ok=bool(steps)
+   ok=valid_recovered_steps(steps)
+   if steps and not ok:reason='invalid_recovered_steps'
    if ok:
     with db() as c:
      recipe_instruction_cache_schema(c)
@@ -1213,6 +1214,13 @@ def start_instruction_recovery_diagnostic():
 def instruction_recovery_diagnostic_status():
  with instruction_diagnostic_lock:return dict(instruction_diagnostic_state)
 
+def valid_recovered_steps(steps):
+ if not isinstance(steps,list) or len(steps)<2 or len(steps)>40:return False
+ cleaned=[re.sub(r'\\s+',' ',str(step)).strip() for step in steps]
+ if any(len(step)<25 or len(step)>3500 for step in cleaned):return False
+ if len(set(step.lower() for step in cleaned))<2:return False
+ return True
+
 def instruction_recovery_diagnostic():
  """Run three bounded real source checks, saving only confirmed instructions."""
  recipes=[r for r in allrecipes() if isinstance(r,dict) and not non_recipe_reason(r)]
@@ -1223,6 +1231,8 @@ def instruction_recovery_diagnostic():
   url=str(recipe.get('instructions_url') or recipe.get('url') or '')
   steps,reason=recover_recipe_instructions(url)
   saved=False
+  if steps and not valid_recovered_steps(steps):
+   steps=[];reason='invalid_recovered_steps'
   if steps:
    with db() as c:
     recipe_instruction_cache_schema(c)
@@ -1233,7 +1243,7 @@ def instruction_recovery_diagnostic():
    instruction_audit_schema(c)
    c.execute('INSERT OR REPLACE INTO recipe_instruction_audit (recipe_id,url,verified,checked_at,reason,version) VALUES (?,?,?,CURRENT_TIMESTAMP,?,?)',(rid,url,int(saved),reason,INSTRUCTION_AUDIT_VERSION))
    c.commit()
-  results.append({'recipe_id':rid,'source_host':urllib.parse.urlparse(url).hostname,'result':reason,'steps_found':len(steps),'saved':saved})
+  results.append({'recipe_id':rid,'source_host':urllib.parse.urlparse(url).hostname,'result':reason,'steps_found':len(steps),'saved':saved,'step_lengths':[len(str(step)) for step in steps[:8]]})
  return {'tested':len(results),'results':results,'note':'Three live checks only. URLs and instruction text are not returned. Failed checks never exclude recipes.'}
 
 def instruction_audit_status():
@@ -1250,7 +1260,9 @@ def instruction_audit_status():
  with db() as c:
   instruction_audit_schema(c)
   latest=c.execute('SELECT MAX(checked_at) FROM recipe_instruction_audit').fetchone()[0]
- return {'running':instruction_audit_running,'checked':len(applicable),'verified':verified,'unverified':len(applicable)-verified,'excluded':0,'stored_steps':stored,'total_recipes':len(recipes),'pending':sum(1 for r in recipes if not stored_cooking_steps(r) and str(r.get('id')) not in applicable),'last_checked_at':latest,'reasons':reasons,'version':INSTRUCTION_AUDIT_VERSION,'note':'Recovery runs in cautious batches of 3; successful cooking steps are cached. Unverified links never hide recipes.'}
+ recovered=sum(1 for r in applicable.values() if r[1] and r[3]>=INSTRUCTION_AUDIT_VERSION)
+ failures=sum(1 for r in applicable.values() if not r[1] and r[3]>=INSTRUCTION_AUDIT_VERSION)
+ return {'recovered':recovered,'failed_current_version':failures,'running':instruction_audit_running,'checked':len(applicable),'verified':verified,'unverified':len(applicable)-verified,'excluded':0,'stored_steps':stored,'total_recipes':len(recipes),'pending':sum(1 for r in recipes if not stored_cooking_steps(r) and str(r.get('id')) not in applicable),'last_checked_at':latest,'reasons':reasons,'version':INSTRUCTION_AUDIT_VERSION,'note':'Recovery runs in cautious batches of 3; successful cooking steps are cached. Unverified links never hide recipes.'}
 
 def visible_cooking_recipe(recipe,checks):
  if stored_cooking_steps(recipe):return True
