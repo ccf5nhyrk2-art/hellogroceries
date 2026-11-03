@@ -716,6 +716,10 @@ async function scanRecipeQuality(){
   if(!response.ok)throw Error(data.error||'Audit failed');
   const c=data.counts;
   summary.textContent=c.recipes+' recipes, '+c.ingredients+' ingredient entries · '+(c.verified+c.verified_count)+' explicit quantities/counts · '+c.source_recovered+' recovered from stored sources · '+c.unit_labeled+' have a unit but need an amount · '+c.needs_source+' lack a measurement · '+c.invalid+' invalid';
+  const sourceDetails=document.createElement('details');
+  const sourceHeading=document.createElement('summary');
+  sourceHeading.textContent='Source diagnostics and full-catalog matching details';
+  sourceDetails.appendChild(sourceHeading);
   const breakdown=document.createElement('div');
   breakdown.setAttribute('aria-label','Source diagnostics for sampled unresolved entries');
   const sample=Number(data.diagnostic_sample_size)||0;
@@ -731,19 +735,20 @@ async function scanRecipeQuality(){
    diagnosticList.appendChild(li);
   }
   breakdown.appendChild(diagnosticList);
-  issues.appendChild(breakdown);
+  sourceDetails.appendChild(breakdown);
   if(data.unresolved_match_counts){
    const totals=data.unresolved_match_counts;
    const title=document.createElement('p');
    title.textContent='Full-catalog unresolved matching diagnosis (all missing-quantity entries):';
-   issues.appendChild(title);
+   sourceDetails.appendChild(title);
    const list=document.createElement('ul');
    const labels={matched:'Matching measured source lines (requires investigation)',source_missing_quantity:'Matching source line lacks a quantity',ingredient_not_found:'No matching ingredient in source lines',no_source_lines:'No source lines',ambiguous_or_unsupported:'Ambiguous or unsupported source evidence'};
    for(const [key,label] of Object.entries(labels)){
     const li=document.createElement('li');li.textContent=label+': '+(totals[key]||0);list.appendChild(li);
    }
-   issues.appendChild(list);
+   sourceDetails.appendChild(list);
   }
+  issues.appendChild(sourceDetails);
   const recoveryTitle=document.createElement('p');
   recoveryTitle.textContent='Verified recoverable quantities in stored source: '+(data.recovery_eligible||0)+'. This counts recoverable entries, not all missing-quantity entries. No changes applied. For live-page evidence, use “Inspect 3 original recipe pages” above.';
   issues.appendChild(recoveryTitle);
