@@ -778,6 +778,10 @@ async function scanRecipeQuality(){
   const confidenceLine=document.createElement('p');
   confidenceLine.textContent='High-consensus suggestions (validation only): '+(confidence.eligible||0)+' tested · within 10%: '+pct(confidence.within_10_percent)+' · within 25%: '+pct(confidence.within_25_percent)+'. No automatic estimates enabled.';
   issues.appendChild(confidenceLine);
+  const independent=benchmark.independent_check||{};
+  const independentLine=document.createElement('p');
+  independentLine.textContent='Independent recipe holdout (separate recipes, validation only): '+(independent.tested||0)+' measurements · '+(independent.covered||0)+' predictions · '+(independent.high_consensus||0)+' high-consensus predictions · within 25%: '+pct(independent.within_25_percent)+' · errors over 50%: '+pct(independent.over_50_percent)+'.';
+  issues.appendChild(independentLine);
   const gate=document.createElement('p');
   const eligible=Number(confidence.eligible||0);
   const accuracy=confidence.within_25_percent;
@@ -786,8 +790,11 @@ async function scanRecipeQuality(){
   const categoryResults=Object.values(benchmark.categories||{});
   const categoryMinimum=20;
   const categoryFailures=categoryResults.filter(stats=>Number(stats.high_consensus||0)<categoryMinimum || typeof stats.high_consensus_within_25_percent!=='number' || stats.high_consensus_within_25_percent<minimumAccuracy);
-  const passes=eligible>=minimumSample && typeof accuracy==='number' && accuracy>=minimumAccuracy && categoryResults.length>0 && categoryFailures.length===0;
-  gate.textContent='Automatic estimation release gate: '+(passes?'Benchmark threshold met for review':'NOT APPROVED')+' · high-consensus sample '+eligible+'/'+minimumSample+' required · within 25% accuracy '+pct(accuracy)+' / 90.0% required · category checks '+(categoryResults.length-categoryFailures.length)+'/'+categoryResults.length+' passed (at least '+categoryMinimum+' samples and 90% accuracy each). Even a passing benchmark requires separate approval before enabling estimates.';
+  const independentEligible=Number(independent.high_consensus||0);
+  const independentAccuracy=independent.within_25_percent;
+  const independentPasses=independentEligible>=minimumSample && typeof independentAccuracy==='number' && independentAccuracy>=minimumAccuracy;
+  const passes=eligible>=minimumSample && typeof accuracy==='number' && accuracy>=minimumAccuracy && categoryResults.length>0 && categoryFailures.length===0 && independentPasses;
+  gate.textContent='Automatic estimation release gate: '+(passes?'Benchmark threshold met for review':'NOT APPROVED')+' · high-consensus sample '+eligible+'/'+minimumSample+' required · within 25% accuracy '+pct(accuracy)+' / 90.0% required · category checks '+(categoryResults.length-categoryFailures.length)+'/'+categoryResults.length+' passed (at least '+categoryMinimum+' samples and 90% accuracy each) · independent holdout '+independentEligible+'/'+minimumSample+' required, accuracy '+pct(independentAccuracy)+' / 90.0% required. Even a passing benchmark requires separate approval before enabling estimates.';
   gate.style.cssText='font-weight:600;padding:10px 12px;border:1px solid var(--border,#555);border-radius:8px;overflow-wrap:anywhere';
   issues.appendChild(gate);
   const safety=document.createElement('p');
