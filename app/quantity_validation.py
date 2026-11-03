@@ -103,7 +103,7 @@ def robust_prediction(samples, ingredient_category):
 
 
 def evaluate(recipes, limit=5000, minimum_examples=5, prediction_policy="conservative"):
-    if prediction_policy not in ("conservative", "median_baseline"):
+    if prediction_policy not in ("conservative", "median_baseline", "category_hybrid"):
         raise ValueError("Unknown prediction policy")
     """Recipe-level holdout with per-serving normalization and cautious abstention.
 
@@ -195,8 +195,13 @@ def evaluate(recipes, limit=5000, minimum_examples=5, prediction_policy="conserv
                     if relative_mad(contextual_samples) > relative_mad(baseline):
                         samples = baseline
                         use_context = False
-            predicted_unit = (median(samples) if prediction_policy == "median_baseline"
-                              else robust_prediction(samples, category(name)))
+            # Hybrid is validation-only: keep cautious abstention for oils/dairy,
+            # and test median coverage for grains and remaining categories.
+            # This choice depends on ingredient category, not held-out answers.
+            ingredient_group = category(name)
+            use_robust = (prediction_policy == "conservative" or
+                          (prediction_policy == "category_hybrid" and ingredient_group in ("oils_fats", "dairy")))
+            predicted_unit = robust_prediction(samples, ingredient_group) if use_robust else median(samples)
             if predicted_unit is None:
                 continue
             estimate = predicted_unit * servings if servings else predicted_unit
@@ -300,21 +305,27 @@ def compare_prediction_policies(recipes, limit=5000, minimum_examples=5):
                         prediction_policy="median_baseline")
     candidate = evaluate(recipes, limit=limit, minimum_examples=minimum_examples,
                          prediction_policy="conservative")
+    hybrid = evaluate(recipes, limit=limit, minimum_examples=minimum_examples,
+                      prediction_policy="category_hybrid")
     categories = {}
-    for name in sorted(set(baseline["categories"]) | set(candidate["categories"])):
+    for name in sorted(set(baseline["categories"]) | set(candidate["categories"]) | set(hybrid["categories"])):
         old = baseline["categories"].get(name, {})
         new = candidate["categories"].get(name, {})
+        mixed = hybrid["categories"].get(name, {})
         categories[name] = {
             "baseline_covered": old.get("covered", 0),
             "candidate_covered": new.get("covered", 0),
             "baseline_within_25_percent": old.get("within_25_percent"),
             "candidate_within_25_percent": new.get("within_25_percent"),
+            "hybrid_covered": mixed.get("covered", 0),
+            "hybrid_within_25_percent": mixed.get("within_25_percent"),
         }
     return {
         "mode": "offline_validation_only", "applied_changes": 0,
         "same_holdout": baseline["evaluated"] == candidate["evaluated"],
         "baseline": {k: baseline[k] for k in ("evaluated", "covered", "coverage", "within_25_percent", "high_confidence", "independent_check")},
         "candidate": {k: candidate[k] for k in ("evaluated", "covered", "coverage", "within_25_percent", "high_confidence", "independent_check")},
+        "hybrid": {k: hybrid[k] for k in ("evaluated", "covered", "coverage", "within_25_percent", "high_confidence", "independent_check")},
         "priority_categories": {k: categories[k] for k in ("oils_fats", "dairy", "grain_or_starch") if k in categories},
         "categories": categories,
     }
