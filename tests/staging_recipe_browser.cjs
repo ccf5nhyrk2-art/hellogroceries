@@ -15,6 +15,7 @@ async function main() {
   if (Boolean(accessId) !== Boolean(accessSecret)) throw new Error('Configure both CF_ACCESS_CLIENT_ID and CF_ACCESS_CLIENT_SECRET.');
   const page = await browser.newPage({
     viewport: { width: 1280, height: 900 },
+    storageState: process.env.STAGING_AUTH_STATE || undefined,
     extraHTTPHeaders: accessId ? {
       'CF-Access-Client-Id': accessId,
       'CF-Access-Client-Secret': accessSecret
@@ -26,6 +27,7 @@ async function main() {
   page.on('console', m => { if (m.type() === 'error') errors.push('console: ' + m.text()); });
   page.on('response', r => { if (r.status() >= 400 && r.url().startsWith(base)) errors.push('HTTP ' + r.status() + ' ' + r.url()); });
   try {
+    if (process.env.STAGING_AUTH_STATE) { await page.goto(base+'/',{waitUntil:'domcontentloaded'}); } else {
     const initial = await page.goto(base + '/auth.html', { waitUntil: 'domcontentloaded' });
     console.log('Login landing: status=' + (initial?.status() ?? 'unknown') + ' origin=' + new URL(page.url()).origin);
     if (new URL(page.url()).hostname.endsWith('.cloudflareaccess.com')) {
@@ -45,6 +47,7 @@ async function main() {
     await page.locator('#password').fill(password);
     await page.locator('#submit').click();
     await page.waitForURL(url => !url.pathname.endsWith('/auth.html'), { timeout: 20000 });
+    }
     // Login intentionally lands on Home; navigate to Recipes before testing its controls.
     await page.locator('.page-nav-button[data-page="recipes"]').waitFor({ state: 'attached', timeout: 30000 });
     await page.locator('.page-nav-button[data-page="recipes"]').evaluate(button => button.click());
