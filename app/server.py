@@ -1184,6 +1184,10 @@ def instruction_audit_worker():
    if completed==0:break
    # Allow the host and upstream sources to recover between batches.
    time.sleep(3)
+ except Exception:
+  import traceback
+  traceback.print_exc()
+  with instruction_audit_lock:instruction_audit_errors+=1
  finally:
   with instruction_audit_lock:instruction_audit_running=False
 
@@ -3017,7 +3021,9 @@ class Handler(SimpleHTTPRequestHandler):
    if not getattr(request_scope,'admin',False):return self.sendjson({'error':'Administrator required'},403)
    return self.sendjson(instruction_field_diagnostics())
   if self.path=='/api/recipe-instruction-audit/status':
+   if not self.gate():return
    if not getattr(request_scope,'admin',False):return self.sendjson({'error':'Administrator required'},403)
+   start_instruction_audit()
    return self.sendjson(instruction_audit_status())
   if self.path=='/api/state':
    with lock:
