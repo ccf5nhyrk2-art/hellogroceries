@@ -973,15 +973,16 @@ def instruction_text_ok(value):
  return False
 
 def verify_cooking_link(url):
- """Return (verified, reason); network failures are never evidence of missing steps."""
+ """Verify actual cooking directions; return diagnostic reason on failure."""
  if not isinstance(url,str) or not allowed_url(url):return False,'invalid_url'
  try:
-  req=urllib.request.Request(url,headers={'User-Agent':'Mozilla/5.0 (compatible; HelloGroceriesRecipeAudit/2.0)','Accept':'text/html'})
+  req=urllib.request.Request(url,headers={'User-Agent':'Mozilla/5.0 (compatible; HelloGroceriesRecipeAudit/3.0)','Accept':'text/html'})
   with urllib.request.urlopen(req,timeout=9) as response:
    if not allowed_url(response.geturl()):return False,'unsafe_redirect'
    if response.status!=200:return False,'http_error'
-   page=response.read(1200000).decode('utf-8','replace')
-  for raw in re.findall(r'<script[^>]*application/ld\\+json[^>]*>(.*?)</script>',page,re.I|re.S):
+   page=response.read(1500000).decode('utf-8','replace')
+  # JSON-LD Recipe instructions, including HowToStep and HowToSection.
+  for raw in re.findall(r'<script[^>]*application/ld\+json[^>]*>(.*?)</script>',page,re.I|re.S):
    try:root=json.loads(html.unescape(raw))
    except (ValueError,TypeError):continue
    pending=[root]
@@ -993,13 +994,12 @@ def verify_cooking_link(url):
     if isinstance(typ,str):typ=[typ]
     if any(str(t).lower().endswith('recipe') for t in typ) and instruction_text_ok(node.get('recipeInstructions')):return True,'jsonld'
     pending.extend(v for v in node.values() if isinstance(v,(dict,list)))
-  # HelloFresh pages commonly serialize preparation steps in application data.
-  # Require step-like keys AND substantive instructional text, not merely a page link.
-  for key in ('instructions','recipeInstructions','preparationSteps','cookingSteps','steps'):
-   pattern=r'"'+key+r'"\\s*:\\s*(\\[[\\s\\S]{0,18000}?\\]|\\{[\\s\\S]{0,18000}?\\})'
-   for match in re.finditer(pattern,page,re.I):
-    snippet=html.unescape(match.group(1))
-    if len(re.findall(r'"(?:text|description|instruction|body)"\\s*:',snippet,re.I))>=2 and len(re.sub(r'<[^>]+>',' ',snippet))>=160:return True,'embedded_steps'
+  # Serialized app state: find step arrays and parse complete JSON values.
+  decoder=json.JSONDecoder()
+  for match in re.finditer(r'["\x27](?:instructions|recipeInstructions|preparationSteps|cookingSteps|steps)["\x27]\s*:\s*(?=[\[{])',page,re.I):
+   try:value,_=decoder.raw_decode(page[match.end():])
+   except (ValueError,TypeError):continue
+   if isinstance(value,(dict,list)) and instruction_text_ok(value):return True,'embedded_steps'
   return False,'unsupported_or_missing_steps'
  except urllib.error.HTTPError as exc:return False,'http_'+str(exc.code)
  except (OSError,ValueError,TimeoutError,UnicodeError):return False,'network_error'
@@ -1013,7 +1013,7 @@ def instruction_audit_schema(c):
 instruction_audit_lock=threading.Lock()
 instruction_audit_running=False
 instruction_audit_requested=False
-INSTRUCTION_AUDIT_VERSION=2
+INSTRUCTION_AUDIT_VERSION=3
 
 def instruction_audit_rows():
  with db() as c:
