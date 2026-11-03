@@ -831,7 +831,10 @@ async function scanRecipeQuality(){
   }
   categoryDetails.appendChild(categoryList);
   issues.appendChild(categoryDetails);
+  const weakCategories=Object.entries(benchmark.categories||{}).filter(([name,stats])=>(stats.covered||0)>=20 && (stats.within_25_percent||0)<0.9).sort((a,b)=>(a[1].within_25_percent||0)-(b[1].within_25_percent||0));
+  if(weakCategories.length){const note=document.createElement('p');note.textContent='Estimation improvement priorities (read-only): '+weakCategories.slice(0,4).map(([name,stats])=>name.replaceAll('_',' ')+' ('+pct(stats.within_25_percent)+' within 25%)').join(' · ')+'. These categories need better validation before estimates can be enabled.';issues.appendChild(note)}
   const benchmarkDetails=document.createElement('details');
+  benchmarkDetails.open=false;
   const benchmarkTitle=document.createElement('summary');
   benchmarkTitle.textContent='Show estimation benchmark examples';
   benchmarkDetails.appendChild(benchmarkTitle);
@@ -884,6 +887,7 @@ async function scanRecipeQuality(){
    issues.appendChild(details);
   }
   const details=document.createElement('details');
+  details.open=false;
   const title=document.createElement('summary');
   title.textContent='View all '+(data.issues||[]).length+' individual diagnostic entries';
   details.appendChild(title);
@@ -912,6 +916,9 @@ alternativeProbe.addEventListener('click',async()=>{
   const summary=document.createElement('p');
   const inspected=data.results||[];const matches=inspected.reduce((n,item)=>n+(item.verified_source_recovery?.verified_matches||0),0);const eligible=inspected.reduce((n,item)=>n+(item.verified_source_recovery?.eligible_ingredients||0),0);summary.textContent='Inspected '+data.sample_size+' original pages. Verified live-source matches: '+matches+' of '+eligible+' unresolved ingredients checked. '+(matches?'Review matched ingredients before any recovery.':'No matching measurable ingredient lines found in these pages; repeating the stored-source audit will not recover them.')+' No amounts changed.';
   target.appendChild(summary);
+  if(inspected.length && inspected.every(item=>item.import_source_comparison?.exact_line_match===true && (item.verified_source_recovery?.verified_matches||0)===0)){
+   const note=document.createElement('p');note.textContent='Source comparison complete: stored and live ingredient lines match, with no recoverable quantities for the checked unresolved ingredients. Further scans of these same recipes are unnecessary. Estimated quantities remain suggestions only.';target.appendChild(note);
+  }
   const table=document.createElement('table');
   table.style.cssText='width:100%;border-collapse:collapse;font-size:0.9rem';
   const head=document.createElement('tr');
