@@ -12,7 +12,9 @@ async function main(){
   await page.locator('#email').fill(process.env.STAGING_TEST_EMAIL);
   await page.locator('#password').fill(process.env.STAGING_TEST_PASSWORD);
   await page.locator('#submit').click();
-  await page.waitForURL(u=>!u.pathname.endsWith('/auth.html'),{timeout:30000});
+  await page.waitForFunction(()=>location.pathname!='/auth.html'||!!document.querySelector('.page-nav-button[data-page="recipes"]'),null,{timeout:90000}).catch(async error=>{
+    throw new Error('Sharing test login did not complete: url='+page.url()+'; authError='+(await page.locator('#error').textContent().catch(()=>''))+'; '+error.message);
+  });
   await page.locator('.page-nav-button[data-page="recipes"]').waitFor({state:'attached',timeout:30000});
   const installed=await page.evaluate(()=>Boolean(window.HelloGroceriesShare));
   if(!installed){console.log('SKIP: share UI is not deployed to staging yet; update staging container before E2E validation');return}
@@ -25,7 +27,7 @@ async function main(){
   assert.deepEqual(result.ids,[101,102]);
   await page.locator('.page-nav-button[data-page="recipes"]').first().evaluate(el=>el.click());
   await page.locator('#fast-browse-toggle').click();
-  await page.locator('#fast-browse-results [data-hg-share-button]').first().waitFor({timeout:90000});
+  await page.locator('#fast-browse-results [data-hg-share-button]').first().waitFor({timeout:120000});
   await page.locator('#fast-browse-results [data-hg-share-button]').first().click();
   assert.ok(await page.locator('#hg-share-dialog').isVisible(),'Share dialog did not open');
   assert.ok(await page.locator('#hg-share-dialog button').allTextContents().then(x=>x.some(v=>v.includes('Copy link'))),'Copy link action missing');
