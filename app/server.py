@@ -1015,23 +1015,60 @@ def verify_cooking_link(url):
  except (OSError,ValueError,TimeoutError,UnicodeError):return False,'network_error'
 
 def instruction_step_strings(value):
- """Extract human-readable step text from supported structured recipe formats."""
+ """Accept substantive instruction steps, never ingredient lists or marketing copy."""
  if isinstance(value,str):
-  clean=re.sub(r'\\s+',' ',html.unescape(re.sub(r'<[^>]+>',' ',value))).strip()
+  clean=re.sub(r'\s+',' ',html.unescape(re.sub(r'<[^>]+>',' ',value))).strip()
   return [clean] if len(clean)>=25 else []
  if isinstance(value,list):
   result=[]
   for item in value:result.extend(instruction_step_strings(item))
   return result[:40]
  if isinstance(value,dict):
-  for key in ('itemListElement','steps','recipeInstructions','instructions'):
+  for key in ('itemListElement','steps','recipeInstructions','instructions','preparationSteps','cookingSteps'):
    if key in value:return instruction_step_strings(value[key])
-  for key in ('text','description','body'):
+  for key in ('text','description','body','instruction'):
    if key in value:return instruction_step_strings(value[key])
  return []
 
+def hydration_cooking_steps(page):
+ """Read structured recipe steps from server-rendered app hydration data."""
+ payloads=[]
+ for match in re.finditer(r'<script\b([^>]*)>(.*?)</script\s*>',page,re.I|re.S):
+  attrs,body=match.groups()
+  if re.search(r'id=["\']__NEXT_DATA__["\']|application/json',attrs,re.I):
+   try:payloads.append(json.loads(html.unescape(body.strip())))
+   except (ValueError,TypeError):pass
+ # Next.js streaming flight payloads are JavaScript-escaped strings.
+ for raw in re.findall(r'self\.__next_f\.push\(\s*(\[.*?\])\s*\)\s*;',page,re.S)[:60]:
+  try:
+   flight=json.loads(raw)
+   if isinstance(flight,list):payloads.extend(v for v in flight if isinstance(v,(dict,list)))
+   # Flight strings can contain escaped serialized recipe objects.
+   if isinstance(flight,list):
+    for part in flight:
+     if isinstance(part,str):
+      for m in re.finditer(r'"(?:recipeInstructions|preparationSteps|cookingSteps|instructions|steps)"\s*:\s*(?=[\[{])',part):
+       try:
+        value,_=json.JSONDecoder().raw_decode(part[m.end():])
+        steps=instruction_step_strings(value)
+        if len(steps)>=2:return steps,'next_flight_steps'
+       except (ValueError,TypeError):pass
+  except (ValueError,TypeError):pass
+ pending=payloads[:]
+ seen=0
+ while pending and seen<12000:
+  node=pending.pop();seen+=1
+  if isinstance(node,list):pending.extend(node[:150]);continue
+  if not isinstance(node,dict):continue
+  for key in ('recipeInstructions','preparationSteps','cookingSteps','instructions','steps'):
+   if key in node:
+    steps=instruction_step_strings(node[key])
+    if len(steps)>=2:return steps,'hydration_steps'
+  pending.extend(v for v in node.values() if isinstance(v,(dict,list)))
+ return [],'dynamic_app_data_unsupported'
+
 def extract_cooking_steps(page):
- for raw in re.findall(r'<script[^>]*application/ld\\+json[^>]*>(.*?)</script>',page,re.I|re.S):
+ for raw in re.findall(r'<script[^>]*application/ld\+json[^>]*>(.*?)</script>',page,re.I|re.S):
   try:root=json.loads(html.unescape(raw))
   except (ValueError,TypeError):continue
   pending=[root]
@@ -1045,8 +1082,10 @@ def extract_cooking_steps(page):
     steps=instruction_step_strings(node.get('recipeInstructions'))
     if steps:return steps,'jsonld'
    pending.extend(v for v in node.values() if isinstance(v,(dict,list)))
+ steps,reason=hydration_cooking_steps(page)
+ if steps:return steps,reason
  decoder=json.JSONDecoder()
- for match in re.finditer(r'["\\x27](?:recipeInstructions|preparationSteps|cookingSteps|instructions|steps)["\\x27]\\s*:\\s*(?=[\\[{])',page,re.I):
+ for match in re.finditer(r'["\'](?:recipeInstructions|preparationSteps|cookingSteps|instructions|steps)["\']\s*:\s*(?=[\[{])',page,re.I):
   try:value,_=decoder.raw_decode(page[match.end():])
   except (ValueError,TypeError):continue
   steps=instruction_step_strings(value)
@@ -1089,7 +1128,7 @@ def instruction_audit_schema(c):
 instruction_audit_lock=threading.Lock()
 instruction_audit_running=False
 instruction_audit_requested=False
-INSTRUCTION_AUDIT_VERSION=4
+INSTRUCTION_AUDIT_VERSION=5
 
 def instruction_audit_rows():
  with db() as c:
