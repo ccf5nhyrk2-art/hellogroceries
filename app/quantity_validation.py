@@ -105,7 +105,9 @@ def evaluate(recipes, limit=5000, minimum_examples=5):
                 unique[pair] = amount
         rows = [(name, unit, amount) for (name, unit), amount in unique.items()
                 if (name, unit) not in ambiguous]
-        if i % 5 == 0:
+        if i % 10 in (0, 5):
+            # Separate primary and independent holdouts by whole recipe.
+            # Previously i % 5 == 0 made the independent cohort impossible.
             heldout.append((recipe.get("id"), servings, recipe_context(recipe), rows, "independent_check" if i % 10 == 5 else "primary"))
         else:
             for name, unit, amount in rows:
