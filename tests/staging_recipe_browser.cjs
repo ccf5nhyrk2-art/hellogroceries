@@ -147,11 +147,26 @@ async function main() {
       await page.locator('.page-nav-button[data-page="recipes"]').waitFor({ state: 'attached', timeout: 30000 });
       await page.locator('.page-nav-button[data-page="recipes"]').evaluate(button => button.click());
       await page.locator('#fast-browse-toggle').click();
-      await page.waitForFunction(([id, name]) => {
-        return (state.favorites || []).map(Number).includes(Number(id))
-          && Object.hasOwn(state.selected || {}, String(id))
-          && (state.collections?.[name] || []).map(Number).includes(Number(id));
-      }, [targetId, testCollection], { timeout: 30000 });
+      const persistedSnapshot = async () => page.evaluate(([id, name]) => ({
+        favorite: typeof state !== 'undefined' && (state.favorites || []).map(Number).includes(Number(id)),
+        selected: typeof state !== 'undefined' && Object.hasOwn(state.selected || {}, String(id)),
+        collection: typeof state !== 'undefined' && (state.collections?.[name] || []).map(Number).includes(Number(id)),
+        favoriteCount: typeof state !== 'undefined' ? (state.favorites || []).length : null,
+        selectedCount: typeof state !== 'undefined' ? Object.keys(state.selected || {}).length : null,
+        collectionCount: typeof state !== 'undefined' ? (state.collections?.[name] || []).length : null,
+        pathname: location.pathname
+      }), [targetId, testCollection]);
+      try {
+        await page.waitForFunction(([id, name]) => {
+          return typeof state !== 'undefined'
+            && (state.favorites || []).map(Number).includes(Number(id))
+            && Object.hasOwn(state.selected || {}, String(id))
+            && (state.collections?.[name] || []).map(Number).includes(Number(id));
+        }, [targetId, testCollection], { timeout: 30000 });
+      } catch (error) {
+        const snapshot = await persistedSnapshot().catch(e => ({ diagnosticError: e.message }));
+        throw new Error('Post-reload persistence check failed: ' + JSON.stringify(snapshot) + '; ' + error.message);
+      }
       console.log('PASS: favorite, meal plan and collection persisted after reload');
     } finally {
       // Restore the test account even when an assertion fails.
