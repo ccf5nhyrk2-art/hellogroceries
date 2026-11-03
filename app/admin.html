@@ -1186,7 +1186,23 @@ document.getElementById('instruction-diagnose')?.addEventListener('click',async(
    if(data.running){status.textContent='Checking up to 10 recipe sources in the background…';continue}
    if(data.error)throw Error('Server diagnostic failed: '+data.error);
    status.textContent='Checked '+data.tested+' recipe sources.';
-   output.textContent=(data.results||[]).map(r=>'Recipe '+r.recipe_id+' · '+(r.source_host||'unknown host')+' · '+r.result+' · '+r.steps_found+' steps · '+(r.saved?'Saved successfully':'Not saved')).join('\n');
+   output.textContent=(data.results||[]).map(r=>{
+    const lines=['Recipe '+r.recipe_id+' · '+(r.source_host||'unknown host')+' · '+r.result+' · '+r.steps_found+' steps · '+(r.saved?'Saved successfully':'Not saved')];
+    if(r.previous_reason)lines.push('  Previous: '+r.previous_reason);
+    if(r.validation && r.validation!=='valid')lines.push('  Validation: '+r.validation);
+    if(r.candidate_steps_found)lines.push('  Candidate steps: '+r.candidate_steps_found+' · Lengths: '+(r.step_lengths||[]).join(', '));
+    if(r.page_structure){
+     const p=r.page_structure;
+     if(p.error)lines.push('  Page inspection: '+p.error);
+     else{
+      lines.push('  Page scripts: '+p.script_count+' · JSON-LD: '+p.jsonld_scripts+' · JSON scripts: '+p.json_scripts);
+      lines.push('  Next.js data: '+(p.next_data?'yes':'no')+' · Flight chunks: '+p.next_flight_chunks+' · Nuxt: '+(p.nuxt_markers?'yes':'no')+' · Initial state: '+(p.initial_state_marker?'yes':'no'));
+      lines.push('  Instruction keys: '+Object.entries(p.instruction_key_counts||{}).filter(([key,count])=>count>0).map(([key,count])=>key+'='+count).join(', ') || '  Instruction keys: none');
+      if(p.blocked_marker||p.javascript_required_marker)lines.push('  Blocked: '+(p.blocked_marker?'yes':'no')+' · JavaScript required: '+(p.javascript_required_marker?'yes':'no'));
+     }
+    }
+    return lines.join('\n');
+   }).join('\n\n');
    await refreshInstructionAudit();return;
   }
   status.textContent='Diagnostic is still running. Refresh the page and check again.';
