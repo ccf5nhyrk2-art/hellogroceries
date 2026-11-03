@@ -1059,12 +1059,24 @@ def recipe_instruction_cache_schema(c):
 def recover_recipe_instructions(url):
  if not isinstance(url,str) or not allowed_url(url):return [],'invalid_url'
  try:
-  req=urllib.request.Request(url,headers={'User-Agent':'Mozilla/5.0 (compatible; HelloGroceriesRecipeRecovery/1.0)','Accept':'text/html'})
+  req=urllib.request.Request(url,headers={'User-Agent':'Mozilla/5.0 (compatible; HelloGroceriesRecipeRecovery/1.1)','Accept':'text/html'})
   with urllib.request.urlopen(req,timeout=9) as response:
    if not allowed_url(response.geturl()):return [],'unsafe_redirect'
    if response.status!=200:return [],'http_error'
+   content_type=response.headers.get('Content-Type','').lower()
+   if 'html' not in content_type:return [],'non_html_source'
    page=response.read(1500000).decode('utf-8','replace')
-  return extract_cooking_steps(page)
+  steps,reason=extract_cooking_steps(page)
+  if steps:return steps,reason
+  if re.search(r'<script[^>]*application/ld\\+json',page,re.I):
+   return [],'structured_data_without_supported_steps'
+  if re.search(r'__NEXT_DATA__|__NUXT__|window\\.__INITIAL_STATE__|hydration',page,re.I):
+   return [],'dynamic_app_data_unsupported'
+  if re.search(r'captcha|verify you are human|access denied|enable javascript|just a moment',page,re.I):
+   return [],'blocked_or_javascript_required'
+  if re.search(r'cook(?:ing)? directions|method|preparation|instructions|step\\s*1',page,re.I):
+   return [],'instructions_in_unrecognized_html'
+  return [],'no_instruction_markers_found'
  except urllib.error.HTTPError as exc:return [],'http_'+str(exc.code)
  except (OSError,ValueError,TimeoutError,UnicodeError):return [],'network_error'
 
