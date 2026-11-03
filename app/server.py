@@ -954,6 +954,80 @@ def non_recipe_reason(recipe):
   return 'Bulk packaged product'
  return None
 
+# Cooking-step audit: cache remote checks, never block the recipe API on network.
+instruction_audit_lock=threading.Lock()
+instruction_audit_running=False
+def stored_cooking_steps(recipe):
+ steps=recipe.get('instructions') or recipe.get('recipeInstructions') or recipe.get('steps')
+ if isinstance(steps,str):return len(steps.strip())>=35
+ if isinstance(steps,list):
+  return any((isinstance(step,str) and len(step.strip())>=20) or
+   (isinstance(step,dict) and len(str(step.get('text') or step.get('description') or '').strip())>=20)
+   for step in steps)
+ return False
+
+def verify_cooking_link(url):
+ if not isinstance(url,str) or not allowed_url(url):return False
+ try:
+  req=urllib.request.Request(url,headers={'User-Agent':'Mozilla/5.0 (compatible; HelloGroceriesRecipeAudit/1.0)','Accept':'text/html'})
+  with urllib.request.urlopen(req,timeout=9) as response:
+   if not allowed_url(response.geturl()) or response.status!=200:return False
+   page=response.read(850000).decode('utf-8','replace')
+  # A working page alone is not sufficient: require structured cooking steps.
+  for raw in re.findall(r'<script[^>]*type=["\\\']application/ld\\+json["\\\'][^>]*>(.*?)</script>',page,re.I|re.S):
+   try:root=json.loads(html.unescape(raw))
+   except (ValueError,TypeError):continue
+   pending=[root]
+   while pending:
+    node=pending.pop()
+    if isinstance(node,list):pending.extend(node);continue
+    if not isinstance(node,dict):continue
+    typ=node.get('@type',[])
+    if isinstance(typ,str):typ=[typ]
+    if any(str(t).lower().endswith('recipe') for t in typ) and stored_cooking_steps(node):return True
+    pending.extend(v for v in node.values() if isinstance(v,(dict,list)))
+  return False
+ except (OSError,ValueError,TimeoutError,UnicodeError):return False
+
+def instruction_audit_rows():
+ with db() as c:
+  c.execute('CREATE TABLE IF NOT EXISTS recipe_instruction_audit (recipe_id TEXT PRIMARY KEY, url TEXT NOT NULL, verified INTEGER NOT NULL, checked_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)')
+  return {rid:(url,bool(ok)) for rid,url,ok in c.execute('SELECT recipe_id,url,verified FROM recipe_instruction_audit')}
+
+def instruction_audit_worker():
+ global instruction_audit_running
+ try:
+  for recipe in allrecipes():
+   if non_recipe_reason(recipe) or stored_cooking_steps(recipe):continue
+   url=str(recipe.get('instructions_url') or recipe.get('url') or '')
+   rid=str(recipe.get('id'))
+   if not url or not allowed_url(url):continue
+   with db() as c:
+    c.execute('CREATE TABLE IF NOT EXISTS recipe_instruction_audit (recipe_id TEXT PRIMARY KEY, url TEXT NOT NULL, verified INTEGER NOT NULL, checked_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)')
+    row=c.execute('SELECT verified FROM recipe_instruction_audit WHERE recipe_id=? AND url=?',(rid,url)).fetchone()
+   if row is not None:continue
+   ok=verify_cooking_link(url)
+   with db() as c:
+    c.execute('INSERT OR REPLACE INTO recipe_instruction_audit (recipe_id,url,verified,checked_at) VALUES (?,?,?,CURRENT_TIMESTAMP)',(rid,url,int(ok)))
+    c.commit()
+ finally:
+  with instruction_audit_lock:instruction_audit_running=False
+
+def start_instruction_audit():
+ global instruction_audit_running
+ with instruction_audit_lock:
+  if instruction_audit_running:return
+  instruction_audit_running=True
+ threading.Thread(target=instruction_audit_worker,name='recipe-instruction-audit',daemon=True).start()
+
+def visible_cooking_recipe(recipe,checks):
+ if stored_cooking_steps(recipe):return True
+ url=str(recipe.get('instructions_url') or recipe.get('url') or '')
+ if not url or not allowed_url(url):return False
+ checked=checks.get(str(recipe.get('id')))
+ # Keep unreviewed recipes visible during the initial background audit.
+ return checked is None or (checked[0]==url and checked[1]) or checked[0]!=url
+
 def validate_import_recipe(recipe):
  """Apply catalog policy at the import boundary; do not delete prior entries."""
  reason=non_recipe_reason(recipe)
@@ -2664,7 +2738,13 @@ class Handler(SimpleHTTPRequestHandler):
     if photo.suffix.lower() in ('.jpg','.png','.webp','.gif') and photo.stem.isdigit() and photo.is_file() and photo.stat().st_size>0:
      cached_ids.append(int(photo.stem))
    return self.sendjson({'ids':cached_ids})
-  if self.path=='/api/recipes':return self.sendjson([r for r in allrecipes() if not non_recipe_reason(r)])
+  if self.path=='/api/recipes':
+   checks=instruction_audit_rows()
+   start_instruction_audit()
+   return self.sendjson([r for r in allrecipes() if not non_recipe_reason(r) and visible_cooking_recipe(r,checks)])
+  if self.path=='/api/recipe-instruction-audit/status':
+   checks=instruction_audit_rows()
+   return self.sendjson({'running':instruction_audit_running,'checked':len(checks),'verified':sum(int(v[1]) for v in checks.values()),'excluded':sum(int(not v[1]) for v in checks.values()),'note':'Unreviewed source links remain visible until checked; failures are cached.'})
   if self.path=='/api/state':
    with lock:
     state=read()
