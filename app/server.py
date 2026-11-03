@@ -3043,6 +3043,15 @@ class Handler(SimpleHTTPRequestHandler):
      c.commit()
     return self.sendjson({'ok':True,'visibility':pricing_visibility()})
    except (ValueError,TypeError) as exc:return self.sendjson({'error':str(exc)},400)
+  if self.path=='/api/recipe-instruction-audit/retry':
+   if not self.gate(write=True):return
+   if not getattr(request_scope,'admin',False):return self.sendjson({'error':'Administrator required'},403)
+   if instruction_audit_running:return self.sendjson({'error':'Audit already running'},409)
+   with db() as c:
+    instruction_audit_schema(c)
+    c.execute('UPDATE recipe_instruction_audit SET version=1 WHERE verified=0')
+    c.commit()
+   return self.sendjson({'started':start_instruction_audit(),'message':'Retrying unverified source links in a batch of up to 25.'})
   if self.path=='/api/admin/tasks/run':
    if not self.gate(write=True):return
    if not getattr(request_scope,'admin',False):return self.sendjson({'error':'Administrator required'},403)
