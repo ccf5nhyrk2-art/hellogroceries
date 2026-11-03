@@ -856,6 +856,41 @@ async function scanRecipeQuality(){
   issues.appendChild(categoryDetails);
   const weakCategories=Object.entries(benchmark.categories||{}).filter(([name,stats])=>(stats.covered||0)>=20 && (stats.within_25_percent||0)<0.9).sort((a,b)=>(a[1].within_25_percent||0)-(b[1].within_25_percent||0));
   if(weakCategories.length){const note=document.createElement('p');note.textContent='Estimation improvement priorities (read-only): '+weakCategories.slice(0,4).map(([name,stats])=>name.replaceAll('_',' ')+' ('+pct(stats.within_25_percent)+' within 25%)').join(' · ')+'. These categories need better validation before estimates can be enabled.';issues.appendChild(note)}
+  // Admin-only, staging-only preview. Never persists or mutates recipe data.
+  if(location.hostname.toLowerCase().startsWith('staging-')){
+   const previewPanel=document.createElement('section');
+   previewPanel.style.cssText='border:1px solid var(--border,#555);border-radius:10px;padding:14px;margin:14px 0';
+   const previewTitle=document.createElement('h3');
+   previewTitle.textContent='Staging quantity suggestion preview';
+   previewPanel.appendChild(previewTitle);
+   const previewLabel=document.createElement('label');
+   const previewToggle=document.createElement('input');
+   previewToggle.type='checkbox';
+   previewToggle.style.marginRight='8px';
+   previewLabel.appendChild(previewToggle);
+   previewLabel.appendChild(document.createTextNode('Show estimated quantities (this browser session only)'));
+   previewPanel.appendChild(previewLabel);
+   const previewNote=document.createElement('p');
+   previewNote.textContent='Off by default. Read-only benchmark examples, not live recipe edits. Estimates are never sent to shopping, pantry or pricing.';
+   previewPanel.appendChild(previewNote);
+   const previewRows=document.createElement('ul');
+   previewRows.hidden=true;
+   previewPanel.appendChild(previewRows);
+   previewToggle.addEventListener('change',()=>{
+    previewRows.replaceChildren();
+    previewRows.hidden=!previewToggle.checked;
+    if(!previewToggle.checked)return;
+    for(const item of (benchmark.examples||[]).slice(0,12)){
+     const line=document.createElement('li');
+     line.textContent='Recipe '+item.recipe_id+' · '+item.ingredient+' · Suggested estimate: '+item.estimated+' '+item.unit+' (benchmark actual: '+item.actual+' '+item.unit+'). Not verified for missing-quantity recipes.';
+     previewRows.appendChild(line);
+    }
+    if(!previewRows.children.length){
+     const line=document.createElement('li');line.textContent='No benchmark examples available.';previewRows.appendChild(line);
+    }
+   });
+   issues.appendChild(previewPanel);
+  }
   const benchmarkDetails=document.createElement('details');
   benchmarkDetails.open=false;
   const benchmarkTitle=document.createElement('summary');
