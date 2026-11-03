@@ -922,7 +922,7 @@ def nutrition_fallback(page):
  # Parse embedded HelloFresh nutrition arrays without inferring missing values.
  fields={'energyKcal':'calories','calories':'calories','protein':'proteinContent','carbohydrate':'carbohydrateContent','fat':'fatContent','fiber':'fiberContent','sugar':'sugarContent','sodium':'sodiumContent','saturatedFat':'saturatedFatContent'}
  output={}
- for match in re.finditer(r'"(?:nutrition|nutritionalValues|nutritionalInformation)"\\s*:\\s*(\\[[^\\]\\n]{0,12000}\\]|\\{[^}\\n]{0,12000}\\})',page,re.I):
+ for match in re.finditer(r'"(?:nutrition|nutritionalValues|nutritionalInformation)"\s*:\s*(\[[^\[\]\n]{0,12000}\]|\{[^}\n]{0,12000}\})',page,re.I):
   try:data=json.loads(match.group(1))
   except (ValueError,TypeError):continue
   if isinstance(data,dict):data=[dict(name=k,amount=v) for k,v in data.items()]
