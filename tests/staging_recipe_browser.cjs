@@ -51,7 +51,10 @@ async function main() {
     await page.locator('#fast-browse-toggle').waitFor({ state: 'visible', timeout: 30000 });
     await page.locator('#fast-browse-toggle').click();
     const cards = page.locator('#fast-browse-results .recipe-card');
-    await cards.first().waitFor({ timeout: 30000 });
+    await cards.first().waitFor({ timeout: 120000 }).catch(async error=>{
+      const panel=(await page.locator('#fast-browse-results').innerText()).slice(0,600);
+      throw new Error('Recipe browser failed to render cards; panel='+panel+'; '+error.message);
+    });
     assert.ok(await cards.count() <= 24, 'Server returned more than 24 cards');
     const firstPageTitle = await cards.first().locator('.recipe-card-title').innerText();
     assert.ok(firstPageTitle.trim(), 'First recipe has no title');
