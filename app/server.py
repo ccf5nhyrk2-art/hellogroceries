@@ -1035,6 +1035,25 @@ def instruction_step_strings(value):
    if key in value:return instruction_step_strings(value[key])
  return []
 
+def parse_embedded_recipe_steps(raw):
+ """Extract validated steps from JSON or escaped JSON inside hydration strings."""
+ if not isinstance(raw,str):return []
+ variants=[raw]
+ try:
+  decoded=json.loads(raw)
+  if isinstance(decoded,str):variants.append(decoded)
+  elif isinstance(decoded,(dict,list)):
+   variants.append(json.dumps(decoded))
+ except (ValueError,TypeError):pass
+ for candidate in variants[:3]:
+  for match in re.finditer(r'["\\'](?:recipeInstructions|preparationSteps|cookingSteps|instructions|steps)["\\']\\s*:\\s*(?=[\\[{])',candidate,re.I):
+   try:
+    value,_=json.JSONDecoder().raw_decode(candidate[match.end():])
+   except (ValueError,TypeError):continue
+   steps=instruction_step_strings(value)
+   if valid_recovered_steps(steps):return steps
+ return []
+
 def hydration_cooking_steps(page):
  """Read structured recipe steps from server-rendered app hydration data."""
  payloads=[]
@@ -1052,12 +1071,8 @@ def hydration_cooking_steps(page):
    if isinstance(flight,list):
     for part in flight:
      if isinstance(part,str):
-      for m in re.finditer(r'"(?:recipeInstructions|preparationSteps|cookingSteps|instructions|steps)"\s*:\s*(?=[\[{])',part):
-       try:
-        value,_=json.JSONDecoder().raw_decode(part[m.end():])
-        steps=instruction_step_strings(value)
-        if len(steps)>=2:return steps,'next_flight_steps'
-       except (ValueError,TypeError):pass
+      steps=parse_embedded_recipe_steps(part)
+      if steps:return steps,'next_flight_steps'
   except (ValueError,TypeError):pass
  pending=payloads[:]
  seen=0
@@ -1068,7 +1083,7 @@ def hydration_cooking_steps(page):
   for key in ('recipeInstructions','preparationSteps','cookingSteps','instructions','steps'):
    if key in node:
     steps=instruction_step_strings(node[key])
-    if len(steps)>=2:return steps,'hydration_steps'
+    if valid_recovered_steps(steps):return steps,'hydration_steps'
   pending.extend(v for v in node.values() if isinstance(v,(dict,list)))
  return [],'dynamic_app_data_unsupported' if re.search(r'__NEXT_DATA__|__NUXT__|__next_f|window\\.__INITIAL_STATE__|hydration',page,re.I) else 'no_supported_hydration_data'
 
@@ -1085,7 +1100,7 @@ def extract_cooking_steps(page):
    if isinstance(types,str):types=[types]
    if any(str(t).lower().endswith('recipe') for t in types):
     steps=instruction_step_strings(node.get('recipeInstructions'))
-    if steps:return steps,'jsonld'
+    if valid_recovered_steps(steps):return steps,'jsonld'
    pending.extend(v for v in node.values() if isinstance(v,(dict,list)))
  steps,reason=hydration_cooking_steps(page)
  if steps:return steps,reason
@@ -1094,7 +1109,7 @@ def extract_cooking_steps(page):
   try:value,_=decoder.raw_decode(page[match.end():])
   except (ValueError,TypeError):continue
   steps=instruction_step_strings(value)
-  if len(steps)>=2:return steps,'embedded_steps'
+  if valid_recovered_steps(steps):return steps,'embedded_steps'
  return [],'unsupported_or_missing_steps'
 
 def recipe_instruction_cache_schema(c):
