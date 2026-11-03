@@ -45,7 +45,10 @@ async function main() {
     await page.locator('#password').fill(password);
     await page.locator('#submit').click();
     await page.waitForURL(url => !url.pathname.endsWith('/auth.html'), { timeout: 20000 });
-    await page.locator('#fast-browse-toggle').waitFor({ timeout: 30000 });
+    // Login intentionally lands on Home; navigate to Recipes before testing its controls.
+    await page.locator('.page-nav-button[data-page="recipes"]').waitFor({ state: 'attached', timeout: 30000 });
+    await page.locator('.page-nav-button[data-page="recipes"]').evaluate(button => button.click());
+    await page.locator('#fast-browse-toggle').waitFor({ state: 'visible', timeout: 30000 });
     await page.locator('#fast-browse-toggle').click();
     const cards = page.locator('#fast-browse-results .recipe-card');
     await cards.first().waitFor({ timeout: 30000 });
