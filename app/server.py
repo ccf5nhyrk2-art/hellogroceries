@@ -1162,6 +1162,38 @@ def extract_cooking_steps(page):
 def recipe_instruction_cache_schema(c):
  c.execute('CREATE TABLE IF NOT EXISTS recipe_instruction_cache (recipe_id TEXT PRIMARY KEY,url TEXT NOT NULL,steps_json TEXT NOT NULL,source_format TEXT NOT NULL,checked_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)')
 
+def public_recipe_card_pdf_urls(page,source_url):
+ """Discover explicit PDF links only; never synthesize private API endpoints."""
+ matches=re.findall(r'(?:https?:)?//[^\\s"\\x27<>\\\\]{1,350}\\.pdf(?:[?#][^\\s"\\x27<>\\\\]{0,100})?',html.unescape(page),re.I)
+ matches+=re.findall(r'["\\x27](/[^"\\x27<>]{1,350}\\.pdf(?:[?#][^"\\x27<>]{0,100})?)["\\x27]',html.unescape(page),re.I)
+ output=[]
+ for raw in matches:
+  url=urllib.parse.urljoin(source_url,raw)
+  host=(urllib.parse.urlsplit(url).hostname or '').lower()
+  if url.startswith('https://') and (host=='hellofresh.com' or host.endswith('.hellofresh.com')) and url not in output:output.append(url)
+ return output[:2]
+
+def recover_public_recipe_card_pdf(page,source_url):
+ """Bounded, optional PDF text fallback; never save unvalidated instructions."""
+ for pdf_url in public_recipe_card_pdf_urls(page,source_url):
+  try:
+   req=urllib.request.Request(pdf_url,headers={'User-Agent':'HelloGroceriesRecipeRecovery/1.1','Accept':'application/pdf'})
+   with urllib.request.urlopen(req,timeout=8) as response:
+    final=response.geturl()
+    host=(urllib.parse.urlsplit(final).hostname or '').lower()
+    if not final.startswith('https://') or not (host=='hellofresh.com' or host.endswith('.hellofresh.com')):continue
+    if 'pdf' not in response.headers.get('Content-Type','').lower():continue
+    payload=response.read(3000001)
+   if len(payload)>3000000 or not payload.startswith(b'%PDF'):continue
+   # Run a bounded local PDF text extractor if the deployment includes one.
+   result=subprocess.run(['pdftotext','-layout','-','-'],input=payload,stdout=subprocess.PIPE,stderr=subprocess.DEVNULL,timeout=5,check=False)
+   if result.returncode:continue
+   content=result.stdout[:120000].decode('utf-8','replace')
+   steps=split_numbered_cooking_steps(content)
+   if valid_recovered_steps(steps):return steps,'public_recipe_card_pdf'
+  except (OSError,ValueError,TimeoutError,subprocess.TimeoutExpired,urllib.error.URLError):continue
+ return [],'pdf_unavailable_or_unverified'
+
 def recover_recipe_instructions(url):
  """Retry transient upstream failures once; never retry unsupported content."""
  steps,reason=_recover_recipe_instructions_once(url)
@@ -1182,6 +1214,8 @@ def _recover_recipe_instructions_once(url):
    page=response.read(1500000).decode('utf-8','replace')
   steps,reason=extract_cooking_steps(page)
   if steps:return steps,reason
+  pdf_steps,pdf_reason=recover_public_recipe_card_pdf(page,url)
+  if pdf_steps:return pdf_steps,pdf_reason
   if re.search(r'<script[^>]*application/ld[+]json',page,re.I):
    # Classify genuinely unavailable source data rather than retrying it blindly.
    structure=instruction_page_structure_diagnostic(page)
