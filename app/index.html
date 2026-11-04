@@ -1435,7 +1435,7 @@ $('store-lookup-form').addEventListener('submit',e=>{
  lookupStores(zip);
 });
 try{const savedZip=localStorage.getItem(STORE_ZIP_KEY)||'';$('store-zip').value=savedZip;if(/^[0-9]{5}$/.test(savedZip))lookupStores(savedZip)}catch(e){}
-function recipeCardMarkup(r){const selected=state.selected||{};let checked=Object.hasOwn(selected,String(r.id));let photo=(r.image||r.url)?`<img class="recipe-photo" src="/api/photo/${r.id}" alt="${esc(cleanRecipeName(r.name))}" loading="lazy" referrerpolicy="no-referrer" onerror="hfImageFailed(this,${r.id})" onload="hfImageLoaded(this,${r.id})" data-original-image="${esc(r.image||'')}">`:'';return `<article class="recipe-card">${photo}<div class="photo-placeholder" style="${photo?'display:none':''}">🍽️</div><div class="recipe-card-body"><strong class="recipe-card-title">${esc(cleanRecipeName(r.name))}</strong>${r.country?`<small class="muted">${esc(r.country)}</small>`:''}${nutritionSummary(r)}${r.url?`<a href="${esc(r.url)}" target="_blank" rel="noopener noreferrer">View cooking steps</a>`:''}<div class="actions"><button type="button" class="favorite-btn" data-favorite="${r.id}">${(state.favorites||[]).includes(r.id)?"♥ Favorited":"♡ Favorite"}</button><button type="button" data-detail="${r.id}">Cook / Details${(state.recipe_reviews||{})[String(r.id)]?.rating?" · ★"+(state.recipe_reviews||{})[String(r.id)].rating:""}</button><select data-collection-add="${r.id}" aria-label="Add recipe to collection"><option value="">Add to collection…</option>${Object.keys(state.collections||{}).map(n=>`<option value="${esc(n)}">${esc(n)}</option>`).join("")}</select></div><div class="recipe-card-bottom"><label class="recipe-plan-action"><input aria-label="Select ${esc(cleanRecipeName(r.name))}" type="checkbox" data-id="${r.id}" ${checked?'checked':''}> <span class="recipe-plan-label">${checked?'✓ Added to plan':'Add to plan'}</span></label><div class="recipe-serving-row"><span>Servings</span><select aria-label="Total servings" data-scale="${r.id}">${[0.5,1,1.5,2,3,4,5,6].map(v=>`<option value="${v}" ${(selected[r.id]??(Number(r.source_servings)||2))==v?'selected':''}>${v} servings</option>`).join('')}</select></div></div></div></article>`}
+function recipeCardMarkup(r){const selected=state.selected||{};let checked=Object.hasOwn(selected,String(r.id));let photo=`<img class="recipe-photo" src="/api/photo/${r.id}" alt="${esc(cleanRecipeName(r.name))}" loading="lazy" referrerpolicy="no-referrer" onerror="hfImageFailed(this,${r.id})" onload="hfImageLoaded(this,${r.id})" data-original-image="${esc(r.image||'')}">`;return `<article class="recipe-card">${photo}<div class="photo-placeholder" style="display:none">🍽️</div><div class="recipe-card-body"><strong class="recipe-card-title">${esc(cleanRecipeName(r.name))}</strong>${r.country?`<small class="muted">${esc(r.country)}</small>`:''}${nutritionSummary(r)}${r.url?`<a href="${esc(r.url)}" target="_blank" rel="noopener noreferrer">View cooking steps</a>`:''}<div class="actions"><button type="button" class="favorite-btn" data-favorite="${r.id}">${(state.favorites||[]).some(id=>String(id)===String(r.id))?"♥ Favorited":"♡ Favorite"}</button><button type="button" data-detail="${r.id}">Cook / Details${(state.recipe_reviews||{})[String(r.id)]?.rating?" · ★"+(state.recipe_reviews||{})[String(r.id)].rating:""}</button><select data-collection-add="${r.id}" aria-label="Add recipe to collection"><option value="">Add to collection…</option>${Object.keys(state.collections||{}).map(n=>`<option value="${esc(n)}">${esc(n)}</option>`).join("")}</select></div><div class="recipe-card-bottom"><label class="recipe-plan-action"><input aria-label="Select ${esc(cleanRecipeName(r.name))}" type="checkbox" data-id="${r.id}" ${checked?'checked':''}> <span class="recipe-plan-label">${checked?'✓ Added to plan':'Add to plan'}</span></label><div class="recipe-serving-row"><span>Servings</span><select aria-label="Total servings" data-scale="${r.id}">${[0.5,1,1.5,2,3,4,5,6].map(v=>`<option value="${v}" ${(selected[r.id]??(Number(r.source_servings)||2))==v?'selected':''}>${v} servings</option>`).join('')}</select></div></div></div></article>`}
 async function load(){
  const status=$('recipe-load-status');
  const previous=$('prevpage'),next=$('nextpage');
@@ -1464,7 +1464,18 @@ async function load(){
   if(ids.length){
    fetch('/api/recipes/batch?ids='+encodeURIComponent(ids.join(',')))
     .then(response=>response.ok?response.json():Promise.reject(Error('Saved recipe batch unavailable')))
-    .then(items=>{if(!Array.isArray(items))return;for(const recipe of items)if(!recipes.some(existing=>String(existing.id)===String(recipe.id)))recipes.push(recipe);renderSelectedPlan()})
+    .then(async items=>{
+      if(!Array.isArray(items))throw Error('Invalid saved recipe batch');
+      for(const recipe of items)if(!recipes.some(existing=>String(existing.id)===String(recipe.id)))recipes.push(recipe);
+      // Some saved IDs are missing from the batch index; retry the detail endpoint
+      // individually so selected meals are not mislabeled as permanently unavailable.
+      const missing=ids.filter(id=>!recipes.some(recipe=>String(recipe.id)===id));
+      await Promise.all(missing.map(async id=>{
+       try{const recipe=await fetchRecipeDetail(id);if(recipe&&String(recipe.id)===id&&!recipes.some(r=>String(r.id)===id))recipes.push(recipe)}
+       catch(error){console.warn('Saved recipe detail unavailable',id,error)}
+      }));
+      renderSelectedPlan();renderMyCollectionCards();
+    })
     .catch(error=>console.warn('Saved recipe hydration deferred:',error));
   }
   const excluded=[...new Set([...savedIds,...(state.recommendation_hidden||[]).map(String)])].filter(id=>/^\d+$/.test(id)).slice(0,250);
@@ -1699,7 +1710,7 @@ function renderSelectedPlan(){
     const name=x.recipe?cleanRecipeName(x.recipe.name):'Recipe unavailable (ID '+x.id+')';
     const url=String(x.recipe?.url||'');
     const link=/^https:\/\//i.test(url)?`<a class="selected-recipe-link" href="${esc(url)}" target="_blank" rel="noopener noreferrer">View recipe ↗</a>`:'';
-    const note=x.recipe?'':'<small class="selected-meal-note">This saved selection no longer matches a recipe in the catalog. It has not been removed.</small>';
+    const note=x.recipe?'':'<small class="selected-meal-note">Recipe details could not be loaded. Your selection is preserved; try refreshing this page.</small>';
     return `<div class="selected-meal"><div class="selected-meal-info"><div class="selected-meal-name">${esc(name)}</div>${link}${note}</div><div class="selected-meal-controls"><label>Servings <select aria-label="Servings for ${esc(name)}" data-plan-scale="${esc(x.id)}">${[0.5,1,1.5,2,3,4,5,6].map(v=>`<option value="${v}" ${Number(x.scale)===v?'selected':''}>${v} servings</option>`).join('')}</select></label><button type="button" data-remove-meal="${esc(x.id)}" aria-label="Remove ${esc(name)}">Remove</button></div></div>`;
   }).join(''):'<p class="muted">No meals selected yet. Choose “Add to plan” on a recipe.</p>';
 }
@@ -3654,7 +3665,13 @@ $('recipes').addEventListener('click',async e=>{
   const f=new Set((state.favorites||[]).map(Number).filter(Number.isSafeInteger));
   const adding=!f.has(id);adding?f.add(id):f.delete(id);
   fav.disabled=true;
-  try{await preferences({favorites:[...f]});}
+  try{
+   await preferences({favorites:[...f]});
+   // Update the currently visible control immediately; the page render may
+   // still be waiting on an asynchronous paginated catalog response.
+   const current=document.querySelector('#recipes [data-favorite="'+id+'"]');
+   if(current){current.textContent=adding?'♥ Favorited':'♡ Favorite';current.setAttribute('aria-pressed',String(adding));current.disabled=false;}
+  }
   catch(err){fav.disabled=false;alert('Could not save favorite: '+(err.message||'Please try again'));}
   return;
  }
@@ -3702,7 +3719,14 @@ $('recipes').addEventListener('change',async e=>{
  const c=structuredClone(state.collections||{});
  c[name]=[...new Set([...(c[name]||[]).map(Number).filter(Number.isSafeInteger),id])];
  el.disabled=true;
- try{await preferences({collections:c});}
+ try{
+  await preferences({collections:c});
+  const current=document.querySelector('#recipes [data-collection-add="'+id+'"]');
+  if(current){current.disabled=false;current.value='';current.setAttribute('aria-label','Added to '+name);}
+  const status=document.getElementById('recipe-save-status')||document.createElement('div');
+  status.id='recipe-save-status';status.setAttribute('role','status');status.className='muted';status.textContent='Added recipe to '+name;
+  document.getElementById('recipes')?.before(status);
+ }
  catch(err){el.disabled=false;alert('Could not add recipe to collection: '+(err.message||'Please try again'));}
 });
 
