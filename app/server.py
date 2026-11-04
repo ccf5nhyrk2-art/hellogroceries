@@ -285,8 +285,9 @@ def visible_browse_catalog():
  with _recipe_visible_cache_lock:
   if _recipe_visible_cache[1] is not None and now-_recipe_visible_cache[0]<60:
    return _recipe_visible_cache[1]
-  checks=instruction_audit_rows()
-  catalog=tuple(r for r in browse_catalog() if not non_recipe_reason(r) and visible_cooking_recipe(r,checks))
+  # Visibility only uses stored steps and URL validity; the audit map is unused.
+  # Avoid a full audit-table read on the request-critical browsing path.
+  catalog=tuple(r for r in browse_catalog() if not non_recipe_reason(r) and visible_cooking_recipe(r,None))
   _recipe_visible_cache=(time.monotonic(),catalog)
   return catalog
 
@@ -3374,7 +3375,6 @@ class Handler(SimpleHTTPRequestHandler):
    sort=params.get('sort',['name'])[0].strip().lower()
    if sort not in ('name','reverse','newest') or protein not in ('all','chicken','beef','pork','seafood','vegetarian','other'):
     return self.sendjson({'error':'Invalid recipe filter'},400)
-   start_instruction_audit()
    catalog=visible_browse_catalog()
    matched=[r for r in catalog if recipe_page_matches(r,query,country,protein)]
    if sort=='newest':matched.sort(key=lambda r:int(r.get('id') or 0),reverse=True)
