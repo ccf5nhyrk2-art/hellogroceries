@@ -3566,13 +3566,22 @@ function hfHideBrokenCatalogCard(img,id){
  if(!card)return;
  img.style.display='none';
  const placeholder=card.querySelector('.photo-placeholder');
- if(placeholder)placeholder.style.display='';
+ if(placeholder){placeholder.style.display='flex';placeholder.textContent='Photo unavailable';placeholder.setAttribute('role','img');placeholder.setAttribute('aria-label','Recipe photo unavailable');}
 }
 function hfImageFailed(img,id){
   const key=String(id), original=img.getAttribute('data-original-image')||img.src;
   if(!img.dataset.retried){
     img.dataset.retried='1';
     img.src='/api/photo/'+encodeURIComponent(key)+'?refresh=1';
+    return;
+  }
+  // The photo proxy may fail even when the imported source URL still works.
+  // Try that source once before displaying the neutral missing-photo placeholder.
+  const source=img.getAttribute('data-original-image')||'';
+  if(!img.dataset.sourceRetried&&/^https:\/\//i.test(source)){
+    img.dataset.sourceRetried='1';
+    img.referrerPolicy='no-referrer';
+    img.src=source;
     return;
   }
   hfBrokenPhotos.set(key,{id:key,name:(recipes.find(r=>String(r.id)===key)||{}).name||'',url:original});
