@@ -3069,8 +3069,10 @@ async function renderPaged(){
   const grid=$('recipes');
   const ids=[...grid.querySelectorAll('.recipe-card [data-detail]')].map(el=>String(el.dataset.detail));
   const next=page.items.map(recipe=>String(recipe.id));
-  if(ids.length!==next.length||ids.some((id,i)=>id!==next[i]))
-   grid.innerHTML=page.items.map(recipeCardMarkup).join('')||'<p class="muted">No recipes match these filters.</p>';
+  // Refresh controls even when the page contains the same recipe IDs.
+  // Favorites and collection saves change state without changing pagination;
+  // skipping this render left visible buttons stale after successful saves.
+  grid.innerHTML=page.items.map(recipeCardMarkup).join('')||'<p class="muted">No recipes match these filters.</p>';
   renderSelectedPlan();
   renderShoppingList();
   scheduleRecipeRecommendations();
