@@ -3033,7 +3033,7 @@ function serverRecipeParams(){
  if($('selectedonly').checked)selections.push(new Set(Object.keys(state.selected||{}).map(String)));
  if($('favorite-filter').value==='favorites')selections.push(new Set((state.favorites||[]).map(String)));
  if($('collection-filter').value!=='all')selections.push(new Set(((state.collections||{})[$('collection-filter').value]||[]).map(String)));
- if(selections.length)params.set('ids',[...selections[0]].filter(id=>selections.every(set=>set.has(id))).join(','));
+ if(selections.length)params.set('ids',[...selections[0]].filter(id=>selections.every(set=>set.has(id))).join(',')||'-1');
  return params;
 }
 function requiresLegacyRecipeFilters(){
