@@ -1460,14 +1460,14 @@ async function load(){
    ...(state.favorites||[]).map(String),
    ...Object.values(state.collections||{}).flat().map(String)
   ]);
-  const ids=[...savedIds].filter(id=>/^\\d+$/.test(id)).slice(0,100);
+  const ids=[...savedIds].filter(id=>/^\d+$/.test(id)).slice(0,100);
   if(ids.length){
    fetch('/api/recipes/batch?ids='+encodeURIComponent(ids.join(',')))
     .then(response=>response.ok?response.json():Promise.reject(Error('Saved recipe batch unavailable')))
     .then(items=>{if(!Array.isArray(items))return;for(const recipe of items)if(!recipes.some(existing=>String(existing.id)===String(recipe.id)))recipes.push(recipe);renderSelectedPlan()})
     .catch(error=>console.warn('Saved recipe hydration deferred:',error));
   }
-  const excluded=[...new Set([...savedIds,...(state.recommendation_hidden||[]).map(String)])].filter(id=>/^\\d+$/.test(id)).slice(0,250);
+  const excluded=[...new Set([...savedIds,...(state.recommendation_hidden||[]).map(String)])].filter(id=>/^\d+$/.test(id)).slice(0,250);
   fetch('/api/recipes/recommendations?limit=24&exclude='+encodeURIComponent(excluded.join(',')))
    .then(response=>response.ok?response.json():Promise.reject(Error('Recommendation API unavailable')))
    .then(data=>{if(!Array.isArray(data.items))return;recommendationCatalog=data.items;recommendationRankCache=null;scheduleRecipeRecommendations()})
