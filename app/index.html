@@ -1476,19 +1476,11 @@ async function load(){
  });
  // Do not start the expensive full-catalog download until the first page
  // has had a chance to paint. This keeps initial browsing responsive.
- const recipeRequest=Promise.all([stateRequest.then(()=>{},()=>{}),firstPageRequest])
-  .then(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))))
-  .then(()=>new Promise(resolve=>{
-   if('requestIdleCallback' in window)requestIdleCallback(resolve,{timeout:2500});
-   else setTimeout(resolve,800);
-  }))
-  .then(()=>fetch('/api/recipes/summary'))
-  .then(async response=>{
-   if(!response.ok)throw Error('Could not load recipe catalog (HTTP '+response.status+')');
-   const data=await response.json();
-   if(!Array.isArray(data))throw Error('Recipe catalog response was invalid');
-   recipes=data;
-  });
+ const recipeRequest=firstPageRequest.then(page=>{
+  if(!page)throw Error('Could not load first recipe page');
+  catalogPage=page;
+  for(const item of page.items)if(!recipes.some(recipe=>String(recipe.id)===String(item.id)))recipes.push(item);
+ });
  // Paint fully interactive first-page cards once state is available, without
  // waiting for the full catalog request. Do not overwrite the completed render.
  const earlyPaint=Promise.all([stateRequest.then(()=>true,()=>false),firstPageRequest])
@@ -1497,7 +1489,7 @@ async function load(){
    $('recipes').innerHTML=page.items.map(recipeCardMarkup).join('');
    $('filtercount').textContent='Showing first '+page.items.length+' recipes while the catalog loads…';
    $('pageinfo').textContent='Page 1 of '+Math.max(1,Number(page.pages)||1);
-   status.textContent='Recipes ready · finishing catalog loading…';
+   status.textContent='Recipes ready';
    // Give the browser a paint opportunity before ranking recommendations.
    await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
   }).catch(error=>console.warn('Early recipe cards unavailable:',error));
@@ -3026,7 +3018,75 @@ function scheduleRecipeRecommendations(){
     try{renderRecommendations()}catch(error){console.error('Recommendations failed:',error)}
   },100);
 }
-function render(){updateEnhancements();$('diet-warning').style.display=$('diet-filter').value==='all'?'none':'block';const q=$('search').value.toLowerCase().trim(),selected=state.selected||{};$('count').textContent=`(${Object.keys(selected).length} selected · ${recipes.length.toLocaleString()} total)`;let filtered=recipes.filter(r=>{const name=cleanRecipeName(r.name).toLowerCase();const internalTest=/\b(?:do\s+not\s+use|uat|test(?:ing)?(?:\s+recipe)?|recipe\s+(?:card\s+)?test|modular\s+recipe\s+card\s+test)\b/i.test(String(r.name||''));return !isNonRecipeListing(r)&&hasIncludedSide(r,$('included-side').value)&&($('meal').value!=='sides'||isSideRecipe(r))&&(!internalTest||$('selectedonly').checked)&&($('meal').value==='wine'?isWineListing(r):$('meal').value==='holiday'?isHolidayRecipe(r)&&!isWineListing(r):!isWineListing(r)&&!isHolidayRecipe(r))&&(!$('quickmeals').checked||quickMinutes(r)!==null)&&($('meal').value==='sides'||!$('fullmeals').checked||!isAddon(r))&&(name+' '+(r.country||'').toLowerCase()).includes(q)&&($('protein').value==='all'||recipeGroup(r)===$('protein').value)&&($('cuisine').value==='all'||cuisineGroup(r)===$('cuisine').value)&&(['holiday','wine','sides'].includes($('meal').value)||$('meal').value==='all'||mealGroup(r)===$('meal').value)&&($('recipe-country').value==='all'||($('recipe-country').value==='other'?!['US','UK','AU','CA','DE','NL'].includes(String(r.country||'').toUpperCase()):String(r.country||'').toUpperCase()===$('recipe-country').value))&&dietMatch(r,$('diet-filter').value)&&($('rating-filter').value==='all'||($('rating-filter').value==='unrated'?!(state.recipe_reviews||{})[String(r.id)]?.rating:Number((state.recipe_reviews||{})[String(r.id)]?.rating||0)>=Number($('rating-filter').value)))&&($('favorite-filter').value!=='favorites'||(state.favorites||[]).includes(r.id))&&($('collection-filter').value==='all'||(state.collections||{})[$('collection-filter').value]?.includes(r.id))&&($('ingredient-filter').value==='all'||Object.keys(r.ingredients||{}).some(x=>x.toLowerCase().includes($('ingredient-filter').value)))&&(!$('exclude-ingredient').value.trim()||!Object.keys(r.ingredients||{}).some(x=>x.toLowerCase().includes($('exclude-ingredient').value.trim().toLowerCase())))&&(!$('selectedonly').checked||Object.hasOwn(selected,String(r.id)))});// Only collapse identical titles with identical ingredient data; keep named variations.
+// Server-driven recipe browsing: no full-catalog request during startup.
+let catalogPage=null,legacyCatalogLoaded=false,pageRequestGeneration=0;
+function serverRecipeParams(){
+ const params=new URLSearchParams({page:String(recipePage+1),page_size:String(PAGE_SIZE),sort:$('sort').value==='reverse'?'reverse':$('sort').value==='name'?'name':'newest'});
+ const q=$('search').value.trim();if(q)params.set('q',q);
+ for(const [id,key] of [['recipe-country','country'],['protein','protein'],['cuisine','cuisine'],['meal','meal']]){
+  const value=$(id).value;if(value!=='all')params.set(key,value);
+ }
+ if($('quickmeals').checked)params.set('quick','true');
+ if($('ingredient-filter').value!=='all')params.set('ingredient',$('ingredient-filter').value);
+ if($('exclude-ingredient').value.trim())params.set('exclude_ingredient',$('exclude-ingredient').value.trim());
+ const selections=[];
+ if($('selectedonly').checked)selections.push(new Set(Object.keys(state.selected||{}).map(String)));
+ if($('favorite-filter').value==='favorites')selections.push(new Set((state.favorites||[]).map(String)));
+ if($('collection-filter').value!=='all')selections.push(new Set(((state.collections||{})[$('collection-filter').value]||[]).map(String)));
+ if(selections.length)params.set('ids',[...selections[0]].filter(id=>selections.every(set=>set.has(id))).join(',')||'-1');
+ return params;
+}
+function requiresLegacyRecipeFilters(){
+ return $('diet-filter').value!=='all'||$('rating-filter').value!=='all'||
+  $('included-side').value!=='all'||['sides','wine','holiday'].includes($('meal').value);
+}
+async function fetchLegacyCatalogOnDemand(){
+ if(legacyCatalogLoaded)return;
+ const response=await fetch('/api/recipes/summary');
+ if(!response.ok)throw Error('Full recipe filters unavailable');
+ recipes=await response.json();legacyCatalogLoaded=true;
+}
+async function renderPaged(){
+ const generation=++pageRequestGeneration;
+ const params=serverRecipeParams();
+ const status=$('recipe-load-status');
+ if(status){status.hidden=false;status.textContent='Loading recipes…'}
+ try{
+  const response=await fetch('/api/recipes/page?'+params.toString(),{cache:'no-store'});
+  if(!response.ok)throw Error('Recipe page unavailable (HTTP '+response.status+')');
+  const page=await response.json();
+  if(generation!==pageRequestGeneration)return;
+  catalogPage=page;
+  for(const recipe of page.items)if(!recipes.some(existing=>String(existing.id)===String(recipe.id)))recipes.push(recipe);
+  $('count').textContent='('+Object.keys(state.selected||{}).length+' selected · '+Number(page.total||0).toLocaleString()+' recipes)';
+  $('filtercount').textContent='Showing '+Number(page.total||0).toLocaleString()+' matching recipes';
+  $('pageinfo').textContent='Page '+page.page+' of '+Math.max(1,page.pages);
+  $('prevpage').disabled=page.page<=1;
+  $('nextpage').disabled=page.page>=page.pages;
+  const grid=$('recipes');
+  const ids=[...grid.querySelectorAll('.recipe-card [data-detail]')].map(el=>String(el.dataset.detail));
+  const next=page.items.map(recipe=>String(recipe.id));
+  if(ids.length!==next.length||ids.some((id,i)=>id!==next[i]))
+   grid.innerHTML=page.items.map(recipeCardMarkup).join('')||'<p class="muted">No recipes match these filters.</p>';
+  renderSelectedPlan();
+  renderShoppingList();
+  scheduleRecipeRecommendations();
+  if(status)status.hidden=true;
+ }catch(error){
+  if(generation!==pageRequestGeneration)return;
+  console.error('Paged recipes failed:',error);
+  if(status){status.hidden=false;status.textContent='Unable to load recipe page. Try changing a filter.'}
+ }
+}
+function render(){
+ if(legacyCatalogLoaded){renderLegacy();return}
+ if(requiresLegacyRecipeFilters()){
+  void fetchLegacyCatalogOnDemand().then(()=>renderLegacy()).catch(error=>console.error(error));
+  return;
+ }
+ void renderPaged();
+}
+function renderLegacy(){updateEnhancements();$('diet-warning').style.display=$('diet-filter').value==='all'?'none':'block';const q=$('search').value.toLowerCase().trim(),selected=state.selected||{};$('count').textContent=`(${Object.keys(selected).length} selected · ${recipes.length.toLocaleString()} total)`;let filtered=recipes.filter(r=>{const name=cleanRecipeName(r.name).toLowerCase();const internalTest=/\b(?:do\s+not\s+use|uat|test(?:ing)?(?:\s+recipe)?|recipe\s+(?:card\s+)?test|modular\s+recipe\s+card\s+test)\b/i.test(String(r.name||''));return !isNonRecipeListing(r)&&hasIncludedSide(r,$('included-side').value)&&($('meal').value!=='sides'||isSideRecipe(r))&&(!internalTest||$('selectedonly').checked)&&($('meal').value==='wine'?isWineListing(r):$('meal').value==='holiday'?isHolidayRecipe(r)&&!isWineListing(r):!isWineListing(r)&&!isHolidayRecipe(r))&&(!$('quickmeals').checked||quickMinutes(r)!==null)&&($('meal').value==='sides'||!$('fullmeals').checked||!isAddon(r))&&(name+' '+(r.country||'').toLowerCase()).includes(q)&&($('protein').value==='all'||recipeGroup(r)===$('protein').value)&&($('cuisine').value==='all'||cuisineGroup(r)===$('cuisine').value)&&(['holiday','wine','sides'].includes($('meal').value)||$('meal').value==='all'||mealGroup(r)===$('meal').value)&&($('recipe-country').value==='all'||($('recipe-country').value==='other'?!['US','UK','AU','CA','DE','NL'].includes(String(r.country||'').toUpperCase()):String(r.country||'').toUpperCase()===$('recipe-country').value))&&dietMatch(r,$('diet-filter').value)&&($('rating-filter').value==='all'||($('rating-filter').value==='unrated'?!(state.recipe_reviews||{})[String(r.id)]?.rating:Number((state.recipe_reviews||{})[String(r.id)]?.rating||0)>=Number($('rating-filter').value)))&&($('favorite-filter').value!=='favorites'||(state.favorites||[]).includes(r.id))&&($('collection-filter').value==='all'||(state.collections||{})[$('collection-filter').value]?.includes(r.id))&&($('ingredient-filter').value==='all'||Object.keys(r.ingredients||{}).some(x=>x.toLowerCase().includes($('ingredient-filter').value)))&&(!$('exclude-ingredient').value.trim()||!Object.keys(r.ingredients||{}).some(x=>x.toLowerCase().includes($('exclude-ingredient').value.trim().toLowerCase())))&&(!$('selectedonly').checked||Object.hasOwn(selected,String(r.id)))});// Only collapse identical titles with identical ingredient data; keep named variations.
 const seenRecipeKeys=new Set();
 filtered=filtered.filter(r=>{
  const title=cleanRecipeName(r.name).toLowerCase().replace(/[^a-z0-9]+/g,' ').trim();
