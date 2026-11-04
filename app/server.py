@@ -783,6 +783,12 @@ def image_type(raw):
  if raw[:4]==b'RIFF' and raw[8:12]==b'WEBP':return 'image/webp','.webp'
  if raw.startswith((b'GIF87a',b'GIF89a')):return 'image/gif','.gif'
  return None
+def valid_photo_cache_entry(path):
+ try:
+  if path.stat().st_size<100:return False
+  with path.open('rb') as photo_file:return image_type(photo_file.read(16)) is not None
+ except OSError:return False
+
 def cached_photo(rid):
  for ext,kind in (('.jpg','image/jpeg'),('.png','image/png'),('.webp','image/webp'),('.gif','image/gif')):
   p=PHOTO_DIR/(str(rid)+ext)
@@ -3337,7 +3343,7 @@ class Handler(SimpleHTTPRequestHandler):
    # Cached-only lookup: never fetch external images on a page request.
    cached_ids=[]
    for photo in PHOTO_DIR.iterdir():
-    if photo.suffix.lower() in ('.jpg','.png','.webp','.gif') and photo.stem.isdigit() and photo.is_file() and photo.stat().st_size>0:
+    if photo.suffix.lower() in ('.jpg','.png','.webp','.gif') and photo.stem.isdigit() and photo.is_file() and valid_photo_cache_entry(photo):
      cached_ids.append(int(photo.stem))
    return self.sendjson({'ids':cached_ids})
   if urllib.parse.urlsplit(self.path).path=='/api/recipes/page':
