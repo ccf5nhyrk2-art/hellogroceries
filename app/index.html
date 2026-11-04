@@ -1444,7 +1444,7 @@ async function load(){
  if(next)next.disabled=true;
  // Render real interactive recipe cards as soon as saved state and page data arrive.
  // The legacy catalog remains in place until the full pagination migration is complete.
- const firstPageRequest=fetch('/api/recipes/page?page=1&page_size=24&sort=newest',{cache:'no-store'})
+ const firstPageRequest=fetch('/api/recipes/page?page=1&page_size=24&sort=name',{cache:'no-store'})
   .then(async response=>{
    if(!response.ok)throw Error('First recipe page unavailable (HTTP '+response.status+')');
    const data=await response.json();
@@ -2856,10 +2856,13 @@ function renderRecommendations(){
  const verified=choices.filter(item=>{
   const id=String(item.r.id);
   const name=cleanRecipeName(item.r.name).toLowerCase().replace(/[^a-z0-9]+/g,' ').trim();
+  // The same imported meal may have a slightly different subtitle.
+  const family=name.split(' ').slice(0,5).join(' ');
   if(!recommendationCachedPhotoIds.has(id)||recommendationFailedPhotos.has(id))return false;
-  if(seenRecommendationIds.has(id)||(name&&seenRecommendationNames.has(name)))return false;
+  if(seenRecommendationIds.has(id)||(name&&seenRecommendationNames.has(name))||(family&&seenRecommendationNames.has('family:'+family)))return false;
   seenRecommendationIds.add(id);
   if(name)seenRecommendationNames.add(name);
+  if(family)seenRecommendationNames.add('family:'+family);
   return true;
  }).slice(0,5);
   panel.innerHTML=verified.length?verified.map(({r,reason})=>'<article class="recommend-card"><div class="recommend-photo-wrap"><button type="button" class="recommend-favorite" data-recommend-favorite="'+r.id+'" aria-pressed="'+(state.favorites||[]).map(Number).includes(Number(r.id))+'" aria-label="Toggle favorite">'+((state.favorites||[]).map(Number).includes(Number(r.id))?'♥':'♡')+'</button>'+('<img class="recommend-photo" src="/api/photo/'+encodeURIComponent(r.id)+'" alt="" loading="lazy">')+'</div><strong class="recommend-title">'+esc(cleanRecipeName(r.name))+'</strong><div class="muted recommend-reason" style="font-size:12px;margin:6px 0">'+esc(reason)+'</div><div class="recommend-actions"><button type="button" data-recommend-detail="'+r.id+'">View recipe</button><button type="button" data-recommend-plan="'+r.id+'">Add to plan</button></div><select data-recommend-collection="'+r.id+'" aria-label="Add recommended recipe to collection" style="width:100%;margin-top:8px;min-height:40px"><option value="">Add to collection…</option>'+Object.keys(state.collections||{}).map(n=>'<option value="'+esc(n)+'">'+esc(n)+'</option>').join('')+'</select><button type="button" data-recommend-more="'+r.id+'" class="recommend-dismiss">Show me more like this</button><button type="button" data-recommend-hide="'+r.id+'" class="recommend-dismiss">Not interested</button></article>').join(''):'<p class="muted">'+(terms.length?'No suggestions match this search. Try clearing the search.':'No suggestions available yet.')+'</p>';
@@ -3543,13 +3546,13 @@ function hfImageLoaded(img,id){
 }
 let hfCatalogPhotoRefresh=null;
 function hfHideBrokenCatalogCard(img,id){
+ // Keep the recipe usable when its photo is missing. Hiding the entire
+ // card previously left empty slots and repeatedly reloaded the page.
  const card=img.closest('.recipe-card');
- if(card)card.style.display='none';
- if(hfCatalogPhotoRefresh!==null)return;
- hfCatalogPhotoRefresh=setTimeout(()=>{
-  hfCatalogPhotoRefresh=null;
-  render();
- },350);
+ if(!card)return;
+ img.style.display='none';
+ const placeholder=card.querySelector('.photo-placeholder');
+ if(placeholder)placeholder.style.display='';
 }
 function hfImageFailed(img,id){
   const key=String(id), original=img.getAttribute('data-original-image')||img.src;
