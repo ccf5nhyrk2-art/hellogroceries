@@ -3547,40 +3547,48 @@ $('import').onclick=()=>action({action:'import',url:$('recipeurl').value.trim()}
 // hfPhotoAuditV2: diagnostic counters only; original recipe records stay unchanged.
 const hfBrokenPhotos=new Map();
 function hfImageLoaded(img,id){
- // Reject generic neon-green HelloFresh branding images without extra server dependencies.
+ // Treat small/generic branding assets as unavailable instead of showing
+ // bright green placeholder art as a recipe photograph.
+ const source=img.getAttribute('data-original-image')||'';
+ const retrySource=()=>{
+  if(img.dataset.logoSourceTried||!/^https:\/\//i.test(source)||source===img.src)return false;
+  img.dataset.logoSourceTried='1';img.src=source;return true;
+ };
+ if(img.naturalWidth<180||img.naturalHeight<110){
+  if(retrySource())return;
+  hfBrokenPhotos.set(String(id),{id:String(id),reason:'Image too small'});
+  hfHideBrokenCatalogCard(img,id);hfUpdatePhotoAudit();return;
+ }
  try{
-  const canvas=document.createElement('canvas');
-  canvas.width=48;canvas.height=48;
-  const ctx=canvas.getContext('2d',{willReadFrequently:true});
-  if(!ctx)return;
+  const canvas=document.createElement('canvas');canvas.width=48;canvas.height=48;
+  const ctx=canvas.getContext('2d',{willReadFrequently:true});if(!ctx)return;
   ctx.drawImage(img,0,0,48,48);
   const pixels=ctx.getImageData(0,0,48,48).data;
   let green=0,opaque=0;
   for(let i=0;i<pixels.length;i+=4){
    if(pixels[i+3]<128)continue;
    opaque++;
-   if(pixels[i+1]>125&&pixels[i+1]>pixels[i]*1.35&&pixels[i+1]>pixels[i+2]*1.35&&pixels[i]>45)green++;
+   if(pixels[i+1]>110&&pixels[i+1]>pixels[i]*1.25&&pixels[i+1]>pixels[i+2]*1.25)green++;
   }
-  if(opaque&&green/opaque>0.48){
-   const source=img.getAttribute('data-original-image')||'';
-   if(!img.dataset.logoSourceTried&&/^https:\/\//i.test(source)&&source!==img.src){
-    img.dataset.logoSourceTried='1';
-    img.src=source;
-    return;
+  if(opaque&&green/opaque>0.30){
+   if(retrySource())return;
+   // Refresh the proxy only once. If its output is still generic branding,
+   // show the compact unavailable-photo tile rather than looping.
+   if(!img.dataset.logoRefresh&&img.dataset.logoSourceTried!=='1'){
+    img.dataset.logoRefresh='1';img.src='/api/photo/'+encodeURIComponent(String(id))+'?refresh=1';return;
    }
-   if(!img.dataset.logoRefresh){
-    img.dataset.logoRefresh='1';
-    img.src='/api/photo/'+encodeURIComponent(String(id))+'?refresh=1';
-    return;
-   }
-   hfBrokenPhotos.set(String(id),{id:String(id),name:(recipes.find(r=>String(r.id)===String(id))||{}).name||'',url:img.src,reason:'Generic HelloFresh logo'});
-   img.style.display='none';
-   const placeholder=img.parentElement?.querySelector('.photo-placeholder');
-  hfHideBrokenCatalogCard(img,id);
-   hfUpdatePhotoAudit();
+   hfBrokenPhotos.set(String(id),{id:String(id),reason:'Generic green branding',url:img.src});
+   hfHideBrokenCatalogCard(img,id);hfUpdatePhotoAudit();
   }
- }catch(err){/* Keep images if the browser cannot inspect them. */}
+ }catch(error){
+  // Direct cross-origin URLs may taint the canvas. The same-origin proxy is
+  // the inspectable source; never repeatedly retry a blocked external URL.
+  if(!img.dataset.canvasProxyTried&&!img.src.startsWith(location.origin+'/api/photo/')){
+   img.dataset.canvasProxyTried='1';img.src='/api/photo/'+encodeURIComponent(String(id));
+  }
+ }
 }
+
 let hfCatalogPhotoRefresh=null;
 function hfHideBrokenCatalogCard(img,id){
  // Keep the recipe usable when its photo is missing. Hiding the entire
