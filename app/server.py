@@ -291,6 +291,16 @@ def visible_browse_catalog():
   _recipe_visible_cache=(time.monotonic(),catalog)
   return catalog
 
+def recipe_page_cuisine(recipe):
+ name=str(recipe.get('name') or '').lower()
+ groups=(('italian',r'italian|risotto|parmesan|pesto|marinara|gnocchi|alfredo'),('mexican',r'mexican|taco|quesadilla|enchilada|fajita|burrito|tex.mex|chipotle'),('asian',r'korean|japanese|chinese|thai|teriyaki|ginger|soy.glazed|sesame|szechuan|curry|ramen'),('mediterranean',r'mediterranean|greek|tzatziki|shawarma|hummus|harissa'),('american',r'american|bbq|barbecue|ranch|buffalo|mac.and.cheese|southern'))
+ return next((group for group,pattern in groups if re.search(pattern,name)),'other')
+
+def recipe_page_meal(recipe):
+ name=str(recipe.get('name') or '').lower()
+ groups=(('pasta',r'pasta|spaghetti|linguine|penne|noodle|ramen|gnocchi'),('bowls',r'bowl|rice bowl'),('sandwich',r'burger|sandwich|wrap|panini|slider'),('salad',r'salad'),('soup',r'soup|stew|chili\\b'))
+ return next((group for group,pattern in groups if re.search(pattern,name)),'other')
+
 def recipe_page_matches(recipe,query='',country='ALL',protein='all'):
  """Server-side browse filters for the opt-in paginated catalog."""
  name=str(recipe.get('name') or '').casefold()
@@ -3375,8 +3385,32 @@ class Handler(SimpleHTTPRequestHandler):
    sort=params.get('sort',['name'])[0].strip().lower()
    if sort not in ('name','reverse','newest') or protein not in ('all','chicken','beef','pork','seafood','vegetarian','other'):
     return self.sendjson({'error':'Invalid recipe filter'},400)
+   # Optional server-side filters. Defaults preserve the existing API contract.
+   cuisine=params.get('cuisine',['all'])[0].strip().casefold()[:60]
+   meal=params.get('meal',['all'])[0].strip().casefold()[:40]
+   ingredient=params.get('ingredient',[''])[0].strip().casefold()[:100]
+   exclude_ingredient=params.get('exclude_ingredient',[''])[0].strip().casefold()[:100]
+   quick=params.get('quick',['false'])[0].lower()=='true'
+   if cuisine not in ('all','italian','mexican','asian','mediterranean','american','other') or meal not in ('all','pasta','bowls','sandwich','salad','soup','other'):
+    return self.sendjson({'error':'Invalid cuisine or meal filter'},400)
+   ids_raw=params.get('ids',[''])[0].strip()
+   if len(ids_raw)>5000:return self.sendjson({'error':'Too many recipe IDs'},400)
+   try:allowed_ids={int(x) for x in ids_raw.split(',') if x.strip()} if ids_raw else None
+   except ValueError:return self.sendjson({'error':'Invalid recipe IDs'},400)
    catalog=visible_browse_catalog()
-   matched=[r for r in catalog if recipe_page_matches(r,query,country,protein)]
+   def matches_extra(recipe):
+    name=str(recipe.get('name') or '').casefold()
+    ingredients=recipe.get('ingredients') or {}
+    if not isinstance(ingredients,dict):ingredients={}
+    names=' '.join(str(k).casefold() for k in ingredients)
+    if allowed_ids is not None and int(recipe.get('id') or 0) not in allowed_ids:return False
+    if cuisine!='all' and recipe_page_cuisine(recipe)!=cuisine:return False
+    if meal!='all' and recipe_page_meal(recipe)!=meal:return False
+    if ingredient and ingredient not in names:return False
+    if exclude_ingredient and exclude_ingredient in names:return False
+    if quick and not re.match(r'^\\s*(?:<\\s*)?(?:10|15)\\s*MM\\b',str(recipe.get('name') or ''),re.I):return False
+    return True
+   matched=[r for r in catalog if recipe_page_matches(r,query,country,protein) and matches_extra(r)]
    if sort=='newest':matched.sort(key=lambda r:int(r.get('id') or 0),reverse=True)
    else:matched.sort(key=lambda r:str(r.get('name') or '').casefold(),reverse=sort=='reverse')
    total=len(matched)
