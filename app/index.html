@@ -1434,33 +1434,22 @@ $('store-lookup-form').addEventListener('submit',e=>{
  lookupStores(zip);
 });
 try{const savedZip=localStorage.getItem(STORE_ZIP_KEY)||'';$('store-zip').value=savedZip;if(/^[0-9]{5}$/.test(savedZip))lookupStores(savedZip)}catch(e){}
+function recipeCardMarkup(r){const selected=state.selected||{};let checked=Object.hasOwn(selected,String(r.id));let photo=(r.image||r.url)?`<img class="recipe-photo" src="/api/photo/${r.id}" alt="${esc(cleanRecipeName(r.name))}" loading="lazy" referrerpolicy="no-referrer" onerror="hfImageFailed(this,${r.id})" onload="hfImageLoaded(this,${r.id})" data-original-image="${esc(r.image||'')}">`:'';return `<article class="recipe-card">${photo}<div class="photo-placeholder" style="${photo?'display:none':''}">🍽️</div><div class="recipe-card-body"><strong class="recipe-card-title">${esc(cleanRecipeName(r.name))}</strong>${r.country?`<small class="muted">${esc(r.country)}</small>`:''}${nutritionSummary(r)}${r.url?`<a href="${esc(r.url)}" target="_blank" rel="noopener noreferrer">View cooking steps</a>`:''}<div class="actions"><button type="button" class="favorite-btn" data-favorite="${r.id}">${(state.favorites||[]).includes(r.id)?"♥ Favorited":"♡ Favorite"}</button><button type="button" data-detail="${r.id}">Cook / Details${(state.recipe_reviews||{})[String(r.id)]?.rating?" · ★"+(state.recipe_reviews||{})[String(r.id)].rating:""}</button><select data-collection-add="${r.id}" aria-label="Add recipe to collection"><option value="">Add to collection…</option>${Object.keys(state.collections||{}).map(n=>`<option value="${esc(n)}">${esc(n)}</option>`).join("")}</select></div><div class="recipe-card-bottom"><label class="recipe-plan-action"><input aria-label="Select ${esc(cleanRecipeName(r.name))}" type="checkbox" data-id="${r.id}" ${checked?'checked':''}> <span class="recipe-plan-label">${checked?'✓ Added to plan':'Add to plan'}</span></label><div class="recipe-serving-row"><span>Servings</span><select aria-label="Total servings" data-scale="${r.id}">${[0.5,1,1.5,2,3,4,5,6].map(v=>`<option value="${v}" ${(selected[r.id]??(Number(r.source_servings)||2))==v?'selected':''}>${v} servings</option>`).join('')}</select></div></div></div></article>`}
 async function load(){
  const status=$('recipe-load-status');
  const previous=$('prevpage'),next=$('nextpage');
  if(status){status.hidden=false;status.textContent='Loading recipes…';}
  if(previous)previous.disabled=true;
  if(next)next.disabled=true;
- // Fetch the first page independently so the browser can paint useful results
- // while the legacy full-catalog filters finish loading.
+ // Render real interactive recipe cards as soon as saved state and page data arrive.
+ // The legacy catalog remains in place until the full pagination migration is complete.
  const firstPageRequest=fetch('/api/recipes/page?page=1&page_size=24',{cache:'no-store'})
   .then(async response=>{
-   if(!response.ok)throw Error('First recipe page unavailable');
+   if(!response.ok)throw Error('First recipe page unavailable (HTTP '+response.status+')');
    const data=await response.json();
    if(!Array.isArray(data.items))throw Error('Invalid first recipe page');
-   if(status && status.textContent==='Loading recipes…'){
-    status.textContent='Showing the first recipes while the full catalog loads…';
-    const container=$('recipes');
-    if(container)container.replaceChildren(...data.items.map(recipe=>{
-     const card=document.createElement('article');card.className='recipe-card';
-     const body=document.createElement('div');body.className='recipe-card-body';
-     const name=document.createElement('strong');name.className='recipe-card-title';
-     name.textContent=recipe.name||'Untitled recipe';body.appendChild(name);
-     if(recipe.country){const country=document.createElement('small');country.className='muted';country.textContent=recipe.country;body.appendChild(country);}
-     card.appendChild(body);return card;
-    }));
-   }
-  }).catch(error=>console.warn('Early recipe page unavailable; falling back to catalog:',error));
-
+   return data;
+  }).catch(error=>{console.warn('Early recipe page unavailable:',error);return null});
  const stateRequest=fetch('/api/state',{cache:'no-store'}).then(async response=>{
   if(!response.ok)throw Error('Could not load saved data (HTTP '+response.status+')');
   state=await response.json();
@@ -1471,8 +1460,18 @@ async function load(){
   if(!Array.isArray(data))throw Error('Recipe catalog response was invalid');
   recipes=data;
  });
+ // Paint fully interactive first-page cards once state is available, without
+ // waiting for the full catalog request. Do not overwrite the completed render.
+ const earlyPaint=Promise.all([stateRequest.then(()=>true,()=>false),firstPageRequest])
+  .then(([stateReady,page])=>{
+   if(!stateReady||!page||!status||status.hidden||status.textContent!=='Loading recipes…')return;
+   $('recipes').innerHTML=page.items.map(recipeCardMarkup).join('');
+   $('filtercount').textContent='Showing first '+page.items.length+' recipes while the catalog loads…';
+   $('pageinfo').textContent='Page 1 of '+Math.max(1,Number(page.pages)||1);
+   status.textContent='Recipes ready · finishing catalog loading…';
+  }).catch(error=>console.warn('Early recipe cards unavailable:',error));
  const results=await Promise.allSettled([stateRequest,recipeRequest]);
- void firstPageRequest;
+ await earlyPaint;
  const failures=results.filter(result=>result.status==='rejected');
  if(failures.length){
   const message=failures.map(result=>result.reason?.message||'Request failed').join('; ');
@@ -3018,7 +3017,7 @@ const sort=$('sort').value;if(sort==='name')filtered.sort((a,b)=>cleanRecipeName
   chipBox.appendChild(chip);
  }
 scheduleRecipeRecommendations();hfUpdatePhotoAudit();filtered=filtered.filter(r=>!hfBrokenPhotos.has(String(r.id)));const pageRecipes=filtered.slice(recipePage*PAGE_SIZE,(recipePage+1)*PAGE_SIZE);$('pageinfo').textContent=`Page ${recipePage+1} of ${pages}`;$('prevpage').disabled=recipePage===0;$('nextpage').disabled=recipePage>=pages-1;
-$('recipes').innerHTML=pageRecipes.map(r=>{let checked=Object.hasOwn(selected,String(r.id));let photo=(r.image||r.url)?`<img class="recipe-photo" src="/api/photo/${r.id}" alt="${esc(cleanRecipeName(r.name))}" loading="lazy" referrerpolicy="no-referrer" onerror="hfImageFailed(this,${r.id})" onload="hfImageLoaded(this,${r.id})" data-original-image="${esc(r.image||'')}">`:'';return `<article class="recipe-card">${photo}<div class="photo-placeholder" style="${photo?'display:none':''}">🍽️</div><div class="recipe-card-body"><strong class="recipe-card-title">${esc(cleanRecipeName(r.name))}</strong>${r.country?`<small class="muted">${esc(r.country)}</small>`:''}${nutritionSummary(r)}${r.url?`<a href="${esc(r.url)}" target="_blank" rel="noopener noreferrer">View cooking steps</a>`:''}<div class="actions"><button type="button" class="favorite-btn" data-favorite="${r.id}">${(state.favorites||[]).includes(r.id)?"♥ Favorited":"♡ Favorite"}</button><button type="button" data-detail="${r.id}">Cook / Details${(state.recipe_reviews||{})[String(r.id)]?.rating?" · ★"+(state.recipe_reviews||{})[String(r.id)].rating:""}</button><select data-collection-add="${r.id}" aria-label="Add recipe to collection"><option value="">Add to collection…</option>${Object.keys(state.collections||{}).map(n=>`<option value="${esc(n)}">${esc(n)}</option>`).join("")}</select></div><div class="recipe-card-bottom"><label class="recipe-plan-action"><input aria-label="Select ${esc(cleanRecipeName(r.name))}" type="checkbox" data-id="${r.id}" ${checked?'checked':''}> <span class="recipe-plan-label">${checked?'✓ Added to plan':'Add to plan'}</span></label><div class="recipe-serving-row"><span>Servings</span><select aria-label="Total servings" data-scale="${r.id}">${[0.5,1,1.5,2,3,4,5,6].map(v=>`<option value="${v}" ${(selected[r.id]??(Number(r.source_servings)||2))==v?'selected':''}>${v} servings</option>`).join('')}</select></div></div></div></article>`}).join('')||'<p class="muted">No recipes match these filters.</p>';let n=state.list.filter(x=>x.purchased).length;$('summary').textContent=state.list.length?`${n} of ${state.list.length} purchased`:'No generated list yet';renderSelectedPlan();renderShoppingList();renderIngredientSuggestions();renderSmartPrefs();renderSalesComparison()}for(const id of ['recipe-country','protein','cuisine','meal','sort','selectedonly','fullmeals','quickmeals','favorite-filter','collection-filter','ingredient-filter','included-side','diet-filter','rating-filter'])$(id).addEventListener('change',()=>{recipePage=0;render()});$('resetfilters').onclick=()=>{for(const id of ['protein','cuisine','meal','diet-filter','rating-filter'])$(id).value='all';$('recipe-country').value='all';$('included-side').value='all';$('sort').value='name';$('selectedonly').checked=false;$('fullmeals').checked=true;$('quickmeals').checked=false;$('search').value='';recipePage=0;render()};function navigateRecipePage(direction){
+$('recipes').innerHTML=pageRecipes.map(recipeCardMarkup).join('')||'<p class="muted">No recipes match these filters.</p>';let n=state.list.filter(x=>x.purchased).length;$('summary').textContent=state.list.length?`${n} of ${state.list.length} purchased`:'No generated list yet';renderSelectedPlan();renderShoppingList();renderIngredientSuggestions();renderSmartPrefs();renderSalesComparison()}for(const id of ['recipe-country','protein','cuisine','meal','sort','selectedonly','fullmeals','quickmeals','favorite-filter','collection-filter','ingredient-filter','included-side','diet-filter','rating-filter'])$(id).addEventListener('change',()=>{recipePage=0;render()});$('resetfilters').onclick=()=>{for(const id of ['protein','cuisine','meal','diet-filter','rating-filter'])$(id).value='all';$('recipe-country').value='all';$('included-side').value='all';$('sort').value='name';$('selectedonly').checked=false;$('fullmeals').checked=true;$('quickmeals').checked=false;$('search').value='';recipePage=0;render()};function navigateRecipePage(direction){
  recipePage=Math.max(0,recipePage+direction);
  render();
  // Scroll to the recipe section heading after the new page is rendered.
