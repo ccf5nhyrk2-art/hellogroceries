@@ -3394,8 +3394,10 @@ class Handler(SimpleHTTPRequestHandler):
     if allowed_ids is not None and int(recipe.get('id') or 0) not in allowed_ids:return False
     if ingredient and ingredient not in names:return False
     if exclude_ingredient and exclude_ingredient in names:return False
-    if cuisine!='all' and cuisine not in name and cuisine not in str(recipe.get('cuisine') or '').casefold():return False
-    if meal!='all' and meal not in name and meal not in str(recipe.get('meal_type') or '').casefold():return False
+    # Do not guess classification from titles: recipe names are not a reliable
+    # substitute for the client's cuisineGroup/mealGroup classifiers.
+    # Unsupported classifications must fail explicitly until parity is added.
+    if cuisine!='all' or meal!='all':return False
     if quick:
      try:
       duration=float(recipe.get('total_time') or 999)
