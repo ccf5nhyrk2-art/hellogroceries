@@ -146,18 +146,16 @@ async function main() {
       } catch (error) {
         throw new Error('Favorite not saved: ' + JSON.stringify(saveEvents) + '; ' + error.message);
       }
-      // The favorite action can re-render the entire recipe grid while Playwright
-      // waits for a stable click target. Dispatch on the currently attached button
-      // and assert the actual saved selection below instead of waiting for layout stability.
-      await page.waitForFunction(id => !!document.querySelector('#fast-browse-results [data-fast-plan="' + id + '"]'), targetId, { timeout: 90000 });
-      await page.locator('#fast-browse-results [data-fast-plan="' + targetId + '"]').evaluate(async button => {
-         button.click();
-         // The click handler awaits the serialized save; wait for its queue.
-         await mealSelectionQueue;
-       });
-      await page.waitForFunction(id => Object.hasOwn(state.selected || {}, String(id)), targetId, { timeout: 30000 });
+      // Collection save comes first: selecting a meal can remove its card from
+      // the current filtered result set before the collection selector is used.
       await page.locator('#fast-browse-results [data-fast-collection="' + targetId + '"]').selectOption(testCollection);
       await page.waitForFunction(([id, name]) => (state.collections?.[name] || []).map(Number).includes(Number(id)), [targetId, testCollection], { timeout: 30000 });
+      await page.waitForFunction(id => !!document.querySelector('#fast-browse-results [data-fast-plan="' + id + '"]'), targetId, { timeout: 90000 });
+      await page.locator('#fast-browse-results [data-fast-plan="' + targetId + '"]').evaluate(async button => {
+        button.click();
+        await mealSelectionQueue;
+      });
+      await page.waitForFunction(id => Object.hasOwn(state.selected || {}, String(id)), targetId, { timeout: 30000 });
       // Capture server responses during reload to distinguish hydration failure from lost data.
       const reloadResponses = [];
       const trackReloadResponse = response => {
