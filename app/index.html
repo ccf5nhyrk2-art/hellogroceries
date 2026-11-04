@@ -1464,7 +1464,18 @@ async function load(){
   if(ids.length){
    fetch('/api/recipes/batch?ids='+encodeURIComponent(ids.join(',')))
     .then(response=>response.ok?response.json():Promise.reject(Error('Saved recipe batch unavailable')))
-    .then(items=>{if(!Array.isArray(items))return;for(const recipe of items)if(!recipes.some(existing=>String(existing.id)===String(recipe.id)))recipes.push(recipe);renderSelectedPlan()})
+    .then(async items=>{
+      if(!Array.isArray(items))throw Error('Invalid saved recipe batch');
+      for(const recipe of items)if(!recipes.some(existing=>String(existing.id)===String(recipe.id)))recipes.push(recipe);
+      // Some saved IDs are missing from the batch index; retry the detail endpoint
+      // individually so selected meals are not mislabeled as permanently unavailable.
+      const missing=ids.filter(id=>!recipes.some(recipe=>String(recipe.id)===id));
+      await Promise.all(missing.map(async id=>{
+       try{const recipe=await fetchRecipeDetail(id);if(recipe&&String(recipe.id)===id&&!recipes.some(r=>String(r.id)===id))recipes.push(recipe)}
+       catch(error){console.warn('Saved recipe detail unavailable',id,error)}
+      }));
+      renderSelectedPlan();renderMyCollectionCards();
+    })
     .catch(error=>console.warn('Saved recipe hydration deferred:',error));
   }
   const excluded=[...new Set([...savedIds,...(state.recommendation_hidden||[]).map(String)])].filter(id=>/^\d+$/.test(id)).slice(0,250);
@@ -1699,7 +1710,7 @@ function renderSelectedPlan(){
     const name=x.recipe?cleanRecipeName(x.recipe.name):'Recipe unavailable (ID '+x.id+')';
     const url=String(x.recipe?.url||'');
     const link=/^https:\/\//i.test(url)?`<a class="selected-recipe-link" href="${esc(url)}" target="_blank" rel="noopener noreferrer">View recipe ↗</a>`:'';
-    const note=x.recipe?'':'<small class="selected-meal-note">This saved selection no longer matches a recipe in the catalog. It has not been removed.</small>';
+    const note=x.recipe?'':'<small class="selected-meal-note">Recipe details could not be loaded. Your selection is preserved; try refreshing this page.</small>';
     return `<div class="selected-meal"><div class="selected-meal-info"><div class="selected-meal-name">${esc(name)}</div>${link}${note}</div><div class="selected-meal-controls"><label>Servings <select aria-label="Servings for ${esc(name)}" data-plan-scale="${esc(x.id)}">${[0.5,1,1.5,2,3,4,5,6].map(v=>`<option value="${v}" ${Number(x.scale)===v?'selected':''}>${v} servings</option>`).join('')}</select></label><button type="button" data-remove-meal="${esc(x.id)}" aria-label="Remove ${esc(name)}">Remove</button></div></div>`;
   }).join(''):'<p class="muted">No meals selected yet. Choose “Add to plan” on a recipe.</p>';
 }
