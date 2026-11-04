@@ -3417,9 +3417,22 @@ class Handler(SimpleHTTPRequestHandler):
    start=(page-1)*page_size
    # Full recipe details remain available through the existing endpoint.
    # Only compact card metadata is transmitted for each page.
-   fields=('id','name','image','country','nutrition','dietary_labels','prep_time','cook_time','total_time','url')
+   fields=('id','name','image','country','nutrition','dietary_labels','prep_time','cook_time','total_time','url','ingredients','source_servings')
    items=[{key:recipe[key] for key in fields if key in recipe} for recipe in matched[start:start+page_size]]
    return self.sendjson({'items':items,'page':page,'page_size':page_size,'total':total,'pages':(total+page_size-1)//page_size})
+  if urllib.parse.urlsplit(self.path).path=='/api/recipes/batch':
+   # Hydrate only saved/selected recipes rather than downloading the catalog.
+   params=urllib.parse.parse_qs(urllib.parse.urlsplit(self.path).query)
+   raw=params.get('ids',[''])[0]
+   if len(raw)>5000:return self.sendjson({'error':'Too many recipe IDs'},400)
+   try:
+    ids={int(value.strip()) for value in raw.split(',') if value.strip()}
+   except ValueError:
+    return self.sendjson({'error':'Invalid recipe IDs'},400)
+   if len(ids)>100:return self.sendjson({'error':'Maximum 100 recipe IDs'},400)
+   fields=('id','name','image','country','nutrition','dietary_labels','prep_time','cook_time','total_time','url','ingredients','source_servings')
+   return self.sendjson([{key:recipe[key] for key in fields if key in recipe}
+    for recipe in visible_browse_catalog() if int(recipe.get('id') or 0) in ids])
   if urllib.parse.urlsplit(self.path).path=='/api/recipes/detail':
    params=urllib.parse.parse_qs(urllib.parse.urlsplit(self.path).query)
    try:
