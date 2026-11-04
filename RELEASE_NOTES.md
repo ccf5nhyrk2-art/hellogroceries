@@ -1,3 +1,21 @@
+# HelloGroceries — Production release candidate (November 4, 2026)
+
+**Status:** Proposed for production in PR #43; not yet deployed to production.
+
+### Changes validated on staging
+- Recipe browsing performance: cached visible recipe catalog and reduced unnecessary per-request work. The deployed staging browser smoke test measured **543 ms** for the recipe-page API (previously approximately 19 seconds in an earlier test).
+- Favorites, meal plans and collections persisted after a page reload in the deployed staging smoke test.
+- Meal-plan save failures now propagate to callers instead of being silently swallowed.
+- Recipe, collection and meal-plan sharing links, improved Home navigation, and pantry barcode routing.
+- Shopping list preview, pantry controls, share dialog and non-admin admin-access restrictions passed staging smoke checks.
+- Household security checks passed for PR #42.
+
+**Validation:** [Deployed staging browser run](https://github.com/ccf5nhyrk2-art/hellogroceries/actions/runs/41879945312) passed after staging was updated. This is a smoke/regression suite, not exhaustive coverage of all workflows. Sharing across two separate real user accounts and production-specific deployment checks are not established by this run.
+
+**Deployment:** Merge PR #43 only after required checks and review. Pull the production `main` Docker image, preserve the existing production data volume, and recreate the production container only after confirming the release image is built. Keep a database backup and rollback image available.
+
+---
+
 # HelloGroceries — Staging release notes
 
 ## November 3, 2026 — Develop branch
