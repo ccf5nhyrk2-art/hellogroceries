@@ -2828,7 +2828,7 @@ async function loadFastBrowse(){
     break;
    }catch(error){
     if(request!==fastBrowseRequest)return;
-    if(attempt===2||(/^HTTP 4\\d\\d/.test(error.message)&&!error.message.includes('429')))throw error;
+    if(attempt===2||(error.message.startsWith('HTTP 4')&&!error.message.includes('429')))throw error;
    }finally{clearTimeout(timer)}
   }
   if(request!==fastBrowseRequest)return;
