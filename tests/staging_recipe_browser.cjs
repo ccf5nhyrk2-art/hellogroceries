@@ -145,9 +145,9 @@ async function main() {
       // and assert the actual saved selection below instead of waiting for layout stability.
       await page.waitForFunction(id => !!document.querySelector('#fast-browse-results [data-fast-plan="' + id + '"]'), targetId, { timeout: 90000 });
       await page.locator('#fast-browse-results [data-fast-plan="' + targetId + '"]').evaluate(button => button.click());
-      await page.waitForFunction(id => Object.hasOwn(state.selected || {}, String(id)), targetId, { timeout: 30000 });
+      try { await page.waitForFunction(id => Object.hasOwn(state.selected || {}, String(id)), targetId, { timeout: 30000 }); } catch (error) { throw new Error('Meal plan selection failed; events=' + JSON.stringify(saveEvents) + '; ' + error.message); }
       await page.locator('#fast-browse-results [data-fast-collection="' + targetId + '"]').selectOption(testCollection);
-      await page.waitForFunction(([id, name]) => (state.collections?.[name] || []).map(Number).includes(Number(id)), [targetId, testCollection], { timeout: 30000 });
+      try { await page.waitForFunction(([id, name]) => (state.collections?.[name] || []).map(Number).includes(Number(id)), [targetId, testCollection], { timeout: 30000 }); } catch (error) { throw new Error('Collection selection failed; events=' + JSON.stringify(saveEvents) + '; ' + error.message); }
       // Capture server responses during reload to distinguish hydration failure from lost data.
       const reloadResponses = [];
       const trackReloadResponse = response => {
