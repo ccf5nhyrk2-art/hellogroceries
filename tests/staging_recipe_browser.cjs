@@ -51,6 +51,20 @@ async function main() {
     // Login intentionally lands on Home; navigate to Recipes before testing its controls.
     await page.locator('.page-nav-button[data-page="recipes"]').waitFor({ state: 'attached', timeout: 30000 });
     await page.locator('.page-nav-button[data-page="recipes"]').evaluate(button => button.click());
+    // Read-only Plan page regression: navigation, selected meal count and controls.
+    await page.locator('.page-nav-button[data-page="planner"]').evaluate(button => button.click());
+    await page.waitForFunction(() => document.querySelector('#selected-plan-list') && typeof state !== 'undefined');
+    const planSnapshot = await page.evaluate(() => ({
+      expected: Object.keys(state.selected || {}).length,
+      displayed: document.querySelectorAll('#selected-plan-list .selected-meal').length,
+      missingControls: [...document.querySelectorAll('#selected-plan-list .selected-meal')].filter(card => !card.querySelector('[data-plan-scale]') || !card.querySelector('[data-remove-meal]')).length,
+      hasWeekGrid: !!document.querySelector('#week-grid')
+    }));
+    assert.equal(planSnapshot.displayed, planSnapshot.expected, 'Plan selected meals count does not match saved state');
+    assert.equal(planSnapshot.missingControls, 0, 'Plan meal serving/remove controls missing');
+    assert.ok(planSnapshot.hasWeekGrid, 'Weekly planner missing');
+    console.log('PASS: Plan page selected meals, controls and weekly planner (' + planSnapshot.expected + ' selected)');
+    await page.locator('.page-nav-button[data-page="recipes"]').evaluate(button => button.click());
     // Verify visible recommendations do not repeat a recipe family.
     await page.locator('#recommend-list').waitFor({ state: 'attached', timeout: 30000 });
     await page.waitForTimeout(2500);
