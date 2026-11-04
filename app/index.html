@@ -1457,7 +1457,7 @@ async function load(){
  // Do not start the expensive full-catalog download until the first page
  // has had a chance to paint. This keeps initial browsing responsive.
  const recipeRequest=Promise.all([stateRequest.then(()=>{},()=>{}),firstPageRequest])
-  .then(()=>new Promise(resolve=>setTimeout(resolve,0)))
+  .then(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))))
   .then(()=>fetch('/api/recipes/summary'))
   .then(async response=>{
    if(!response.ok)throw Error('Could not load recipe catalog (HTTP '+response.status+')');
