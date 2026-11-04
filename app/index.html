@@ -2790,6 +2790,11 @@ function recommendationPhotoFailed(img){
  tryNext();
 }
 function updateRecommendationCarousel(){const list=$('recommend-list'),controls=$('recommend-carousel-controls'),dots=$('recommend-dots');if(!list||!controls||!dots)return;const cards=[...list.querySelectorAll('.recommend-card')];const enabled=matchMedia('(max-width:750px)').matches&&cards.length>1;controls.hidden=!enabled;if(!enabled)return;const current=cards.reduce((best,card,i)=>Math.abs(card.offsetLeft-list.offsetLeft-list.scrollLeft)<Math.abs(cards[best].offsetLeft-list.offsetLeft-list.scrollLeft)?i:best,0);dots.innerHTML=cards.map((_,i)=>'<span class="recommend-dot'+(i===current?' active':'')+'"></span>').join('')}
+// Replace failed recommendation images instead of leaving empty photo slots.
+$('recommend-list').addEventListener('error',event=>{
+ const img=event.target;
+ if(img instanceof HTMLImageElement&&img.classList.contains('recommend-photo'))recommendationPhotoFailed(img);
+},true);
 $('recommend-list').addEventListener('change',async e=>{
  const el=e.target.closest('[data-recommend-collection]');if(!el||!el.value)return;
  const name=el.value,id=Number(el.dataset.recommendCollection),collections=structuredClone(state.collections||{});
