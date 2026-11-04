@@ -75,6 +75,9 @@ async function main() {
     assert.equal(planSnapshot.displayed, planSnapshot.expected, 'Plan selected meals count does not match saved state');
     assert.equal(planSnapshot.missingControls, 0, 'Plan meal serving/remove controls missing');
     assert.ok(planSnapshot.hasWeekGrid, 'Weekly planner missing');
+    await page.waitForFunction(() => document.querySelectorAll('#planner-selected-meals-list .selected-meal').length === Object.keys(state.selected || {}).length, null, { timeout: 30000 });
+    const plannerControls = await page.locator('#planner-selected-meals-list .selected-meal').count();
+    assert.equal(plannerControls, planSnapshot.expected, 'Plan page must display saved meals directly above weekly planner');
     console.log('PASS: Plan page selected meals, controls and weekly planner (' + planSnapshot.expected + ' selected)');
     await page.locator('.page-nav-button[data-page="recipes"]').evaluate(button => button.click());
     // Verify visible recommendations do not repeat a recipe family.
