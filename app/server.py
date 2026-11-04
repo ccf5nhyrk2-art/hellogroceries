@@ -3337,7 +3337,7 @@ class Handler(SimpleHTTPRequestHandler):
    # Cached-only lookup: never fetch external images on a page request.
    cached_ids=[]
    for photo in PHOTO_DIR.iterdir():
-    if photo.suffix.lower() in ('.jpg','.png','.webp','.gif') and photo.stem.isdigit() and photo.is_file() and photo.stat().st_size>0:
+    if photo.suffix.lower() in ('.jpg','.png','.webp','.gif') and photo.stem.isdigit() and photo.is_file() and photo.stat().st_size>=100 and image_type(photo.open('rb').read(16)):
      cached_ids.append(int(photo.stem))
    return self.sendjson({'ids':cached_ids})
   if urllib.parse.urlsplit(self.path).path=='/api/recipes/page':
