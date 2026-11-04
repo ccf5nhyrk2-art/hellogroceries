@@ -3375,8 +3375,34 @@ class Handler(SimpleHTTPRequestHandler):
    sort=params.get('sort',['name'])[0].strip().lower()
    if sort not in ('name','reverse','newest') or protein not in ('all','chicken','beef','pork','seafood','vegetarian','other'):
     return self.sendjson({'error':'Invalid recipe filter'},400)
+   # Optional server-side filters. Defaults preserve the existing API contract.
+   cuisine=params.get('cuisine',['all'])[0].strip().casefold()[:60]
+   meal=params.get('meal',['all'])[0].strip().casefold()[:40]
+   ingredient=params.get('ingredient',[''])[0].strip().casefold()[:100]
+   exclude_ingredient=params.get('exclude_ingredient',[''])[0].strip().casefold()[:100]
+   quick=params.get('quick',['false'])[0].lower()=='true'
+   ids_raw=params.get('ids',[''])[0].strip()
+   if len(ids_raw)>5000:return self.sendjson({'error':'Too many recipe IDs'},400)
+   try:allowed_ids={int(x) for x in ids_raw.split(',') if x.strip()} if ids_raw else None
+   except ValueError:return self.sendjson({'error':'Invalid recipe IDs'},400)
    catalog=visible_browse_catalog()
-   matched=[r for r in catalog if recipe_page_matches(r,query,country,protein)]
+   def matches_extra(recipe):
+    name=str(recipe.get('name') or '').casefold()
+    ingredients=recipe.get('ingredients') or {}
+    if not isinstance(ingredients,dict):ingredients={}
+    names=' '.join(str(k).casefold() for k in ingredients)
+    if allowed_ids is not None and int(recipe.get('id') or 0) not in allowed_ids:return False
+    if ingredient and ingredient not in names:return False
+    if exclude_ingredient and exclude_ingredient in names:return False
+    if cuisine!='all' and cuisine not in name and cuisine not in str(recipe.get('cuisine') or '').casefold():return False
+    if meal!='all' and meal not in name and meal not in str(recipe.get('meal_type') or '').casefold():return False
+    if quick:
+     try:
+      duration=float(recipe.get('total_time') or 999)
+      if duration>30:return False
+     except (TypeError,ValueError):return False
+    return True
+   matched=[r for r in catalog if recipe_page_matches(r,query,country,protein) and matches_extra(r)]
    if sort=='newest':matched.sort(key=lambda r:int(r.get('id') or 0),reverse=True)
    else:matched.sort(key=lambda r:str(r.get('name') or '').casefold(),reverse=sort=='reverse')
    total=len(matched)
