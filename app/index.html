@@ -1478,6 +1478,12 @@ async function load(){
  // has had a chance to paint. This keeps initial browsing responsive.
  const recipeRequest=Promise.all([stateRequest.then(()=>{},()=>{}),firstPageRequest])
   .then(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))))
+  // Schedule legacy catalog hydration during idle time instead of competing
+  // with initial image requests and first-page interactions.
+  .then(()=>new Promise(resolve=>{
+   if('requestIdleCallback' in window)requestIdleCallback(resolve,{timeout:2500});
+   else setTimeout(resolve,800);
+  }))
   .then(()=>fetch('/api/recipes/summary'))
   .then(async response=>{
    if(!response.ok)throw Error('Could not load recipe catalog (HTTP '+response.status+')');
