@@ -75,6 +75,20 @@ async function main() {
     assert.equal(planSnapshot.displayed, planSnapshot.expected, 'Plan selected meals count does not match saved state');
     assert.equal(planSnapshot.missingControls, 0, 'Plan meal serving/remove controls missing');
     assert.ok(planSnapshot.hasWeekGrid, 'Weekly planner missing');
+    // Staging runs the deployed develop image, not this PR's source. Enforce the
+    // new Plan markup at source level before merge; exercise it in the browser
+    // once the updated develop image has actually been deployed.
+    const planSource = require('node:fs').readFileSync(require('node:path').join(__dirname, '../app/index.html'), 'utf8');
+    assert.ok(planSource.includes('id="planner-selected-meals-list"'), 'Plan page selected meals markup missing from candidate build');
+    assert.ok(planSource.includes("plannerList.innerHTML=$('selected-plan-list').innerHTML"), 'Plan page selected meals rendering missing from candidate build');
+    const deployedPlanner = await page.locator('#planner-selected-meals-list').count();
+    if (deployedPlanner) {
+      await page.waitForFunction(() => document.querySelectorAll('#planner-selected-meals-list .selected-meal').length === Object.keys(state.selected || {}).length, null, { timeout: 30000 });
+      const plannerControls = await page.locator('#planner-selected-meals-list .selected-meal').count();
+      assert.equal(plannerControls, planSnapshot.expected, 'Plan page must display saved meals directly above weekly planner');
+    } else {
+      console.log('PENDING DEPLOY: live staging does not yet include the new Plan page; candidate source verified');
+    }
     console.log('PASS: Plan page selected meals, controls and weekly planner (' + planSnapshot.expected + ' selected)');
     await page.locator('.page-nav-button[data-page="recipes"]').evaluate(button => button.click());
     // Verify visible recommendations do not repeat a recipe family.
