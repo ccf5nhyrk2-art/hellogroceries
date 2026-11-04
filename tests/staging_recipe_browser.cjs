@@ -100,7 +100,12 @@ async function main() {
       await page.waitForFunction(() => document.querySelector('#fast-browse-pageinfo')?.textContent?.startsWith('Page 2 of'), null, { timeout: 90000 });
       assert.ok(await cards.count() > 0, 'Page 2 is empty');
       await page.locator('#fast-browse-prev').click();
-      await page.waitForFunction(() => document.querySelector('#fast-browse-pageinfo')?.textContent?.startsWith('Page 1 of'), null, { timeout: 90000 });
+      try {
+        await page.waitForFunction(() => document.querySelector('#fast-browse-pageinfo')?.textContent?.startsWith('Page 1 of'), null, { timeout: 90000 });
+      } catch (error) {
+        const diagnostics = await page.evaluate(() => ({ pageInfo: document.querySelector('#fast-browse-pageinfo')?.textContent, results: document.querySelector('#fast-browse-results')?.textContent?.slice(0, 300), prevDisabled: document.querySelector('#fast-browse-prev')?.disabled, nextDisabled: document.querySelector('#fast-browse-next')?.disabled }));
+        throw new Error('Previous-page navigation stalled: ' + JSON.stringify({ diagnostics, requests: searchRequests.slice(-15) }) + '; ' + error.message);
+      }
       console.log('PASS: next and previous pagination');
     }
     const api = await page.request.get(base + '/api/recipes/page?page=1&page_size=24&q=chicken');
