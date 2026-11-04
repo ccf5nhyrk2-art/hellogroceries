@@ -51,6 +51,13 @@ async function main() {
     // Login intentionally lands on Home; navigate to Recipes before testing its controls.
     await page.locator('.page-nav-button[data-page="recipes"]').waitFor({ state: 'attached', timeout: 30000 });
     await page.locator('.page-nav-button[data-page="recipes"]').evaluate(button => button.click());
+    // Verify visible recommendations do not repeat a recipe family.
+    await page.locator('#recommend-list').waitFor({ state: 'attached', timeout: 30000 });
+    await page.waitForTimeout(2500);
+    const recommendationTitles = await page.locator('#recommend-list .recommend-title').allInnerTexts();
+    const families = recommendationTitles.map(title => title.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim().split(' ').slice(0, 5).join(' '));
+    assert.equal(new Set(families).size, families.length, 'Duplicate recommendation family: ' + JSON.stringify(recommendationTitles));
+    console.log('PASS: visible recommendations contain no duplicate title families (' + families.length + ' checked)');
     await page.locator('#fast-browse-toggle').waitFor({ state: 'attached', timeout: 30000 });
     await page.locator('#fast-browse-toggle').evaluate(button => {
       // The legacy pagination panel is intentionally hidden from customers.
