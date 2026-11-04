@@ -3029,9 +3029,11 @@ function serverRecipeParams(){
  if($('quickmeals').checked)params.set('quick','true');
  if($('ingredient-filter').value!=='all')params.set('ingredient',$('ingredient-filter').value);
  if($('exclude-ingredient').value.trim())params.set('exclude_ingredient',$('exclude-ingredient').value.trim());
- if($('selectedonly').checked)params.set('ids',Object.keys(state.selected||{}).join(','));
- if($('favorite-filter').value==='favorites')params.set('ids',(state.favorites||[]).join(','));
- if($('collection-filter').value!=='all')params.set('ids',((state.collections||{})[$('collection-filter').value]||[]).join(','));
+ const selections=[];
+ if($('selectedonly').checked)selections.push(new Set(Object.keys(state.selected||{}).map(String)));
+ if($('favorite-filter').value==='favorites')selections.push(new Set((state.favorites||[]).map(String)));
+ if($('collection-filter').value!=='all')selections.push(new Set(((state.collections||{})[$('collection-filter').value]||[]).map(String)));
+ if(selections.length)params.set('ids',[...selections[0]].filter(id=>selections.every(set=>set.has(id))).join(','));
  return params;
 }
 function requiresLegacyRecipeFilters(){
