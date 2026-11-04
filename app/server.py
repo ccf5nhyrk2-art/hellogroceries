@@ -3381,6 +3381,7 @@ class Handler(SimpleHTTPRequestHandler):
    ingredient=params.get('ingredient',[''])[0].strip().casefold()[:100]
    exclude_ingredient=params.get('exclude_ingredient',[''])[0].strip().casefold()[:100]
    quick=params.get('quick',['false'])[0].lower()=='true'
+   if cuisine!='all' or meal!='all':return self.sendjson({'error':'Cuisine and meal filters are not yet supported by server pagination'},400)
    ids_raw=params.get('ids',[''])[0].strip()
    if len(ids_raw)>5000:return self.sendjson({'error':'Too many recipe IDs'},400)
    try:allowed_ids={int(x) for x in ids_raw.split(',') if x.strip()} if ids_raw else None
@@ -3394,10 +3395,6 @@ class Handler(SimpleHTTPRequestHandler):
     if allowed_ids is not None and int(recipe.get('id') or 0) not in allowed_ids:return False
     if ingredient and ingredient not in names:return False
     if exclude_ingredient and exclude_ingredient in names:return False
-    # Do not guess classification from titles: recipe names are not a reliable
-    # substitute for the client's cuisineGroup/mealGroup classifiers.
-    # Unsupported classifications must fail explicitly until parity is added.
-    if cuisine!='all' or meal!='all':return False
     if quick:
      try:
       duration=float(recipe.get('total_time') or 999)
