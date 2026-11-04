@@ -2817,9 +2817,21 @@ async function loadFastBrowse(){
  $('fast-browse-results').textContent='Loading recipes…';
  const params=new URLSearchParams({page:String(fastBrowsePage),page_size:'24',q:$('fast-browse-search').value.trim(),sort:'name'});
  try{
-  const response=await fetch('/api/recipes/page?'+params);
-  if(!response.ok)throw Error('HTTP '+response.status);
-  const result=await response.json();
+  let result;
+  for(let attempt=0;attempt<3;attempt++){
+   const controller=new AbortController();
+   const timer=setTimeout(()=>controller.abort(),25000);
+   try{
+    const response=await fetch('/api/recipes/page?'+params,{signal:controller.signal,cache:'no-store'});
+    if(!response.ok)throw Error('HTTP '+response.status);
+    result=await response.json();
+    break;
+   }catch(error){
+    if(request!==fastBrowseRequest)return;
+    if(attempt===2||(error.message.startsWith('HTTP 4')&&!error.message.includes('429')))throw error;
+   }finally{clearTimeout(timer)}
+  }
+  if(request!==fastBrowseRequest)return;
   if(request!==fastBrowseRequest)return;
   fastBrowsePages=Math.max(1,Number(result.pages)||1);
   fastBrowsePage=Number(result.page)||1;
