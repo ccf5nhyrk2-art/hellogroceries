@@ -3389,7 +3389,7 @@ class Handler(SimpleHTTPRequestHandler):
    # Full cooking steps are fetched only when a recipe is opened.
    checks=instruction_audit_rows()
    start_instruction_audit()
-   catalog=(r for r in allrecipes() if not non_recipe_reason(r) and visible_cooking_recipe(r,checks))
+   catalog=(r for r in browse_catalog() if not non_recipe_reason(r) and visible_cooking_recipe(r,checks))
    return self.sendjson([{k:v for k,v in r.items() if k not in ('instructions','raw_json','source_html','recipeInstructions')} for r in catalog])
   if self.path=='/api/recipes':
    checks=instruction_audit_rows()
