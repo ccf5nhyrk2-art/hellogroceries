@@ -2854,7 +2854,18 @@ function renderRecommendations(){
  }
  if(generation!==recommendationRenderGeneration)return;
  const choices=[...results,...rotated.filter(x=>!used.has(String(x.r.id)))];
- const verified=choices.filter(item=>recommendationCachedPhotoIds.has(String(item.r.id))&&!recommendationFailedPhotos.has(String(item.r.id))).slice(0,5);
+ // Deduplicate recommendation identities and equivalent recipe titles before
+ // limiting the carousel; distinct imported IDs often represent the same meal.
+ const seenRecommendationIds=new Set(),seenRecommendationNames=new Set();
+ const verified=choices.filter(item=>{
+  const id=String(item.r.id);
+  const name=cleanRecipeName(item.r.name).toLowerCase().replace(/[^a-z0-9]+/g,' ').trim();
+  if(!recommendationCachedPhotoIds.has(id)||recommendationFailedPhotos.has(id))return false;
+  if(seenRecommendationIds.has(id)||(name&&seenRecommendationNames.has(name)))return false;
+  seenRecommendationIds.add(id);
+  if(name)seenRecommendationNames.add(name);
+  return true;
+ }).slice(0,5);
   panel.innerHTML=verified.length?verified.map(({r,reason})=>'<article class="recommend-card"><div class="recommend-photo-wrap"><button type="button" class="recommend-favorite" data-recommend-favorite="'+r.id+'" aria-pressed="'+(state.favorites||[]).map(Number).includes(Number(r.id))+'" aria-label="Toggle favorite">'+((state.favorites||[]).map(Number).includes(Number(r.id))?'♥':'♡')+'</button>'+('<img class="recommend-photo" src="/api/photo/'+encodeURIComponent(r.id)+'" alt="" loading="lazy">')+'</div><strong class="recommend-title">'+esc(cleanRecipeName(r.name))+'</strong><div class="muted recommend-reason" style="font-size:12px;margin:6px 0">'+esc(reason)+'</div><div class="recommend-actions"><button type="button" data-recommend-detail="'+r.id+'">View recipe</button><button type="button" data-recommend-plan="'+r.id+'">Add to plan</button></div><select data-recommend-collection="'+r.id+'" aria-label="Add recommended recipe to collection" style="width:100%;margin-top:8px;min-height:40px"><option value="">Add to collection…</option>'+Object.keys(state.collections||{}).map(n=>'<option value="'+esc(n)+'">'+esc(n)+'</option>').join('')+'</select><button type="button" data-recommend-more="'+r.id+'" class="recommend-dismiss">Show me more like this</button><button type="button" data-recommend-hide="'+r.id+'" class="recommend-dismiss">Not interested</button></article>').join(''):'<p class="muted">'+(terms.length?'No suggestions match this search. Try clearing the search.':'No suggestions available yet.')+'</p>';
  if(verified.length<5&&verified.length>0){
   const note=document.createElement('p');note.className='muted';note.style.gridColumn='1/-1';
