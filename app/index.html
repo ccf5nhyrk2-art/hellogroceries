@@ -3,6 +3,17 @@
 .filters{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin:10px 0}.filters select{min-width:0;width:100%;padding:11px;border:1px solid #cad7cf;border-radius:9px;background:white}.filter-actions{display:flex;gap:9px;align-items:center;flex-wrap:wrap;margin-bottom:10px}.filter-actions button{padding:9px 12px}.recipe-browser{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.recipe-card{border:1px solid #e1e9e2;border-radius:12px;overflow:hidden;display:flex;flex-direction:column;min-width:0}.recipe-card>img,.recipe-card>.photo-placeholder{width:100%;height:132px;object-fit:cover;border-radius:0}.recipe-card-body{padding:11px;display:flex;flex-direction:column;gap:8px;flex:1}.recipe-card-title{font-size:14px;line-height:1.35;min-height:38px}.recipe-card-bottom{display:flex;justify-content:space-between;align-items:center;gap:5px}.recipe-card-bottom select{max-width:74px}.recipe-card-bottom input{width:20px;height:20px;accent-color:#176b4a}.recipe-card a{font-size:12px}.recipe-card .photo-edit{align-self:flex-start}.pagination{display:flex;align-items:center;justify-content:center;gap:12px;margin:15px 0}.pagination button:disabled{opacity:.4;cursor:default}.recipe-card .photo-placeholder{display:grid;place-items:center;font-size:38px}@media(max-width:480px){.recipe-browser{grid-template-columns:1fr}.filters{grid-template-columns:1fr}}
 
 .recipes-topbar{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:12px}.recipes-topbar h2{margin:0}.recipes-selected-button{background:#101c16!important;color:#a6e6b9!important;border:1px solid #36a46a!important;border-radius:12px;padding:10px 14px;font-weight:650;cursor:pointer}.recipes-selected-button[aria-expanded="true"]{background:#1c3a2b!important}.selected-plan[hidden]{display:none!important}
+/* Compact recipe cards on phones without hiding actions or shrinking tap targets. */
+@media(max-width:750px){
+ .recipe-card-body{padding:10px;gap:6px}
+ .recipe-card-title{min-height:0;line-height:1.3}
+ .recipe-card>img,.recipe-card>.photo-placeholder{height:116px}
+ .recipe-card .actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}
+ .recipe-card .actions button,.recipe-card .actions select{min-width:0;width:100%;min-height:42px;font-size:12px;padding:8px}
+ .recipe-card-bottom{flex-wrap:wrap;gap:8px}
+ .recipe-card .recipe-plan-action{min-height:42px;display:flex;align-items:center}
+ .recipe-card .recipe-serving-row{min-height:42px}
+}
 /* Compact selected meals cards with touch-friendly controls on iPhone. */
 .selected-meal{display:flex;flex-direction:column;align-items:stretch;gap:9px;padding:14px 0}
 .selected-meal-info{min-width:0;overflow-wrap:anywhere}
