@@ -3665,7 +3665,13 @@ $('recipes').addEventListener('click',async e=>{
   const f=new Set((state.favorites||[]).map(Number).filter(Number.isSafeInteger));
   const adding=!f.has(id);adding?f.add(id):f.delete(id);
   fav.disabled=true;
-  try{await preferences({favorites:[...f]});}
+  try{
+   await preferences({favorites:[...f]});
+   // Update the currently visible control immediately; the page render may
+   // still be waiting on an asynchronous paginated catalog response.
+   const current=document.querySelector('#recipes [data-favorite="'+id+'"]');
+   if(current){current.textContent=adding?'♥ Favorited':'♡ Favorite';current.setAttribute('aria-pressed',String(adding));current.disabled=false;}
+  }
   catch(err){fav.disabled=false;alert('Could not save favorite: '+(err.message||'Please try again'));}
   return;
  }
@@ -3713,7 +3719,14 @@ $('recipes').addEventListener('change',async e=>{
  const c=structuredClone(state.collections||{});
  c[name]=[...new Set([...(c[name]||[]).map(Number).filter(Number.isSafeInteger),id])];
  el.disabled=true;
- try{await preferences({collections:c});}
+ try{
+  await preferences({collections:c});
+  const current=document.querySelector('#recipes [data-collection-add="'+id+'"]');
+  if(current){current.disabled=false;current.value='';current.setAttribute('aria-label','Added to '+name);}
+  const status=document.getElementById('recipe-save-status')||document.createElement('div');
+  status.id='recipe-save-status';status.setAttribute('role','status');status.className='muted';status.textContent='Added recipe to '+name;
+  document.getElementById('recipes')?.before(status);
+ }
  catch(err){el.disabled=false;alert('Could not add recipe to collection: '+(err.message||'Please try again'));}
 });
 
