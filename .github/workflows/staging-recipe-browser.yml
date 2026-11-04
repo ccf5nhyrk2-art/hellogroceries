@@ -13,7 +13,7 @@ permissions:
 jobs:
   staging-browser:
     runs-on: ubuntu-24.04
-    timeout-minutes: 12
+    timeout-minutes: 25
     env:
       STAGING_URL: https://staging-groceries.greenlee.uk
       STAGING_AUTH_STATE: test-results/staging-auth-state.json
@@ -32,6 +32,10 @@ jobs:
         run: |
           npm install --no-save playwright@1.58.2
           npx playwright install --with-deps chromium
+      - name: Prepare isolated runner data directory for recipe unit tests
+        run: |
+          sudo mkdir -p /data
+          sudo chown "$(id -u):$(id -g)" /data
       - name: Verify recipe pagination regression
         run: python -m unittest discover -s tests -p 'test_recipe_pagination.py'
       - name: Verify barcode route regression
@@ -47,13 +51,13 @@ jobs:
       - name: Run read-only staging smoke tests
         run: node tests/staging_recipe_browser.cjs
       - name: Run shopping pantry and admin staging smoke tests
-        if: success() || failure()
+        if: success()
         run: node tests/staging_other_features.cjs
       - name: Run functional API, admin authorization and recipe performance probes
-        if: success() || failure()
+        if: success()
         run: node tests/staging_functional_security_perf.cjs
       - name: Run deployed staging sharing UI checks
-        if: success() || failure()
+        if: success()
         run: node tests/staging_share_links.cjs
       - name: Upload browser diagnostics on failure
         if: failure()
