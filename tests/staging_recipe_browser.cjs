@@ -53,7 +53,19 @@ async function main() {
     await page.locator('.page-nav-button[data-page="recipes"]').evaluate(button => button.click());
     // Read-only Plan page regression: navigation, selected meal count and controls.
     await page.locator('.page-nav-button[data-page="planner"]').evaluate(button => button.click());
-    await page.waitForFunction(() => document.querySelector('#selected-plan-list') && typeof state !== 'undefined');
+    await page.waitForFunction(() => {
+      if (typeof state === 'undefined') return false;
+      const list = document.querySelector('#selected-plan-list');
+      return list && list.querySelectorAll('.selected-meal').length === Object.keys(state.selected || {}).length;
+    }, null, { timeout: 30000 }).catch(async error => {
+      const snapshot = await page.evaluate(() => ({
+        selected: Object.keys(state?.selected || {}).length,
+        rendered: document.querySelectorAll('#selected-plan-list .selected-meal').length,
+        listHTML: document.querySelector('#selected-plan-list')?.innerHTML.slice(0, 500),
+        activePage: document.querySelector('.page-nav-button[aria-current="page"]')?.dataset.page
+      }));
+      throw new Error('Plan did not finish rendering: ' + JSON.stringify(snapshot) + '; ' + error.message);
+    });
     const planSnapshot = await page.evaluate(() => ({
       expected: Object.keys(state.selected || {}).length,
       displayed: document.querySelectorAll('#selected-plan-list .selected-meal').length,
