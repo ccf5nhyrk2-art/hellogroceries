@@ -1444,16 +1444,22 @@ async function refreshShopFromServer(){
 }
 let mealSelectionQueue=Promise.resolve();
 function selectMealAndRefresh(id,checked,servings){
- mealSelectionQueue=mealSelectionQueue.catch(()=>{}).then(async()=>{
+ // Preserve serialization without swallowing errors from the current action.
+ // Callers must be able to detect a failed save instead of reporting success.
+ const operation=mealSelectionQueue.catch(()=>{}).then(async()=>{
   $('error').textContent='';
   const response=await fetch('/api/action',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'select',id,checked,servings})});
   const result=await response.json();
-  if(!response.ok)throw Error(result.error||'Unable to update selected meal');
+  if(!response.ok || result.error)throw Error(result.error||'Unable to update selected meal');
   state=result;
   $('grocery-preview').hidden=true;
   render();
- }).catch(error=>{$('error').textContent='Could not update selected meals: '+error.message;});
- return mealSelectionQueue;
+ });
+ mealSelectionQueue=operation.catch(()=>{});
+ return operation.catch(error=>{
+  $('error').textContent='Could not update selected meals: '+error.message;
+  throw error;
+ });
 }
 async function action(payload){try{const r=await fetch('/api/action',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});const v=await r.json();if(!r.ok)throw Error(v.error);state=v;if(payload.action==='import'){recipes=await fetch('/api/recipes/summary').then(r=>r.json());$('recipeurl').value=''}render()}catch(e){$('error').textContent=e.message}}
 let recipePage=0;const PAGE_SIZE=24;

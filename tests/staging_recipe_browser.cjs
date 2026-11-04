@@ -144,7 +144,11 @@ async function main() {
       // waits for a stable click target. Dispatch on the currently attached button
       // and assert the actual saved selection below instead of waiting for layout stability.
       await page.waitForFunction(id => !!document.querySelector('#fast-browse-results [data-fast-plan="' + id + '"]'), targetId, { timeout: 90000 });
-      await page.locator('#fast-browse-results [data-fast-plan="' + targetId + '"]').evaluate(button => button.click());
+      await page.locator('#fast-browse-results [data-fast-plan="' + targetId + '"]').evaluate(async button => {
+         button.click();
+         // The click handler awaits the serialized save; wait for its queue.
+         await mealSelectionQueue;
+       });
       await page.waitForFunction(id => Object.hasOwn(state.selected || {}, String(id)), targetId, { timeout: 30000 });
       await page.locator('#fast-browse-results [data-fast-collection="' + targetId + '"]').selectOption(testCollection);
       await page.waitForFunction(([id, name]) => (state.collections?.[name] || []).map(Number).includes(Number(id)), [targetId, testCollection], { timeout: 30000 });
