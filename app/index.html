@@ -1019,6 +1019,10 @@ for(const [key,label] of pageSpecs){
 }
 function showPage(key){
  if(!pageButtons.has(key))key='all';
+ // Plan is independent of recipe-page network requests. Refresh it on navigation.
+ if(key==='planner'){
+  try{renderSelectedPlan();updateEnhancements()}catch(error){console.error('Plan render:',error)}
+ }
  if(key==='recipes'&&window.matchMedia('(min-width:751px)').matches){
   const panel=document.getElementById('selected-plan');
   const toggle=document.getElementById('show-selected-meals');
@@ -3106,6 +3110,9 @@ async function renderPaged(){
  }
 }
 function render(){
+ // Always paint saved meal state even if the catalog request fails or is delayed.
+ renderSelectedPlan();
+ updateEnhancements();
  if(legacyCatalogLoaded){renderLegacy();return}
  if(requiresLegacyRecipeFilters()){
   void fetchLegacyCatalogOnDemand().then(()=>renderLegacy()).catch(error=>console.error(error));
@@ -3555,6 +3562,12 @@ function hfImageLoaded(img,id){
    if(pixels[i+1]>125&&pixels[i+1]>pixels[i]*1.35&&pixels[i+1]>pixels[i+2]*1.35&&pixels[i]>45)green++;
   }
   if(opaque&&green/opaque>0.48){
+   const source=img.getAttribute('data-original-image')||'';
+   if(!img.dataset.logoSourceTried&&/^https:\/\//i.test(source)&&source!==img.src){
+    img.dataset.logoSourceTried='1';
+    img.src=source;
+    return;
+   }
    if(!img.dataset.logoRefresh){
     img.dataset.logoRefresh='1';
     img.src='/api/photo/'+encodeURIComponent(String(id))+'?refresh=1';
