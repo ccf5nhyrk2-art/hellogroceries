@@ -3591,10 +3591,16 @@ function hfImageLoaded(img,id){
 
 let hfCatalogPhotoRefresh=null;
 function hfHideBrokenCatalogCard(img,id){
- // Keep the recipe usable when its photo is missing. Hiding the entire
- // card previously left empty slots and repeatedly reloaded the page.
  const card=img.closest('.recipe-card');
  if(!card)return;
+ // Hide invalid-photo recipes from ordinary browsing, but never remove
+ // existing saved recipes from the user's Favorites, Collections or Plan.
+ const key=String(id);
+ const saved=Object.hasOwn(state.selected||{},key)
+  ||(state.favorites||[]).some(value=>String(value)===key)
+  ||Object.values(state.collections||{}).some(ids=>Array.isArray(ids)&&ids.some(value=>String(value)===key))
+  ||Object.values(state.weekly||{}).some(value=>String(value)===key);
+ if(!saved){card.remove();return;}
  img.style.display='none';
  const placeholder=card.querySelector('.photo-placeholder');
  if(placeholder){placeholder.style.display='flex';placeholder.textContent='Photo unavailable';placeholder.setAttribute('role','img');placeholder.setAttribute('aria-label','Recipe photo unavailable');}
