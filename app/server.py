@@ -152,7 +152,9 @@ def us_import_schedule_worker():
    save_us_import_schedule()
 
 def db():
- c=sqlite3.connect(DB)
+ # Give concurrent background jobs time to finish their short writes.
+ c=sqlite3.connect(DB,timeout=20)
+ c.execute('PRAGMA busy_timeout=20000')
  c.execute('CREATE TABLE IF NOT EXISTS state (id INTEGER PRIMARY KEY CHECK(id=1), payload TEXT NOT NULL)')
  c.execute('CREATE TABLE IF NOT EXISTS imported (id INTEGER PRIMARY KEY AUTOINCREMENT, url TEXT UNIQUE, payload TEXT NOT NULL)')
  c.execute('CREATE TABLE IF NOT EXISTS photos (recipe_id INTEGER PRIMARY KEY, image_url TEXT NOT NULL)')
@@ -258,6 +260,60 @@ def allrecipes():
    except (ValueError,TypeError):pass
  with db() as c:photos=dict(c.execute('SELECT recipe_id,image_url FROM photos'))
  return [dict(r,image=photos.get(r['id'],r.get('image',''))) for r in recipes]
+
+# Browse requests should not repeatedly rebuild the imported catalog, enrichment
+# caches and photo lookup for each page/search. Expire automatically so imports
+# and recovered instructions become visible without a manual restart.
+_recipe_browse_cache_lock=threading.Lock()
+_recipe_browse_cache=(0.0,None)
+def browse_catalog():
+ global _recipe_browse_cache
+ now=time.monotonic()
+ with _recipe_browse_cache_lock:
+  if _recipe_browse_cache[1] is not None and now-_recipe_browse_cache[0]<60:
+   return _recipe_browse_cache[1]
+  recipes=allrecipes()
+  _recipe_browse_cache=(time.monotonic(),recipes)
+  return recipes
+
+# Cache visibility filtering for pagination; catalog updates become visible within 60s.
+_recipe_visible_cache_lock=threading.Lock()
+_recipe_visible_cache=(0.0,None)
+def visible_browse_catalog():
+ global _recipe_visible_cache
+ now=time.monotonic()
+ with _recipe_visible_cache_lock:
+  if _recipe_visible_cache[1] is not None and now-_recipe_visible_cache[0]<60:
+   return _recipe_visible_cache[1]
+  # Visibility only uses stored steps and URL validity; the audit map is unused.
+  # Avoid a full audit-table read on the request-critical browsing path.
+  catalog=tuple(r for r in browse_catalog() if not non_recipe_reason(r) and visible_cooking_recipe(r,None))
+  _recipe_visible_cache=(time.monotonic(),catalog)
+  return catalog
+
+def recipe_page_matches(recipe,query='',country='ALL',protein='all'):
+ """Server-side browse filters for the opt-in paginated catalog."""
+ name=str(recipe.get('name') or '').casefold()
+ code=str(recipe.get('country') or '').upper()
+ if query and query not in name and query not in code.casefold():return False
+ if country not in ('ALL','OTHER') and code!=country:return False
+ if country=='OTHER' and code in ('US','UK','AU','CA','DE','NL'):return False
+ if protein!='all':
+  groups={
+   'chicken':r'chicken|turkey',
+   'beef':r'beef|steak|meatball|ground beef',
+   'pork':r'pork|bacon|sausage|ham\\b',
+   'seafood':r'shrimp|salmon|fish|tilapia|cod\\b|tuna|scallop',
+   'vegetarian':r'tofu|chickpea|lentil|falafel|vegetarian|vegan|plant.based'
+  }
+  matched='other'
+  for group,pattern in groups.items():
+   if re.search(pattern,name):
+    matched=group
+    break
+  if matched!=protein:return False
+ return True
+
 
 def _selected_recipe_payload(payload,selected_ids):
  try:
@@ -742,6 +798,12 @@ def image_type(raw):
  if raw[:4]==b'RIFF' and raw[8:12]==b'WEBP':return 'image/webp','.webp'
  if raw.startswith((b'GIF87a',b'GIF89a')):return 'image/gif','.gif'
  return None
+def valid_photo_cache_entry(path):
+ try:
+  if path.stat().st_size<100:return False
+  with path.open('rb') as photo_file:return image_type(photo_file.read(16)) is not None
+ except OSError:return False
+
 def cached_photo(rid):
  for ext,kind in (('.jpg','image/jpeg'),('.png','image/png'),('.webp','image/webp'),('.gif','image/gif')):
   p=PHOTO_DIR/(str(rid)+ext)
@@ -2932,7 +2994,7 @@ class Handler(SimpleHTTPRequestHandler):
    if path.startswith('/api/'):
     self.sendjson({'error':'Authentication required','setup_required':setup},401)
    else:
-    self.send_response(302);self.send_header('Location','/auth.html');self.send_header('Content-Length','0');self.end_headers()
+    self.send_response(302);self.send_header('Location','/auth.html'+('?share='+urllib.parse.quote(urllib.parse.parse_qs(urllib.parse.urlsplit(self.path).query).get('share',[''])[0]) if re.fullmatch(r'[A-Za-z0-9_-]{1,6000}',urllib.parse.parse_qs(urllib.parse.urlsplit(self.path).query).get('share',[''])[0]) else ''));self.send_header('Content-Length','0');self.end_headers()
    return False
   request_scope.household_id=hid
   request_scope.user_id=user[0]
@@ -3070,6 +3132,33 @@ class Handler(SimpleHTTPRequestHandler):
     auth.ensure_schema(c)
     result=sharing.details(c,request_scope.user_id,request_scope.household_id)
    return self.sendjson(result)
+  if self.path.startswith('/api/pantry/barcode?'):
+   if not self.gate():return
+   if not auth_rate_allowed(str(request_scope.user_id),'pantry-barcode',40,3600):return self.sendjson({'error':'Too many barcode lookups.'},429)
+   barcode=urllib.parse.parse_qs(urllib.parse.urlsplit(self.path).query).get('code',[''])[0].strip()
+   if not re.fullmatch(r'[0-9]{8,14}',barcode):return self.sendjson({'error':'Enter an 8 to 14 digit barcode.'},400)
+   with db() as conn:
+    conn.execute('CREATE TABLE IF NOT EXISTS barcode_products (household_id TEXT NOT NULL, barcode TEXT NOT NULL, name TEXT NOT NULL, size TEXT NOT NULL DEFAULT "", PRIMARY KEY(household_id,barcode))')
+    saved=conn.execute('SELECT name,size FROM barcode_products WHERE household_id=? AND barcode=?',(str(request_scope.household_id),barcode)).fetchone()
+   if saved:return self.sendjson({'found':True,'barcode':barcode,'item':{'name':saved[0],'quantity':1,'unit':'count','package_size':saved[1],'source':'Household saved product'}})
+   catalog_error=False
+   for host in ('world.openfoodfacts.org','world.openproductsfacts.org','world.openbeautyfacts.org'):
+    try:
+     url='https://'+host+'/api/v2/product/'+barcode+'.json?fields=code,product_name,brands,quantity'
+     req=urllib.request.Request(url,headers={'User-Agent':'HelloGroceries/1.0 (grocery pantry scanner)','Accept':'application/json'})
+     with urllib.request.urlopen(req,timeout=7) as response:data=json.load(response)
+     product=data.get('product') or {}
+     if data.get('status')!=1:continue
+     brand=str(product.get('brands') or '').split(',')[0].strip()[:65]
+     name=str(product.get('product_name') or '').strip()[:100]
+     size=str(product.get('quantity') or '').strip()[:32]
+     if not name:continue
+     if brand and not name.lower().startswith(brand.lower()):name=brand+' '+name
+     if size and size.lower() not in name.lower():name+=' '+size
+     return self.sendjson({'found':True,'barcode':barcode,'item':{'name':name[:140],'quantity':1,'unit':'count','brand':brand,'package_size':size,'source':host}})
+    except (urllib.error.URLError,TimeoutError,ValueError,TypeError,KeyError):
+     catalog_error=True
+   return self.sendjson({'found':False,'barcode':barcode,'catalog_unavailable':catalog_error})
   if self.path=='/api/pricing-visibility':
    if not self.gate():return
    return self.sendjson({'visibility':pricing_visibility(),'is_admin':bool(getattr(request_scope,'admin',False))})
@@ -3269,9 +3358,52 @@ class Handler(SimpleHTTPRequestHandler):
    # Cached-only lookup: never fetch external images on a page request.
    cached_ids=[]
    for photo in PHOTO_DIR.iterdir():
-    if photo.suffix.lower() in ('.jpg','.png','.webp','.gif') and photo.stem.isdigit() and photo.is_file() and photo.stat().st_size>0:
+    if photo.suffix.lower() in ('.jpg','.png','.webp','.gif') and photo.stem.isdigit() and photo.is_file() and valid_photo_cache_entry(photo):
      cached_ids.append(int(photo.stem))
    return self.sendjson({'ids':cached_ids})
+  if urllib.parse.urlsplit(self.path).path=='/api/recipes/page':
+   # Opt-in paginated endpoint; the legacy endpoint stays unchanged for existing clients.
+   params=urllib.parse.parse_qs(urllib.parse.urlsplit(self.path).query)
+   try:
+    page=max(1,int(params.get('page',['1'])[0]))
+    page_size=max(1,min(48,int(params.get('page_size',['24'])[0])))
+   except ValueError:
+    return self.sendjson({'error':'Invalid pagination parameters'},400)
+   query=params.get('q',[''])[0].strip().casefold()[:200]
+   country=params.get('country',['all'])[0].strip().upper()[:8]
+   protein=params.get('protein',['all'])[0].strip().lower()[:24]
+   sort=params.get('sort',['name'])[0].strip().lower()
+   if sort not in ('name','reverse','newest') or protein not in ('all','chicken','beef','pork','seafood','vegetarian','other'):
+    return self.sendjson({'error':'Invalid recipe filter'},400)
+   catalog=visible_browse_catalog()
+   matched=[r for r in catalog if recipe_page_matches(r,query,country,protein)]
+   if sort=='newest':matched.sort(key=lambda r:int(r.get('id') or 0),reverse=True)
+   else:matched.sort(key=lambda r:str(r.get('name') or '').casefold(),reverse=sort=='reverse')
+   total=len(matched)
+   start=(page-1)*page_size
+   # Full recipe details remain available through the existing endpoint.
+   # Only compact card metadata is transmitted for each page.
+   fields=('id','name','image','country','nutrition','dietary_labels','prep_time','cook_time','total_time','url')
+   items=[{key:recipe[key] for key in fields if key in recipe} for recipe in matched[start:start+page_size]]
+   return self.sendjson({'items':items,'page':page,'page_size':page_size,'total':total,'pages':(total+page_size-1)//page_size})
+  if urllib.parse.urlsplit(self.path).path=='/api/recipes/detail':
+   params=urllib.parse.parse_qs(urllib.parse.urlsplit(self.path).query)
+   try:
+    recipe_id=int(params.get('id',[''])[0])
+   except (ValueError,TypeError):
+    return self.sendjson({'error':'A valid recipe id is required'},400)
+   checks=instruction_audit_rows()
+   for recipe in allrecipes():
+    if int(recipe.get('id') or 0)==recipe_id and not non_recipe_reason(recipe) and visible_cooking_recipe(recipe,checks):
+     return self.sendjson(recipe)
+   return self.sendjson({'error':'Recipe not found'},404)
+  if self.path=='/api/recipes/summary':
+   # Lightweight catalog retains filter, recommendation and meal-planning metadata.
+   # Full cooking steps are fetched only when a recipe is opened.
+   checks=instruction_audit_rows()
+   start_instruction_audit()
+   catalog=(r for r in browse_catalog() if not non_recipe_reason(r) and visible_cooking_recipe(r,checks))
+   return self.sendjson([{k:v for k,v in r.items() if k not in ('instructions','raw_json','source_html','recipeInstructions')} for r in catalog])
   if self.path=='/api/recipes':
    checks=instruction_audit_rows()
    start_instruction_audit()
@@ -3381,33 +3513,6 @@ class Handler(SimpleHTTPRequestHandler):
      c.commit()
     return self.sendjson({'ok':True,'limits':ai_scan_limits()})
    except (ValueError,KeyError,TypeError,sqlite3.Error):return self.sendjson({'error':'Invalid AI scan limits'},400)
-  if self.path.startswith('/api/pantry/barcode?'):
-   if not self.gate():return
-   if not auth_rate_allowed(str(request_scope.user_id),'pantry-barcode',40,3600):return self.sendjson({'error':'Too many barcode lookups.'},429)
-   barcode=urllib.parse.parse_qs(urllib.parse.urlsplit(self.path).query).get('code',[''])[0].strip()
-   if not re.fullmatch(r'[0-9]{8,14}',barcode):return self.sendjson({'error':'Enter an 8 to 14 digit barcode.'},400)
-   with db() as conn:
-    conn.execute('CREATE TABLE IF NOT EXISTS barcode_products (household_id TEXT NOT NULL, barcode TEXT NOT NULL, name TEXT NOT NULL, size TEXT NOT NULL DEFAULT "", PRIMARY KEY(household_id,barcode))')
-    saved=conn.execute('SELECT name,size FROM barcode_products WHERE household_id=? AND barcode=?',(str(request_scope.household_id),barcode)).fetchone()
-   if saved:return self.sendjson({'found':True,'barcode':barcode,'item':{'name':saved[0],'quantity':1,'unit':'count','package_size':saved[1],'source':'Household saved product'}})
-   catalog_error=False
-   for host in ('world.openfoodfacts.org','world.openproductsfacts.org','world.openbeautyfacts.org'):
-    try:
-     url='https://'+host+'/api/v2/product/'+barcode+'.json?fields=code,product_name,brands,quantity'
-     req=urllib.request.Request(url,headers={'User-Agent':'HelloGroceries/1.0 (grocery pantry scanner)','Accept':'application/json'})
-     with urllib.request.urlopen(req,timeout=7) as response:data=json.load(response)
-     product=data.get('product') or {}
-     if data.get('status')!=1:continue
-     brand=str(product.get('brands') or '').split(',')[0].strip()[:65]
-     name=str(product.get('product_name') or '').strip()[:100]
-     size=str(product.get('quantity') or '').strip()[:32]
-     if not name:continue
-     if brand and not name.lower().startswith(brand.lower()):name=brand+' '+name
-     if size and size.lower() not in name.lower():name+=' '+size
-     return self.sendjson({'found':True,'barcode':barcode,'item':{'name':name[:140],'quantity':1,'unit':'count','brand':brand,'package_size':size,'source':host}})
-    except (urllib.error.URLError,TimeoutError,ValueError,TypeError,KeyError):
-     catalog_error=True
-   return self.sendjson({'found':False,'barcode':barcode,'catalog_unavailable':catalog_error})
   if self.path=='/api/pantry/barcode/save':
    if not self.gate(write=True):return
    try:
@@ -3861,7 +3966,11 @@ class Handler(SimpleHTTPRequestHandler):
        recipe['id']=1000000+cursor.lastrowid
       c.execute('UPDATE imported SET payload=? WHERE url=?',(json.dumps(recipe),url))
     return self.sendjson({'ok':True,'recipe':recipe})
+   action_wait_started=time.monotonic()
    with lock:
+    lock_wait=time.monotonic()-action_wait_started
+    if lock_wait>2:
+     print(f'HelloGroceries slow action lock: action={action!r} wait_seconds={lock_wait:.2f}',flush=True)
     state=read()
     pantry_before={'pantry':list(state.get('pantry',[])),'pantry_inventory':dict(state.get('pantry_inventory',{}))}
     if action in ('preview_cooked_recipe','confirm_cooked_recipe','undo_cooked_recipe'):
@@ -4049,9 +4158,18 @@ class Handler(SimpleHTTPRequestHandler):
     if action=='preview_grocery':return self.sendjson({'items':state['list']})
     state['revision']+=1;save(state)
     pantry_audit(pantry_before,state)
+   action_elapsed=time.monotonic()-action_wait_started
+   if action_elapsed>2:
+    print(f'HelloGroceries slow action completed: action={action!r} seconds={action_elapsed:.2f} lock_wait={lock_wait:.2f}',flush=True)
    return self.sendjson(state)
   except (ValueError,KeyError,TypeError,json.JSONDecodeError) as e:return self.sendjson({'error':str(e)},400)
 if __name__=='__main__':
+ # WAL permits recipe scans to read while foreground actions write. Set once,
+ # before any background workers start; never switch journal mode per request.
+ with sqlite3.connect(DB,timeout=20) as startup_db:
+  startup_db.execute('PRAGMA busy_timeout=20000')
+  mode=startup_db.execute('PRAGMA journal_mode=WAL').fetchone()[0]
+  print('HelloGroceries SQLite journal mode:',mode,flush=True)
  with db() as c:
   if auth.instance_needs_setup(c):
    print('HelloGroceries: first administrator setup requires a verified Cloudflare Access session.',flush=True)

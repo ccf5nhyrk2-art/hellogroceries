@@ -2,7 +2,7 @@ name: Household security tests
 on:
   pull_request:
   push:
-    branches: [feature/cloudflare-households-production]
+    branches: [feature/cloudflare-households-production, develop]
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -12,4 +12,5 @@ jobs:
         with:
           python-version: '3.12'
       - run: pip install 'PyJWT[crypto]>=2.10,<3'
+      - run: sudo install -d -o runner -g runner /data
       - run: python -m unittest discover -s tests -v

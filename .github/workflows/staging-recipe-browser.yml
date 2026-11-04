@@ -1,0 +1,65 @@
+name: Staging recipe browser smoke test
+on:
+  workflow_dispatch:
+  push:
+    branches: [develop]
+  pull_request:
+    branches: [develop]
+concurrency:
+  group: hellogroceries-staging-browser-shared-account
+  cancel-in-progress: false
+permissions:
+  contents: read
+jobs:
+  staging-browser:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    env:
+      STAGING_URL: https://staging-groceries.greenlee.uk
+      STAGING_AUTH_STATE: test-results/staging-auth-state.json
+      STAGING_TEST_EMAIL: ${{ secrets.STAGING_TEST_EMAIL }}
+      STAGING_TEST_PASSWORD: ${{ secrets.STAGING_TEST_PASSWORD }}
+      CF_ACCESS_CLIENT_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
+      CF_ACCESS_CLIENT_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
+      STAGING_NONADMIN_EMAIL: ${{ secrets.STAGING_NONADMIN_EMAIL }}
+      STAGING_NONADMIN_PASSWORD: ${{ secrets.STAGING_NONADMIN_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install Playwright
+        run: |
+          npm install --no-save playwright@1.58.2
+          npx playwright install --with-deps chromium
+      - name: Verify barcode route regression
+        run: python -m unittest discover -s tests -p 'test_barcode_routing.py'
+      - name: Validate sharing module and share-link round trips
+        run: |
+          node --check app/assets/share.js
+          node tests/test_share_links.cjs
+      - name: Verify standalone Home dashboard layout
+        run: node tests/test_home_layout.cjs
+      - name: Authenticate staging account once
+        run: node tests/staging_auth_once.cjs
+      - name: Run read-only staging smoke tests
+        run: node tests/staging_recipe_browser.cjs
+      - name: Run shopping pantry and admin staging smoke tests
+        if: success() || failure()
+        run: node tests/staging_other_features.cjs
+      - name: Run functional API, admin authorization and recipe performance probes
+        if: success() || failure()
+        run: node tests/staging_functional_security_perf.cjs
+      - name: Run deployed staging sharing UI checks
+        if: success() || failure()
+        run: node tests/staging_share_links.cjs
+      - name: Upload browser diagnostics on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: staging-recipe-browser-diagnostics
+          path: |
+            test-results/failure.png
+            test-results/page.html
+            test-results/diagnostics.json
+          if-no-files-found: ignore
