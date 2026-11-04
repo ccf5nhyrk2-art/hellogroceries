@@ -51,8 +51,14 @@ async function main() {
     // Login intentionally lands on Home; navigate to Recipes before testing its controls.
     await page.locator('.page-nav-button[data-page="recipes"]').waitFor({ state: 'attached', timeout: 30000 });
     await page.locator('.page-nav-button[data-page="recipes"]').evaluate(button => button.click());
-    await page.locator('#fast-browse-toggle').waitFor({ state: 'visible', timeout: 30000 });
-    await page.locator('#fast-browse-toggle').click();
+    await page.locator('#fast-browse-toggle').waitFor({ state: 'attached', timeout: 30000 });
+    await page.locator('#fast-browse-toggle').evaluate(button => {
+      // The legacy pagination panel is intentionally hidden from customers.
+      // Reveal it only in this automated regression test.
+      button.parentElement.style.display = '';
+      document.querySelector('#fast-browse-panel').style.display = '';
+      button.click();
+    });
     const cards = page.locator('#fast-browse-results .recipe-card');
     await cards.first().waitFor({ timeout: 120000 }).catch(async error=>{
       const panel=(await page.locator('#fast-browse-results').innerText()).slice(0,600);
@@ -163,7 +169,13 @@ async function main() {
       await page.reload({ waitUntil: 'domcontentloaded' });
       await page.locator('.page-nav-button[data-page="recipes"]').waitFor({ state: 'attached', timeout: 30000 });
       await page.locator('.page-nav-button[data-page="recipes"]').evaluate(button => button.click());
-      await page.locator('#fast-browse-toggle').click();
+      await page.locator('#fast-browse-toggle').evaluate(button => {
+      // The legacy pagination panel is intentionally hidden from customers.
+      // Reveal it only in this automated regression test.
+      button.parentElement.style.display = '';
+      document.querySelector('#fast-browse-panel').style.display = '';
+      button.click();
+    });
       const persistedSnapshot = async () => page.evaluate(([id, name]) => ({
         favorite: typeof state !== 'undefined' && (state.favorites || []).map(Number).includes(Number(id)),
         selected: typeof state !== 'undefined' && Object.hasOwn(state.selected || {}, String(id)),

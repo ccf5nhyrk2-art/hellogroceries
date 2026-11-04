@@ -28,7 +28,13 @@ async function main(){
   assert.equal(result.type,'collection');assert.equal(result.name,'Shared Test');
   assert.deepEqual(result.ids,[101,102]);
   await page.locator('.page-nav-button[data-page="recipes"]').first().evaluate(el=>el.click());
-  await page.locator('#fast-browse-toggle').click();
+  await page.locator('#fast-browse-toggle').evaluate(button => {
+      // The legacy pagination panel is intentionally hidden from customers.
+      // Reveal it only in this automated regression test.
+      button.parentElement.style.display = '';
+      document.querySelector('#fast-browse-panel').style.display = '';
+      button.click();
+    });
   await page.locator('#fast-browse-results [data-hg-share-button]').first().waitFor({timeout:120000});
   await page.locator('#fast-browse-results [data-hg-share-button]').first().click();
   assert.ok(await page.locator('#hg-share-dialog').isVisible(),'Share dialog did not open');
