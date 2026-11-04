@@ -215,8 +215,20 @@ async function main() {
         await page.locator('#recipes [data-favorite="' + visibleId + '"]').click();
         await page.waitForFunction(([id, was]) => (state.favorites || []).map(Number).includes(Number(id)) !== was,
           [visibleId, visibleBefore.favorite], { timeout: 30000 });
-        const favoriteLabel = await page.locator('#recipes [data-favorite="' + visibleId + '"]').textContent();
-        assert.equal(favoriteLabel.includes('Favorited'), !visibleBefore.favorite, 'Visible favorite button did not refresh');
+        try {
+          await page.waitForFunction(([id, expected]) => {
+            const button = document.querySelector('#recipes [data-favorite="' + id + '"]');
+            return button && button.textContent.includes('Favorited') === expected;
+          }, [visibleId, !visibleBefore.favorite], { timeout: 30000 });
+        } catch (error) {
+          const snapshot = await page.evaluate(id => ({
+            button: document.querySelector('#recipes [data-favorite="' + id + '"]')?.outerHTML,
+            savedFavorite: (state.favorites || []).map(Number).includes(Number(id)),
+            pageGeneration: typeof pageRequestGeneration !== 'undefined' ? pageRequestGeneration : null,
+            visibleCards: document.querySelectorAll('#recipes [data-favorite]').length
+          }), visibleId);
+          throw new Error('Visible favorite button did not refresh: ' + JSON.stringify(snapshot) + '; ' + error.message);
+        }
         await page.evaluate(async ({ name }) => {
           await preferences({ collections: { ...(state.collections || {}), [name]: [] } });
         }, { name: testCollection });
