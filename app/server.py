@@ -3420,6 +3420,29 @@ class Handler(SimpleHTTPRequestHandler):
    fields=('id','name','image','country','nutrition','dietary_labels','prep_time','cook_time','total_time','url','ingredients','source_servings')
    items=[{key:recipe[key] for key in fields if key in recipe} for recipe in matched[start:start+page_size]]
    return self.sendjson({'items':items,'page':page,'page_size':page_size,'total':total,'pages':(total+page_size-1)//page_size})
+  if urllib.parse.urlsplit(self.path).path=='/api/recipes/recommendations':
+   # Bounded recommendation payload, independent of the full recipe summary.
+   # Exclusions keep planned, favorite and dismissed recipes out of suggestions.
+   params=urllib.parse.parse_qs(urllib.parse.urlsplit(self.path).query)
+   raw=params.get('exclude',[''])[0]
+   if len(raw)>5000:return self.sendjson({'error':'Too many excluded recipe IDs'},400)
+   try:
+    excluded={int(value.strip()) for value in raw.split(',') if value.strip()}
+   except ValueError:
+    return self.sendjson({'error':'Invalid excluded recipe IDs'},400)
+   if len(excluded)>250:return self.sendjson({'error':'Maximum 250 excluded recipe IDs'},400)
+   try:limit=max(1,min(24,int(params.get('limit',['12'])[0])))
+   except ValueError:return self.sendjson({'error':'Invalid recommendation limit'},400)
+   candidates=[recipe for recipe in visible_browse_catalog()
+    if int(recipe.get('id') or 0) not in excluded
+    and recipe.get('image') and recipe.get('url')]
+   # Deterministic daily rotation spreads discovery across the catalog.
+   candidates.sort(key=lambda recipe:str(recipe.get('name') or '').casefold())
+   offset=(int(time.time()//86400)*37)%len(candidates) if candidates else 0
+   rotated=candidates[offset:]+candidates[:offset]
+   fields=('id','name','image','country','nutrition','dietary_labels','prep_time','cook_time','total_time','url','ingredients','source_servings')
+   return self.sendjson({'items':[{key:recipe[key] for key in fields if key in recipe}
+    for recipe in rotated[:limit]],'total':len(candidates)})
   if urllib.parse.urlsplit(self.path).path=='/api/recipes/batch':
    # Hydrate only saved/selected recipes rather than downloading the catalog.
    params=urllib.parse.parse_qs(urllib.parse.urlsplit(self.path).query)
