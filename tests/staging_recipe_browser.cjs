@@ -204,6 +204,38 @@ async function main() {
         throw new Error('Post-reload persistence check failed: ' + JSON.stringify(snapshot) + '; ' + error.message);
       }
       console.log('PASS: favorite, meal plan and collection persisted after reload');
+      // Exercise the actual customer-facing recipe cards, not just the hidden fast browser.
+      await page.waitForFunction(() => !!document.querySelector('#recipes [data-favorite]'), null, { timeout: 30000 });
+      const visibleId = await page.locator('#recipes [data-favorite]').first().getAttribute('data-favorite');
+      const visibleBefore = await page.evaluate(id => ({
+        favorite: (state.favorites || []).map(Number).includes(Number(id)),
+        collections: structuredClone(state.collections || {})
+      }), visibleId);
+      try {
+        await page.locator('#recipes [data-favorite="' + visibleId + '"]').click();
+        await page.waitForFunction(([id, was]) => (state.favorites || []).map(Number).includes(Number(id)) !== was,
+          [visibleId, visibleBefore.favorite], { timeout: 30000 });
+        const favoriteLabel = await page.locator('#recipes [data-favorite="' + visibleId + '"]').textContent();
+        assert.equal(favoriteLabel.includes('Favorited'), !visibleBefore.favorite, 'Visible favorite button did not refresh');
+        await page.evaluate(async ({ name }) => {
+          await preferences({ collections: { ...(state.collections || {}), [name]: [] } });
+        }, { name: testCollection });
+        await page.locator('#recipes [data-collection-add="' + visibleId + '"]').selectOption(testCollection);
+        await page.waitForFunction(([id, name]) => (state.collections?.[name] || []).map(Number).includes(Number(id)),
+          [visibleId, testCollection], { timeout: 30000 });
+        await page.reload({ waitUntil: 'domcontentloaded' });
+        await page.waitForFunction(([id, name, was]) =>
+          (state.collections?.[name] || []).map(Number).includes(Number(id)) &&
+          (state.favorites || []).map(Number).includes(Number(id)) !== was,
+          [visibleId, testCollection, visibleBefore.favorite], { timeout: 30000 });
+        console.log('PASS: visible recipe card favorite and collection saved and persisted');
+      } finally {
+        await page.evaluate(async ({ id, before }) => {
+          const favorites = new Set((state.favorites || []).map(Number));
+          if (before.favorite) favorites.add(Number(id)); else favorites.delete(Number(id));
+          await preferences({ favorites: [...favorites], collections: before.collections });
+        }, { id: visibleId, before: visibleBefore });
+      }
     } finally {
       // Restore the test account even when an assertion fails.
       await page.evaluate(async ({ id, saved }) => {
