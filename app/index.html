@@ -2876,7 +2876,7 @@ function renderRecommendations(){
   if(family)seenRecommendationNames.add('family:'+family);
   return true;
  }).slice(0,5);
-  panel.innerHTML=verified.length?verified.map(({r,reason})=>'<article class="recommend-card"><div class="recommend-photo-wrap"><button type="button" class="recommend-favorite" data-recommend-favorite="'+r.id+'" aria-pressed="'+(state.favorites||[]).map(Number).includes(Number(r.id))+'" aria-label="Toggle favorite">'+((state.favorites||[]).map(Number).includes(Number(r.id))?'♥':'♡')+'</button>'+('<img class="recommend-photo" src="/api/photo/'+encodeURIComponent(r.id)+'" alt="" loading="lazy">')+'</div><strong class="recommend-title">'+esc(cleanRecipeName(r.name))+'</strong><div class="muted recommend-reason" style="font-size:12px;margin:6px 0">'+esc(reason)+'</div><div class="recommend-actions"><button type="button" data-recommend-detail="'+r.id+'">View recipe</button><button type="button" data-recommend-plan="'+r.id+'">Add to plan</button></div><select data-recommend-collection="'+r.id+'" aria-label="Add recommended recipe to collection" style="width:100%;margin-top:8px;min-height:40px"><option value="">Add to collection…</option>'+Object.keys(state.collections||{}).map(n=>'<option value="'+esc(n)+'">'+esc(n)+'</option>').join('')+'</select><button type="button" data-recommend-more="'+r.id+'" class="recommend-dismiss">Show me more like this</button><button type="button" data-recommend-hide="'+r.id+'" class="recommend-dismiss">Not interested</button></article>').join(''):'<p class="muted">'+(terms.length?'No suggestions match this search. Try clearing the search.':'No suggestions available yet.')+'</p>';
+  panel.innerHTML=verified.length?verified.map(({r,reason})=>'<article class="recommend-card"><div class="recommend-photo-wrap"><button type="button" class="recommend-favorite" data-recommend-favorite="'+r.id+'" aria-pressed="'+(state.favorites||[]).map(Number).includes(Number(r.id))+'" aria-label="Toggle favorite">'+((state.favorites||[]).map(Number).includes(Number(r.id))?'♥':'♡')+'</button>'+('<img class="recommend-photo" src="/api/photo/'+encodeURIComponent(r.id)+'" alt="" loading="lazy" onerror="recommendationPhotoFailed(this)">')+'</div><strong class="recommend-title">'+esc(cleanRecipeName(r.name))+'</strong><div class="muted recommend-reason" style="font-size:12px;margin:6px 0">'+esc(reason)+'</div><div class="recommend-actions"><button type="button" data-recommend-detail="'+r.id+'">View recipe</button><button type="button" data-recommend-plan="'+r.id+'">Add to plan</button></div><select data-recommend-collection="'+r.id+'" aria-label="Add recommended recipe to collection" style="width:100%;margin-top:8px;min-height:40px"><option value="">Add to collection…</option>'+Object.keys(state.collections||{}).map(n=>'<option value="'+esc(n)+'">'+esc(n)+'</option>').join('')+'</select><button type="button" data-recommend-more="'+r.id+'" class="recommend-dismiss">Show me more like this</button><button type="button" data-recommend-hide="'+r.id+'" class="recommend-dismiss">Not interested</button></article>').join(''):'<p class="muted">'+(terms.length?'No suggestions match this search. Try clearing the search.':'No suggestions available yet.')+'</p>';
  if(verified.length<5&&verified.length>0){
   const note=document.createElement('p');note.className='muted';note.style.gridColumn='1/-1';
   note.textContent='More recommendations will appear as recipe photos become available.';
@@ -2898,16 +2898,17 @@ function recommendationPhotoFailed(img){
  img.removeAttribute('onerror');
  img.style.visibility='hidden';
  const current=new Set([...document.querySelectorAll('#recommend-list [data-recommend-detail]')].map(el=>String(el.dataset.recommendDetail)));
- const pool=(recommendationRankCache?.pool||[]).filter(({r})=>!current.has(String(r.id))&&!recommendationFailedPhotos.has(String(r.id)));
+ const pool=(recommendationRankCache?.pool||[]).filter(({r})=>recommendationCachedPhotoIds?.has(String(r.id))&&!current.has(String(r.id))&&!recommendationFailedPhotos.has(String(r.id)));
  let index=0;
  function tryNext(){
   if(!card.isConnected)return;
-  if(index>=pool.length){card.hidden=true;updateRecommendationCarousel();return}
+  if(index>=pool.length){card.remove();updateRecommendationCarousel();return}
   const item=pool[index++],candidate=item.r,photo=new Image();
   photo.onload=()=>{
    if(!card.isConnected)return;
    img.src=photo.src;
    img.style.visibility='';
+   img.onerror=()=>recommendationPhotoFailed(img);
    card.querySelector('.recommend-title').textContent=cleanRecipeName(candidate.name);
    card.querySelector('.recommend-reason').textContent=item.reason;
    for(const [attribute,selector] of [['data-recommend-detail','[data-recommend-detail]'],['data-recommend-plan','[data-recommend-plan]'],['data-recommend-favorite','[data-recommend-favorite]'],['data-recommend-collection','[data-recommend-collection]'],['data-recommend-more','[data-recommend-more]'],['data-recommend-hide','[data-recommend-hide]']]){

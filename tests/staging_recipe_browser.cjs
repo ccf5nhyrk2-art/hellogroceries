@@ -58,6 +58,14 @@ async function main() {
     const families = recommendationTitles.map(title => title.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim().split(' ').slice(0, 5).join(' '));
     assert.equal(new Set(families).size, families.length, 'Duplicate recommendation family: ' + JSON.stringify(recommendationTitles));
     console.log('PASS: visible recommendations contain no duplicate title families (' + families.length + ' checked)');
+    // Ensure recommendation images invoke the recovery path when the photo API fails.
+    const recommendationPhotoWiring = await page.evaluate(() => {
+      const img = document.querySelector('#recommend-list .recommend-photo');
+      return { count: document.querySelectorAll('#recommend-list .recommend-photo').length,
+        wired: !img || img.getAttribute('onerror') === 'recommendationPhotoFailed(this)' };
+    });
+    assert.ok(recommendationPhotoWiring.wired, 'Recommendation images lack a photo failure handler');
+    console.log('PASS: recommendation photo error recovery is wired');
     await page.locator('#fast-browse-toggle').waitFor({ state: 'attached', timeout: 30000 });
     await page.locator('#fast-browse-toggle').evaluate(button => {
       // The legacy pagination panel is intentionally hidden from customers.
