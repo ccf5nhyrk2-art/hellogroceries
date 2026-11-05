@@ -308,6 +308,19 @@ def default_recipe_page_data():
   _recipe_default_page_cache=(time.monotonic(),compact,len(compact))
   return compact,len(compact)
 
+def recipe_catalog_warmup_worker():
+ """Keep the default browse page warm without delaying incoming HTTP requests."""
+ while True:
+  started=time.monotonic()
+  try:
+   cards,total=default_recipe_page_data()
+   elapsed=time.monotonic()-started
+   print(f'Recipe catalog warmup: {total} cards in {elapsed:.3f}s',flush=True)
+  except Exception as exc:
+   print('Recipe catalog warmup failed:',repr(exc),flush=True)
+  # Refresh before the 60-second cache TTL expires.
+  time.sleep(45)
+
 def recipe_page_cuisine(recipe):
  name=str(recipe.get('name') or '').lower()
  groups=(('italian',r'italian|risotto|parmesan|pesto|marinara|gnocchi|alfredo'),('mexican',r'mexican|taco|quesadilla|enchilada|fajita|burrito|tex.mex|chipotle'),('asian',r'korean|japanese|chinese|thai|teriyaki|ginger|soy.glazed|sesame|szechuan|curry|ramen'),('mediterranean',r'mediterranean|greek|tzatziki|shawarma|hummus|harissa'),('american',r'american|bbq|barbecue|ranch|buffalo|mac.and.cheese|southern'))
@@ -3415,7 +3428,10 @@ class Handler(SimpleHTTPRequestHandler):
    try:allowed_ids={int(x) for x in ids_raw.split(',') if x.strip()} if ids_raw else None
    except ValueError:return self.sendjson({'error':'Invalid recipe IDs'},400)
    if not query and country=='ALL' and protein=='all' and sort=='name' and cuisine=='all' and meal=='all' and not ingredient and not exclude_ingredient and not quick and allowed_ids is None:
+    started=time.monotonic()
     compact,total=default_recipe_page_data()
+    elapsed=time.monotonic()-started
+    if elapsed>0.25:print(f'Slow default recipe page build: {elapsed:.3f}s, {total} cards',flush=True)
     start=(page-1)*page_size
     return self.sendjson({'items':compact[start:start+page_size],'page':page,'page_size':page_size,'total':total,'pages':(total+page_size-1)//page_size})
    catalog=visible_browse_catalog()
@@ -4267,6 +4283,14 @@ if __name__=='__main__':
  if BULK_RECOVER:
   job.update(running=True,paused=False,processed=0,discovered=0,imported=0,skipped=0,errors=0,message='Recovering interrupted import; saved recipes will be skipped')
   threading.Thread(target=bulk_worker,args=(job.get('country','US'),int(job.get('limit',0))),daemon=True).start()
+ # Prebuild the first page before background imports/scans compete for SQLite.
+ warmup_start=time.monotonic()
+ try:
+  _,warmup_total=default_recipe_page_data()
+  print(f'Initial recipe page ready: {warmup_total} cards in {time.monotonic()-warmup_start:.3f}s',flush=True)
+ except Exception as exc:
+  print('Initial recipe catalog warmup failed:',repr(exc),flush=True)
+ threading.Thread(target=recipe_catalog_warmup_worker,daemon=True,name='recipe-catalog-warmup').start()
  threading.Thread(target=recommendation_photo_warmup_worker,daemon=True,name='recommendation-photo-warmup').start()
  threading.Thread(target=nutrition_scan_worker,daemon=True,name='nutrition-background-scan').start()
  threading.Thread(target=recipe_source_enrichment_worker,daemon=True,name='recipe-source-enrichment').start()
