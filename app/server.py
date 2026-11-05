@@ -913,7 +913,11 @@ def valid_photo_cache_entry(path):
 
 # Known shared fallback images must never be accepted as recipe photographs.
 # Populated by the first-page audit at startup; hashes are content-based, not URLs.
-photo_rejected_digests=set()
+photo_rejected_file=Path('/data/photo_rejected_digests.json')
+try:
+ photo_rejected_digests=set(json.loads(photo_rejected_file.read_text()))
+except (OSError,ValueError,TypeError):
+ photo_rejected_digests=set()
 photo_rejected_guard=threading.Lock()
 def photo_digest(data):
  import hashlib
@@ -930,15 +934,23 @@ def audit_first_page_photo_duplicates(cards):
   cached=cached_photo(rid)
   if not cached:continue
   path,_=cached
-  try:groups[photo_digest(path.read_bytes())].append((rid,path,recipe.get('name','')))
+  try:
+   digest=photo_digest(path.read_bytes())
+   groups[digest].append((rid,path,recipe.get('name','')))
   except OSError:continue
  quarantined=0
  for digest,items in groups.items():
   # Two similar recipes can legitimately share a hero image.
   # Three or more distinct catalog recipes sharing byte-identical art is
   # a strong indication of a generic fallback; never silently reuse it.
-  if len(items)<3:continue
-  with photo_rejected_guard:photo_rejected_digests.add(digest)
+  if len(items)<3 and digest not in photo_rejected_digests:continue
+  with photo_rejected_guard:
+   photo_rejected_digests.add(digest)
+   try:
+    tmp=photo_rejected_file.with_suffix('.tmp')
+    tmp.write_text(json.dumps(sorted(photo_rejected_digests)))
+    os.replace(tmp,photo_rejected_file)
+   except OSError:pass
   for rid,path,name in items:
    try:
     backup=path.with_name(path.name+'.suspect')
