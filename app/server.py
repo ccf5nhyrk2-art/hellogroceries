@@ -808,33 +808,16 @@ def image_type(raw):
  if raw[:4]==b'RIFF' and raw[8:12]==b'WEBP':return 'image/webp','.webp'
  if raw.startswith((b'GIF87a',b'GIF89a')):return 'image/gif','.gif'
  return None
-_photo_quality_memo={}
 def valid_photo_cache_entry(path):
  try:
-  stat=path.stat()
-  key=(str(path),stat.st_size,stat.st_mtime_ns)
-  if key in _photo_quality_memo:return _photo_quality_memo[key]
-  if stat.st_size<100:return False
-  from PIL import Image,ImageOps
-  with Image.open(path) as image:
-   image.verify()
-  with Image.open(path) as image:
-   if image.width<180 or image.height<110:valid=False
-   else:
-    sample=ImageOps.exif_transpose(image).convert('RGB').resize((48,48))
-    pixels=list(sample.getdata())
-    green=sum(1 for red,g,blue in pixels if g>110 and g>red*1.25 and g>blue*1.25)
-    blank=sum(1 for red,g,blue in pixels if min(red,g,blue)>242)
-    valid=green/len(pixels)<=0.30 and blank/len(pixels)<=0.92
-  if len(_photo_quality_memo)>30000:_photo_quality_memo.clear()
-  _photo_quality_memo[key]=valid
-  return valid
- except (OSError,ValueError,ImportError):return False
+  if path.stat().st_size<100:return False
+  with path.open('rb') as photo_file:return image_type(photo_file.read(16)) is not None
+ except OSError:return False
 
 def cached_photo(rid):
  for ext,kind in (('.jpg','image/jpeg'),('.png','image/png'),('.webp','image/webp'),('.gif','image/gif')):
   p=PHOTO_DIR/(str(rid)+ext)
-  if p.is_file() and valid_photo_cache_entry(p):return p,kind
+  if p.is_file():return p,kind
  return None
 def download_photo(url,rid):
  if not allowed_photo_url(url):return None
@@ -852,7 +835,6 @@ def download_photo(url,rid):
  tmp=PHOTO_DIR/(str(rid)+'.tmp-'+str(threading.get_ident()))
  try:
   tmp.write_bytes(raw)
-  if not valid_photo_cache_entry(tmp):return None
   os.replace(tmp,dest)
  finally:
   tmp.unlink(missing_ok=True)
