@@ -2911,11 +2911,11 @@ function recommendationPhotoFailed(img){
  img.removeAttribute('onerror');
  img.style.visibility='hidden';
  const current=new Set([...document.querySelectorAll('#recommend-list [data-recommend-detail]')].map(el=>String(el.dataset.recommendDetail)));
- const pool=(recommendationRankCache?.pool||[]).filter(({r})=>recommendationCachedPhotoIds?.has(String(r.id))&&!current.has(String(r.id))&&!recommendationFailedPhotos.has(String(r.id)));
+ const pool=(recommendationRankCache?.pool||[]).filter(({r})=>Boolean(r.image)&&!current.has(String(r.id))&&!recommendationFailedPhotos.has(String(r.id)));
  let index=0;
  function tryNext(){
   if(!card.isConnected)return;
-  if(index>=pool.length){img.style.display='none';const wrap=card.querySelector('.recommend-photo-wrap');if(wrap)wrap.style.display='none';recommendationReplacementBusy.delete(card);updateRecommendationCarousel();return}
+  if(index>=pool.length){const wrap=card.querySelector('.recommend-photo-wrap');if(wrap)wrap.style.display='none';recommendationReplacementBusy.delete(card);updateRecommendationCarousel();return}
   const item=pool[index++],candidate=item.r,photo=new Image();
   photo.onload=()=>{
    if(!card.isConnected)return;
