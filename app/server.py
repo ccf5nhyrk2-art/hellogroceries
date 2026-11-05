@@ -797,6 +797,11 @@ def official_images(recipe):
   with urllib.request.urlopen(req,timeout=12) as response:
    if not allowed_url(response.geturl()):return []
    page=response.read(3_000_000).decode('utf-8','replace')
+  return official_images_from_page(recipe,page)
+ except Exception:return []
+
+def official_images_from_page(recipe,page):
+  url=recipe.get('url','')
   # A recipe page can contain recommendations and generic social artwork.
   # Accept ONLY structured Recipe images whose title matches this record.
   candidates=[]
@@ -842,7 +847,6 @@ def official_images(recipe):
    img=clean_official_photo_candidate(img)
    if img and complete_recipe_photo_url(img) and len(img)<2048 and img not in results and not re.search(r'(?:logo|placeholder|brandmark|default-image)',urllib.parse.urlsplit(img).path,re.I):results.append(img)
   return results
- except Exception:return []
 
 def official_image(recipe):
  images=official_images(recipe)
