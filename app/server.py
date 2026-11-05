@@ -975,9 +975,13 @@ def cached_photo(rid):
     except OSError:continue
    return p,kind
  return None
-def download_photo(url,rid):
+def download_photo(url,rid,prefer_jpeg=False):
  if not complete_recipe_photo_url(url):return None
- req=urllib.request.Request(url,headers={'User-Agent':'Mozilla/5.0 (compatible; HelloGroceries/1.0)','Accept':'image/avif,image/webp,image/png,image/jpeg,image/gif'})
+ # Verified imported sources may return a previously quarantined WebP variant.
+ # Request JPEG first only for a provenance-verified recipe URL; keep the
+ # rejected-digest and duplicate checks in place for every format.
+ accept='image/jpeg,image/png;q=0.9,image/webp;q=0.5,image/avif;q=0.4' if prefer_jpeg else 'image/avif,image/webp,image/png,image/jpeg,image/gif'
+ req=urllib.request.Request(url,headers={'User-Agent':'Mozilla/5.0 (compatible; HelloGroceries/1.0)','Accept':accept})
  opener=urllib.request.build_opener(SafePhotoRedirect)
  with opener.open(req,timeout=12) as resp:
   if not allowed_photo_url(resp.geturl()):return None
@@ -1052,7 +1056,7 @@ def resolve_photo(recipe,refresh=False):
   # Attempt the recipe-specific candidates first.
   for url in urls:
    try:
-    result=download_photo(url,rid)
+    result=download_photo(url,rid,prefer_jpeg=(1000000<=rid<2000000 and bool(trusted) and url==trusted))
     if result:return result
    except (OSError,ValueError,TimeoutError,urllib.error.URLError):pass
   urls=[] if 1000000<=rid<2000000 else [url for url in official_images(recipe) if url!=existing]
