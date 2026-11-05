@@ -840,34 +840,11 @@ def official_images(recipe):
     for entry in entries:
      candidate=entry.rstrip(',').strip()
      if candidate:candidates.append(candidate)
-  # The page often exposes its hero image in a responsive srcset without
-  # recipe-specific alt text. Capture only the first recipe image family
-  # from the page, not unrelated recommendation cards.
-  hero_paths=re.findall(r'https://media\.hellofresh\.com/[^"\x27\s<>]*?/recipes/image/[a-zA-Z0-9-]+\.(?:jpe?g|png|webp)',page,re.I)
-  if hero_paths:
-   hero_asset=re.search(r'/recipes/image/([^/?]+)',hero_paths[0],re.I)
-   if hero_asset:
-    candidates.extend(url for url in hero_paths if '/recipes/image/'+hero_asset.group(1) in url)
-  # OpenGraph metadata can also supply a usable official hero photo.
-  for tag in re.findall(r'<meta\b[^>]*>',page,re.I):
-   attrs=dict((k.lower(),html.unescape(v)) for k,v in re.findall(r'([\w:-]+)\s*=\s*["\x27]([^"\x27]*)["\x27]',tag))
-   if attrs.get('property','').lower()=='og:image' and attrs.get('content'):
-    candidates.insert(0,attrs['content'])
-  # Also inspect JSON-escaped metadata embedded by the HelloFresh frontend.
-  for match in re.findall(r'(?:\\\\u002[fF]|\\\\/|/)(?:hellofresh_s3|recipes|recipe)(?:\\\\u002[fF]|\\\\/|/)[^"\\s<>]{8,350}',page):
-   candidate=match.replace('\\\\/','/').replace('\\\\u002F','/').replace('\\\\u002f','/')
-   if candidate.startswith('/'):
-    candidates.append('https://img.hellofresh.com'+candidate)
-  # Embedded application data often carries the actual CDN image URL.
-  for raw in re.findall(r'https?:\\?/\\?/[^"\'\s<>]{10,400}',page):
-   candidate=raw.replace('\\/','/').replace('\\u002F','/')
-   if ('hellofresh_s3/image/' in candidate or '/recipe/' in candidate) and any(host in candidate for host in ('img.hellofresh.com','media.hellofresh.com','images.ctfassets.net')):
-    candidates.append(candidate)
-  # Existing source image metadata is often nested in Next.js JSON.
-  for raw in re.findall(r'https?[^"\\s<>]{20,450}',page):
-   candidate=html.unescape(raw).replace('\\\\/','/').replace('\\\\u002F','/').replace('\\\\u002f','/')
-   if candidate.startswith('https://') and ('/hellofresh_s3/image/' in candidate or '/recipes/image/' in candidate):
-    candidates.append(candidate)
+  # Do not scrape arbitrary image URLs from the page's embedded application
+  # data: those frequently belong to recommended *other* recipes, and
+  # previously filled unrelated cards with the same attractive stock art.
+  # Only Recipe JSON-LD, the current page's social image, and explicitly
+  # recipe-labelled image elements above are eligible.
   # Favor full recipe hero photos, not the site's social-sharing logo.
   candidates.sort(key=lambda u: (0 if isinstance(u,str) and '/recipes/image/' in u else 1 if isinstance(u,str) and '/hellofresh_s3/image/' in u else 2, -(int(re.search(r'/w_(\d+)',u).group(1)) if isinstance(u,str) and re.search(r'/w_(\d+)',u) else 0)))
   results=[]
@@ -1019,13 +996,19 @@ def resolve_photo(recipe,refresh=False):
   urls=[]
   existing=recipe.get('image','')
   if complete_recipe_photo_url(existing) and not re.search(r'(?:logo|placeholder|brandmark|default-image)',urllib.parse.urlsplit(existing).path,re.I):urls.append(existing)
-  # Attempt the known photo first; only fetch the recipe page when it fails.
+  # For imported catalog records, the original image URL may be a shared
+  # fallback supplied by the importer. Prefer the recipe page's own
+  # structured metadata before trusting that imported URL.
+  if 1000000<=rid<2000000:
+   official=official_images(recipe)
+   urls=[url for url in official if url not in urls]+urls
+  # Attempt the recipe-specific candidates first.
   for url in urls:
    try:
     result=download_photo(url,rid)
     if result:return result
    except (OSError,ValueError,TimeoutError,urllib.error.URLError):pass
-  urls=[url for url in official_images(recipe) if url!=existing]
+  urls=[] if 1000000<=rid<2000000 else [url for url in official_images(recipe) if url!=existing]
   # Exact official hero image verified for this historical HelloFresh recipe.
   if '5c670341c445fa54f6615252' in recipe.get('url',''):
    hero='https://media.hellofresh.com/q_100,w_1200,f_auto,c_limit,fl_lossy/recipes/image/2019-w14-r14-one-pan-chicken-sausage-orzo-475ebd8c.jpg'
