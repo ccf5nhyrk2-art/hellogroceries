@@ -858,7 +858,7 @@ html[data-theme="light"] .my-collection-tile,html[data-theme="light"] .my-saved-
 .my-saved-recipe-actions button{white-space:nowrap}
 @media(max-width:750px){#my-collection-cards{grid-template-columns:repeat(2,minmax(0,1fr))!important}.my-saved-recipe-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.my-saved-recipe-media{height:115px}.my-saved-recipe-actions{grid-template-columns:1fr}.my-saved-recipe-actions button{width:100%}}
 @media(max-width:390px){.my-saved-recipe-grid{grid-template-columns:1fr}}
-</style><style id="catalog-missing-photo-style">.recipe-card.recipe-photo-missing .photo-placeholder{display:flex!important;align-items:center;justify-content:center;min-height:105px;height:105px;background:var(--surface,#202a24);color:var(--muted,#aab5ac);font-size:13px;border-radius:10px;margin:8px}.recipe-card.recipe-photo-missing .recipe-photo{display:none!important}#planner-selected-meals{margin-bottom:18px}#planner-selected-meals .selected-meal{margin-bottom:8px}</style></head><body><header><h1>🥬 HelloGroceries</h1><div>Choose recipes · Generate · Shop</div><button id="hg-header-store" type="button" title="View or change preferred store" aria-label="View or change preferred grocery store"><span id="hg-header-store-label">📍 Choose your store</span> ▾</button> <a href="/admin.html" data-admin-only style="color:white;margin-left:15px">Household admin</a> <button type="button" id="desktop-logout" class="secondary" style="margin-left:12px">Sign Out</button></header><main><div class="shopping-view-toolbar"><button type="button" id="shop-generate-tour" title="Generate a shopping list from your selected meals">Generate Shopping List</button><button type="button" id="shopping-focus-toggle" aria-pressed="false">🛒 Shopping list only</button></div><section class="mobile-home-dashboard" aria-label="HelloGroceries home"><div class="mobile-home-welcome"><h2>What would you like to do?</h2><p>Recipes, meal planning, and groceries in one place.</p></div><div class="mobile-home-actions"><button type="button" data-home-go="recipes"><span>🍽️</span><strong>Browse recipes</strong><small>Find your next meal</small></button><button type="button" data-home-go="planner"><span>🗓️</span><strong>Plan meals</strong><small>Organize your week</small></button><button type="button" data-home-go="shopping"><span>🛒</span><strong>Shopping list</strong><small>See what you need</small></button><button type="button" data-home-go="pantry"><span>🥫</span><strong>My pantry</strong><small>Track what you have</small></button></div></section><div class="layout"><section><div class="recipes-topbar"><h2>Recipes <span id="count" class="muted"></span></h2><button type="button" id="show-selected-meals" class="recipes-selected-button" aria-expanded="false" aria-controls="selected-plan">Selected Meals <span id="selected-meals-button-count"></span> ▾</button></div><input id="search" type="search" placeholder="Search recipes worldwide"><button type="button" id="mobile-recipe-filter-toggle" aria-expanded="false" aria-controls="mobile-recipe-filters">☷ Filters</button><div id="mobile-recipe-filters"><div class="filter-actions"><label><input type="checkbox" id="fullmeals" checked> Full meals only</label><label><input type="checkbox" id="selectedonly"> Selected recipes only</label><label class="quick-toggle"><input type="checkbox" id="quickmeals"> Quick meals (15 min or less)</label><button type="button" class="clear" id="resetfilters">Reset filters</button></div><div class="filters"><select id="recipe-country" aria-label="Filter recipes by country"><option value="all" selected>All countries</option><option value="US">United States</option><option value="UK">United Kingdom</option><option value="AU">Australia</option><option value="CA">Canada</option><option value="DE">Germany</option><option value="NL">Netherlands</option><option value="other">Other / Unknown</option></select><select id="protein" aria-label="Filter by protein"><option value="all">All proteins</option><option value="chicken">Chicken</option><option value="beef">Beef</option><option value="pork">Pork</option><option value="seafood">Seafood</option><option value="vegetarian">Vegetarian / plant-based</option><option value="other">Other</option></select><select id="rating-filter" aria-label="Filter by personal rating"><option value="all">All ratings</option><option value="5">5-star recipes</option><option value="4">4 stars and up</option><option value="3">3 stars and up</option><option value="unrated">Not rated yet</option></select><select id="diet-filter" aria-label="Filter by dietary ingredients"><option value="all">All dietary options</option><option value="gluten-free">Gluten-free ingredients (estimated)</option><option value="dairy-free">Dairy-free ingredients (estimated)</option><option value="both">Gluten-free + dairy-free (estimated)</option></select><select id="cuisine" aria-label="Filter by cuisine"><option value="all">All cuisines</option><option value="italian">Italian</option><option value="mexican">Mexican / Tex-Mex</option><option value="asian">Asian-inspired</option><option value="mediterranean">Mediterranean</option><option value="american">American / comfort</option><option value="other">Other / unclassified</option></select><select id="meal" aria-label="Filter by meal type"><option value="all">All meal types</option><option value="sides">Sides & appetizers</option><option value="pasta">Pasta / noodles</option><option value="bowls">Bowls</option><option value="sandwich">Burgers / sandwiches</option><option value="salad">Salads</option><option value="soup">Soups / stews</option><option value="other">Other meals</option><option value="holiday">Holiday</option><option value="wine">Wine pairings</option></select><select id="sort" aria-label="Sort recipes"><option value="name">Name A–Z</option><option value="newest">Newest imported</option><option value="reverse">Name Z–A</option></select><select id="ingredient-filter"><option value="all">All ingredients</option><option value="chicken">Contains chicken</option><option value="beef">Contains beef</option><option value="rice">Contains rice</option><option value="pasta">Contains pasta</option></select></div><div class="filters"><select id="included-side" aria-label="Filter main meals by included side">
+</style><style id="recipe-count-hidden-style">#count,#filtercount{display:none!important}</style><style id="catalog-missing-photo-style">.recipe-card.recipe-photo-missing .photo-placeholder{display:flex!important;align-items:center;justify-content:center;min-height:105px;height:105px;background:var(--surface,#202a24);color:var(--muted,#aab5ac);font-size:13px;border-radius:10px;margin:8px}.recipe-card.recipe-photo-missing .recipe-photo{display:none!important}#planner-selected-meals{margin-bottom:18px}#planner-selected-meals .selected-meal{margin-bottom:8px}</style></head><body><header><h1>🥬 HelloGroceries</h1><div>Choose recipes · Generate · Shop</div><button id="hg-header-store" type="button" title="View or change preferred store" aria-label="View or change preferred grocery store"><span id="hg-header-store-label">📍 Choose your store</span> ▾</button> <a href="/admin.html" data-admin-only style="color:white;margin-left:15px">Household admin</a> <button type="button" id="desktop-logout" class="secondary" style="margin-left:12px">Sign Out</button></header><main><div class="shopping-view-toolbar"><button type="button" id="shop-generate-tour" title="Generate a shopping list from your selected meals">Generate Shopping List</button><button type="button" id="shopping-focus-toggle" aria-pressed="false">🛒 Shopping list only</button></div><section class="mobile-home-dashboard" aria-label="HelloGroceries home"><div class="mobile-home-welcome"><h2>What would you like to do?</h2><p>Recipes, meal planning, and groceries in one place.</p></div><div class="mobile-home-actions"><button type="button" data-home-go="recipes"><span>🍽️</span><strong>Browse recipes</strong><small>Find your next meal</small></button><button type="button" data-home-go="planner"><span>🗓️</span><strong>Plan meals</strong><small>Organize your week</small></button><button type="button" data-home-go="shopping"><span>🛒</span><strong>Shopping list</strong><small>See what you need</small></button><button type="button" data-home-go="pantry"><span>🥫</span><strong>My pantry</strong><small>Track what you have</small></button></div></section><div class="layout"><section><div class="recipes-topbar"><h2>Recipes <span id="count" class="muted"></span></h2><button type="button" id="show-selected-meals" class="recipes-selected-button" aria-expanded="false" aria-controls="selected-plan">Selected Meals <span id="selected-meals-button-count"></span> ▾</button></div><input id="search" type="search" placeholder="Search recipes worldwide"><button type="button" id="mobile-recipe-filter-toggle" aria-expanded="false" aria-controls="mobile-recipe-filters">☷ Filters</button><div id="mobile-recipe-filters"><div class="filter-actions"><label><input type="checkbox" id="fullmeals" checked> Full meals only</label><label><input type="checkbox" id="selectedonly"> Selected recipes only</label><label class="quick-toggle"><input type="checkbox" id="quickmeals"> Quick meals (15 min or less)</label><button type="button" class="clear" id="resetfilters">Reset filters</button></div><div class="filters"><select id="recipe-country" aria-label="Filter recipes by country"><option value="all" selected>All countries</option><option value="US">United States</option><option value="UK">United Kingdom</option><option value="AU">Australia</option><option value="CA">Canada</option><option value="DE">Germany</option><option value="NL">Netherlands</option><option value="other">Other / Unknown</option></select><select id="protein" aria-label="Filter by protein"><option value="all">All proteins</option><option value="chicken">Chicken</option><option value="beef">Beef</option><option value="pork">Pork</option><option value="seafood">Seafood</option><option value="vegetarian">Vegetarian / plant-based</option><option value="other">Other</option></select><select id="rating-filter" aria-label="Filter by personal rating"><option value="all">All ratings</option><option value="5">5-star recipes</option><option value="4">4 stars and up</option><option value="3">3 stars and up</option><option value="unrated">Not rated yet</option></select><select id="diet-filter" aria-label="Filter by dietary ingredients"><option value="all">All dietary options</option><option value="gluten-free">Gluten-free ingredients (estimated)</option><option value="dairy-free">Dairy-free ingredients (estimated)</option><option value="both">Gluten-free + dairy-free (estimated)</option></select><select id="cuisine" aria-label="Filter by cuisine"><option value="all">All cuisines</option><option value="italian">Italian</option><option value="mexican">Mexican / Tex-Mex</option><option value="asian">Asian-inspired</option><option value="mediterranean">Mediterranean</option><option value="american">American / comfort</option><option value="other">Other / unclassified</option></select><select id="meal" aria-label="Filter by meal type"><option value="all">All meal types</option><option value="sides">Sides & appetizers</option><option value="pasta">Pasta / noodles</option><option value="bowls">Bowls</option><option value="sandwich">Burgers / sandwiches</option><option value="salad">Salads</option><option value="soup">Soups / stews</option><option value="other">Other meals</option><option value="holiday">Holiday</option><option value="wine">Wine pairings</option></select><select id="sort" aria-label="Sort recipes"><option value="name">Name A–Z</option><option value="newest">Newest imported</option><option value="reverse">Name Z–A</option></select><select id="ingredient-filter"><option value="all">All ingredients</option><option value="chicken">Contains chicken</option><option value="beef">Contains beef</option><option value="rice">Contains rice</option><option value="pasta">Contains pasta</option></select></div><div class="filters"><select id="included-side" aria-label="Filter main meals by included side">
 <option value="all">Any included side</option>
 <optgroup label="Potatoes"><option value="potatoes">All potato sides</option><option value="mashed-potatoes">Mashed potatoes</option><option value="potato-wedges">Potato wedges</option><option value="fries">Potato fries</option><option value="sweet-potato-fries">Sweet potato fries</option><option value="vegetable-fries">Other vegetable fries</option><option value="roasted-potatoes">Roasted potatoes</option><option value="sweet-potatoes">Sweet potatoes</option></optgroup>
 <optgroup label="Rice"><option value="rice">All rice sides</option><option value="white-rice">White / jasmine / basmati rice</option><option value="brown-rice">Brown rice</option><option value="seasoned-rice">Seasoned rice / pilaf</option></optgroup>
@@ -3547,46 +3547,60 @@ $('import').onclick=()=>action({action:'import',url:$('recipeurl').value.trim()}
 // hfPhotoAuditV2: diagnostic counters only; original recipe records stay unchanged.
 const hfBrokenPhotos=new Map();
 function hfImageLoaded(img,id){
- // Reject generic neon-green HelloFresh branding images without extra server dependencies.
+ // Treat small/generic branding assets as unavailable instead of showing
+ // bright green placeholder art as a recipe photograph.
+ const source=img.getAttribute('data-original-image')||'';
+ const retrySource=()=>{
+  if(img.dataset.logoSourceTried||!/^https:\/\//i.test(source)||source===img.src)return false;
+  img.dataset.logoSourceTried='1';img.src=source;return true;
+ };
+ if(img.naturalWidth<180||img.naturalHeight<110){
+  if(retrySource())return;
+  hfBrokenPhotos.set(String(id),{id:String(id),reason:'Image too small'});
+  hfHideBrokenCatalogCard(img,id);hfUpdatePhotoAudit();return;
+ }
  try{
-  const canvas=document.createElement('canvas');
-  canvas.width=48;canvas.height=48;
-  const ctx=canvas.getContext('2d',{willReadFrequently:true});
-  if(!ctx)return;
+  const canvas=document.createElement('canvas');canvas.width=48;canvas.height=48;
+  const ctx=canvas.getContext('2d',{willReadFrequently:true});if(!ctx)return;
   ctx.drawImage(img,0,0,48,48);
   const pixels=ctx.getImageData(0,0,48,48).data;
   let green=0,opaque=0;
   for(let i=0;i<pixels.length;i+=4){
    if(pixels[i+3]<128)continue;
    opaque++;
-   if(pixels[i+1]>125&&pixels[i+1]>pixels[i]*1.35&&pixels[i+1]>pixels[i+2]*1.35&&pixels[i]>45)green++;
+   if(pixels[i+1]>110&&pixels[i+1]>pixels[i]*1.25&&pixels[i+1]>pixels[i+2]*1.25)green++;
   }
-  if(opaque&&green/opaque>0.48){
-   const source=img.getAttribute('data-original-image')||'';
-   if(!img.dataset.logoSourceTried&&/^https:\/\//i.test(source)&&source!==img.src){
-    img.dataset.logoSourceTried='1';
-    img.src=source;
-    return;
+  if(opaque&&green/opaque>0.30){
+   if(retrySource())return;
+   // Refresh the proxy only once. If its output is still generic branding,
+   // show the compact unavailable-photo tile rather than looping.
+   if(!img.dataset.logoRefresh&&img.dataset.logoSourceTried!=='1'){
+    img.dataset.logoRefresh='1';img.src='/api/photo/'+encodeURIComponent(String(id))+'?refresh=1';return;
    }
-   if(!img.dataset.logoRefresh){
-    img.dataset.logoRefresh='1';
-    img.src='/api/photo/'+encodeURIComponent(String(id))+'?refresh=1';
-    return;
-   }
-   hfBrokenPhotos.set(String(id),{id:String(id),name:(recipes.find(r=>String(r.id)===String(id))||{}).name||'',url:img.src,reason:'Generic HelloFresh logo'});
-   img.style.display='none';
-   const placeholder=img.parentElement?.querySelector('.photo-placeholder');
-  hfHideBrokenCatalogCard(img,id);
-   hfUpdatePhotoAudit();
+   hfBrokenPhotos.set(String(id),{id:String(id),reason:'Generic green branding',url:img.src});
+   hfHideBrokenCatalogCard(img,id);hfUpdatePhotoAudit();
   }
- }catch(err){/* Keep images if the browser cannot inspect them. */}
+ }catch(error){
+  // Direct cross-origin URLs may taint the canvas. The same-origin proxy is
+  // the inspectable source; never repeatedly retry a blocked external URL.
+  if(!img.dataset.canvasProxyTried&&!img.src.startsWith(location.origin+'/api/photo/')){
+   img.dataset.canvasProxyTried='1';img.src='/api/photo/'+encodeURIComponent(String(id));
+  }
+ }
 }
+
 let hfCatalogPhotoRefresh=null;
 function hfHideBrokenCatalogCard(img,id){
- // Keep the recipe usable when its photo is missing. Hiding the entire
- // card previously left empty slots and repeatedly reloaded the page.
  const card=img.closest('.recipe-card');
  if(!card)return;
+ // Hide invalid-photo recipes from ordinary browsing, but never remove
+ // existing saved recipes from the user's Favorites, Collections or Plan.
+ const key=String(id);
+ const saved=Object.hasOwn(state.selected||{},key)
+  ||(state.favorites||[]).some(value=>String(value)===key)
+  ||Object.values(state.collections||{}).some(ids=>Array.isArray(ids)&&ids.some(value=>String(value)===key))
+  ||Object.values(state.weekly||{}).some(value=>String(value)===key);
+ if(!saved){card.remove();return;}
  img.style.display='none';
  const placeholder=card.querySelector('.photo-placeholder');
  if(placeholder){placeholder.style.display='flex';placeholder.textContent='Photo unavailable';placeholder.setAttribute('role','img');placeholder.setAttribute('aria-label','Recipe photo unavailable');}
