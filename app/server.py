@@ -940,9 +940,9 @@ def audit_first_page_photo_duplicates(cards):
   except OSError:continue
  quarantined=0
  for digest,items in groups.items():
-  # Similar editions may share one genuine hero. Three or more distinct
-  # recipes sharing byte-identical artwork indicate a generic fallback.
-  if len(items)<3 and digest not in photo_rejected_digests:continue
+  # Different imported recipes must not silently inherit identical fallback art.
+  # Two unrelated recipe IDs sharing the same bytes are already suspect.
+  if len(items)<2 and digest not in photo_rejected_digests:continue
   with photo_rejected_guard:
    photo_rejected_digests.add(digest)
    try:
@@ -962,7 +962,14 @@ def audit_first_page_photo_duplicates(cards):
 def cached_photo(rid):
  for ext,kind in (('.jpg','image/jpeg'),('.png','image/png'),('.webp','image/webp'),('.gif','image/gif')):
   p=PHOTO_DIR/(str(rid)+ext)
-  if p.is_file() and valid_photo_cache_entry(p):return p,kind
+  if p.is_file() and valid_photo_cache_entry(p):
+   # A valid WebP header does not prove that this belongs to the recipe.
+   # Never serve a previously quarantined fallback digest from an old cache.
+   if 1000000<=int(rid)<2000000:
+    try:
+     if photo_digest(p.read_bytes()) in photo_rejected_digests:continue
+    except OSError:continue
+   return p,kind
  return None
 def download_photo(url,rid):
  if not complete_recipe_photo_url(url):return None
