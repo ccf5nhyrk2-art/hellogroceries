@@ -914,7 +914,7 @@ def recommendation_photo_warmup_worker():
   recommendation_photo_warmup['running']=True
   recommendation_photo_warmup['last_started']=datetime.datetime.now(datetime.timezone.utc).isoformat()
   try:
-   recipes=[r for r in allrecipes() if r.get('image') and not non_recipe_reason(r)]
+   recipes=[r for r in browse_catalog() if r.get('image') and not non_recipe_reason(r)]
    random.shuffle(recipes)
    cached=sum(1 for r in recipes if cached_photo(int(r['id'])))
    recommendation_photo_warmup['cached']=cached
@@ -3338,7 +3338,8 @@ class Handler(SimpleHTTPRequestHandler):
    try:
     parsed=urllib.parse.urlsplit(self.path)
     rid=int(parsed.path.rsplit('/',1)[1])
-    recipe=next((r for r in allrecipes() if r['id']==rid),None)
+    # Never rebuild all 13k recipes (and their enrichment caches) for each image.
+    recipe=next((r for r in browse_catalog() if int(r['id'])==rid),None)
     if not recipe:return self.send_error(404)
     refresh=urllib.parse.parse_qs(parsed.query).get('refresh',['0'])[0]=='1'
     result=resolve_photo(recipe,refresh)
