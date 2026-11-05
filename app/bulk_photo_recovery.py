@@ -19,11 +19,32 @@ def atomic_json(path, payload):
     os.replace(temporary, path)
 
 
+def classify_failure(recipe):
+    """Explain missing photo without weakening the resolver's provenance checks.
+
+    This is a diagnostic classification, not proof of a remote server's error.
+    """
+    trusted = server.trusted_imported_photo_url(recipe)
+    official = server.official_images(recipe)
+    if not trusted and not official:
+        return "no_verified_source"
+    # The resolver already attempted these sources; no image was cached.
+    # Distinguish rejected digests where a repair status explicitly records it.
+    try:
+        status = json.loads(Path("/data/photo_repair_status.json").read_text()).get(str(recipe["id"]), {})
+        if status.get("status") == "duplicate_rejected":
+            return "duplicate_rejected"
+    except (OSError, ValueError, TypeError):
+        pass
+    return "verified_source_download_or_content_rejected"
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--batch-size", type=int, default=100)
     parser.add_argument("--delay", type=float, default=0.2)
-    parser.add_argument("--retry-failures", action="store_true")
+    parser.add_argument("--retry-failures", action="store_true", help="Include previously failed recipes")
+    parser.add_argument("--failed-only", action="store_true", help="Retry only IDs recorded as failed")
     parser.add_argument("--state-dir", default="/data")
     args = parser.parse_args()
     if not 1 <= args.batch_size <= 500:
@@ -45,8 +66,10 @@ def main():
         key=lambda r: int(r["id"]),
     )
     stats = {"checked": 0, "recovered": 0, "already_cached": 0, "failed": 0}
+    reasons = {}
     eligible = [r for r in recipes if int(r["id"]) not in completed and
-                (args.retry_failures or int(r["id"]) not in failed)]
+                ((int(r["id"]) in failed) if args.failed_only else
+                 (args.retry_failures or int(r["id"]) not in failed))]
     batch = eligible[:args.batch_size]
     print(f"Imported: {len(recipes)} | pending: {len(eligible)} | batch: {len(batch)}", flush=True)
     for recipe in batch:
@@ -66,23 +89,27 @@ def main():
                 else:
                     stats["failed"] += 1
                     failed.add(rid)
+                    reason = classify_failure(recipe)
+                    reasons[reason] = reasons.get(reason, 0) + 1
                     with failures.open("a") as output:
                         output.write(json.dumps({"id": rid, "name": recipe.get("name", ""),
-                            "error": "No verified photo candidate", "at": datetime.datetime.now(datetime.timezone.utc).isoformat()}) + "\n")
+                            "error": reason, "at": datetime.datetime.now(datetime.timezone.utc).isoformat()}) + "\n")
         except Exception as exc:
             stats["failed"] += 1
             failed.add(rid)
+            reasons["exception"] = reasons.get("exception", 0) + 1
             with failures.open("a") as output:
                 output.write(json.dumps({"id": rid, "name": recipe.get("name", ""),
                     "error": f"{type(exc).__name__}: {str(exc)[:180]}",
                     "at": datetime.datetime.now(datetime.timezone.utc).isoformat()}) + "\n")
         if stats["checked"] % 10 == 0 or stats["checked"] == len(batch):
             atomic_json(checkpoint, {"completed": sorted(completed), "failed": sorted(failed),
-                "updated_at": datetime.datetime.now(datetime.timezone.utc).isoformat(), "last_batch": stats})
+                "updated_at": datetime.datetime.now(datetime.timezone.utc).isoformat(), "last_batch": stats, "failure_reasons": reasons})
             print(f"Progress {stats['checked']}/{len(batch)} | recovered {stats['recovered']} | "
                   f"cached {stats['already_cached']} | failed {stats['failed']}", flush=True)
         if args.delay:
             time.sleep(args.delay)
+    print("Failure reasons:", json.dumps(reasons, sort_keys=True), flush=True)
     print("Batch complete. Re-run to process next batch.", flush=True)
 
 
