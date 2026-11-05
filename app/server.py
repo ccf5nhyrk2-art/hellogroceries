@@ -940,9 +940,8 @@ def audit_first_page_photo_duplicates(cards):
   except OSError:continue
  quarantined=0
  for digest,items in groups.items():
-  # Two similar recipes can legitimately share a hero image.
-  # Three or more distinct catalog recipes sharing byte-identical art is
-  # a strong indication of a generic fallback; never silently reuse it.
+  # Similar editions may share one genuine hero. Three or more distinct
+  # recipes sharing byte-identical artwork indicate a generic fallback.
   if len(items)<3 and digest not in photo_rejected_digests:continue
   with photo_rejected_guard:
    photo_rejected_digests.add(digest)
@@ -974,8 +973,23 @@ def download_photo(url,rid):
   if int(resp.headers.get('Content-Length') or 0)>8_000_000:return None
   raw=resp.read(8_000_001)
  if len(raw)>8_000_000 or len(raw)<2048:return None
+ digest=photo_digest(raw)
  with photo_rejected_guard:
-  if photo_digest(raw) in photo_rejected_digests:return None
+  if digest in photo_rejected_digests:return None
+ # Imported 10 MM recipes frequently point to the same generic hero art.
+ # Reject it before writing to disk if another first-page recipe already
+ # owns these exact bytes. This avoids an endless quarantine/recovery loop.
+ if 1000000<=int(rid)<2000000:
+  try:
+   first_page,_=default_recipe_page_data()
+   for other in first_page[:48]:
+    other_id=int(other['id'])
+    if other_id==int(rid) or not (1000000<=other_id<2000000):continue
+    other_cached=cached_photo(other_id)
+    if other_cached and photo_digest(other_cached[0].read_bytes())==digest:
+     photo_repair_log(rid,'duplicate_rejected',f'Identical to cached recipe {other_id}')
+     return None
+  except (OSError,ValueError,TypeError):pass
  kind=image_type(raw)
  if not kind:return None
  mime,ext=kind
@@ -1056,8 +1070,18 @@ def photo_recovery_worker():
    if not cached_photo(rid):
     recovered=resolve_photo(recipe)
     if recovered:
-     photo_repair_log(rid,'recovered')
-     print(f'Photo recovered: {rid}',flush=True)
+     # Check the newly downloaded cache against existing first-page entries.
+     # The startup audit runs again on deployment; reject repeat fallback
+     # clusters immediately so they never masquerade as successful recovery.
+     if 1000000<=rid<2000000:
+      cards,_=default_recipe_page_data()
+      audit_first_page_photo_duplicates(cards)
+     if cached_photo(rid):
+      photo_repair_log(rid,'recovered')
+      print(f'Photo recovered: {rid}',flush=True)
+     else:
+      photo_repair_log(rid,'duplicate_rejected','Recovery produced shared fallback artwork')
+      print(f'Photo duplicate rejected: {rid}',flush=True)
     else:
      with photo_recovery_guard:photo_recovery_last_failed[rid]=time.monotonic()
      photo_repair_log(rid,'unavailable','Source page or image did not yield a usable photo')
