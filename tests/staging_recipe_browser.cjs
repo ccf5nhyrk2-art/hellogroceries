@@ -23,9 +23,15 @@ async function main() {
   });
   fs.mkdirSync('test-results', { recursive: true });
   const errors = [];
+  const unexpectedApiResponses = [];
   page.on('pageerror', e => errors.push('page: ' + e.message));
   page.on('console', m => { if (m.type() === 'error') errors.push('console: ' + m.text()); });
   page.on('response', r => { if (r.status() >= 400 && r.url().startsWith(base)) errors.push('HTTP ' + r.status() + ' ' + r.url()); });
+  page.on('response', r => {
+    if (!r.url().startsWith(base) || !new URL(r.url()).pathname.startsWith('/api/')) return;
+    const type = r.headers()['content-type'] || '';
+    if (!type.includes('json')) unexpectedApiResponses.push({ path: new URL(r.url()).pathname, status: r.status(), contentType: type, redirectedTo: r.url() });
+  });
   try {
     if (process.env.STAGING_AUTH_STATE) { await page.goto(base+'/',{waitUntil:'domcontentloaded'}); } else {
     const initial = await page.goto(base + '/auth.html', { waitUntil: 'domcontentloaded' });
@@ -309,7 +315,7 @@ async function main() {
   } catch (error) {
     await page.screenshot({ path: 'test-results/failure.png', fullPage: true }).catch(() => {});
     fs.writeFileSync('test-results/page.html', await page.content().catch(() => 'Unavailable'));
-    if (!fs.existsSync('test-results/diagnostics.json')) fs.writeFileSync('test-results/diagnostics.json', JSON.stringify({ url: page.url(), consoleErrors: errors }, null, 2));
+    fs.writeFileSync('test-results/diagnostics.json', JSON.stringify({ url: page.url(), consoleErrors: errors, unexpectedApiResponses: unexpectedApiResponses.slice(-30), failure: String(error) }, null, 2));
     throw error;
   } finally {
     await browser.close();
