@@ -769,6 +769,27 @@ def photo_repair_log(rid,status,detail=''):
 
 photo_repair_status_guard=threading.Lock()
 
+def clean_official_photo_candidate(value):
+ """Extract one image URL; reject srcset descriptors and embedded HTML/JSON tails."""
+ if not isinstance(value,str):return ''
+ value=html.unescape(value).replace('\\\\/','/').replace('\\\\u002F','/').replace('\\\\u002f','/').strip()
+ # Source pages sometimes expose an entire srcset rather than a single URL.
+ value=value.split(', https://',1)[0].split(', http://',1)[0]
+ value=re.split(r'[\\s"\\x27<>\\\\]+',value,1)[0].rstrip(',;')
+ if value.startswith('//'):value='https:'+value
+ if value.startswith('/recipes/image/') or value.startswith('/hellofresh_s3/image/'):
+  value='https://img.hellofresh.com'+value
+ # Strip accidental srcset descriptors or trailing markup after the asset extension.
+ match=re.search(r'(?i)\\.(?:jpe?g|png|webp|gif)(?:\\?[^\\s"\\x27<>]*)?',value)
+ if match:value=value[:match.end()]
+ try:
+  parsed=urllib.parse.urlsplit(value)
+  if parsed.scheme!='https' or not parsed.hostname:return ''
+  if not allowed_photo_url(value):return ''
+  if any(ord(ch)<32 or ord(ch)==127 for ch in value):return ''
+ except ValueError:return ''
+ return value
+
 def official_images(recipe):
  url=recipe.get('url','')
  if not url or not allowed_url(url):return []
@@ -828,8 +849,8 @@ def official_images(recipe):
   results=[]
   for img in candidates:
    if not isinstance(img,str):continue
-   img=html.unescape(img).replace('\\/','/').strip()
-   if complete_recipe_photo_url(img) and len(img)<2048 and img not in results and not re.search(r'(?:logo|placeholder|brandmark|default-image)',urllib.parse.urlsplit(img).path,re.I):results.append(img)
+   img=clean_official_photo_candidate(img)
+   if img and complete_recipe_photo_url(img) and len(img)<2048 and img not in results and not re.search(r'(?:logo|placeholder|brandmark|default-image)',urllib.parse.urlsplit(img).path,re.I):results.append(img)
   return results
  except Exception:return []
 
