@@ -869,7 +869,7 @@ def official_images(recipe):
    if candidate.startswith('https://') and ('/hellofresh_s3/image/' in candidate or '/recipes/image/' in candidate):
     candidates.append(candidate)
   # Favor full recipe hero photos, not the site's social-sharing logo.
-  candidates.sort(key=lambda u: (0 if isinstance(u,str) and '/recipes/image/' in u else 1 if isinstance(u,str) and '/hellofresh_s3/image/' in u else 2))
+  candidates.sort(key=lambda u: (0 if isinstance(u,str) and '/recipes/image/' in u else 1 if isinstance(u,str) and '/hellofresh_s3/image/' in u else 2, -(int(re.search(r'/w_(\d+)',u).group(1)) if isinstance(u,str) and re.search(r'/w_(\d+)',u) else 0)))
   results=[]
   for img in candidates:
    if not isinstance(img,str):continue
@@ -907,14 +907,14 @@ def image_type(raw):
  return None
 def valid_photo_cache_entry(path):
  try:
-  if path.stat().st_size<100:return False
+  if path.stat().st_size<2048:return False
   with path.open('rb') as photo_file:return image_type(photo_file.read(16)) is not None
  except OSError:return False
 
 def cached_photo(rid):
  for ext,kind in (('.jpg','image/jpeg'),('.png','image/png'),('.webp','image/webp'),('.gif','image/gif')):
   p=PHOTO_DIR/(str(rid)+ext)
-  if p.is_file():return p,kind
+  if p.is_file() and valid_photo_cache_entry(p):return p,kind
  return None
 def download_photo(url,rid):
  if not complete_recipe_photo_url(url):return None
@@ -924,7 +924,7 @@ def download_photo(url,rid):
   if not allowed_photo_url(resp.geturl()):return None
   if int(resp.headers.get('Content-Length') or 0)>8_000_000:return None
   raw=resp.read(8_000_001)
- if len(raw)>8_000_000 or len(raw)<100:return None
+ if len(raw)>8_000_000 or len(raw)<2048:return None
  kind=image_type(raw)
  if not kind:return None
  mime,ext=kind
