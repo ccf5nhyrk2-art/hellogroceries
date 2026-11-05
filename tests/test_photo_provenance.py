@@ -62,5 +62,27 @@ class PhotoProvenanceTests(unittest.TestCase):
         self.assertTrue(eval(expr, {}, {"rid": 1012949, "trusted": "https://img.hellofresh.com/owned.jpg", "url": "https://img.hellofresh.com/owned.jpg"}))
         self.assertFalse(eval(expr, {}, {"rid": 99, "trusted": "https://img.hellofresh.com/owned.jpg", "url": "https://img.hellofresh.com/owned.jpg"}))
 
+
+    def test_force_jpeg_transform_only_on_official_cdn(self):
+        source = SOURCE.read_text()
+        node = next(n for n in ast.parse(source).body
+                    if isinstance(n, ast.FunctionDef) and n.name == "force_verified_photo_jpeg_url")
+        scope = {"urllib": urllib}
+        exec(compile(ast.Module(body=[node], type_ignores=[]), str(SOURCE), "exec"), scope)
+        force = scope["force_verified_photo_jpeg_url"]
+        original = "https://img.hellofresh.com/f_auto,fl_lossy,h_640,q_auto,w_1200/hellofresh_s3/image/61cb2c09813874009620da38-4168f376.jpg"
+        expected = original.replace("/f_auto,", "/f_jpg,")
+        self.assertEqual(force(original), expected)
+        self.assertEqual(force(expected), expected)
+        self.assertEqual(force(original.replace("img.hellofresh.com", "example.com")), original.replace("img.hellofresh.com", "example.com"))
+        self.assertEqual(force("https://img.hellofresh.com/hellofresh_s3/image/foo.jpg"), "https://img.hellofresh.com/hellofresh_s3/image/foo.jpg")
+
+    def test_downloader_forces_jpeg_only_when_verified(self):
+        source = SOURCE.read_text()
+        node = next(n for n in ast.parse(source).body
+                    if isinstance(n, ast.FunctionDef) and n.name == "download_photo")
+        self.assertIn("if prefer_jpeg:url=force_verified_photo_jpeg_url(url)", ast.get_source_segment(source, node))
+        self.assertIn("digest in photo_rejected_digests", ast.get_source_segment(source, node))
+
 if __name__ == "__main__":
     unittest.main()
