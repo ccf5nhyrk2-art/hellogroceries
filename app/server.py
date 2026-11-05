@@ -770,17 +770,16 @@ def photo_repair_log(rid,status,detail=''):
 photo_repair_status_guard=threading.Lock()
 
 def clean_official_photo_candidate(value):
- """Extract one image URL; reject srcset descriptors and embedded HTML/JSON tails."""
+ """Normalize one trusted official photo URL without corrupting Cloudinary commas."""
  if not isinstance(value,str):return ''
- value=html.unescape(value).replace('\\\\/','/').replace('\\\\u002F','/').replace('\\\\u002f','/').strip()
- # Source pages sometimes expose an entire srcset rather than a single URL.
- value=value.split(', https://',1)[0].split(', http://',1)[0]
- value=re.split(r'[\\s"\\x27<>\\\\]+',value,1)[0].rstrip(',;')
+ value=html.unescape(value).replace('\\/','/').replace('\\u002F','/').replace('\\u002f','/').strip()
+ # Split only at the next URL, not Cloudinary transformation commas.
+ value=re.split(r',\s+(?=https?://)',value,maxsplit=1)[0]
+ value=re.split(r'[\s"\'<>\\]+',value,maxsplit=1)[0].rstrip(',;')
  if value.startswith('//'):value='https:'+value
  if value.startswith('/recipes/image/') or value.startswith('/hellofresh_s3/image/'):
   value='https://img.hellofresh.com'+value
- # Strip accidental srcset descriptors or trailing markup after the asset extension.
- match=re.search(r'(?i)\\.(?:jpe?g|png|webp|gif)(?:\\?[^\\s"\\x27<>]*)?',value)
+ match=re.search(r'(?i)\.(?:jpe?g|png|webp|gif)(?:\?[^\s"\'<>]*)?',value)
  if match:value=value[:match.end()]
  try:
   parsed=urllib.parse.urlsplit(value)
