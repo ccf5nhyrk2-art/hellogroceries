@@ -96,7 +96,8 @@ def main():
                 completed.add(rid)
                 failed.discard(rid)
             else:
-                result = server.resolve_photo(recipe, refresh=False)
+                download_reasons = []
+                result = server.resolve_photo(recipe, refresh=False, diagnostics=download_reasons)
                 if result and server.cached_photo(rid):
                     stats["recovered"] += 1
                     completed.add(rid)
@@ -104,7 +105,7 @@ def main():
                 else:
                     stats["failed"] += 1
                     failed.add(rid)
-                    reason = classify_failure(recipe)
+                    reason = ('download:' + ','.join(sorted(set(download_reasons)))) if download_reasons else classify_failure(recipe)
                     reasons[reason] = reasons.get(reason, 0) + 1
                     with failures.open("a") as output:
                         output.write(json.dumps({"id": rid, "name": recipe.get("name", ""),
