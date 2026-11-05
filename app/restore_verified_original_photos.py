@@ -28,7 +28,7 @@ def source_url_verified(recipe, owners):
  if not url or not server.complete_recipe_photo_url(url) or owners.get(url)!={rid}:return False
  filename=urllib.parse.unquote(urllib.parse.urlsplit(url).path).rsplit("/",1)[-1].lower()
  identity=source_id(recipe)
- return bool(identity and identity in filename and re.search(r"\\.(?:jpe?g|png|webp)$",filename))
+ return bool(identity and identity in filename and re.search(r"\.(?:jpe?g|png|webp)$",filename))
 
 def main():
  parser=argparse.ArgumentParser()
