@@ -911,6 +911,55 @@ def valid_photo_cache_entry(path):
   with path.open('rb') as photo_file:return image_type(photo_file.read(16)) is not None
  except OSError:return False
 
+# Known shared fallback images must never be accepted as recipe photographs.
+# Populated by the first-page audit at startup; hashes are content-based, not URLs.
+photo_rejected_file=Path('/data/photo_rejected_digests.json')
+try:
+ photo_rejected_digests=set(json.loads(photo_rejected_file.read_text()))
+except (OSError,ValueError,TypeError):
+ photo_rejected_digests=set()
+photo_rejected_guard=threading.Lock()
+def photo_digest(data):
+ import hashlib
+ return hashlib.sha256(data).hexdigest()
+
+def audit_first_page_photo_duplicates(cards):
+ """Quarantine only clear cross-recipe fallback clusters; preserve originals."""
+ from collections import defaultdict
+ groups=defaultdict(list)
+ for recipe in cards[:48]:
+  rid=int(recipe['id'])
+  # The imported 10 MM catalog has unrelated recipe names sharing fallback art.
+  if not (1000000<=rid<2000000):continue
+  cached=cached_photo(rid)
+  if not cached:continue
+  path,_=cached
+  try:
+   digest=photo_digest(path.read_bytes())
+   groups[digest].append((rid,path,recipe.get('name','')))
+  except OSError:continue
+ quarantined=0
+ for digest,items in groups.items():
+  # Two similar recipes can legitimately share a hero image.
+  # Three or more distinct catalog recipes sharing byte-identical art is
+  # a strong indication of a generic fallback; never silently reuse it.
+  if len(items)<3 and digest not in photo_rejected_digests:continue
+  with photo_rejected_guard:
+   photo_rejected_digests.add(digest)
+   try:
+    tmp=photo_rejected_file.with_suffix('.tmp')
+    tmp.write_text(json.dumps(sorted(photo_rejected_digests)))
+    os.replace(tmp,photo_rejected_file)
+   except OSError:pass
+  for rid,path,name in items:
+   try:
+    backup=path.with_name(path.name+'.suspect')
+    os.replace(path,backup)
+    photo_repair_log(rid,'suspect_duplicate','Quarantined shared fallback photo; original preserved as .suspect')
+    quarantined+=1
+   except OSError:pass
+ print(f'First-page duplicate photo audit: {quarantined} suspicious files quarantined',flush=True)
+
 def cached_photo(rid):
  for ext,kind in (('.jpg','image/jpeg'),('.png','image/png'),('.webp','image/webp'),('.gif','image/gif')):
   p=PHOTO_DIR/(str(rid)+ext)
@@ -925,6 +974,8 @@ def download_photo(url,rid):
   if int(resp.headers.get('Content-Length') or 0)>8_000_000:return None
   raw=resp.read(8_000_001)
  if len(raw)>8_000_000 or len(raw)<2048:return None
+ with photo_rejected_guard:
+  if photo_digest(raw) in photo_rejected_digests:return None
  kind=image_type(raw)
  if not kind:return None
  mime,ext=kind
@@ -988,6 +1039,7 @@ def queue_missing_first_page_photos():
  try:
   cards,_=default_recipe_page_data()
   catalog={int(r['id']):r for r in browse_catalog()}
+  audit_first_page_photo_duplicates(cards)
   queued=0
   for card in cards[:48]:
    rid=int(card['id'])
