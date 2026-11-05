@@ -3617,6 +3617,29 @@ function hfHideBrokenCatalogCard(img,id){
   ||Object.values(state.weekly||{}).some(value=>String(value)===key);
  // Never leave a blank grid slot or silently remove an otherwise usable recipe.
  img.style.display='none';
+ // Background recovery is asynchronous: retry after the cache has had time to fill.
+ // Keep a visible placeholder while waiting and stop when the card is removed.
+ if(!img.dataset.recoveryPolling){
+  img.dataset.recoveryPolling='1';
+  let attempts=0;
+  const poll=()=>{
+   if(!img.isConnected||img.classList.contains('photo-verified')||attempts>=12)return;
+   attempts++;
+   const probe=new Image();
+   probe.onload=()=>{
+    if(!img.isConnected)return;
+    img.style.display='';
+    img.dataset.retried='1';
+    img.src='/api/photo/'+encodeURIComponent(String(id))+'?recovered='+Date.now();
+    const placeholder=card.querySelector('.photo-placeholder');
+    if(placeholder)placeholder.style.display='none';
+    card.classList.remove('recipe-photo-missing');
+   };
+   probe.onerror=()=>{if(img.isConnected)setTimeout(poll,15000);};
+   probe.src='/api/photo/'+encodeURIComponent(String(id))+'?probe='+Date.now();
+  };
+  setTimeout(poll,15000);
+ }
  const placeholder=card.querySelector('.photo-placeholder');
  if(placeholder){placeholder.style.display='flex';placeholder.textContent='Photo unavailable';placeholder.setAttribute('role','img');placeholder.setAttribute('aria-label','Recipe photo unavailable');}
  card.classList.add('recipe-photo-missing');
