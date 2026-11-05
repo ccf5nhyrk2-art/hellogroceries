@@ -838,8 +838,10 @@ def official_images(recipe):
    description=(attrs.get('alt','')+' '+attrs.get('title','')+' '+attrs.get('data-testid','')).lower()
    if not words or sum(w in description for w in words)<min(2,len(words)):continue
    for key in ('src','data-src','srcset','data-srcset'):
-    for entry in attrs.get(key,'').split(','):
-     candidate=entry.strip().split(' ',1)[0]
+    value=attrs.get(key,'')
+    entries=re.findall(r'https?://[^\\s]+',value) if 'srcset' in key else [value]
+    for entry in entries:
+     candidate=entry.rstrip(',').strip()
      if candidate:candidates.append(candidate)
   # Official recipe-page OpenGraph image metadata may contain a complete
   # media.hellofresh.com Cloudinary URL even when the stored image is empty.
