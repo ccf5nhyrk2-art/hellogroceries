@@ -1034,8 +1034,11 @@ def force_verified_photo_jpeg_url(url):
    return urllib.parse.urlunsplit(parsed._replace(path='/'.join(segments)))
  return url
 
-def download_photo(url,rid,prefer_jpeg=False):
- if not complete_recipe_photo_url(url):return None
+def download_photo(url,rid,prefer_jpeg=False,diagnostics=None):
+ def reject(reason):
+  if diagnostics is not None:diagnostics.append(reason)
+  return None
+ if not complete_recipe_photo_url(url):return reject('incomplete_url')
  if prefer_jpeg:url=force_verified_photo_jpeg_url(url)
  # Verified imported sources may return a previously quarantined WebP variant.
  # Request JPEG first only for a provenance-verified recipe URL; keep the
@@ -1044,13 +1047,13 @@ def download_photo(url,rid,prefer_jpeg=False):
  req=urllib.request.Request(url,headers={'User-Agent':'Mozilla/5.0 (compatible; HelloGroceries/1.0)','Accept':accept})
  opener=urllib.request.build_opener(SafePhotoRedirect)
  with opener.open(req,timeout=12) as resp:
-  if not allowed_photo_url(resp.geturl()):return None
-  if int(resp.headers.get('Content-Length') or 0)>8_000_000:return None
+  if not allowed_photo_url(resp.geturl()):return reject('unsafe_redirect')
+  if int(resp.headers.get('Content-Length') or 0)>8_000_000:return reject('oversized_content_length')
   raw=resp.read(8_000_001)
- if len(raw)>8_000_000 or len(raw)<2048:return None
+ if len(raw)>8_000_000 or len(raw)<2048:return reject('invalid_image_size')
  digest=photo_digest(raw)
  with photo_rejected_guard:
-  if digest in photo_rejected_digests:return None
+  if digest in photo_rejected_digests:return reject('quarantined_digest')
  # Imported 10 MM recipes frequently point to the same generic hero art.
  # Reject it before writing to disk if another first-page recipe already
  # owns these exact bytes. This avoids an endless quarantine/recovery loop.
@@ -1063,10 +1066,10 @@ def download_photo(url,rid,prefer_jpeg=False):
     other_cached=cached_photo(other_id)
     if other_cached and photo_digest(other_cached[0].read_bytes())==digest:
      photo_repair_log(rid,'duplicate_rejected',f'Identical to cached recipe {other_id}')
-     return None
+     return reject('duplicate_image')
   except (OSError,ValueError,TypeError):pass
  kind=image_type(raw)
- if not kind:return None
+ if not kind:return reject('invalid_image_format')
  mime,ext=kind
  dest=PHOTO_DIR/(str(rid)+ext)
  tmp=PHOTO_DIR/(str(rid)+'.tmp-'+str(threading.get_ident()))
@@ -1094,7 +1097,7 @@ def trusted_imported_photo_url(recipe):
  if len(tokens)>=2 and matched>=max(2,(len(tokens)+1)//2):return url
  return ''
 
-def resolve_photo(recipe,refresh=False):
+def resolve_photo(recipe,refresh=False,diagnostics=None):
  rid=int(recipe['id'])
  with photo_locks_guard:
   item_lock=photo_locks.setdefault(rid,threading.Lock())
@@ -1118,9 +1121,10 @@ def resolve_photo(recipe,refresh=False):
   # provenance-verified. Force JPEG for either, retaining digest checks.
   for url in urls:
    try:
-    result=download_photo(url,rid,prefer_jpeg=(1000000<=rid<2000000 and (url==trusted or url in verified_official)))
+    result=download_photo(url,rid,prefer_jpeg=(1000000<=rid<2000000 and (url==trusted or url in verified_official)),diagnostics=diagnostics)
     if result:return result
-   except (OSError,ValueError,TimeoutError,urllib.error.URLError):pass
+   except (OSError,ValueError,TimeoutError,urllib.error.URLError) as exc:
+    if diagnostics is not None:diagnostics.append('download_'+type(exc).__name__+(('_'+str(exc.code)) if isinstance(exc,urllib.error.HTTPError) else ''))
   urls=[] if 1000000<=rid<2000000 else [url for url in official_images(recipe) if url!=existing]
   # Exact official hero image verified for this historical HelloFresh recipe.
   if '5c670341c445fa54f6615252' in recipe.get('url',''):
@@ -1128,12 +1132,14 @@ def resolve_photo(recipe,refresh=False):
    urls=[hero]+[url for url in urls if url!=hero]
   for url in urls:
    try:
-    result=download_photo(url,rid)
+    result=download_photo(url,rid,diagnostics=diagnostics)
     if result:
      if url!=existing:
       with db() as c:c.execute('INSERT OR REPLACE INTO photos(recipe_id,image_url) VALUES(?,?)',(rid,url))
      return result
-   except (OSError,ValueError,TimeoutError,urllib.error.URLError):continue
+   except (OSError,ValueError,TimeoutError,urllib.error.URLError) as exc:
+    if diagnostics is not None:diagnostics.append('download_'+type(exc).__name__+(('_'+str(exc.code)) if isinstance(exc,urllib.error.HTTPError) else ''))
+    continue
   return None if refresh else cached_photo(rid)
 
 # Keep remote photo downloads off browser-facing HTTP threads.
