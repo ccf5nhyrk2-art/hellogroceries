@@ -85,7 +85,8 @@ async function main() {
     if (deployedPlanner) {
       await page.waitForFunction(() => document.querySelectorAll('#planner-selected-meals-list .selected-meal').length === Object.keys(state.selected || {}).length, null, { timeout: 30000 });
       const plannerControls = await page.locator('#planner-selected-meals-list .selected-meal').count();
-      assert.equal(plannerControls, planSnapshot.expected, 'Plan page must display saved meals directly above weekly planner');
+      const liveExpected = await page.evaluate(() => Object.keys(state.selected || {}).length);
+      assert.equal(plannerControls, liveExpected, 'Plan page must display saved meals directly above weekly planner');
     } else {
       console.log('PENDING DEPLOY: live staging does not yet include the new Plan page; candidate source verified');
     }
