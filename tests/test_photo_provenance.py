@@ -15,15 +15,15 @@ namespace["complete_recipe_photo_url"] = lambda url: url.startswith("https://img
 
 class PhotoProvenanceTests(unittest.TestCase):
     def test_exact_recipe_id(self):
-        r = {"url": "https://www.hellofresh.com/recipes/zucchini-bowls-63ae3c69bf4d4fa8b03054c", "image": "https://img.hellofresh.com/hellofresh_s3/image/63ae3c69bf4d4fa8b03054c-147e0778.jpg"}
+        r = {"url": "https://www.hellofresh.com/recipes/zucchini-bowls-63ae3c69bf4d4fa8b03054c0", "image": "https://img.hellofresh.com/hellofresh_s3/image/63ae3c69bf4d4fa8b03054c0-147e0778.jpg"}
         self.assertEqual(namespace["trusted_imported_photo_url"](r), r["image"])
 
     def test_descriptive_filename(self):
-        r = {"url": "https://www.hellofresh.com/recipes/zucchini-tomato-couscous-bowls-63ae3c69bf4d4fa8b03054c", "image": "https://img.hellofresh.com/hellofresh_s3/image/zucchini-tomato-couscous-bowls-19aed128.jpg"}
+        r = {"url": "https://www.hellofresh.com/recipes/zucchini-tomato-couscous-bowls-63ae3c69bf4d4fa8b03054c0", "image": "https://img.hellofresh.com/hellofresh_s3/image/zucchini-tomato-couscous-bowls-19aed128.jpg"}
         self.assertEqual(namespace["trusted_imported_photo_url"](r), r["image"])
 
     def test_generic_and_unrelated_rejected(self):
-        r = {"url": "https://www.hellofresh.com/recipes/turkey-wraps-63ae3c69bf4d4fa8b03054c", "image": "https://img.hellofresh.com/hellofresh_s3/image/chicken-rice-bowl.jpg"}
+        r = {"url": "https://www.hellofresh.com/recipes/turkey-wraps-63ae3c69bf4d4fa8b03054c0", "image": "https://img.hellofresh.com/hellofresh_s3/image/chicken-rice-bowl.jpg"}
         self.assertEqual(namespace["trusted_imported_photo_url"](r), "")
         r["image"] = "https://img.hellofresh.com/hellofresh_s3/image/default-recipe.jpg"
         self.assertEqual(namespace["trusted_imported_photo_url"](r), "")
