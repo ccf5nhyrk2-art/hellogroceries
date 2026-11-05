@@ -57,10 +57,11 @@ class PhotoProvenanceTests(unittest.TestCase):
                         and n.func.id == "download_photo" for k in n.keywords
                         if k.arg == "prefer_jpeg")
         expr = compile(ast.Expression(override), str(SOURCE), "eval")
-        self.assertFalse(eval(expr, {}, {"rid": 1012949, "trusted": "", "url": "https://img.hellofresh.com/x.jpg"}))
-        self.assertFalse(eval(expr, {}, {"rid": 1012949, "trusted": "https://img.hellofresh.com/owned.jpg", "url": "https://img.hellofresh.com/other.jpg"}))
-        self.assertTrue(eval(expr, {}, {"rid": 1012949, "trusted": "https://img.hellofresh.com/owned.jpg", "url": "https://img.hellofresh.com/owned.jpg"}))
-        self.assertFalse(eval(expr, {}, {"rid": 99, "trusted": "https://img.hellofresh.com/owned.jpg", "url": "https://img.hellofresh.com/owned.jpg"}))
+        self.assertFalse(eval(expr, {}, {"rid": 1012949, "trusted": "", "verified_official": [], "url": "https://img.hellofresh.com/x.jpg"}))
+        self.assertFalse(eval(expr, {}, {"rid": 1012949, "trusted": "https://img.hellofresh.com/owned.jpg", "verified_official": [], "url": "https://img.hellofresh.com/other.jpg"}))
+        self.assertTrue(eval(expr, {}, {"rid": 1012949, "trusted": "https://img.hellofresh.com/owned.jpg", "verified_official": [], "url": "https://img.hellofresh.com/owned.jpg"}))
+        self.assertTrue(eval(expr, {}, {"rid": 1012949, "trusted": "", "verified_official": ["https://img.hellofresh.com/verified.jpg"], "url": "https://img.hellofresh.com/verified.jpg"}))
+        self.assertFalse(eval(expr, {}, {"rid": 99, "trusted": "https://img.hellofresh.com/owned.jpg", "verified_official": [], "url": "https://img.hellofresh.com/owned.jpg"}))
 
 
     def test_force_jpeg_transform_only_on_official_cdn(self):
