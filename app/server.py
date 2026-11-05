@@ -1067,11 +1067,13 @@ def resolve_photo(recipe,refresh=False):
    # Accept imported artwork only if its path identifies this exact recipe.
    # Generic shared fallback URLs remain excluded.
    trusted=trusted_imported_photo_url(recipe)
-   urls=([trusted] if trusted else [])+ [u for u in official_images(recipe) if u!=trusted]
-  # Attempt the recipe-specific candidates first.
+   verified_official=official_images(recipe)
+   urls=([trusted] if trusted else [])+ [u for u in verified_official if u!=trusted]
+  # Both trusted imported images and matching Recipe JSON-LD images are
+  # provenance-verified. Force JPEG for either, retaining digest checks.
   for url in urls:
    try:
-    result=download_photo(url,rid,prefer_jpeg=(1000000<=rid<2000000 and bool(trusted) and url==trusted))
+    result=download_photo(url,rid,prefer_jpeg=(1000000<=rid<2000000 and (url==trusted or url in verified_official)))
     if result:return result
    except (OSError,ValueError,TimeoutError,urllib.error.URLError):pass
   urls=[] if 1000000<=rid<2000000 else [url for url in official_images(recipe) if url!=existing]
