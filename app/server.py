@@ -1000,8 +1000,9 @@ def resolve_photo(recipe,refresh=False):
   # fallback supplied by the importer. Prefer the recipe page's own
   # structured metadata before trusting that imported URL.
   if 1000000<=rid<2000000:
-   official=official_images(recipe)
-   urls=[url for url in official if url not in urls]+urls
+   # Imported image fields can contain unrelated shared fallback artwork.
+   # Never retry them when the recipe-owned source cannot be verified.
+   urls=official_images(recipe)
   # Attempt the recipe-specific candidates first.
   for url in urls:
    try:
