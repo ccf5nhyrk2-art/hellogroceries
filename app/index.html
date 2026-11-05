@@ -2866,14 +2866,8 @@ function renderRecommendations(){
  // Relax variety limits only when otherwise unable to fill five slots.
  if(results.length<5)for(const item of rotated){if(results.length>=5)break;if(!used.has(String(item.r.id))){results.push(item);used.add(String(item.r.id))}}
  void (async()=>{
- // Only display locally cached photos; never block the recipe page on external downloads.
+ // Rank and display recommendations immediately; failed images use existing fallback.
  const generation=++recommendationRenderGeneration;
- if(!recommendationCachedPhotoIds){
-  if(!recommendationPhotoLookup)recommendationPhotoLookup=fetch('/api/recommendation-photos').then(r=>{if(!r.ok)throw Error('Photo list unavailable');return r.json()}).then(data=>new Set((data.ids||[]).map(String))).catch(()=>new Set()).finally(()=>{recommendationPhotoLookup=null});
-  if(!panel.querySelector('.recommend-card'))panel.innerHTML='<p class="muted" role="status">Loading recommendations…</p>';
-  recommendationCachedPhotoIds=await Promise.race([recommendationPhotoLookup,new Promise(resolve=>setTimeout(()=>resolve(new Set()),8000))]);
- }
- if(generation!==recommendationRenderGeneration){scheduleRecipeRecommendations();return;}
  const choices=[...results,...rotated.filter(x=>!used.has(String(x.r.id)))];
  // Deduplicate recommendation identities and equivalent recipe titles before
  // limiting the carousel; distinct imported IDs often represent the same meal.
