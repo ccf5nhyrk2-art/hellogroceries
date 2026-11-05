@@ -33,5 +33,34 @@ class PhotoProvenanceTests(unittest.TestCase):
         self.assertIn("application/ld", source)
         self.assertRegex(source, r"r'<script\\b")
 
+
+    def test_verified_imported_images_request_jpeg_first(self):
+        source = SOURCE.read_text()
+        tree = ast.parse(source)
+        downloader = next(n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name == "download_photo")
+        resolver = next(n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name == "resolve_photo")
+        self.assertIn("prefer_jpeg", [a.arg for a in downloader.args.args])
+        # The JPEG preference is limited to provenance-verified imported URLs.
+        calls = [n for n in ast.walk(resolver) if isinstance(n, ast.Call)
+                 and isinstance(n.func, ast.Name) and n.func.id == "download_photo"]
+        self.assertTrue(any(any(k.arg == "prefer_jpeg" for k in call.keywords) for call in calls))
+        self.assertIn("image/jpeg,image/png", ast.get_source_segment(source, downloader))
+        self.assertIn("digest in photo_rejected_digests", ast.get_source_segment(source, downloader))
+        self.assertIn("Identical to cached recipe", ast.get_source_segment(source, downloader))
+
+    def test_unverified_imported_images_do_not_get_jpeg_override(self):
+        source = SOURCE.read_text()
+        resolver = next(n for n in ast.parse(source).body
+                        if isinstance(n, ast.FunctionDef) and n.name == "resolve_photo")
+        override = next(k.value for n in ast.walk(resolver)
+                        if isinstance(n, ast.Call) and isinstance(n.func, ast.Name)
+                        and n.func.id == "download_photo" for k in n.keywords
+                        if k.arg == "prefer_jpeg")
+        expr = compile(ast.Expression(override), str(SOURCE), "eval")
+        self.assertFalse(eval(expr, {}, {"rid": 1012949, "trusted": "", "url": "https://img.hellofresh.com/x.jpg"}))
+        self.assertFalse(eval(expr, {}, {"rid": 1012949, "trusted": "https://img.hellofresh.com/owned.jpg", "url": "https://img.hellofresh.com/other.jpg"}))
+        self.assertTrue(eval(expr, {}, {"rid": 1012949, "trusted": "https://img.hellofresh.com/owned.jpg", "url": "https://img.hellofresh.com/owned.jpg"}))
+        self.assertFalse(eval(expr, {}, {"rid": 99, "trusted": "https://img.hellofresh.com/owned.jpg", "url": "https://img.hellofresh.com/owned.jpg"}))
+
 if __name__ == "__main__":
     unittest.main()
