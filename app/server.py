@@ -975,8 +975,23 @@ def cached_photo(rid):
     except OSError:continue
    return p,kind
  return None
+def force_verified_photo_jpeg_url(url):
+ """Force JPEG on official HelloFresh CDN transform paths; never alter identity."""
+ parsed=urllib.parse.urlsplit(url)
+ if parsed.scheme!='https' or parsed.hostname not in {'img.hellofresh.com','media.hellofresh.com'}:
+  return url
+ segments=parsed.path.split('/')
+ for i,segment in enumerate(segments):
+  transforms=segment.split(',')
+  if 'f_auto' in transforms:
+   transforms[transforms.index('f_auto')]='f_jpg'
+   segments[i]=','.join(transforms)
+   return urllib.parse.urlunsplit(parsed._replace(path='/'.join(segments)))
+ return url
+
 def download_photo(url,rid,prefer_jpeg=False):
  if not complete_recipe_photo_url(url):return None
+ if prefer_jpeg:url=force_verified_photo_jpeg_url(url)
  # Verified imported sources may return a previously quarantined WebP variant.
  # Request JPEG first only for a provenance-verified recipe URL; keep the
  # rejected-digest and duplicate checks in place for every format.
