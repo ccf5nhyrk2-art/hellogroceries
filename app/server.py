@@ -753,6 +753,22 @@ def recipe_source_enrichment_worker():
   time.sleep(1800)
 
 
+def photo_repair_log(rid,status,detail=''):
+ """Persist bounded recovery outcomes without altering recipe records."""
+ try:
+  path=Path('/data/photo_repair_status.json')
+  with photo_repair_status_guard:
+   try:data=json.loads(path.read_text())
+   except (OSError,ValueError):data={}
+   data[str(rid)]={'status':status,'detail':str(detail)[:160],'checked_at':datetime.datetime.now(datetime.timezone.utc).isoformat()}
+   if len(data)>1000:data=dict(list(data.items())[-1000:])
+   tmp=path.with_suffix('.tmp')
+   tmp.write_text(json.dumps(data))
+   os.replace(tmp,path)
+ except (OSError,TypeError):pass
+
+photo_repair_status_guard=threading.Lock()
+
 def official_images(recipe):
  url=recipe.get('url','')
  if not url or not allowed_url(url):return []
@@ -792,10 +808,20 @@ def official_images(recipe):
    if not ('recipe' in description or 'hero' in description or (words and sum(w in description for w in words)>=min(2,len(words)))):continue
    candidates.extend([attrs.get('src',''),attrs.get('data-src','')])
    candidates.extend(part.strip().split(' ')[0] for part in attrs.get('srcset','').split(','))
+  # Also inspect JSON-escaped metadata embedded by the HelloFresh frontend.
+  for match in re.findall(r'(?:\\\\u002[fF]|\\\\/|/)(?:hellofresh_s3|recipes|recipe)(?:\\\\u002[fF]|\\\\/|/)[^"\\s<>]{8,350}',page):
+   candidate=match.replace('\\\\/','/').replace('\\\\u002F','/').replace('\\\\u002f','/')
+   if candidate.startswith('/'):
+    candidates.append('https://img.hellofresh.com'+candidate)
   # Embedded application data often carries the actual CDN image URL.
   for raw in re.findall(r'https?:\\?/\\?/[^"\'\s<>]{10,400}',page):
    candidate=raw.replace('\\/','/').replace('\\u002F','/')
    if ('hellofresh_s3/image/' in candidate or '/recipe/' in candidate) and any(host in candidate for host in ('img.hellofresh.com','media.hellofresh.com','images.ctfassets.net')):
+    candidates.append(candidate)
+  # Existing source image metadata is often nested in Next.js JSON.
+  for raw in re.findall(r'https?[^"\\s<>]{20,450}',page):
+   candidate=html.unescape(raw).replace('\\\\/','/').replace('\\\\u002F','/').replace('\\\\u002f','/')
+   if candidate.startswith('https://') and ('/hellofresh_s3/image/' in candidate or '/recipes/image/' in candidate):
     candidates.append(candidate)
   # Favor full recipe hero photos, not the site's social-sharing logo.
   candidates.sort(key=lambda u: (0 if isinstance(u,str) and '/recipes/image/' in u else 1 if isinstance(u,str) and '/hellofresh_s3/image/' in u else 2))
@@ -930,10 +956,18 @@ def photo_recovery_worker():
   recipe=photo_recovery_queue.get()
   rid=int(recipe['id'])
   try:
-   if not cached_photo(rid) and not resolve_photo(recipe):
-    with photo_recovery_guard:photo_recovery_last_failed[rid]=time.monotonic()
+   if not cached_photo(rid):
+    recovered=resolve_photo(recipe)
+    if recovered:
+     photo_repair_log(rid,'recovered')
+     print(f'Photo recovered: {rid}',flush=True)
+    else:
+     with photo_recovery_guard:photo_recovery_last_failed[rid]=time.monotonic()
+     photo_repair_log(rid,'unavailable','Source page or image did not yield a usable photo')
+     print(f'Photo source unavailable: {rid}',flush=True)
   except Exception as exc:
    with photo_recovery_guard:photo_recovery_last_failed[rid]=time.monotonic()
+   photo_repair_log(rid,'error',repr(exc))
    print(f'Photo recovery failed for {rid}: {exc!r}',flush=True)
   finally:
    with photo_recovery_guard:photo_recovery_pending.discard(rid)
