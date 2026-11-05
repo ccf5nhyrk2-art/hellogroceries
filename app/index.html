@@ -2871,7 +2871,7 @@ function renderRecommendations(){
  if(!recommendationCachedPhotoIds){
   if(!recommendationPhotoLookup)recommendationPhotoLookup=fetch('/api/recommendation-photos').then(r=>{if(!r.ok)throw Error('Photo list unavailable');return r.json()}).then(data=>new Set((data.ids||[]).map(String))).catch(()=>new Set()).finally(()=>{recommendationPhotoLookup=null});
   panel.innerHTML='<p class="muted" role="status">Loading recommendations…</p>';
-  recommendationCachedPhotoIds=await recommendationPhotoLookup;
+  recommendationCachedPhotoIds=await Promise.race([recommendationPhotoLookup,new Promise(resolve=>setTimeout(()=>resolve(new Set()),8000))]);
  }
  if(generation!==recommendationRenderGeneration)return;
  const choices=[...results,...rotated.filter(x=>!used.has(String(x.r.id)))];
@@ -3550,6 +3550,8 @@ function hfImageLoaded(img,id){
  // Treat small/generic branding assets as unavailable instead of showing
  // bright green placeholder art as a recipe photograph.
  const source=img.getAttribute('data-original-image')||'';
+ // Transparent or nearly empty images must not leave an empty photo frame.
+ if(!img.naturalWidth||!img.naturalHeight){hfHideBrokenCatalogCard(img,id);return;}
  const retrySource=()=>{
   if(img.dataset.logoSourceTried||!/^https:\/\//i.test(source)||source===img.src)return false;
   img.dataset.logoSourceTried='1';img.src=source;return true;
@@ -3569,6 +3571,15 @@ function hfImageLoaded(img,id){
    if(pixels[i+3]<128)continue;
    opaque++;
    if(pixels[i+1]>110&&pixels[i+1]>pixels[i]*1.25&&pixels[i+1]>pixels[i+2]*1.25)green++;
+  }
+  // Very pale/blank source images also count as missing photos.
+  let blank=0;
+  for(let i=0;i<pixels.length;i+=4){
+   if(pixels[i+3]<128||Math.min(pixels[i],pixels[i+1],pixels[i+2])>242)blank++;
+  }
+  if(blank/pixels.length*4>0.92){
+   if(retrySource())return;
+   hfHideBrokenCatalogCard(img,id);hfUpdatePhotoAudit();return;
   }
   if(opaque&&green/opaque>0.30){
    if(retrySource())return;
