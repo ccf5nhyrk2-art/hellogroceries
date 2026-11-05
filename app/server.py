@@ -800,6 +800,35 @@ def official_images(recipe):
   return official_images_from_page(recipe,page)
  except Exception:return []
 
+def official_images_from_embedded_recipe(recipe,page):
+ """Recover image URLs from embedded JSON only when bound to exact source ID.
+
+ Never use page-wide social images, unrelated recommendations, or fallback art.
+ """
+ source=str(recipe.get('url') or '')
+ match=re.search(r'([0-9a-f]{24})(?:[/?#]|$)',urllib.parse.urlsplit(source).path,re.I)
+ if not match:return []
+ source_id=match.group(1).lower()
+ results=[]
+ # The importer may have lost the image filename while retaining the page's
+ # exact recipe ID. Only inspect small JSON objects containing that identity.
+ for hit in re.finditer(re.escape(source_id),page,re.I):
+  left=max(0,hit.start()-4000)
+  right=min(len(page),hit.end()+4000)
+  snippet=html.unescape(page[left:right]).replace('\\/','/')
+  # Require exact ID in a recipe identity field, not arbitrary text proximity.
+  if not re.search(r'["\\\'](?:id|recipeId|recipe_id|slug)["\\\']\\s*:\\s*["\\\'][^"\\\']*'+re.escape(source_id)+r'["\\\']',snippet,re.I):continue
+  for candidate in re.findall(r'https://(?:img|media|cdn)\\.hellofresh\\.com/[^\\s"\\\'<>\\\\]{8,1200}',snippet,re.I):
+   candidate=clean_official_photo_candidate(candidate)
+   if not complete_recipe_photo_url(candidate):continue
+   path=urllib.parse.urlsplit(candidate).path.lower()
+   if re.search(r'(?:placeholder|default|generic|fallback|stock|logo)',path):continue
+   if candidate not in results:results.append(candidate)
+  if len(results)>5:break
+ # Never guess when several candidate assets are attached to the same page.
+ return results[:1] if len(results)==1 else []
+
+
 def official_images_from_page(recipe,page):
   url=recipe.get('url','')
   # A recipe page can contain recommendations and generic social artwork.
@@ -846,6 +875,8 @@ def official_images_from_page(recipe,page):
    if not isinstance(img,str):continue
    img=clean_official_photo_candidate(img)
    if img and complete_recipe_photo_url(img) and len(img)<2048 and img not in results and not re.search(r'(?:logo|placeholder|brandmark|default-image)',urllib.parse.urlsplit(img).path,re.I):results.append(img)
+  if not results:
+   results=official_images_from_embedded_recipe(recipe,page)
   return results
 
 def official_image(recipe):
