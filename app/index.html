@@ -1502,6 +1502,8 @@ async function load(){
   .then(async ([stateReady,page])=>{
    if(!stateReady||!page||!status||status.hidden||status.textContent!=='Loading recipes…')return;
    $('recipes').innerHTML=page.items.map(recipeCardMarkup).join('');
+   $('prevpage').disabled=page.page<=1;
+   $('nextpage').disabled=page.page>=page.pages;
    $('filtercount').textContent='Showing first '+page.items.length+' recipes while the catalog loads…';
    $('pageinfo').textContent='Page 1 of '+Math.max(1,Number(page.pages)||1);
    status.textContent='Recipes ready';
@@ -1524,8 +1526,11 @@ async function load(){
   return;
  }
  try{
-  render();
+  // First page was already fetched and painted; avoid a duplicate blocking page request.
+  renderSelectedPlan();
+  updateEnhancements();
   if(status)status.hidden=true;
+  scheduleRecipeRecommendations();
  }catch(error){
   console.error('HelloGroceries recipe render failed:',error);
   if(status){
