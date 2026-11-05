@@ -803,7 +803,7 @@ def official_images(recipe):
   for img in candidates:
    if not isinstance(img,str):continue
    img=html.unescape(img).replace('\\/','/').strip()
-   if allowed_photo_url(img) and len(img)<2048 and img not in results and not re.search(r'(?:logo|placeholder|brandmark|default-image)',urllib.parse.urlsplit(img).path,re.I):results.append(img)
+   if complete_recipe_photo_url(img) and len(img)<2048 and img not in results and not re.search(r'(?:logo|placeholder|brandmark|default-image)',urllib.parse.urlsplit(img).path,re.I):results.append(img)
   return results
  except Exception:return []
 
@@ -846,7 +846,7 @@ def cached_photo(rid):
   if p.is_file():return p,kind
  return None
 def download_photo(url,rid):
- if not allowed_photo_url(url):return None
+ if not complete_recipe_photo_url(url):return None
  req=urllib.request.Request(url,headers={'User-Agent':'Mozilla/5.0 (compatible; HelloGroceries/1.0)','Accept':'image/avif,image/webp,image/png,image/jpeg,image/gif'})
  opener=urllib.request.build_opener(SafePhotoRedirect)
  with opener.open(req,timeout=12) as resp:
@@ -875,7 +875,7 @@ def resolve_photo(recipe,refresh=False):
    if cached:return cached
   urls=[]
   existing=recipe.get('image','')
-  if existing and not re.search(r'(?:logo|placeholder|brandmark|default-image)',urllib.parse.urlsplit(existing).path,re.I):urls.append(existing)
+  if complete_recipe_photo_url(existing) and not re.search(r'(?:logo|placeholder|brandmark|default-image)',urllib.parse.urlsplit(existing).path,re.I):urls.append(existing)
   # Attempt the known photo first; only fetch the recipe page when it fails.
   for url in urls:
    try:
@@ -912,6 +912,19 @@ def schedule_photo_recovery(recipe):
   except queue.Full:return False
   photo_recovery_pending.add(rid)
  return True
+def queue_missing_first_page_photos():
+ """Prioritize visible recipe cards without touching stored recipes."""
+ try:
+  cards,_=default_recipe_page_data()
+  catalog={int(r['id']):r for r in browse_catalog()}
+  queued=0
+  for card in cards[:48]:
+   rid=int(card['id'])
+   if not cached_photo(rid) and rid in catalog and schedule_photo_recovery(catalog[rid]):queued+=1
+  print(f'First-page photo recovery queued: {queued}',flush=True)
+ except Exception as exc:
+  print('First-page photo recovery setup:',repr(exc),flush=True)
+
 def photo_recovery_worker():
  while True:
   recipe=photo_recovery_queue.get()
@@ -1683,10 +1696,29 @@ def visible_cooking_recipe(recipe,checks):
  url=str(recipe.get('instructions_url') or recipe.get('url') or '')
  return bool(url and allowed_url(url)) # Fail open for inconclusive checks; no deletion.
 
+def complete_recipe_photo_url(url):
+ """Reject CDN transform-only URLs with no actual image asset path."""
+ if not isinstance(url,str) or not url.strip():return False
+ try:
+  u=urllib.parse.urlsplit(url.strip())
+  if not allowed_photo_url(url):return False
+  path=urllib.parse.unquote(u.path).rstrip('/')
+  if not path:return False
+  if u.hostname and u.hostname.lower() in ('img.hellofresh.com','media.hellofresh.com','cdn.hellofresh.com'):
+   parts=[p for p in path.split('/') if p]
+   if not parts:return False
+   # HelloFresh Cloudinary transform directives are not image assets.
+   if all(re.fullmatch(r'(?:[a-z]{1,3}_[a-z0-9.:-]+)(?:,[a-z]{1,3}_[a-z0-9.:-]+)*',p,re.I) for p in parts):return False
+   if path.endswith('/w_1200') or path.endswith('/q_auto'):return False
+  return True
+ except (ValueError,TypeError):return False
+
 def validate_import_recipe(recipe):
  """Apply catalog policy at the import boundary; do not delete prior entries."""
  reason=non_recipe_reason(recipe)
  if reason:raise ValueError('Skipped non-recipe listing: '+reason)
+ # Keep recipes and instructions, but never persist a transform-only URL as a photo.
+ if not complete_recipe_photo_url(recipe.get('image')):recipe['image']=''
  if len(recipe.get('ingredients') or {})<2:
   raise ValueError('Skipped listing without a usable ingredient list')
  return recipe
@@ -4322,6 +4354,7 @@ if __name__=='__main__':
  recipe_catalog_warmup_worker()
  for index in range(2):
   threading.Thread(target=photo_recovery_worker,daemon=True,name=f'photo-recovery-{index}').start()
+ queue_missing_first_page_photos()
  threading.Thread(target=recommendation_photo_warmup_worker,daemon=True,name='recommendation-photo-warmup').start()
  threading.Thread(target=nutrition_scan_worker,daemon=True,name='nutrition-background-scan').start()
  threading.Thread(target=recipe_source_enrichment_worker,daemon=True,name='recipe-source-enrichment').start()
