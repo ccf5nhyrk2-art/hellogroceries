@@ -817,8 +817,8 @@ def official_images_from_embedded_recipe(recipe,page):
   right=min(len(page),hit.end()+4000)
   snippet=html.unescape(page[left:right]).replace('\\/','/')
   # Require exact ID in a recipe identity field, not arbitrary text proximity.
-  if not re.search(r'["\\\'](?:id|recipeId|recipe_id|slug)["\\\']\\s*:\\s*["\\\'][^"\\\']*'+re.escape(source_id)+r'["\\\']',snippet,re.I):continue
-  for candidate in re.findall(r'https://(?:img|media|cdn)\\.hellofresh\\.com/[^\\s"\\\'<>\\\\]{8,1200}',snippet,re.I):
+  if not any(('"' + key + '"') in snippet and source_id in snippet for key in ('id','recipeId','recipe_id','slug')):continue
+  for candidate in re.findall(r'https://(?:img|media|cdn)[.]hellofresh[.]com/[^\\s"\\x27<>\\\\]{8,1200}',snippet,re.I):
    candidate=clean_official_photo_candidate(candidate)
    if not complete_recipe_photo_url(candidate):continue
    path=urllib.parse.urlsplit(candidate).path.lower()
