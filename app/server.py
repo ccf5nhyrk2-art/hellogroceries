@@ -1034,6 +1034,25 @@ def force_verified_photo_jpeg_url(url):
    return urllib.parse.urlunsplit(parsed._replace(path='/'.join(segments)))
  return url
 
+def official_photo_url_variants(url):
+ """Bounded alternate deliveries for the SAME official image asset only."""
+ if not complete_recipe_photo_url(url):return []
+ parsed=urllib.parse.urlsplit(url)
+ if parsed.hostname not in ('img.hellofresh.com','media.hellofresh.com'):return []
+ parts=parsed.path.split('/')
+ index=next((i for i,p in enumerate(parts) if p in ('recipes','hellofresh_s3') and i+1<len(parts)),None)
+ if index is None:return []
+ asset='/'.join(parts[index:])
+ if not re.search(r'\\.(?:jpe?g|png|webp)$',asset,re.I):return []
+ variants=[]
+ for host,prefix in (('img.hellofresh.com',''),('media.hellofresh.com','')):
+  for transform in ('','q_85,w_1200,f_jpg,c_limit/'):
+   candidate='https://'+host+'/'+transform+asset
+   if candidate!=url and complete_recipe_photo_url(candidate) and candidate not in variants:
+    variants.append(candidate)
+ return variants[:4]
+
+
 def download_photo(url,rid,prefer_jpeg=False,diagnostics=None):
  def reject(reason):
   if diagnostics is not None:diagnostics.append(reason)
@@ -1120,11 +1139,19 @@ def resolve_photo(recipe,refresh=False,diagnostics=None):
   # Both trusted imported images and matching Recipe JSON-LD images are
   # provenance-verified. Force JPEG for either, retaining digest checks.
   for url in urls:
-   try:
-    result=download_photo(url,rid,prefer_jpeg=(1000000<=rid<2000000 and (url==trusted or url in verified_official)),diagnostics=diagnostics)
-    if result:return result
-   except (OSError,ValueError,TimeoutError,urllib.error.URLError) as exc:
-    if diagnostics is not None:diagnostics.append('download_'+type(exc).__name__+(('_'+str(exc.code)) if isinstance(exc,urllib.error.HTTPError) else ''))
+   # Retry only alternate transformations/hosts of the identical asset on 404.
+   # Never search for a different recipe image or bypass digest checks.
+   variants=[url]
+   for candidate in variants:
+    try:
+     result=download_photo(candidate,rid,prefer_jpeg=(1000000<=rid<2000000 and (url==trusted or url in verified_official)),diagnostics=diagnostics)
+     if result:return result
+    except urllib.error.HTTPError as exc:
+     if diagnostics is not None:diagnostics.append('download_HTTPError_'+str(exc.code))
+     if exc.code==404 and candidate==url:
+      variants.extend(official_photo_url_variants(url))
+    except (OSError,ValueError,TimeoutError,urllib.error.URLError) as exc:
+     if diagnostics is not None:diagnostics.append('download_'+type(exc).__name__)
   urls=[] if 1000000<=rid<2000000 else [url for url in official_images(recipe) if url!=existing]
   # Exact official hero image verified for this historical HelloFresh recipe.
   if '5c670341c445fa54f6615252' in recipe.get('url',''):
