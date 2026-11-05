@@ -936,6 +936,35 @@ def audit_first_page_photo_duplicates(cards):
    except OSError:pass
  print(f'First-page duplicate photo audit: {quarantined} suspicious files quarantined',flush=True)
 
+def audit_all_cached_imported_photo_duplicates():
+ """Audit imported photos across every page at startup, not only the first 48 cards."""
+ from collections import defaultdict
+ groups=defaultdict(list)
+ for path in PHOTO_DIR.iterdir():
+  if path.suffix.lower() not in ('.jpg','.png','.webp','.gif'):continue
+  try:rid=int(path.stem)
+  except ValueError:continue
+  if not 1000000<=rid<2000000 or not valid_photo_cache_entry(path):continue
+  try:groups[photo_digest(path.read_bytes())].append((rid,path))
+  except OSError:continue
+ quarantined=0
+ for digest,items in groups.items():
+  if len({rid for rid,_ in items})<2 and digest not in photo_rejected_digests:continue
+  with photo_rejected_guard:
+   photo_rejected_digests.add(digest)
+   try:
+    tmp=photo_rejected_file.with_suffix('.tmp')
+    tmp.write_text(json.dumps(sorted(photo_rejected_digests)))
+    os.replace(tmp,photo_rejected_file)
+   except OSError:pass
+  for rid,path in items:
+   try:
+    os.replace(path,path.with_name(path.name+'.suspect'))
+    photo_repair_log(rid,'suspect_duplicate','Shared imported photo quarantined across catalog; backup preserved')
+    quarantined+=1
+   except OSError:pass
+ print(f'Full imported photo cache audit: {quarantined} files quarantined',flush=True)
+
 def cached_photo(rid):
  for ext,kind in (('.jpg','image/jpeg'),('.png','image/png'),('.webp','image/webp'),('.gif','image/gif')):
   p=PHOTO_DIR/(str(rid)+ext)
@@ -4500,6 +4529,7 @@ if __name__=='__main__':
  recipe_catalog_warmup_worker()
  for index in range(2):
   threading.Thread(target=photo_recovery_worker,daemon=True,name=f'photo-recovery-{index}').start()
+ audit_all_cached_imported_photo_duplicates()
  queue_missing_first_page_photos()
  threading.Thread(target=recommendation_photo_warmup_worker,daemon=True,name='recommendation-photo-warmup').start()
  threading.Thread(target=nutrition_scan_worker,daemon=True,name='nutrition-background-scan').start()
