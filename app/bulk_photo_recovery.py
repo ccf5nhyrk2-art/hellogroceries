@@ -7,6 +7,8 @@ import argparse
 import datetime
 import json
 import os
+import urllib.error
+import urllib.request
 import time
 from pathlib import Path
 
@@ -20,23 +22,36 @@ def atomic_json(path, payload):
 
 
 def classify_failure(recipe):
-    """Explain missing photo without weakening the resolver's provenance checks.
+    """Identify the upstream blocker without accepting unverified artwork."""
+    stored = recipe.get("image") or ""
+    if not server.complete_recipe_photo_url(stored):
+        stored_state = "incomplete_or_missing_image_url"
+    elif server.trusted_imported_photo_url(recipe):
+        stored_state = "trusted_image_url"
+    else:
+        stored_state = "unverified_image_url"
 
-    This is a diagnostic classification, not proof of a remote server's error.
-    """
-    trusted = server.trusted_imported_photo_url(recipe)
-    official = server.official_images(recipe)
-    if not trusted and not official:
-        return "no_verified_source"
-    # The resolver already attempted these sources; no image was cached.
-    # Distinguish rejected digests where a repair status explicitly records it.
+    source = recipe.get("url") or ""
+    if not source or not server.allowed_url(source):
+        return stored_state + ":invalid_recipe_page_url"
     try:
-        status = json.loads(Path("/data/photo_repair_status.json").read_text()).get(str(recipe["id"]), {})
-        if status.get("status") == "duplicate_rejected":
-            return "duplicate_rejected"
-    except (OSError, ValueError, TypeError):
-        pass
-    return "verified_source_download_or_content_rejected"
+        req = urllib.request.Request(
+            source, headers={"User-Agent": "Mozilla/5.0", "Accept": "text/html"}
+        )
+        with urllib.request.urlopen(req, timeout=12) as response:
+            if not server.allowed_url(response.geturl()):
+                return stored_state + ":unsafe_redirect"
+            page = response.read(3_000_000).decode("utf-8", "replace")
+        if "application/ld+json" not in page.lower():
+            return stored_state + ":no_structured_data"
+        if not server.official_images_from_page(recipe, page):
+            return stored_state + ":no_matching_recipe_image_metadata"
+        return stored_state + ":verified_image_download_rejected"
+    except urllib.error.HTTPError as exc:
+        return stored_state + ":source_http_" + str(exc.code)
+    except (urllib.error.URLError, TimeoutError, OSError, ValueError) as exc:
+        return stored_state + ":source_fetch_" + type(exc).__name__
+
 
 
 def main():
