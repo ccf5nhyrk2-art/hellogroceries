@@ -829,24 +829,29 @@ def official_images(recipe):
    if not ('recipe' in description or 'hero' in description or (words and sum(w in description for w in words)>=min(2,len(words)))):continue
    candidates.extend([attrs.get('src',''),attrs.get('data-src','')])
    candidates.extend(part.strip().split(' ')[0] for part in attrs.get('srcset','').split(','))
-  # Next.js emits recipe hero images as responsive srcset URLs. Parse the
-  # individual candidates instead of treating a full srcset as one URL.
-  # Only accept images from tags identifying the current recipe, to avoid
-  # accidentally assigning a recommended recipe's photo to this card.
-  for tag in re.findall(r'<(?:img|source)\\b[^>]*>',page,re.I):
-   attrs=dict((k.lower(),html.unescape(v)) for k,v in re.findall(r'([\\w:-]+)\\s*=\\s*["\\x27]([^"\\x27]*)["\\x27]',tag))
+  # Parse official Next.js responsive image tags. A Cloudinary URL can
+  # contain commas inside transformation parameters, so never split on commas.
+  for tag in re.findall(r'<(?:img|source)\b[^>]*>',page,re.I):
+   attrs=dict((k.lower(),html.unescape(v)) for k,v in re.findall(r'([\w:-]+)\s*=\s*["\x27]([^"\x27]*)["\x27]',tag))
    description=(attrs.get('alt','')+' '+attrs.get('title','')+' '+attrs.get('data-testid','')).lower()
    if not words or sum(w in description for w in words)<min(2,len(words)):continue
    for key in ('src','data-src','srcset','data-srcset'):
     value=attrs.get(key,'')
-    entries=re.findall(r'https?://[^\\s]+',value) if 'srcset' in key else [value]
+    entries=re.findall(r'https?://[^\s]+',value) if 'srcset' in key else [value]
     for entry in entries:
      candidate=entry.rstrip(',').strip()
      if candidate:candidates.append(candidate)
-  # Official recipe-page OpenGraph image metadata may contain a complete
-  # media.hellofresh.com Cloudinary URL even when the stored image is empty.
-  for tag in re.findall(r'<meta\\b[^>]*>',page,re.I):
-   attrs=dict((k.lower(),html.unescape(v)) for k,v in re.findall(r'([\\w:-]+)\\s*=\\s*["\\x27]([^"\\x27]*)["\\x27]',tag))
+  # The page often exposes its hero image in a responsive srcset without
+  # recipe-specific alt text. Capture only the first recipe image family
+  # from the page, not unrelated recommendation cards.
+  hero_paths=re.findall(r'https://media\.hellofresh\.com/[^"\x27\s<>]*?/recipes/image/[a-zA-Z0-9-]+\.(?:jpe?g|png|webp)',page,re.I)
+  if hero_paths:
+   hero_asset=re.search(r'/recipes/image/([^/?]+)',hero_paths[0],re.I)
+   if hero_asset:
+    candidates.extend(url for url in hero_paths if '/recipes/image/'+hero_asset.group(1) in url)
+  # OpenGraph metadata can also supply a usable official hero photo.
+  for tag in re.findall(r'<meta\b[^>]*>',page,re.I):
+   attrs=dict((k.lower(),html.unescape(v)) for k,v in re.findall(r'([\w:-]+)\s*=\s*["\x27]([^"\x27]*)["\x27]',tag))
    if attrs.get('property','').lower()=='og:image' and attrs.get('content'):
     candidates.insert(0,attrs['content'])
   # Also inspect JSON-escaped metadata embedded by the HelloFresh frontend.
