@@ -291,6 +291,23 @@ def visible_browse_catalog():
   _recipe_visible_cache=(time.monotonic(),catalog)
   return catalog
 
+# Cache the common unfiltered, alphabetically sorted browse view for 60 seconds.
+# Reuse compact card dictionaries rather than sorting and copying every request.
+_recipe_default_page_lock=threading.Lock()
+_recipe_default_page_cache=(0.0,None,None)
+def default_recipe_page_data():
+ global _recipe_default_page_cache
+ with _recipe_default_page_lock:
+  now=time.monotonic()
+  if _recipe_default_page_cache[1] is not None and now-_recipe_default_page_cache[0]<60:
+   return _recipe_default_page_cache[1],_recipe_default_page_cache[2]
+  catalog=visible_browse_catalog()
+  fields=('id','name','image','country','nutrition','dietary_labels','prep_time','cook_time','total_time','url','ingredients','source_servings')
+  ordered=sorted(catalog,key=lambda r:str(r.get('name') or '').casefold())
+  compact=tuple({key:r[key] for key in fields if key in r} for r in ordered)
+  _recipe_default_page_cache=(time.monotonic(),compact,len(compact))
+  return compact,len(compact)
+
 def recipe_page_cuisine(recipe):
  name=str(recipe.get('name') or '').lower()
  groups=(('italian',r'italian|risotto|parmesan|pesto|marinara|gnocchi|alfredo'),('mexican',r'mexican|taco|quesadilla|enchilada|fajita|burrito|tex.mex|chipotle'),('asian',r'korean|japanese|chinese|thai|teriyaki|ginger|soy.glazed|sesame|szechuan|curry|ramen'),('mediterranean',r'mediterranean|greek|tzatziki|shawarma|hummus|harissa'),('american',r'american|bbq|barbecue|ranch|buffalo|mac.and.cheese|southern'))
@@ -3397,6 +3414,10 @@ class Handler(SimpleHTTPRequestHandler):
    if len(ids_raw)>5000:return self.sendjson({'error':'Too many recipe IDs'},400)
    try:allowed_ids={int(x) for x in ids_raw.split(',') if x.strip()} if ids_raw else None
    except ValueError:return self.sendjson({'error':'Invalid recipe IDs'},400)
+   if not query and country=='ALL' and protein=='all' and sort=='name' and cuisine=='all' and meal=='all' and not ingredient and not exclude_ingredient and not quick and allowed_ids is None:
+    compact,total=default_recipe_page_data()
+    start=(page-1)*page_size
+    return self.sendjson({'items':compact[start:start+page_size],'page':page,'page_size':page_size,'total':total,'pages':(total+page_size-1)//page_size})
    catalog=visible_browse_catalog()
    def matches_extra(recipe):
     name=str(recipe.get('name') or '').casefold()
