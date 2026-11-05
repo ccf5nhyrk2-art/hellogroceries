@@ -270,7 +270,7 @@ def browse_catalog():
  global _recipe_browse_cache
  now=time.monotonic()
  with _recipe_browse_cache_lock:
-  if _recipe_browse_cache[1] is not None and now-_recipe_browse_cache[0]<60:
+  if _recipe_browse_cache[1] is not None and now-_recipe_browse_cache[0]<3600:
    return _recipe_browse_cache[1]
   recipes=allrecipes()
   _recipe_browse_cache=(time.monotonic(),recipes)
@@ -283,7 +283,7 @@ def visible_browse_catalog():
  global _recipe_visible_cache
  now=time.monotonic()
  with _recipe_visible_cache_lock:
-  if _recipe_visible_cache[1] is not None and now-_recipe_visible_cache[0]<60:
+  if _recipe_visible_cache[1] is not None and now-_recipe_visible_cache[0]<3600:
    return _recipe_visible_cache[1]
   # Visibility only uses stored steps and URL validity; the audit map is unused.
   # Avoid a full audit-table read on the request-critical browsing path.
@@ -299,7 +299,7 @@ def default_recipe_page_data():
  global _recipe_default_page_cache
  with _recipe_default_page_lock:
   now=time.monotonic()
-  if _recipe_default_page_cache[1] is not None and now-_recipe_default_page_cache[0]<60:
+  if _recipe_default_page_cache[1] is not None and now-_recipe_default_page_cache[0]<3600:
    return _recipe_default_page_cache[1],_recipe_default_page_cache[2]
   catalog=visible_browse_catalog()
   fields=('id','name','image','country','nutrition','dietary_labels','prep_time','cook_time','total_time','url','ingredients','source_servings')
@@ -309,17 +309,13 @@ def default_recipe_page_data():
   return compact,len(compact)
 
 def recipe_catalog_warmup_worker():
- """Keep the default browse page warm without delaying incoming HTTP requests."""
- while True:
-  started=time.monotonic()
-  try:
-   cards,total=default_recipe_page_data()
-   elapsed=time.monotonic()-started
-   print(f'Recipe catalog warmup: {total} cards in {elapsed:.3f}s',flush=True)
-  except Exception as exc:
-   print('Recipe catalog warmup failed:',repr(exc),flush=True)
-  # Refresh before the 60-second cache TTL expires.
-  time.sleep(45)
+ """Build the browse catalog once at boot; do not hammer SQLite every minute."""
+ started=time.monotonic()
+ try:
+  _,total=default_recipe_page_data()
+  print(f'Recipe catalog warmup: {total} cards in {time.monotonic()-started:.3f}s',flush=True)
+ except Exception as exc:
+  print('Recipe catalog warmup failed:',repr(exc),flush=True)
 
 def recipe_page_cuisine(recipe):
  name=str(recipe.get('name') or '').lower()
@@ -4283,13 +4279,7 @@ if __name__=='__main__':
  if BULK_RECOVER:
   job.update(running=True,paused=False,processed=0,discovered=0,imported=0,skipped=0,errors=0,message='Recovering interrupted import; saved recipes will be skipped')
   threading.Thread(target=bulk_worker,args=(job.get('country','US'),int(job.get('limit',0))),daemon=True).start()
- # Prebuild the first page before background imports/scans compete for SQLite.
- warmup_start=time.monotonic()
- try:
-  _,warmup_total=default_recipe_page_data()
-  print(f'Initial recipe page ready: {warmup_total} cards in {time.monotonic()-warmup_start:.3f}s',flush=True)
- except Exception as exc:
-  print('Initial recipe catalog warmup failed:',repr(exc),flush=True)
+ # Build catalog asynchronously so the HTTP server can accept requests promptly.
  threading.Thread(target=recipe_catalog_warmup_worker,daemon=True,name='recipe-catalog-warmup').start()
  threading.Thread(target=recommendation_photo_warmup_worker,daemon=True,name='recommendation-photo-warmup').start()
  threading.Thread(target=nutrition_scan_worker,daemon=True,name='nutrition-background-scan').start()
