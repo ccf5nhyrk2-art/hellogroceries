@@ -797,55 +797,34 @@ def official_images(recipe):
   with urllib.request.urlopen(req,timeout=12) as response:
    if not allowed_url(response.geturl()):return []
    page=response.read(3_000_000).decode('utf-8','replace')
+  # A recipe page can contain recommendations and generic social artwork.
+  # Accept ONLY structured Recipe images whose title matches this record.
   candidates=[]
+  def title_words(value):
+   stop={'recipe','hello','fresh','with','and','the','for','low','cal','lunch','high','protein','quick','easy','simple','side','meal','mm'}
+   return {w for w in re.findall(r'[a-z]{4,}',str(value).casefold()) if w not in stop}
+  expected=title_words(recipe.get('name',''))
   def walk(obj):
    if isinstance(obj,list):
     for item in obj:yield from walk(item)
    elif isinstance(obj,dict):
     if '@graph' in obj:yield from walk(obj['@graph'])
     yield obj
-  for block in re.findall(r'<script\b[^>]*type=["\x27]application/ld\+json["\x27][^>]*>(.*?)</script>',page,re.I|re.S):
+  for block in re.findall(r'<script\\b[^>]*type=["\\x27]application/ld\\+json["\\x27][^>]*>(.*?)</script>',page,re.I|re.S):
    try:
     for node in walk(json.loads(html.unescape(block))):
      types=node.get('@type',[])
      if isinstance(types,str):types=[types]
      if 'Recipe' not in types:continue
+     actual=title_words(node.get('name',''))
+     if not expected or not actual or len(expected & actual)<min(2,len(expected),len(actual)):continue
      images=node.get('image',[])
      if not isinstance(images,list):images=[images]
      for item in images:
       if isinstance(item,dict):item=item.get('url') or item.get('contentUrl') or ''
       candidates.append(item)
    except (ValueError,TypeError):continue
-  for tag in re.findall(r'<meta\b[^>]*>',page,re.I):
-   attrs=dict((k.lower(),html.unescape(v)) for k,v in re.findall(r'([\w:-]+)\s*=\s*["\x27]([^"\x27]*)["\x27]',tag))
-   if attrs.get('property','').lower() in ('og:image','og:image:secure_url') or attrs.get('name','').lower() in ('twitter:image','twitter:image:src'):
-    candidates.append(attrs.get('content',''))
-  title=str(recipe.get('name','')).lower()
-  words=[w for w in re.findall(r'[a-z]{5,}',title) if w not in ('recipe','hello','fresh','with')]
-  for tag in re.findall(r'<img\b[^>]*>',page,re.I):
-   attrs=dict((k.lower(),html.unescape(v)) for k,v in re.findall(r'([\w:-]+)\s*=\s*["\x27]([^"\x27]*)["\x27]',tag))
-   description=(attrs.get('alt','')+' '+attrs.get('class','')).lower()
-   if not ('recipe' in description or 'hero' in description or (words and sum(w in description for w in words)>=min(2,len(words)))):continue
-   candidates.extend([attrs.get('src',''),attrs.get('data-src','')])
-   candidates.extend(part.strip().split(' ')[0] for part in attrs.get('srcset','').split(','))
-  # Parse official Next.js responsive image tags. A Cloudinary URL can
-  # contain commas inside transformation parameters, so never split on commas.
-  for tag in re.findall(r'<(?:img|source)\b[^>]*>',page,re.I):
-   attrs=dict((k.lower(),html.unescape(v)) for k,v in re.findall(r'([\w:-]+)\s*=\s*["\x27]([^"\x27]*)["\x27]',tag))
-   description=(attrs.get('alt','')+' '+attrs.get('title','')+' '+attrs.get('data-testid','')).lower()
-   if not words or sum(w in description for w in words)<min(2,len(words)):continue
-   for key in ('src','data-src','srcset','data-srcset'):
-    value=attrs.get(key,'')
-    entries=re.findall(r'https?://[^\s]+',value) if 'srcset' in key else [value]
-    for entry in entries:
-     candidate=entry.rstrip(',').strip()
-     if candidate:candidates.append(candidate)
-  # Do not scrape arbitrary image URLs from the page's embedded application
-  # data: those frequently belong to recommended *other* recipes, and
-  # previously filled unrelated cards with the same attractive stock art.
-  # Only Recipe JSON-LD, the current page's social image, and explicitly
-  # recipe-labelled image elements above are eligible.
-  # Favor full recipe hero photos, not the site's social-sharing logo.
+  # Never use OG images or generic img tags: those can be other recipes.
   candidates.sort(key=lambda u: (0 if isinstance(u,str) and '/recipes/image/' in u else 1 if isinstance(u,str) and '/hellofresh_s3/image/' in u else 2, -(int(re.search(r'/w_(\d+)',u).group(1)) if isinstance(u,str) and re.search(r'/w_(\d+)',u) else 0)))
   results=[]
   for img in candidates:
@@ -935,6 +914,25 @@ def audit_first_page_photo_duplicates(cards):
     quarantined+=1
    except OSError:pass
  print(f'First-page duplicate photo audit: {quarantined} suspicious files quarantined',flush=True)
+
+def quarantine_unverified_imported_photo_cache():
+ """One-time provenance reset; preserve originals, never trust old imported art."""
+ marker=PHOTO_DIR/'.strict_photo_provenance_v1'
+ if marker.exists():return
+ quarantined=0
+ for path in PHOTO_DIR.iterdir():
+  if path.suffix.lower() not in ('.jpg','.png','.webp','.gif'):continue
+  try:rid=int(path.stem)
+  except ValueError:continue
+  if not 1000000<=rid<2000000:continue
+  try:
+   os.replace(path,path.with_name(path.name+'.unverified'))
+   quarantined+=1
+  except OSError:pass
+ # Only mark complete if every applicable cached file was processed.
+ remaining=any(p.suffix.lower() in ('.jpg','.png','.webp','.gif') and p.stem.isdigit() and 1000000<=int(p.stem)<2000000 for p in PHOTO_DIR.iterdir())
+ if not remaining:marker.write_text(str(quarantined))
+ print(f'Imported photo provenance reset: {quarantined} unverified photos preserved',flush=True)
 
 def audit_all_cached_imported_photo_duplicates():
  """Audit imported photos across every page at startup, not only the first 48 cards."""
@@ -4529,6 +4527,7 @@ if __name__=='__main__':
  recipe_catalog_warmup_worker()
  for index in range(2):
   threading.Thread(target=photo_recovery_worker,daemon=True,name=f'photo-recovery-{index}').start()
+ quarantine_unverified_imported_photo_cache()
  audit_all_cached_imported_photo_duplicates()
  queue_missing_first_page_photos()
  threading.Thread(target=recommendation_photo_warmup_worker,daemon=True,name='recommendation-photo-warmup').start()
