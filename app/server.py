@@ -817,7 +817,17 @@ def official_images(recipe):
      if isinstance(types,str):types=[types]
      if 'Recipe' not in types:continue
      actual=title_words(node.get('name',''))
-     if not expected or not actual or len(expected & actual)<min(2,len(expected),len(actual)):continue
+     # A HelloFresh page may use a shorter Recipe title than the imported
+     # catalog (which often appends sides, serving notes, and meal variants).
+     # Permit a single distinctive matching token only when the structured
+     # Recipe is tied to the exact source page by its own URL/@id.
+     overlap=len(expected & actual)
+     source_url=urllib.parse.urlsplit(url).path.rstrip('/')
+     identity=str(node.get('url') or node.get('mainEntityOfPage') or node.get('@id') or '')
+     if isinstance(node.get('mainEntityOfPage'),dict):
+      identity=str(node['mainEntityOfPage'].get('@id') or node['mainEntityOfPage'].get('url') or '')
+     exact_identity=bool(source_url and identity and urllib.parse.urlsplit(urllib.parse.urljoin(url,identity)).path.rstrip('/')==source_url)
+     if not expected or not actual or (overlap<min(2,len(expected),len(actual)) and not (exact_identity and overlap>=1)):continue
      images=node.get('image',[])
      if not isinstance(images,list):images=[images]
      for item in images:
