@@ -810,7 +810,7 @@ def official_images(recipe):
    elif isinstance(obj,dict):
     if '@graph' in obj:yield from walk(obj['@graph'])
     yield obj
-  for block in re.findall(r'<script\\b[^>]*type=["\\x27]application/ld\\+json["\\x27][^>]*>(.*?)</script>',page,re.I|re.S):
+  for block in re.findall(r'<script\b[^>]*type=["\x27]application/ld\+json["\x27][^>]*>(.*?)</script>',page,re.I|re.S):
    try:
     for node in walk(json.loads(html.unescape(block))):
      types=node.get('@type',[])
@@ -1012,6 +1012,24 @@ def download_photo(url,rid):
  finally:
   tmp.unlink(missing_ok=True)
  return dest,mime
+def trusted_imported_photo_url(recipe):
+ """Require a specific recipe slug or exact source ID in the imported photo path."""
+ url=clean_official_photo_candidate(recipe.get('image',''))
+ if not url or not complete_recipe_photo_url(url):return ''
+ path=urllib.parse.unquote(urllib.parse.urlsplit(url).path).lower()
+ filename=path.rsplit('/',1)[-1]
+ if re.search(r'(?:placeholder|default|generic|fallback|stock|logo)',filename):return ''
+ source=urllib.parse.urlsplit(recipe.get('url','')).path.rstrip('/').split('/')[-1].lower()
+ source_id=source.rsplit('-',1)[-1] if '-' in source else ''
+ # HelloFresh recipe IDs are 24-character hexadecimal tokens.
+ if re.fullmatch(r'[0-9a-f]{24}',source_id) and source_id in filename:return url
+ # Recipe-specific descriptive filenames must share multiple meaningful tokens.
+ slug=source[:-len(source_id)-1] if source_id and source.endswith('-'+source_id) else source
+ tokens={t for t in re.findall(r'[a-z]{4,}',slug) if t not in {'with','and','the','from','recipe','fresh','hello'}}
+ matched=sum(t in filename for t in tokens)
+ if len(tokens)>=2 and matched>=max(2,(len(tokens)+1)//2):return url
+ return ''
+
 def resolve_photo(recipe,refresh=False):
  rid=int(recipe['id'])
  with photo_locks_guard:
@@ -1027,9 +1045,10 @@ def resolve_photo(recipe,refresh=False):
   # fallback supplied by the importer. Prefer the recipe page's own
   # structured metadata before trusting that imported URL.
   if 1000000<=rid<2000000:
-   # Imported image fields can contain unrelated shared fallback artwork.
-   # Never retry them when the recipe-owned source cannot be verified.
-   urls=official_images(recipe)
+   # Accept imported artwork only if its path identifies this exact recipe.
+   # Generic shared fallback URLs remain excluded.
+   trusted=trusted_imported_photo_url(recipe)
+   urls=([trusted] if trusted else [])+ [u for u in official_images(recipe) if u!=trusted]
   # Attempt the recipe-specific candidates first.
   for url in urls:
    try:
