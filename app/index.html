@@ -3625,7 +3625,9 @@ function hfImageFailed(img,id){
   const key=String(id), original=img.getAttribute('data-original-image')||img.src;
   if(!img.dataset.retried){
     img.dataset.retried='1';
-    img.src='/api/photo/'+encodeURIComponent(key)+'?refresh=1';
+    // Give the background photo worker a chance to populate the cache.
+    // Avoid an immediate second request while upstream recovery is still running.
+    setTimeout(()=>{if(img.isConnected)img.src='/api/photo/'+encodeURIComponent(key)+'?retry=1';},5000);
     return;
   }
   // The photo proxy may fail even when the imported source URL still works.

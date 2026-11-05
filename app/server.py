@@ -897,6 +897,35 @@ def resolve_photo(recipe,refresh=False):
    except (OSError,ValueError,TimeoutError,urllib.error.URLError):continue
   return None if refresh else cached_photo(rid)
 
+# Keep remote photo downloads off browser-facing HTTP threads.
+# Bound concurrency and avoid repeatedly fetching missing upstream images.
+import queue
+photo_recovery_queue=queue.Queue(maxsize=256)
+photo_recovery_pending=set()
+photo_recovery_last_failed={}
+photo_recovery_guard=threading.Lock()
+def schedule_photo_recovery(recipe):
+ rid=int(recipe['id'])
+ with photo_recovery_guard:
+  if rid in photo_recovery_pending or time.monotonic()-photo_recovery_last_failed.get(rid,-1e9)<600:return False
+  try:photo_recovery_queue.put_nowait(recipe)
+  except queue.Full:return False
+  photo_recovery_pending.add(rid)
+ return True
+def photo_recovery_worker():
+ while True:
+  recipe=photo_recovery_queue.get()
+  rid=int(recipe['id'])
+  try:
+   if not cached_photo(rid) and not resolve_photo(recipe):
+    with photo_recovery_guard:photo_recovery_last_failed[rid]=time.monotonic()
+  except Exception as exc:
+   with photo_recovery_guard:photo_recovery_last_failed[rid]=time.monotonic()
+   print(f'Photo recovery failed for {rid}: {exc!r}',flush=True)
+  finally:
+   with photo_recovery_guard:photo_recovery_pending.discard(rid)
+   photo_recovery_queue.task_done()
+
 # Low-rate background warmup for recommendation photos; never blocks a page request.
 RECOMMENDATION_PHOTO_CACHE_LIMIT=5*1024**3
 RECOMMENDATION_PHOTO_MIN_FREE=2*1024**3
@@ -3341,9 +3370,15 @@ class Handler(SimpleHTTPRequestHandler):
     # Never rebuild all 13k recipes (and their enrichment caches) for each image.
     recipe=next((r for r in browse_catalog() if int(r['id'])==rid),None)
     if not recipe:return self.send_error(404)
-    refresh=urllib.parse.parse_qs(parsed.query).get('refresh',['0'])[0]=='1'
-    result=resolve_photo(recipe,refresh)
-    if not result:return self.send_error(404)
+    result=cached_photo(rid)
+    if not result:
+     schedule_photo_recovery(recipe)
+     self.send_response(404)
+     self.send_header('Cache-Control','no-store')
+     self.send_header('Retry-After','5')
+     self.send_header('Content-Length','0')
+     self.end_headers()
+     return
     file,mime=result
     payload=file.read_bytes()
     self.send_response(200);self.send_header('Content-Type',mime)
@@ -4285,6 +4320,8 @@ if __name__=='__main__':
  # A ready HTTP listener must not advertise readiness while the first browse
  # request is blocked by the same expensive SQLite work.
  recipe_catalog_warmup_worker()
+ for index in range(2):
+  threading.Thread(target=photo_recovery_worker,daemon=True,name=f'photo-recovery-{index}').start()
  threading.Thread(target=recommendation_photo_warmup_worker,daemon=True,name='recommendation-photo-warmup').start()
  threading.Thread(target=nutrition_scan_worker,daemon=True,name='nutrition-background-scan').start()
  threading.Thread(target=recipe_source_enrichment_worker,daemon=True,name='recipe-source-enrichment').start()
