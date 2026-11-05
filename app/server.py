@@ -818,10 +818,12 @@ def official_images_from_embedded_recipe(recipe,page):
   snippet=html.unescape(page[left:right]).replace('\\/','/')
   # Require exact ID in a recipe identity field, not arbitrary text proximity.
   if not any(('"' + key + '"') in snippet and source_id in snippet for key in ('id','recipeId','recipe_id','slug')):continue
-  for candidate in re.findall(r'https://(?:img|media|cdn)[.]hellofresh[.]com/[^\\s"\\x27<>\\\\]{8,1200}',snippet,re.I):
+  for candidate in re.findall(r"https://(?:img|media|cdn)[.]hellofresh[.]com/[^\s\"'<>\\]{8,1200}",snippet,re.I):
    candidate=clean_official_photo_candidate(candidate)
    if not complete_recipe_photo_url(candidate):continue
    path=urllib.parse.urlsplit(candidate).path.lower()
+   # A complete image asset, never a truncated CDN directory or transform.
+   if not re.search(r'/((?:recipes|hellofresh_s3)/image/)[^/]+\.(?:jpe?g|png|webp)(?:$|[?])',path):continue
    if re.search(r'(?:placeholder|default|generic|fallback|stock|logo)',path):continue
    if candidate not in results:results.append(candidate)
   if len(results)>5:break
