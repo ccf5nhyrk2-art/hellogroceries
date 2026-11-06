@@ -287,7 +287,12 @@ def visible_browse_catalog():
    return _recipe_visible_cache[1]
   # Visibility only uses stored steps and URL validity; the audit map is unused.
   # Avoid a full audit-table read on the request-critical browsing path.
-  catalog=tuple(r for r in browse_catalog() if not non_recipe_reason(r) and visible_cooking_recipe(r,None))
+  # Hide only records positively confirmed to have no official photo.
+  # Network errors and missing local cache do not count as proof.
+  with db() as c:
+   c.execute("CREATE TABLE IF NOT EXISTS official_photo_status (recipe_id TEXT PRIMARY KEY, source_url TEXT NOT NULL, status TEXT NOT NULL)")
+   missing={(rid,url) for rid,url in c.execute("SELECT recipe_id,source_url FROM official_photo_status WHERE status='confirmed_no_photo'")}
+  catalog=tuple(r for r in browse_catalog() if not non_recipe_reason(r) and visible_cooking_recipe(r,None) and (str(r.get('id')),str(r.get('url') or '')) not in missing)
   _recipe_visible_cache=(time.monotonic(),catalog)
   return catalog
 
