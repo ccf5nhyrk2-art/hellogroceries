@@ -12,6 +12,8 @@ import os
 import urllib.parse
 import urllib.request
 import server
+from PIL import Image, ImageOps, ImageChops
+import io
 from audit_strict_photo_candidates import EXTS, classify
 
 def digest(path):
@@ -26,9 +28,29 @@ def fetch_image_digest(url):
   if int(resp.headers.get("Content-Length") or 0)>8_000_000:return None
   raw=resp.read(8_000_001)
  if not 2048<=len(raw)<=8_000_000 or not server.image_type(raw[:16]):return None
- return hashlib.sha256(raw).hexdigest()
+ return raw
 
-def verify(recipe,expected):
+def visual_match(local_path,remote_bytes):
+ """Conservative same-photo test across CDN resizing and recompression."""
+ try:
+  with Image.open(local_path) as a, Image.open(io.BytesIO(remote_bytes)) as b:
+   a=ImageOps.exif_transpose(a).convert("RGB")
+   b=ImageOps.exif_transpose(b).convert("RGB")
+   if min(*a.size,*b.size)<160:return False
+   ar=a.width/a.height
+   br=b.width/b.height
+   if abs(ar-br)>0.035:return False
+   a=ImageOps.fit(a,(128,128),method=Image.Resampling.LANCZOS)
+   b=ImageOps.fit(b,(128,128),method=Image.Resampling.LANCZOS)
+   # Compare every RGB channel after consistent downsampling.
+   diff=ImageChops.difference(a,b)
+   hist=diff.histogram()
+   mae=sum((i%256)*n for i,n in enumerate(hist))/(128*128*3*255)
+   return mae<=0.055
+ except (OSError,ValueError,Image.DecompressionBombError):
+  return False
+
+def verify(recipe,local_path):
  # Official structured Recipe JSON-LD is authoritative only when its recipe
  # identity is checked by the existing official_images_from_page parser.
  source=recipe.get("url","")
@@ -43,7 +65,8 @@ def verify(recipe,expected):
  official=server.clean_official_photo_candidate(urls[0])
  if not official:return "invalid_official_image_url"
  remote=fetch_image_digest(official)
- if remote!=expected:return "official_image_bytes_differ"
+ if not remote:return "official_image_unavailable"
+ if not visual_match(local_path,remote):return "official_image_visual_mismatch"
  return "verified"
 
 def main():
@@ -72,6 +95,7 @@ def main():
  counts=collections.Counter()
  samples=collections.defaultdict(list)
  checked=0
+ last_reported=0
  for rid,path,base,h in sorted(originals,key=lambda x:x[0]):
   recipe=catalog[rid]
   url=server.clean_official_photo_candidate(recipe.get("image",""))
@@ -84,7 +108,7 @@ def main():
   elif args.limit and checked>=args.limit:reason="not_checked_limit"
   else:
    checked+=1
-   try:reason=verify(recipe,h)
+   try:reason=verify(recipe,path)
    except Exception as exc:reason="verification_network_or_parse_error"
    if reason=="verified" and args.apply:
     # Recheck destination and source before atomic move.
@@ -94,7 +118,9 @@ def main():
      reason="restored"
   counts[reason]+=1
   if len(samples[reason])<12:samples[reason].append({"id":rid,"name":recipe.get("name",""),"file":path.name})
-  if checked and checked%100==0 and reason!="not_checked_limit":print("Verified attempts:",checked,flush=True)
+  if checked and checked%100==0 and checked!=last_reported:
+   print("Verified attempts:",checked,flush=True)
+   last_reported=checked
  result={"mode":"APPLY" if args.apply else "DRY_RUN","checked_official_pages":checked,"counts":dict(counts),"samples":dict(samples)}
  with open(args.report,"w") as out:json.dump(result,out,indent=2)
  print(json.dumps(result,indent=2),flush=True)
