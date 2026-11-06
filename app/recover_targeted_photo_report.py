@@ -48,39 +48,29 @@ def main():
         checked+=1
         if not args.apply:
             counts["eligible_dry_run"]+=1;continue
-        # Only retry different deliveries of the identical official image asset.
-        # Never remove the global rejected-digest guard or accept shared bytes.
-        candidates=[url]+server.official_photo_url_variants(url)
-        attempted=set()
-        restored=False
-        rejected=False
-        for candidate in candidates:
-            if candidate in attempted:
-                continue
-            attempted.add(candidate)
-            diagnostics=[]
-            try:
-                downloaded=server.download_photo(candidate,rid,prefer_jpeg=(candidate==url),diagnostics=diagnostics)
-                if not downloaded:
-                    if 'quarantined_digest' in diagnostics:
-                        rejected=True
-                    continue
+        # Original behavior: fetch the recipe's own HelloFresh image URL once.
+        # Do not cycle through alternate CDN hosts/transforms after a known
+        # rejected image; those retries produced repeated incorrect artwork.
+        # Preserve quarantine and never overwrite an existing active image.
+        diagnostics=[]
+        try:
+            downloaded=server.download_photo(url,rid,diagnostics=diagnostics)
+            if not downloaded:
+                if 'quarantined_digest' in diagnostics:
+                    counts["known_rejected_original_skipped"]+=1
+                else:
+                    counts["download_error_or_invalid"]+=1
+            else:
                 path=downloaded[0]
                 digest=hashlib.sha256(path.read_bytes()).hexdigest()
                 if digest in server.photo_rejected_digests or (digest in known and known[digest]!={rid}):
                     path.rename(path.with_name(path.name+'.suspect'))
-                    rejected=True
-                    continue
-                known[digest].add(rid)
-                counts["restored"]+=1
-                if candidate!=url:
-                    counts["restored_via_same_asset_variant"]+=1
-                restored=True
-                break
-            except (OSError,ValueError,TimeoutError,urllib.error.URLError):
-                continue
-        if not restored:
-            counts["rejected_digest_or_duplicate" if rejected else "download_error_or_invalid"]+=1
+                    counts["rejected_digest_or_duplicate"]+=1
+                else:
+                    known[digest].add(rid)
+                    counts["restored"]+=1
+        except (OSError,ValueError,TimeoutError,urllib.error.URLError):
+            counts["download_error_or_invalid"]+=1
         if checked%100==0:
             print("Attempted:",checked,"restored:",counts["restored"],flush=True)
     summary={"mode":"APPLY" if args.apply else "DRY_RUN","eligible_checked":checked,"counts":dict(counts)}
