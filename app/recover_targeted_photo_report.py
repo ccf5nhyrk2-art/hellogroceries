@@ -15,6 +15,7 @@ def main():
     parser=argparse.ArgumentParser()
     parser.add_argument("--apply",action="store_true")
     parser.add_argument("--limit",type=int,default=0)
+    parser.add_argument("--start-after",type=int,default=0,help="Skip source rows through this recipe ID")
     parser.add_argument("--source",default="/data/targeted_photo_recheck.json")
     parser.add_argument("--report",default="/data/targeted_photo_recovery.json")
     args=parser.parse_args()
@@ -33,6 +34,7 @@ def main():
     for row in data["results"]:
         try:rid=int(row["id"])
         except (KeyError,ValueError,TypeError):continue
+        if rid<=args.start_after:continue
         recipe=catalog.get(rid)
         if not recipe or str(recipe.get("name",""))!=str(row.get("name","")):
             counts["catalog_changed"]+=1;continue
@@ -40,6 +42,8 @@ def main():
             counts["already_active"]+=1;continue
         if row.get("status") not in ("official_photo","official_embedded_photo"):
             counts["unverified_skipped"]+=1;continue
+        # A saved audit URL can be stale or shared. Prefer the image now
+        # attached to the exact recipe source page, if available.
         url=server.clean_official_photo_candidate(row.get("official_image",""))
         if not url or not server.complete_recipe_photo_url(url):
             counts["invalid_url"]+=1;continue
@@ -48,19 +52,23 @@ def main():
         checked+=1
         if not args.apply:
             counts["eligible_dry_run"]+=1;continue
-        # Original behavior: fetch the recipe's own HelloFresh image URL once.
-        # Do not cycle through alternate CDN hosts/transforms after a known
-        # rejected image; those retries produced repeated incorrect artwork.
-        # Preserve quarantine and never overwrite an existing active image.
+        # Never bypass a rejected digest. If an old audit image was a
+        # quarantined fallback, try the current exact recipe page image once.
+        # Only source-bound Recipe JSON-LD may supply the replacement URL.
         diagnostics=[]
         try:
             downloaded=server.download_photo(url,rid,diagnostics=diagnostics)
-            if not downloaded:
-                if 'quarantined_digest' in diagnostics:
+            if not downloaded and 'quarantined_digest' in diagnostics:
+                alternatives=[u for u in server.official_images(recipe) if u!=url]
+                if len(alternatives)==1:
+                    diagnostics=[]
+                    downloaded=server.download_photo(alternatives[0],rid,diagnostics=diagnostics)
+                    if downloaded:counts["recovered_from_current_official_page"]+=1
+                if not downloaded:
                     counts["known_rejected_original_skipped"]+=1
-                else:
-                    counts["download_error_or_invalid"]+=1
-            else:
+            elif not downloaded:
+                counts["download_error_or_invalid"]+=1
+            if downloaded:
                 path=downloaded[0]
                 digest=hashlib.sha256(path.read_bytes()).hexdigest()
                 if digest in server.photo_rejected_digests or (digest in known and known[digest]!={rid}):
