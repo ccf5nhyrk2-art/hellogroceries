@@ -1075,20 +1075,6 @@ def download_photo(url,rid,prefer_jpeg=False,diagnostics=None):
  digest=photo_digest(raw)
  with photo_rejected_guard:
   if digest in photo_rejected_digests:return reject('quarantined_digest')
- # Imported 10 MM recipes frequently point to the same generic hero art.
- # Reject it before writing to disk if another first-page recipe already
- # owns these exact bytes. This avoids an endless quarantine/recovery loop.
- if 1000000<=int(rid)<2000000:
-  try:
-   first_page,_=default_recipe_page_data()
-   for other in first_page[:48]:
-    other_id=int(other['id'])
-    if other_id==int(rid) or not (1000000<=other_id<2000000):continue
-    other_cached=cached_photo(other_id)
-    if other_cached and photo_digest(other_cached[0].read_bytes())==digest:
-     photo_repair_log(rid,'duplicate_rejected',f'Identical to cached recipe {other_id}')
-     return reject('duplicate_image')
-  except (OSError,ValueError,TypeError):pass
  kind=image_type(raw)
  if not kind:return reject('invalid_image_format')
  mime,ext=kind
@@ -1129,17 +1115,13 @@ def resolve_photo(recipe,refresh=False,diagnostics=None):
   urls=[]
   existing=recipe.get('image','')
   if complete_recipe_photo_url(existing) and not re.search(r'(?:logo|placeholder|brandmark|default-image)',urllib.parse.urlsplit(existing).path,re.I):urls.append(existing)
-  # For imported catalog records, the original image URL may be a shared
-  # fallback supplied by the importer. Prefer the recipe page's own
-  # structured metadata before trusting that imported URL.
-  if 1000000<=rid<2000000:
-   # Accept imported artwork only if its path identifies this exact recipe.
-   # Generic shared fallback URLs remain excluded.
-   trusted=trusted_imported_photo_url(recipe)
+  # Restore original recipe-image URL priority. Shared URLs are allowed:
+  # distinct recipes can legitimately use the same HelloFresh artwork.
+  trusted=existing if complete_recipe_photo_url(existing) else ''
+  verified_official=[]
+  if not urls and 1000000<=rid<2000000:
    verified_official=official_images(recipe)
-   urls=([trusted] if trusted else [])+ [u for u in verified_official if u!=trusted]
-  # Both trusted imported images and matching Recipe JSON-LD images are
-  # provenance-verified. Force JPEG for either, retaining digest checks.
+   urls=list(verified_official)
   for url in urls:
    # Retry only alternate transformations/hosts of the identical asset on 404.
    # Never search for a different recipe image or bypass digest checks.
