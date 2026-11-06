@@ -46,7 +46,8 @@ class PhotoProvenanceTests(unittest.TestCase):
         self.assertTrue(any(any(k.arg == "prefer_jpeg" for k in call.keywords) for call in calls))
         self.assertIn("image/jpeg,image/png", ast.get_source_segment(source, downloader))
         self.assertIn("digest in photo_rejected_digests", ast.get_source_segment(source, downloader))
-        self.assertIn("Identical to cached recipe", ast.get_source_segment(source, downloader))
+        self.assertNotIn("Identical to cached recipe", ast.get_source_segment(source, downloader))
+        self.assertIn("digest in photo_rejected_digests", ast.get_source_segment(source, downloader))
 
     def test_unverified_imported_images_do_not_get_jpeg_override(self):
         source = SOURCE.read_text()
