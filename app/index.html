@@ -2921,8 +2921,14 @@ function recommendationPhotoFailed(img){
   if(!card.isConnected)return;
   if(index>=pool.length){const wrap=card.querySelector('.recommend-photo-wrap');if(wrap)wrap.style.display='none';recommendationReplacementBusy.delete(card);updateRecommendationCarousel();return}
   const item=pool[index++],candidate=item.r,photo=new Image();
+  const family=name=>cleanRecipeName(name).toLowerCase().replace(/[^a-z0-9]+/g,' ').trim().split(' ').slice(0,5).join(' ');
+  const occupied=new Set([...document.querySelectorAll('#recommend-list .recommend-card')].filter(el=>el!==card).map(el=>family(el.querySelector('.recommend-title')?.textContent||'')));
+  const candidateFamily=family(candidate.name);
+  if(candidateFamily&&occupied.has(candidateFamily)){tryNext();return}
   photo.onload=()=>{
    if(!card.isConnected)return;
+   const nowOccupied=new Set([...document.querySelectorAll('#recommend-list .recommend-card')].filter(el=>el!==card).map(el=>family(el.querySelector('.recommend-title')?.textContent||'')));
+   if(candidateFamily&&nowOccupied.has(candidateFamily)){tryNext();return}
    img.src=photo.src;
    img.style.visibility='';
    img.onerror=()=>recommendationPhotoFailed(img);
