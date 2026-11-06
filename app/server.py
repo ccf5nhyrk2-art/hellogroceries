@@ -270,7 +270,7 @@ def browse_catalog():
  global _recipe_browse_cache
  now=time.monotonic()
  with _recipe_browse_cache_lock:
-  if _recipe_browse_cache[1] is not None and now-_recipe_browse_cache[0]<60:
+  if _recipe_browse_cache[1] is not None and now-_recipe_browse_cache[0]<3600:
    return _recipe_browse_cache[1]
   recipes=allrecipes()
   _recipe_browse_cache=(time.monotonic(),recipes)
@@ -283,13 +283,49 @@ def visible_browse_catalog():
  global _recipe_visible_cache
  now=time.monotonic()
  with _recipe_visible_cache_lock:
-  if _recipe_visible_cache[1] is not None and now-_recipe_visible_cache[0]<60:
+  if _recipe_visible_cache[1] is not None and now-_recipe_visible_cache[0]<3600:
    return _recipe_visible_cache[1]
   # Visibility only uses stored steps and URL validity; the audit map is unused.
   # Avoid a full audit-table read on the request-critical browsing path.
   catalog=tuple(r for r in browse_catalog() if not non_recipe_reason(r) and visible_cooking_recipe(r,None))
   _recipe_visible_cache=(time.monotonic(),catalog)
   return catalog
+
+# Cache the common unfiltered, alphabetically sorted browse view for 60 seconds.
+# Reuse compact card dictionaries rather than sorting and copying every request.
+_recipe_default_page_lock=threading.Lock()
+_recipe_default_page_cache=(0.0,None,None)
+def default_recipe_page_data():
+ global _recipe_default_page_cache
+ with _recipe_default_page_lock:
+  now=time.monotonic()
+  if _recipe_default_page_cache[1] is not None and now-_recipe_default_page_cache[0]<3600:
+   return _recipe_default_page_cache[1],_recipe_default_page_cache[2]
+  catalog=visible_browse_catalog()
+  fields=('id','name','image','country','nutrition','dietary_labels','prep_time','cook_time','total_time','url','ingredients','source_servings')
+  ordered=sorted(catalog,key=lambda r:str(r.get('name') or '').casefold())
+  compact=tuple({key:r[key] for key in fields if key in r} for r in ordered)
+  _recipe_default_page_cache=(time.monotonic(),compact,len(compact))
+  return compact,len(compact)
+
+def recipe_catalog_warmup_worker():
+ """Build the browse catalog once at boot; do not hammer SQLite every minute."""
+ started=time.monotonic()
+ try:
+  _,total=default_recipe_page_data()
+  print(f'Recipe catalog warmup: {total} cards in {time.monotonic()-started:.3f}s',flush=True)
+ except Exception as exc:
+  print('Recipe catalog warmup failed:',repr(exc),flush=True)
+
+def recipe_page_cuisine(recipe):
+ name=str(recipe.get('name') or '').lower()
+ groups=(('italian',r'italian|risotto|parmesan|pesto|marinara|gnocchi|alfredo'),('mexican',r'mexican|taco|quesadilla|enchilada|fajita|burrito|tex.mex|chipotle'),('asian',r'korean|japanese|chinese|thai|teriyaki|ginger|soy.glazed|sesame|szechuan|curry|ramen'),('mediterranean',r'mediterranean|greek|tzatziki|shawarma|hummus|harissa'),('american',r'american|bbq|barbecue|ranch|buffalo|mac.and.cheese|southern'))
+ return next((group for group,pattern in groups if re.search(pattern,name)),'other')
+
+def recipe_page_meal(recipe):
+ name=str(recipe.get('name') or '').lower()
+ groups=(('pasta',r'pasta|spaghetti|linguine|penne|noodle|ramen|gnocchi'),('bowls',r'bowl|rice bowl'),('sandwich',r'burger|sandwich|wrap|panini|slider'),('salad',r'salad'),('soup',r'soup|stew|chili\\b'))
+ return next((group for group,pattern in groups if re.search(pattern,name)),'other')
 
 def recipe_page_matches(recipe,query='',country='ALL',protein='all'):
  """Server-side browse filters for the opt-in paginated catalog."""
@@ -717,6 +753,42 @@ def recipe_source_enrichment_worker():
   time.sleep(1800)
 
 
+def photo_repair_log(rid,status,detail=''):
+ """Persist bounded recovery outcomes without altering recipe records."""
+ try:
+  path=Path('/data/photo_repair_status.json')
+  with photo_repair_status_guard:
+   try:data=json.loads(path.read_text())
+   except (OSError,ValueError):data={}
+   data[str(rid)]={'status':status,'detail':str(detail)[:160],'checked_at':datetime.datetime.now(datetime.timezone.utc).isoformat()}
+   if len(data)>1000:data=dict(list(data.items())[-1000:])
+   tmp=path.with_suffix('.tmp')
+   tmp.write_text(json.dumps(data))
+   os.replace(tmp,path)
+ except (OSError,TypeError):pass
+
+photo_repair_status_guard=threading.Lock()
+
+def clean_official_photo_candidate(value):
+ """Normalize one trusted official photo URL without corrupting Cloudinary commas."""
+ if not isinstance(value,str):return ''
+ value=html.unescape(value).replace('\\/','/').replace('\\u002F','/').replace('\\u002f','/').strip()
+ # Split only at the next URL, not Cloudinary transformation commas.
+ value=re.split(r',\s+(?=https?://)',value,maxsplit=1)[0]
+ value=re.split(r'[\s"\'<>\\]+',value,maxsplit=1)[0].rstrip(',;')
+ if value.startswith('//'):value='https:'+value
+ if value.startswith('/recipes/image/') or value.startswith('/hellofresh_s3/image/'):
+  value='https://img.hellofresh.com'+value
+ match=re.search(r'(?i)\.(?:jpe?g|png|webp|gif)(?:\?[^\s"\'<>]*)?',value)
+ if match:value=value[:match.end()]
+ try:
+  parsed=urllib.parse.urlsplit(value)
+  if parsed.scheme!='https' or not parsed.hostname:return ''
+  if not allowed_photo_url(value):return ''
+  if any(ord(ch)<32 or ord(ch)==127 for ch in value):return ''
+ except ValueError:return ''
+ return value
+
 def official_images(recipe):
  url=recipe.get('url','')
  if not url or not allowed_url(url):return []
@@ -725,7 +797,49 @@ def official_images(recipe):
   with urllib.request.urlopen(req,timeout=12) as response:
    if not allowed_url(response.geturl()):return []
    page=response.read(3_000_000).decode('utf-8','replace')
+  return official_images_from_page(recipe,page)
+ except Exception:return []
+
+def official_images_from_embedded_recipe(recipe,page):
+ """Recover image URLs from embedded JSON only when bound to exact source ID.
+
+ Never use page-wide social images, unrelated recommendations, or fallback art.
+ """
+ source=str(recipe.get('url') or '')
+ match=re.search(r'([0-9a-f]{24})(?:[/?#]|$)',urllib.parse.urlsplit(source).path,re.I)
+ if not match:return []
+ source_id=match.group(1).lower()
+ results=[]
+ # The importer may have lost the image filename while retaining the page's
+ # exact recipe ID. Only inspect small JSON objects containing that identity.
+ for hit in re.finditer(re.escape(source_id),page,re.I):
+  left=max(0,hit.start()-4000)
+  right=min(len(page),hit.end()+4000)
+  snippet=html.unescape(page[left:right]).replace('\\/','/')
+  # Require exact ID in a recipe identity field, not arbitrary text proximity.
+  if not any(('"' + key + '"') in snippet and source_id in snippet for key in ('id','recipeId','recipe_id','slug')):continue
+  for candidate in re.findall(r"https://(?:img|media|cdn)[.]hellofresh[.]com/[^\s\"'<>\\]{8,1200}",snippet,re.I):
+   candidate=clean_official_photo_candidate(candidate)
+   if not complete_recipe_photo_url(candidate):continue
+   path=urllib.parse.urlsplit(candidate).path.lower()
+   # A complete image asset, never a truncated CDN directory or transform.
+   if not re.search(r'/((?:recipes|hellofresh_s3)/image/)[^/]+\.(?:jpe?g|png|webp)(?:$|[?])',path):continue
+   if re.search(r'(?:placeholder|default|generic|fallback|stock|logo)',path):continue
+   if candidate not in results:results.append(candidate)
+  if len(results)>5:break
+ # Never guess when several candidate assets are attached to the same page.
+ return results[:1] if len(results)==1 else []
+
+
+def official_images_from_page(recipe,page):
+  url=recipe.get('url','')
+  # A recipe page can contain recommendations and generic social artwork.
+  # Accept ONLY structured Recipe images whose title matches this record.
   candidates=[]
+  def title_words(value):
+   stop={'recipe','hello','fresh','with','and','the','for','low','cal','lunch','high','protein','quick','easy','simple','side','meal','mm'}
+   return {w for w in re.findall(r'[a-z]{4,}',str(value).casefold()) if w not in stop}
+  expected=title_words(recipe.get('name',''))
   def walk(obj):
    if isinstance(obj,list):
     for item in obj:yield from walk(item)
@@ -738,38 +852,34 @@ def official_images(recipe):
      types=node.get('@type',[])
      if isinstance(types,str):types=[types]
      if 'Recipe' not in types:continue
+     actual=title_words(node.get('name',''))
+     # A HelloFresh page may use a shorter Recipe title than the imported
+     # catalog (which often appends sides, serving notes, and meal variants).
+     # Permit a single distinctive matching token only when the structured
+     # Recipe is tied to the exact source page by its own URL/@id.
+     overlap=len(expected & actual)
+     source_url=urllib.parse.urlsplit(url).path.rstrip('/')
+     identity=str(node.get('url') or node.get('mainEntityOfPage') or node.get('@id') or '')
+     if isinstance(node.get('mainEntityOfPage'),dict):
+      identity=str(node['mainEntityOfPage'].get('@id') or node['mainEntityOfPage'].get('url') or '')
+     exact_identity=bool(source_url and identity and urllib.parse.urlsplit(urllib.parse.urljoin(url,identity)).path.rstrip('/')==source_url)
+     if not expected or not actual or (overlap<min(2,len(expected),len(actual)) and not (exact_identity and overlap>=1)):continue
      images=node.get('image',[])
      if not isinstance(images,list):images=[images]
      for item in images:
       if isinstance(item,dict):item=item.get('url') or item.get('contentUrl') or ''
       candidates.append(item)
    except (ValueError,TypeError):continue
-  for tag in re.findall(r'<meta\b[^>]*>',page,re.I):
-   attrs=dict((k.lower(),html.unescape(v)) for k,v in re.findall(r'([\w:-]+)\s*=\s*["\x27]([^"\x27]*)["\x27]',tag))
-   if attrs.get('property','').lower() in ('og:image','og:image:secure_url') or attrs.get('name','').lower() in ('twitter:image','twitter:image:src'):
-    candidates.append(attrs.get('content',''))
-  title=str(recipe.get('name','')).lower()
-  words=[w for w in re.findall(r'[a-z]{5,}',title) if w not in ('recipe','hello','fresh','with')]
-  for tag in re.findall(r'<img\b[^>]*>',page,re.I):
-   attrs=dict((k.lower(),html.unescape(v)) for k,v in re.findall(r'([\w:-]+)\s*=\s*["\x27]([^"\x27]*)["\x27]',tag))
-   description=(attrs.get('alt','')+' '+attrs.get('class','')).lower()
-   if not ('recipe' in description or 'hero' in description or (words and sum(w in description for w in words)>=min(2,len(words)))):continue
-   candidates.extend([attrs.get('src',''),attrs.get('data-src','')])
-   candidates.extend(part.strip().split(' ')[0] for part in attrs.get('srcset','').split(','))
-  # Embedded application data often carries the actual CDN image URL.
-  for raw in re.findall(r'https?:\\?/\\?/[^"\'\s<>]{10,400}',page):
-   candidate=raw.replace('\\/','/').replace('\\u002F','/')
-   if ('hellofresh_s3/image/' in candidate or '/recipe/' in candidate) and any(host in candidate for host in ('img.hellofresh.com','media.hellofresh.com','images.ctfassets.net')):
-    candidates.append(candidate)
-  # Favor full recipe hero photos, not the site's social-sharing logo.
-  candidates.sort(key=lambda u: (0 if isinstance(u,str) and '/recipes/image/' in u else 1 if isinstance(u,str) and '/hellofresh_s3/image/' in u else 2))
+  # Never use OG images or generic img tags: those can be other recipes.
+  candidates.sort(key=lambda u: (0 if isinstance(u,str) and '/recipes/image/' in u else 1 if isinstance(u,str) and '/hellofresh_s3/image/' in u else 2, -(int(re.search(r'/w_(\d+)',u).group(1)) if isinstance(u,str) and re.search(r'/w_(\d+)',u) else 0)))
   results=[]
   for img in candidates:
    if not isinstance(img,str):continue
-   img=html.unescape(img).replace('\\/','/').strip()
-   if allowed_photo_url(img) and len(img)<2048 and img not in results and not re.search(r'(?:logo|placeholder|brandmark|default-image)',urllib.parse.urlsplit(img).path,re.I):results.append(img)
+   img=clean_official_photo_candidate(img)
+   if img and complete_recipe_photo_url(img) and len(img)<2048 and img not in results and not re.search(r'(?:logo|placeholder|brandmark|default-image)',urllib.parse.urlsplit(img).path,re.I):results.append(img)
+  if not results:
+   results=official_images_from_embedded_recipe(recipe,page)
   return results
- except Exception:return []
 
 def official_image(recipe):
  images=official_images(recipe)
@@ -800,26 +910,173 @@ def image_type(raw):
  return None
 def valid_photo_cache_entry(path):
  try:
-  if path.stat().st_size<100:return False
+  if path.stat().st_size<2048:return False
   with path.open('rb') as photo_file:return image_type(photo_file.read(16)) is not None
  except OSError:return False
+
+# Known shared fallback images must never be accepted as recipe photographs.
+# Populated by the first-page audit at startup; hashes are content-based, not URLs.
+photo_rejected_file=Path('/data/photo_rejected_digests.json')
+try:
+ photo_rejected_digests=set(json.loads(photo_rejected_file.read_text()))
+except (OSError,ValueError,TypeError):
+ photo_rejected_digests=set()
+photo_rejected_guard=threading.Lock()
+def photo_digest(data):
+ import hashlib
+ return hashlib.sha256(data).hexdigest()
+
+def audit_first_page_photo_duplicates(cards):
+ """Quarantine only clear cross-recipe fallback clusters; preserve originals."""
+ from collections import defaultdict
+ groups=defaultdict(list)
+ for recipe in cards[:48]:
+  rid=int(recipe['id'])
+  # The imported 10 MM catalog has unrelated recipe names sharing fallback art.
+  if not (1000000<=rid<2000000):continue
+  cached=cached_photo(rid)
+  if not cached:continue
+  path,_=cached
+  try:
+   digest=photo_digest(path.read_bytes())
+   groups[digest].append((rid,path,recipe.get('name','')))
+  except OSError:continue
+ quarantined=0
+ for digest,items in groups.items():
+  # Different imported recipes must not silently inherit identical fallback art.
+  # Two unrelated recipe IDs sharing the same bytes are already suspect.
+  if len(items)<2 and digest not in photo_rejected_digests:continue
+  with photo_rejected_guard:
+   photo_rejected_digests.add(digest)
+   try:
+    tmp=photo_rejected_file.with_suffix('.tmp')
+    tmp.write_text(json.dumps(sorted(photo_rejected_digests)))
+    os.replace(tmp,photo_rejected_file)
+   except OSError:pass
+  for rid,path,name in items:
+   try:
+    backup=path.with_name(path.name+'.suspect')
+    os.replace(path,backup)
+    photo_repair_log(rid,'suspect_duplicate','Quarantined shared fallback photo; original preserved as .suspect')
+    quarantined+=1
+   except OSError:pass
+ print(f'First-page duplicate photo audit: {quarantined} suspicious files quarantined',flush=True)
+
+def quarantine_unverified_imported_photo_cache():
+ """One-time provenance reset; preserve originals, never trust old imported art."""
+ marker=PHOTO_DIR/'.strict_photo_provenance_v1'
+ if marker.exists():return
+ quarantined=0
+ for path in PHOTO_DIR.iterdir():
+  if path.suffix.lower() not in ('.jpg','.png','.webp','.gif'):continue
+  try:rid=int(path.stem)
+  except ValueError:continue
+  if not 1000000<=rid<2000000:continue
+  try:
+   os.replace(path,path.with_name(path.name+'.unverified'))
+   quarantined+=1
+  except OSError:pass
+ # Only mark complete if every applicable cached file was processed.
+ remaining=any(p.suffix.lower() in ('.jpg','.png','.webp','.gif') and p.stem.isdigit() and 1000000<=int(p.stem)<2000000 for p in PHOTO_DIR.iterdir())
+ if not remaining:marker.write_text(str(quarantined))
+ print(f'Imported photo provenance reset: {quarantined} unverified photos preserved',flush=True)
+
+def audit_all_cached_imported_photo_duplicates():
+ """Audit imported photos across every page at startup, not only the first 48 cards."""
+ from collections import defaultdict
+ groups=defaultdict(list)
+ for path in PHOTO_DIR.iterdir():
+  if path.suffix.lower() not in ('.jpg','.png','.webp','.gif'):continue
+  try:rid=int(path.stem)
+  except ValueError:continue
+  if not 1000000<=rid<2000000 or not valid_photo_cache_entry(path):continue
+  try:groups[photo_digest(path.read_bytes())].append((rid,path))
+  except OSError:continue
+ quarantined=0
+ for digest,items in groups.items():
+  if len({rid for rid,_ in items})<2 and digest not in photo_rejected_digests:continue
+  with photo_rejected_guard:
+   photo_rejected_digests.add(digest)
+   try:
+    tmp=photo_rejected_file.with_suffix('.tmp')
+    tmp.write_text(json.dumps(sorted(photo_rejected_digests)))
+    os.replace(tmp,photo_rejected_file)
+   except OSError:pass
+  for rid,path in items:
+   try:
+    os.replace(path,path.with_name(path.name+'.suspect'))
+    photo_repair_log(rid,'suspect_duplicate','Shared imported photo quarantined across catalog; backup preserved')
+    quarantined+=1
+   except OSError:pass
+ print(f'Full imported photo cache audit: {quarantined} files quarantined',flush=True)
 
 def cached_photo(rid):
  for ext,kind in (('.jpg','image/jpeg'),('.png','image/png'),('.webp','image/webp'),('.gif','image/gif')):
   p=PHOTO_DIR/(str(rid)+ext)
-  if p.is_file():return p,kind
+  if p.is_file() and valid_photo_cache_entry(p):
+   # A valid WebP header does not prove that this belongs to the recipe.
+   # Never serve a previously quarantined fallback digest from an old cache.
+   if 1000000<=int(rid)<2000000:
+    try:
+     if photo_digest(p.read_bytes()) in photo_rejected_digests:continue
+    except OSError:continue
+   return p,kind
  return None
-def download_photo(url,rid):
- if not allowed_photo_url(url):return None
- req=urllib.request.Request(url,headers={'User-Agent':'Mozilla/5.0 (compatible; HelloGroceries/1.0)','Accept':'image/avif,image/webp,image/png,image/jpeg,image/gif'})
+def force_verified_photo_jpeg_url(url):
+ """Force JPEG on official HelloFresh CDN transform paths; never alter identity."""
+ parsed=urllib.parse.urlsplit(url)
+ if parsed.scheme!='https' or parsed.hostname not in {'img.hellofresh.com','media.hellofresh.com'}:
+  return url
+ segments=parsed.path.split('/')
+ for i,segment in enumerate(segments):
+  transforms=segment.split(',')
+  if 'f_auto' in transforms:
+   transforms[transforms.index('f_auto')]='f_jpg'
+   segments[i]=','.join(transforms)
+   return urllib.parse.urlunsplit(parsed._replace(path='/'.join(segments)))
+ return url
+
+def official_photo_url_variants(url):
+ """Bounded alternate deliveries for the SAME official image asset only."""
+ if not complete_recipe_photo_url(url):return []
+ parsed=urllib.parse.urlsplit(url)
+ if parsed.hostname not in ('img.hellofresh.com','media.hellofresh.com'):return []
+ parts=parsed.path.split('/')
+ index=next((i for i,p in enumerate(parts) if p in ('recipes','hellofresh_s3') and i+1<len(parts)),None)
+ if index is None:return []
+ asset='/'.join(parts[index:])
+ if not re.search(r'\\.(?:jpe?g|png|webp)$',asset,re.I):return []
+ variants=[]
+ for host,prefix in (('img.hellofresh.com',''),('media.hellofresh.com','')):
+  for transform in ('','q_85,w_1200,f_jpg,c_limit/'):
+   candidate='https://'+host+'/'+transform+asset
+   if candidate!=url and complete_recipe_photo_url(candidate) and candidate not in variants:
+    variants.append(candidate)
+ return variants[:4]
+
+
+def download_photo(url,rid,prefer_jpeg=False,diagnostics=None):
+ def reject(reason):
+  if diagnostics is not None:diagnostics.append(reason)
+  return None
+ if not complete_recipe_photo_url(url):return reject('incomplete_url')
+ if prefer_jpeg:url=force_verified_photo_jpeg_url(url)
+ # Verified imported sources may return a previously quarantined WebP variant.
+ # Request JPEG first only for a provenance-verified recipe URL; keep the
+ # rejected-digest and duplicate checks in place for every format.
+ accept='image/jpeg,image/png;q=0.9,image/webp;q=0.5,image/avif;q=0.4' if prefer_jpeg else 'image/avif,image/webp,image/png,image/jpeg,image/gif'
+ req=urllib.request.Request(url,headers={'User-Agent':'Mozilla/5.0 (compatible; HelloGroceries/1.0)','Accept':accept})
  opener=urllib.request.build_opener(SafePhotoRedirect)
  with opener.open(req,timeout=12) as resp:
-  if not allowed_photo_url(resp.geturl()):return None
-  if int(resp.headers.get('Content-Length') or 0)>8_000_000:return None
+  if not allowed_photo_url(resp.geturl()):return reject('unsafe_redirect')
+  if int(resp.headers.get('Content-Length') or 0)>8_000_000:return reject('oversized_content_length')
   raw=resp.read(8_000_001)
- if len(raw)>8_000_000 or len(raw)<100:return None
+ if len(raw)>8_000_000 or len(raw)<2048:return reject('invalid_image_size')
+ digest=photo_digest(raw)
+ with photo_rejected_guard:
+  if digest in photo_rejected_digests:return reject('quarantined_digest')
  kind=image_type(raw)
- if not kind:return None
+ if not kind:return reject('invalid_image_format')
  mime,ext=kind
  dest=PHOTO_DIR/(str(rid)+ext)
  tmp=PHOTO_DIR/(str(rid)+'.tmp-'+str(threading.get_ident()))
@@ -829,7 +1086,25 @@ def download_photo(url,rid):
  finally:
   tmp.unlink(missing_ok=True)
  return dest,mime
-def resolve_photo(recipe,refresh=False):
+def trusted_imported_photo_url(recipe):
+ """Require a specific recipe slug or exact source ID in the imported photo path."""
+ url=clean_official_photo_candidate(recipe.get('image',''))
+ if not url or not complete_recipe_photo_url(url):return ''
+ path=urllib.parse.unquote(urllib.parse.urlsplit(url).path).lower()
+ filename=path.rsplit('/',1)[-1]
+ if re.search(r'(?:placeholder|default|generic|fallback|stock|logo)',filename):return ''
+ source=urllib.parse.urlsplit(recipe.get('url','')).path.rstrip('/').split('/')[-1].lower()
+ source_id=source.rsplit('-',1)[-1] if '-' in source else ''
+ # HelloFresh recipe IDs are 24-character hexadecimal tokens.
+ if re.fullmatch(r'[0-9a-f]{24}',source_id) and source_id in filename:return url
+ # Recipe-specific descriptive filenames must share multiple meaningful tokens.
+ slug=source[:-len(source_id)-1] if source_id and source.endswith('-'+source_id) else source
+ tokens={t for t in re.findall(r'[a-z]{4,}',slug) if t not in {'with','and','the','from','recipe','fresh','hello'}}
+ matched=sum(t in filename for t in tokens)
+ if len(tokens)>=2 and matched>=max(2,(len(tokens)+1)//2):return url
+ return ''
+
+def resolve_photo(recipe,refresh=False,diagnostics=None):
  rid=int(recipe['id'])
  with photo_locks_guard:
   item_lock=photo_locks.setdefault(rid,threading.Lock())
@@ -839,27 +1114,105 @@ def resolve_photo(recipe,refresh=False):
    if cached:return cached
   urls=[]
   existing=recipe.get('image','')
-  if existing and not re.search(r'(?:logo|placeholder|brandmark|default-image)',urllib.parse.urlsplit(existing).path,re.I):urls.append(existing)
-  # Attempt the known photo first; only fetch the recipe page when it fails.
+  if complete_recipe_photo_url(existing) and not re.search(r'(?:logo|placeholder|brandmark|default-image)',urllib.parse.urlsplit(existing).path,re.I):urls.append(existing)
+  # Restore original recipe-image URL priority. Shared URLs are allowed:
+  # distinct recipes can legitimately use the same HelloFresh artwork.
+  trusted=existing if complete_recipe_photo_url(existing) else ''
+  verified_official=[]
+  if not urls and 1000000<=rid<2000000:
+   verified_official=official_images(recipe)
+   urls=list(verified_official)
   for url in urls:
-   try:
-    result=download_photo(url,rid)
-    if result:return result
-   except (OSError,ValueError,TimeoutError,urllib.error.URLError):pass
-  urls=[url for url in official_images(recipe) if url!=existing]
+   # Retry only alternate transformations/hosts of the identical asset on 404.
+   # Never search for a different recipe image or bypass digest checks.
+   variants=[url]
+   for candidate in variants:
+    try:
+     result=download_photo(candidate,rid,prefer_jpeg=(1000000<=rid<2000000 and (url==trusted or url in verified_official)),diagnostics=diagnostics)
+     if result:return result
+    except urllib.error.HTTPError as exc:
+     if diagnostics is not None:diagnostics.append('download_HTTPError_'+str(exc.code))
+     if exc.code==404 and candidate==url:
+      variants.extend(official_photo_url_variants(url))
+    except (OSError,ValueError,TimeoutError,urllib.error.URLError) as exc:
+     if diagnostics is not None:diagnostics.append('download_'+type(exc).__name__)
+  urls=[] if 1000000<=rid<2000000 else [url for url in official_images(recipe) if url!=existing]
   # Exact official hero image verified for this historical HelloFresh recipe.
   if '5c670341c445fa54f6615252' in recipe.get('url',''):
    hero='https://media.hellofresh.com/q_100,w_1200,f_auto,c_limit,fl_lossy/recipes/image/2019-w14-r14-one-pan-chicken-sausage-orzo-475ebd8c.jpg'
    urls=[hero]+[url for url in urls if url!=hero]
   for url in urls:
    try:
-    result=download_photo(url,rid)
+    result=download_photo(url,rid,diagnostics=diagnostics)
     if result:
      if url!=existing:
       with db() as c:c.execute('INSERT OR REPLACE INTO photos(recipe_id,image_url) VALUES(?,?)',(rid,url))
      return result
-   except (OSError,ValueError,TimeoutError,urllib.error.URLError):continue
+   except (OSError,ValueError,TimeoutError,urllib.error.URLError) as exc:
+    if diagnostics is not None:diagnostics.append('download_'+type(exc).__name__+(('_'+str(exc.code)) if isinstance(exc,urllib.error.HTTPError) else ''))
+    continue
   return None if refresh else cached_photo(rid)
+
+# Keep remote photo downloads off browser-facing HTTP threads.
+# Bound concurrency and avoid repeatedly fetching missing upstream images.
+import queue
+photo_recovery_queue=queue.Queue(maxsize=256)
+photo_recovery_pending=set()
+photo_recovery_last_failed={}
+photo_recovery_guard=threading.Lock()
+def schedule_photo_recovery(recipe):
+ rid=int(recipe['id'])
+ with photo_recovery_guard:
+  if rid in photo_recovery_pending or time.monotonic()-photo_recovery_last_failed.get(rid,-1e9)<600:return False
+  try:photo_recovery_queue.put_nowait(recipe)
+  except queue.Full:return False
+  photo_recovery_pending.add(rid)
+ return True
+def queue_missing_first_page_photos():
+ """Prioritize visible recipe cards without touching stored recipes."""
+ try:
+  cards,_=default_recipe_page_data()
+  catalog={int(r['id']):r for r in browse_catalog()}
+  audit_first_page_photo_duplicates(cards)
+  queued=0
+  for card in cards[:48]:
+   rid=int(card['id'])
+   if not cached_photo(rid) and rid in catalog and schedule_photo_recovery(catalog[rid]):queued+=1
+  print(f'First-page photo recovery queued: {queued}',flush=True)
+ except Exception as exc:
+  print('First-page photo recovery setup:',repr(exc),flush=True)
+
+def photo_recovery_worker():
+ while True:
+  recipe=photo_recovery_queue.get()
+  rid=int(recipe['id'])
+  try:
+   if not cached_photo(rid):
+    recovered=resolve_photo(recipe)
+    if recovered:
+     # Check the newly downloaded cache against existing first-page entries.
+     # The startup audit runs again on deployment; reject repeat fallback
+     # clusters immediately so they never masquerade as successful recovery.
+     if 1000000<=rid<2000000:
+      cards,_=default_recipe_page_data()
+      audit_first_page_photo_duplicates(cards)
+     if cached_photo(rid):
+      photo_repair_log(rid,'recovered')
+      print(f'Photo recovered: {rid}',flush=True)
+     else:
+      photo_repair_log(rid,'duplicate_rejected','Recovery produced shared fallback artwork')
+      print(f'Photo duplicate rejected: {rid}',flush=True)
+    else:
+     with photo_recovery_guard:photo_recovery_last_failed[rid]=time.monotonic()
+     photo_repair_log(rid,'unavailable','Source page or image did not yield a usable photo')
+     print(f'Photo source unavailable: {rid}',flush=True)
+  except Exception as exc:
+   with photo_recovery_guard:photo_recovery_last_failed[rid]=time.monotonic()
+   photo_repair_log(rid,'error',repr(exc))
+   print(f'Photo recovery failed for {rid}: {exc!r}',flush=True)
+  finally:
+   with photo_recovery_guard:photo_recovery_pending.discard(rid)
+   photo_recovery_queue.task_done()
 
 # Low-rate background warmup for recommendation photos; never blocks a page request.
 RECOMMENDATION_PHOTO_CACHE_LIMIT=5*1024**3
@@ -878,7 +1231,7 @@ def recommendation_photo_warmup_worker():
   recommendation_photo_warmup['running']=True
   recommendation_photo_warmup['last_started']=datetime.datetime.now(datetime.timezone.utc).isoformat()
   try:
-   recipes=[r for r in allrecipes() if r.get('image') and not non_recipe_reason(r)]
+   recipes=[r for r in browse_catalog() if r.get('image') and not non_recipe_reason(r)]
    random.shuffle(recipes)
    cached=sum(1 for r in recipes if cached_photo(int(r['id'])))
    recommendation_photo_warmup['cached']=cached
@@ -1618,10 +1971,29 @@ def visible_cooking_recipe(recipe,checks):
  url=str(recipe.get('instructions_url') or recipe.get('url') or '')
  return bool(url and allowed_url(url)) # Fail open for inconclusive checks; no deletion.
 
+def complete_recipe_photo_url(url):
+ """Reject CDN transform-only URLs with no actual image asset path."""
+ if not isinstance(url,str) or not url.strip():return False
+ try:
+  u=urllib.parse.urlsplit(url.strip())
+  if not allowed_photo_url(url):return False
+  path=urllib.parse.unquote(u.path).rstrip('/')
+  if not path:return False
+  if u.hostname and u.hostname.lower() in ('img.hellofresh.com','media.hellofresh.com','cdn.hellofresh.com'):
+   parts=[p for p in path.split('/') if p]
+   if not parts:return False
+   # HelloFresh Cloudinary transform directives are not image assets.
+   if all(re.fullmatch(r'(?:[a-z]{1,3}_[a-z0-9.:-]+)(?:,[a-z]{1,3}_[a-z0-9.:-]+)*',p,re.I) for p in parts):return False
+   if path.endswith('/w_1200') or path.endswith('/q_auto'):return False
+  return True
+ except (ValueError,TypeError):return False
+
 def validate_import_recipe(recipe):
  """Apply catalog policy at the import boundary; do not delete prior entries."""
  reason=non_recipe_reason(recipe)
  if reason:raise ValueError('Skipped non-recipe listing: '+reason)
+ # Keep recipes and instructions, but never persist a transform-only URL as a photo.
+ if not complete_recipe_photo_url(recipe.get('image')):recipe['image']=''
  if len(recipe.get('ingredients') or {})<2:
   raise ValueError('Skipped listing without a usable ingredient list')
  return recipe
@@ -3302,15 +3674,22 @@ class Handler(SimpleHTTPRequestHandler):
    try:
     parsed=urllib.parse.urlsplit(self.path)
     rid=int(parsed.path.rsplit('/',1)[1])
-    recipe=next((r for r in allrecipes() if r['id']==rid),None)
+    # Never rebuild all 13k recipes (and their enrichment caches) for each image.
+    recipe=next((r for r in browse_catalog() if int(r['id'])==rid),None)
     if not recipe:return self.send_error(404)
-    refresh=urllib.parse.parse_qs(parsed.query).get('refresh',['0'])[0]=='1'
-    result=resolve_photo(recipe,refresh)
-    if not result:return self.send_error(404)
+    result=cached_photo(rid)
+    if not result:
+     schedule_photo_recovery(recipe)
+     self.send_response(404)
+     self.send_header('Cache-Control','no-store')
+     self.send_header('Retry-After','5')
+     self.send_header('Content-Length','0')
+     self.end_headers()
+     return
     file,mime=result
     payload=file.read_bytes()
     self.send_response(200);self.send_header('Content-Type',mime)
-    self.send_header('Cache-Control','private, max-age=3600')
+    self.send_header('Cache-Control','private, no-store, max-age=0')
     self.send_header('Content-Length',str(len(payload)))
     self.end_headers();self.wfile.write(payload);return
    except (ValueError,TypeError,OSError):return self.send_error(404)
@@ -3375,17 +3754,84 @@ class Handler(SimpleHTTPRequestHandler):
    sort=params.get('sort',['name'])[0].strip().lower()
    if sort not in ('name','reverse','newest') or protein not in ('all','chicken','beef','pork','seafood','vegetarian','other'):
     return self.sendjson({'error':'Invalid recipe filter'},400)
+   # Optional server-side filters. Defaults preserve the existing API contract.
+   cuisine=params.get('cuisine',['all'])[0].strip().casefold()[:60]
+   meal=params.get('meal',['all'])[0].strip().casefold()[:40]
+   ingredient=params.get('ingredient',[''])[0].strip().casefold()[:100]
+   exclude_ingredient=params.get('exclude_ingredient',[''])[0].strip().casefold()[:100]
+   quick=params.get('quick',['false'])[0].lower()=='true'
+   if cuisine not in ('all','italian','mexican','asian','mediterranean','american','other') or meal not in ('all','pasta','bowls','sandwich','salad','soup','other'):
+    return self.sendjson({'error':'Invalid cuisine or meal filter'},400)
+   ids_raw=params.get('ids',[''])[0].strip()
+   if len(ids_raw)>5000:return self.sendjson({'error':'Too many recipe IDs'},400)
+   try:allowed_ids={int(x) for x in ids_raw.split(',') if x.strip()} if ids_raw else None
+   except ValueError:return self.sendjson({'error':'Invalid recipe IDs'},400)
+   if not query and country=='ALL' and protein=='all' and sort=='name' and cuisine=='all' and meal=='all' and not ingredient and not exclude_ingredient and not quick and allowed_ids is None:
+    started=time.monotonic()
+    compact,total=default_recipe_page_data()
+    elapsed=time.monotonic()-started
+    if elapsed>0.25:print(f'Slow default recipe page build: {elapsed:.3f}s, {total} cards',flush=True)
+    start=(page-1)*page_size
+    return self.sendjson({'items':compact[start:start+page_size],'page':page,'page_size':page_size,'total':total,'pages':(total+page_size-1)//page_size})
    catalog=visible_browse_catalog()
-   matched=[r for r in catalog if recipe_page_matches(r,query,country,protein)]
+   def matches_extra(recipe):
+    name=str(recipe.get('name') or '').casefold()
+    ingredients=recipe.get('ingredients') or {}
+    if not isinstance(ingredients,dict):ingredients={}
+    names=' '.join(str(k).casefold() for k in ingredients)
+    if allowed_ids is not None and int(recipe.get('id') or 0) not in allowed_ids:return False
+    if cuisine!='all' and recipe_page_cuisine(recipe)!=cuisine:return False
+    if meal!='all' and recipe_page_meal(recipe)!=meal:return False
+    if ingredient and ingredient not in names:return False
+    if exclude_ingredient and exclude_ingredient in names:return False
+    if quick and not re.match(r'^\\s*(?:<\\s*)?(?:10|15)\\s*MM\\b',str(recipe.get('name') or ''),re.I):return False
+    return True
+   matched=[r for r in catalog if recipe_page_matches(r,query,country,protein) and matches_extra(r)]
    if sort=='newest':matched.sort(key=lambda r:int(r.get('id') or 0),reverse=True)
    else:matched.sort(key=lambda r:str(r.get('name') or '').casefold(),reverse=sort=='reverse')
    total=len(matched)
    start=(page-1)*page_size
    # Full recipe details remain available through the existing endpoint.
    # Only compact card metadata is transmitted for each page.
-   fields=('id','name','image','country','nutrition','dietary_labels','prep_time','cook_time','total_time','url')
+   fields=('id','name','image','country','nutrition','dietary_labels','prep_time','cook_time','total_time','url','ingredients','source_servings')
    items=[{key:recipe[key] for key in fields if key in recipe} for recipe in matched[start:start+page_size]]
    return self.sendjson({'items':items,'page':page,'page_size':page_size,'total':total,'pages':(total+page_size-1)//page_size})
+  if urllib.parse.urlsplit(self.path).path=='/api/recipes/recommendations':
+   # Bounded recommendation payload, independent of the full recipe summary.
+   # Exclusions keep planned, favorite and dismissed recipes out of suggestions.
+   params=urllib.parse.parse_qs(urllib.parse.urlsplit(self.path).query)
+   raw=params.get('exclude',[''])[0]
+   if len(raw)>5000:return self.sendjson({'error':'Too many excluded recipe IDs'},400)
+   try:
+    excluded={int(value.strip()) for value in raw.split(',') if value.strip()}
+   except ValueError:
+    return self.sendjson({'error':'Invalid excluded recipe IDs'},400)
+   if len(excluded)>250:return self.sendjson({'error':'Maximum 250 excluded recipe IDs'},400)
+   try:limit=max(1,min(24,int(params.get('limit',['12'])[0])))
+   except ValueError:return self.sendjson({'error':'Invalid recommendation limit'},400)
+   candidates=[recipe for recipe in visible_browse_catalog()
+    if int(recipe.get('id') or 0) not in excluded
+    and recipe.get('image') and recipe.get('url')]
+   # Deterministic daily rotation spreads discovery across the catalog.
+   candidates.sort(key=lambda recipe:str(recipe.get('name') or '').casefold())
+   offset=(int(time.time()//86400)*37)%len(candidates) if candidates else 0
+   rotated=candidates[offset:]+candidates[:offset]
+   fields=('id','name','image','country','nutrition','dietary_labels','prep_time','cook_time','total_time','url','ingredients','source_servings')
+   return self.sendjson({'items':[{key:recipe[key] for key in fields if key in recipe}
+    for recipe in rotated[:limit]],'total':len(candidates)})
+  if urllib.parse.urlsplit(self.path).path=='/api/recipes/batch':
+   # Hydrate only saved/selected recipes rather than downloading the catalog.
+   params=urllib.parse.parse_qs(urllib.parse.urlsplit(self.path).query)
+   raw=params.get('ids',[''])[0]
+   if len(raw)>5000:return self.sendjson({'error':'Too many recipe IDs'},400)
+   try:
+    ids={int(value.strip()) for value in raw.split(',') if value.strip()}
+   except ValueError:
+    return self.sendjson({'error':'Invalid recipe IDs'},400)
+   if len(ids)>100:return self.sendjson({'error':'Maximum 100 recipe IDs'},400)
+   fields=('id','name','image','country','nutrition','dietary_labels','prep_time','cook_time','total_time','url','ingredients','source_servings')
+   return self.sendjson([{key:recipe[key] for key in fields if key in recipe}
+    for recipe in visible_browse_catalog() if int(recipe.get('id') or 0) in ids])
   if urllib.parse.urlsplit(self.path).path=='/api/recipes/detail':
    params=urllib.parse.parse_qs(urllib.parse.urlsplit(self.path).query)
    try:
@@ -4176,6 +4622,16 @@ if __name__=='__main__':
  if BULK_RECOVER:
   job.update(running=True,paused=False,processed=0,discovered=0,imported=0,skipped=0,errors=0,message='Recovering interrupted import; saved recipes will be skipped')
   threading.Thread(target=bulk_worker,args=(job.get('country','US'),int(job.get('limit',0))),daemon=True).start()
+ # Build catalog asynchronously so the HTTP server can accept requests promptly.
+ # Build the catalog before starting competing background scans and imports.
+ # A ready HTTP listener must not advertise readiness while the first browse
+ # request is blocked by the same expensive SQLite work.
+ recipe_catalog_warmup_worker()
+ for index in range(2):
+  threading.Thread(target=photo_recovery_worker,daemon=True,name=f'photo-recovery-{index}').start()
+ quarantine_unverified_imported_photo_cache()
+ audit_all_cached_imported_photo_duplicates()
+ queue_missing_first_page_photos()
  threading.Thread(target=recommendation_photo_warmup_worker,daemon=True,name='recommendation-photo-warmup').start()
  threading.Thread(target=nutrition_scan_worker,daemon=True,name='nutrition-background-scan').start()
  threading.Thread(target=recipe_source_enrichment_worker,daemon=True,name='recipe-source-enrichment').start()

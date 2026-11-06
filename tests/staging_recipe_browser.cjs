@@ -23,9 +23,15 @@ async function main() {
   });
   fs.mkdirSync('test-results', { recursive: true });
   const errors = [];
+  const unexpectedApiResponses = [];
   page.on('pageerror', e => errors.push('page: ' + e.message));
   page.on('console', m => { if (m.type() === 'error') errors.push('console: ' + m.text()); });
   page.on('response', r => { if (r.status() >= 400 && r.url().startsWith(base)) errors.push('HTTP ' + r.status() + ' ' + r.url()); });
+  page.on('response', r => {
+    if (!r.url().startsWith(base) || !new URL(r.url()).pathname.startsWith('/api/')) return;
+    const type = r.headers()['content-type'] || '';
+    if (!type.includes('json')) unexpectedApiResponses.push({ path: new URL(r.url()).pathname, status: r.status(), contentType: type, redirectedTo: r.url() });
+  });
   try {
     if (process.env.STAGING_AUTH_STATE) { await page.goto(base+'/',{waitUntil:'domcontentloaded'}); } else {
     const initial = await page.goto(base + '/auth.html', { waitUntil: 'domcontentloaded' });
@@ -51,8 +57,70 @@ async function main() {
     // Login intentionally lands on Home; navigate to Recipes before testing its controls.
     await page.locator('.page-nav-button[data-page="recipes"]').waitFor({ state: 'attached', timeout: 30000 });
     await page.locator('.page-nav-button[data-page="recipes"]').evaluate(button => button.click());
-    await page.locator('#fast-browse-toggle').waitFor({ state: 'visible', timeout: 30000 });
-    await page.locator('#fast-browse-toggle').click();
+    // Read-only Plan page regression: navigation, selected meal count and controls.
+    await page.locator('.page-nav-button[data-page="planner"]').evaluate(button => button.click());
+    await page.waitForFunction(() => {
+      if (typeof state === 'undefined') return false;
+      const list = document.querySelector('#selected-plan-list');
+      return list && list.querySelectorAll('.selected-meal').length === Object.keys(state.selected || {}).length;
+    }, null, { timeout: 30000 }).catch(async error => {
+      const snapshot = await page.evaluate(() => ({
+        selected: Object.keys(state?.selected || {}).length,
+        rendered: document.querySelectorAll('#selected-plan-list .selected-meal').length,
+        listHTML: document.querySelector('#selected-plan-list')?.innerHTML.slice(0, 500),
+        activePage: document.querySelector('.page-nav-button[aria-current="page"]')?.dataset.page
+      }));
+      throw new Error('Plan did not finish rendering: ' + JSON.stringify(snapshot) + '; ' + error.message);
+    });
+    const planSnapshot = await page.evaluate(() => ({
+      expected: Object.keys(state.selected || {}).length,
+      displayed: document.querySelectorAll('#selected-plan-list .selected-meal').length,
+      missingControls: [...document.querySelectorAll('#selected-plan-list .selected-meal')].filter(card => !card.querySelector('[data-plan-scale]') || !card.querySelector('[data-remove-meal]')).length,
+      hasWeekGrid: !!document.querySelector('#week-grid')
+    }));
+    assert.equal(planSnapshot.displayed, planSnapshot.expected, 'Plan selected meals count does not match saved state');
+    assert.equal(planSnapshot.missingControls, 0, 'Plan meal serving/remove controls missing');
+    assert.ok(planSnapshot.hasWeekGrid, 'Weekly planner missing');
+    // Staging runs the deployed develop image, not this PR's source. Enforce the
+    // new Plan markup at source level before merge; exercise it in the browser
+    // once the updated develop image has actually been deployed.
+    const planSource = require('node:fs').readFileSync(require('node:path').join(__dirname, '../app/index.html'), 'utf8');
+    assert.ok(planSource.includes('id="planner-selected-meals-list"'), 'Plan page selected meals markup missing from candidate build');
+    assert.ok(planSource.includes("plannerList.innerHTML=$('selected-plan-list').innerHTML"), 'Plan page selected meals rendering missing from candidate build');
+    const deployedPlanner = await page.locator('#planner-selected-meals-list').count();
+    if (deployedPlanner) {
+      await page.waitForFunction(() => document.querySelectorAll('#planner-selected-meals-list .selected-meal').length === Object.keys(state.selected || {}).length, null, { timeout: 30000 });
+      const plannerControls = await page.locator('#planner-selected-meals-list .selected-meal').count();
+      const liveExpected = await page.evaluate(() => Object.keys(state.selected || {}).length);
+      assert.equal(plannerControls, liveExpected, 'Plan page must display saved meals directly above weekly planner');
+    } else {
+      console.log('PENDING DEPLOY: live staging does not yet include the new Plan page; candidate source verified');
+    }
+    console.log('PASS: Plan page selected meals, controls and weekly planner (' + planSnapshot.expected + ' selected)');
+    await page.locator('.page-nav-button[data-page="recipes"]').evaluate(button => button.click());
+    // Verify visible recommendations do not repeat a recipe family.
+    await page.locator('#recommend-list').waitFor({ state: 'attached', timeout: 30000 });
+    await page.waitForTimeout(2500);
+    const recommendationTitles = await page.locator('#recommend-list .recommend-title').allInnerTexts();
+    const families = recommendationTitles.map(title => title.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim().split(' ').slice(0, 5).join(' '));
+    assert.equal(new Set(families).size, families.length, 'Duplicate recommendation family: ' + JSON.stringify(recommendationTitles));
+    console.log('PASS: visible recommendations contain no duplicate title families (' + families.length + ' checked)');
+    // Ensure recommendation images invoke the recovery path when the photo API fails.
+    const recommendationPhotoWiring = await page.evaluate(() => {
+      const img = document.querySelector('#recommend-list .recommend-photo');
+      return { count: document.querySelectorAll('#recommend-list .recommend-photo').length,
+        wired: !img || img.getAttribute('onerror') === 'recommendationPhotoFailed(this)' };
+    });
+    assert.ok(recommendationPhotoWiring.wired, 'Recommendation images lack a photo failure handler');
+    console.log('PASS: recommendation photo error recovery is wired');
+    await page.locator('#fast-browse-toggle').waitFor({ state: 'attached', timeout: 30000 });
+    await page.locator('#fast-browse-toggle').evaluate(button => {
+      // The legacy pagination panel is intentionally hidden from customers.
+      // Reveal it only in this automated regression test.
+      button.parentElement.style.display = '';
+      document.querySelector('#fast-browse-panel').style.display = '';
+      button.click();
+    });
     const cards = page.locator('#fast-browse-results .recipe-card');
     await cards.first().waitFor({ timeout: 120000 }).catch(async error=>{
       const panel=(await page.locator('#fast-browse-results').innerText()).slice(0,600);
@@ -140,18 +208,16 @@ async function main() {
       } catch (error) {
         throw new Error('Favorite not saved: ' + JSON.stringify(saveEvents) + '; ' + error.message);
       }
-      // The favorite action can re-render the entire recipe grid while Playwright
-      // waits for a stable click target. Dispatch on the currently attached button
-      // and assert the actual saved selection below instead of waiting for layout stability.
-      await page.waitForFunction(id => !!document.querySelector('#fast-browse-results [data-fast-plan="' + id + '"]'), targetId, { timeout: 90000 });
-      await page.locator('#fast-browse-results [data-fast-plan="' + targetId + '"]').evaluate(async button => {
-         button.click();
-         // The click handler awaits the serialized save; wait for its queue.
-         await mealSelectionQueue;
-       });
-      await page.waitForFunction(id => Object.hasOwn(state.selected || {}, String(id)), targetId, { timeout: 30000 });
+      // Collection save comes first: selecting a meal can remove its card from
+      // the current filtered result set before the collection selector is used.
       await page.locator('#fast-browse-results [data-fast-collection="' + targetId + '"]').selectOption(testCollection);
       await page.waitForFunction(([id, name]) => (state.collections?.[name] || []).map(Number).includes(Number(id)), [targetId, testCollection], { timeout: 30000 });
+      await page.waitForFunction(id => !!document.querySelector('#fast-browse-results [data-fast-plan="' + id + '"]'), targetId, { timeout: 90000 });
+      await page.locator('#fast-browse-results [data-fast-plan="' + targetId + '"]').evaluate(async button => {
+        button.click();
+        await mealSelectionQueue;
+      });
+      await page.waitForFunction(id => Object.hasOwn(state.selected || {}, String(id)), targetId, { timeout: 30000 });
       // Capture server responses during reload to distinguish hydration failure from lost data.
       const reloadResponses = [];
       const trackReloadResponse = response => {
@@ -163,7 +229,13 @@ async function main() {
       await page.reload({ waitUntil: 'domcontentloaded' });
       await page.locator('.page-nav-button[data-page="recipes"]').waitFor({ state: 'attached', timeout: 30000 });
       await page.locator('.page-nav-button[data-page="recipes"]').evaluate(button => button.click());
-      await page.locator('#fast-browse-toggle').click();
+      await page.locator('#fast-browse-toggle').evaluate(button => {
+      // The legacy pagination panel is intentionally hidden from customers.
+      // Reveal it only in this automated regression test.
+      button.parentElement.style.display = '';
+      document.querySelector('#fast-browse-panel').style.display = '';
+      button.click();
+    });
       const persistedSnapshot = async () => page.evaluate(([id, name]) => ({
         favorite: typeof state !== 'undefined' && (state.favorites || []).map(Number).includes(Number(id)),
         selected: typeof state !== 'undefined' && Object.hasOwn(state.selected || {}, String(id)),
@@ -187,6 +259,50 @@ async function main() {
         throw new Error('Post-reload persistence check failed: ' + JSON.stringify(snapshot) + '; ' + error.message);
       }
       console.log('PASS: favorite, meal plan and collection persisted after reload');
+      // Exercise the actual customer-facing recipe cards, not just the hidden fast browser.
+      await page.waitForFunction(() => !!document.querySelector('#recipes [data-favorite]'), null, { timeout: 30000 });
+      const visibleId = await page.locator('#recipes [data-favorite]').first().getAttribute('data-favorite');
+      const visibleBefore = await page.evaluate(id => ({
+        favorite: (state.favorites || []).map(Number).includes(Number(id)),
+        collections: structuredClone(state.collections || {})
+      }), visibleId);
+      try {
+        await page.locator('#recipes [data-favorite="' + visibleId + '"]').click();
+        await page.waitForFunction(([id, was]) => (state.favorites || []).map(Number).includes(Number(id)) !== was,
+          [visibleId, visibleBefore.favorite], { timeout: 30000 });
+        try {
+          await page.waitForFunction(([id, expected]) => {
+            const button = document.querySelector('#recipes [data-favorite="' + id + '"]');
+            return button && button.textContent.includes('Favorited') === expected;
+          }, [visibleId, !visibleBefore.favorite], { timeout: 30000 });
+        } catch (error) {
+          const snapshot = await page.evaluate(id => ({
+            button: document.querySelector('#recipes [data-favorite="' + id + '"]')?.outerHTML,
+            savedFavorite: (state.favorites || []).map(Number).includes(Number(id)),
+            pageGeneration: typeof pageRequestGeneration !== 'undefined' ? pageRequestGeneration : null,
+            visibleCards: document.querySelectorAll('#recipes [data-favorite]').length
+          }), visibleId);
+          throw new Error('Visible favorite button did not refresh: ' + JSON.stringify(snapshot) + '; ' + error.message);
+        }
+        await page.evaluate(async ({ name }) => {
+          await preferences({ collections: { ...(state.collections || {}), [name]: [] } });
+        }, { name: testCollection });
+        await page.locator('#recipes [data-collection-add="' + visibleId + '"]').selectOption(testCollection);
+        await page.waitForFunction(([id, name]) => (state.collections?.[name] || []).map(Number).includes(Number(id)),
+          [visibleId, testCollection], { timeout: 30000 });
+        await page.reload({ waitUntil: 'domcontentloaded' });
+        await page.waitForFunction(([id, name, was]) =>
+          (state.collections?.[name] || []).map(Number).includes(Number(id)) &&
+          (state.favorites || []).map(Number).includes(Number(id)) !== was,
+          [visibleId, testCollection, visibleBefore.favorite], { timeout: 30000 });
+        console.log('PASS: visible recipe card favorite and collection saved and persisted');
+      } finally {
+        await page.evaluate(async ({ id, before }) => {
+          const favorites = new Set((state.favorites || []).map(Number));
+          if (before.favorite) favorites.add(Number(id)); else favorites.delete(Number(id));
+          await preferences({ favorites: [...favorites], collections: before.collections });
+        }, { id: visibleId, before: visibleBefore });
+      }
     } finally {
       // Restore the test account even when an assertion fails.
       await page.evaluate(async ({ id, saved }) => {
@@ -199,7 +315,7 @@ async function main() {
   } catch (error) {
     await page.screenshot({ path: 'test-results/failure.png', fullPage: true }).catch(() => {});
     fs.writeFileSync('test-results/page.html', await page.content().catch(() => 'Unavailable'));
-    if (!fs.existsSync('test-results/diagnostics.json')) fs.writeFileSync('test-results/diagnostics.json', JSON.stringify({ url: page.url(), consoleErrors: errors }, null, 2));
+    fs.writeFileSync('test-results/diagnostics.json', JSON.stringify({ url: page.url(), consoleErrors: errors, unexpectedApiResponses: unexpectedApiResponses.slice(-30), failure: String(error) }, null, 2));
     throw error;
   } finally {
     await browser.close();
