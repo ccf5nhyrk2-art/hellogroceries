@@ -3020,7 +3020,12 @@ async function loadFastBrowse(){
    }finally{clearTimeout(timer)}
   }
   if(request!==fastBrowseRequest)return;
-  if(request!==fastBrowseRequest)return;
+  // Never present unrelated results as matches. This also exposes a stale
+  // deployment or backend filtering regression instead of silently misleading users.
+  const searchTerm=params.get('q').trim().toLocaleLowerCase();
+  if(searchTerm && (result.items||[]).some(recipe=>!String(recipe.name||'').toLocaleLowerCase().includes(searchTerm))){
+   throw Error('Search results did not match your query. Please retry after the server updates.');
+  }
   fastBrowsePages=Math.max(1,Number(result.pages)||1);
   fastBrowsePage=Number(result.page)||1;
   $('fast-browse-pageinfo').textContent='Page '+fastBrowsePage+' of '+fastBrowsePages+' · '+Number(result.total||0).toLocaleString()+' matches';
