@@ -3590,17 +3590,13 @@ function hfImageLoaded(img,id){
    if(retrySource())return;
    hfHideBrokenCatalogCard(img,id);hfUpdatePhotoAudit();return;
   }
-  if(opaque&&green/opaque>0.30){
-   if(retrySource())return;
-   // Refresh the proxy only once. If its output is still generic branding,
-   // show the compact unavailable-photo tile rather than looping.
-   if(!img.dataset.logoRefresh&&img.dataset.logoSourceTried!=='1'){
-    img.dataset.logoRefresh='1';img.src='/api/photo/'+encodeURIComponent(String(id))+'?refresh=1';return;
-   }
-   hfBrokenPhotos.set(String(id),{id:String(id),reason:'Generic green branding',url:img.src});
-   hfHideBrokenCatalogCard(img,id);hfUpdatePhotoAudit();return;
-  }
+  // Food photographs frequently have green backgrounds, herbs or vegetables.
+  // A green-pixel ratio cannot distinguish real food from generic branding.
+  // Keep the valid, successfully decoded image instead of replacing it.
   img.classList.add('photo-verified');
+  img.style.display='';
+  const card=img.closest('.recipe-card');
+  if(card){card.classList.remove('recipe-photo-missing');const placeholder=card.querySelector('.photo-placeholder');if(placeholder)placeholder.style.display='none';}
  }catch(error){
   // Direct cross-origin URLs may taint the canvas. The same-origin proxy is
   // the inspectable source; never repeatedly retry a blocked external URL.
