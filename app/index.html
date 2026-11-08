@@ -1770,7 +1770,7 @@ const shoppingDepartments=[
  ['Dairy & Refrigerated','🧀',/\b(cheese|feta|mozzarella|parmesan|cheddar|sour cream|yogurt|milk|butter|egg|heavy cream|creme fraiche)\b/i],
  ['Bakery & Bread','🍞',/\b(bread|bun|brioche|baguette|pita|tortilla|naan|rolls|flatbread|croissant)\b/i],
  ['Frozen','🧊',/\b(frozen|ice cream)\b/i],
- ['Pantry & Seasonings','🥫',/\b(rice|pasta|orzo|noodle|couscous|quinoa|flour|sugar|salt|peppercorn|spice|seasoning|paprika|cumin|chili flakes|oregano|thyme|rosemary|cinnamon|turmeric|oil|vinegar|soy sauce|sauce|dressing|stock|broth|bouillon|honey|mustard|mayonnaise|mayo|ketchup|sriracha|beans|lentils|chickpeas|tomato paste|breadcrumbs|panko|nuts|sesame|canned|jam|syrup)\b/i]
+ ['Pantry & Seasonings','🥫',/\b(rice|pasta|orzo|noodle|couscous|quinoa|flour|sugar|salt|peppercorn|spice|seasoning|paprika|cumin|nutmeg|allspice|cloves|cardamom|ginger powder|chili flakes|oregano|thyme|rosemary|cinnamon|turmeric|oil|vinegar|soy sauce|sauce|dressing|stock|broth|bouillon|honey|mustard|mayonnaise|mayo|ketchup|sriracha|beans|lentils|chickpeas|tomato paste|breadcrumbs|panko|nuts|sesame|canned|jam|syrup)\b/i]
 ];
 const shoppingOpenDepartments=new Set(shoppingDepartments.map(x=>x[0]).concat(['Other / Uncategorized','Needs Review']));
 function setAllShoppingDepartments(open){
