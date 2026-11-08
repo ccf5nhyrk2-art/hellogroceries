@@ -1057,7 +1057,7 @@ def official_photo_url_variants(url):
  index=next((i for i,p in enumerate(parts) if p in ('recipes','hellofresh_s3') and i+1<len(parts) and parts[i+1]=='image'),None)
  if index is None:return []
  asset='/'.join(parts[index:])
- if not re.search(r'\\.(?:jpe?g|png|webp)$',asset,re.I):return []
+ if not re.search(r'\.(?:jpe?g|png|webp)$',asset,re.I):return []
  variants=[]
  # Prefer the JPEG format independently confirmed downloadable in staging.
  # Preserve the exact asset key: transforms and delivery host are not identity.
