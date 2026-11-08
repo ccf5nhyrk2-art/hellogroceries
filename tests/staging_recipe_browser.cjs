@@ -159,8 +159,11 @@ async function main() {
       await page.waitForFunction(() => {
         const panel = document.querySelector('#fast-browse-results');
         const cards = [...panel.querySelectorAll('.recipe-card')];
-        return cards.length > 0 && cards.every(card => card.querySelector('.recipe-card-title')?.textContent?.toLowerCase().includes('chicken'));
-      }, null, { timeout: 90000 });
+        const text = panel.textContent || '';
+        return text.startsWith('Unable to load recipes:') || (cards.length > 0 && cards.every(card => card.querySelector('.recipe-card-title')?.textContent?.toLowerCase().includes('chicken')));
+      }, null, { timeout: 20000 });
+      const panelText = await page.locator('#fast-browse-results').innerText();
+      assert.ok(!panelText.startsWith('Unable to load recipes:'), 'Search frontend rejected response: '+panelText.slice(0,400));
     } catch (error) {
       throw new Error('Search did not render matching cards. API requests=' + JSON.stringify(searchRequests) + '; panel=' + (await page.locator('#fast-browse-results').innerText()).slice(0, 500) + '; ' + error.message);
     }
