@@ -1129,13 +1129,10 @@ def resolve_photo(recipe,refresh=False,diagnostics=None):
   urls=[]
   existing=recipe.get('image','')
   if complete_recipe_photo_url(existing) and not re.search(r'(?:logo|placeholder|brandmark|default-image)',urllib.parse.urlsplit(existing).path,re.I):urls.append(existing)
-  # Restore original recipe-image URL priority. Shared URLs are allowed:
-  # distinct recipes can legitimately use the same HelloFresh artwork.
+  # Imported US recipes use only their original JSON-LD image URL.
+  # A missing original image means no new photo, never a guessed replacement.
   trusted=existing if complete_recipe_photo_url(existing) else ''
   verified_official=[]
-  if not urls and 1000000<=rid<2000000:
-   verified_official=official_images(recipe)
-   urls=list(verified_official)
   for url in urls:
    # Retry only alternate transformations/hosts of the identical asset on 404.
    # Never search for a different recipe image or bypass digest checks.
@@ -1151,10 +1148,6 @@ def resolve_photo(recipe,refresh=False,diagnostics=None):
     except (OSError,ValueError,TimeoutError,urllib.error.URLError) as exc:
      if diagnostics is not None:diagnostics.append('download_'+type(exc).__name__)
   urls=[] if 1000000<=rid<2000000 else [url for url in official_images(recipe) if url!=existing]
-  # Exact official hero image verified for this historical HelloFresh recipe.
-  if '5c670341c445fa54f6615252' in recipe.get('url',''):
-   hero='https://media.hellofresh.com/q_100,w_1200,f_auto,c_limit,fl_lossy/recipes/image/2019-w14-r14-one-pan-chicken-sausage-orzo-475ebd8c.jpg'
-   urls=[hero]+[url for url in urls if url!=hero]
   for url in urls:
    try:
     result=download_photo(url,rid,diagnostics=diagnostics)
