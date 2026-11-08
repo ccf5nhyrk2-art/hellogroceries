@@ -1399,11 +1399,20 @@ def non_recipe_reason(recipe):
  title=str(recipe.get('name','')).lower().strip()
  if not title:return 'Missing recipe title'
  if confirmed_prepared_product(recipe):return 'Ready-made meal assembly'
+ if packaged_snack_listing(recipe):return 'Packaged snack product'
  if any(re.search(pattern,title) for pattern in NON_RECIPE_PATTERNS):
   return 'Product or promotional listing'
  if re.search(r'\b\d+\s*(?:lb|lbs|oz|kg)\b',title) and re.search(r'\b(?:box|pack|case|bundle)\b',title):
   return 'Bulk packaged product'
  return None
+
+def packaged_snack_listing(recipe):
+ """Conservatively exclude branded retail snacks, not homemade snack recipes."""
+ title=str(recipe.get('name') or '').strip()
+ if not title:return False
+ branded=bool(re.search(r"(?i)\b(?:annie['’]s|bunny grahams)\b",title))
+ packaged=bool(re.search(r"(?i)\b(?:snack time|snack packs?|grahams|fruit snacks?|granola bars?)\b",title))
+ return branded and packaged
 
 def prepared_meal_review(recipe):
  """Review-only classification; never removes or hides recipes."""
@@ -3825,7 +3834,9 @@ class Handler(SimpleHTTPRequestHandler):
    except ValueError:return self.sendjson({'error':'Invalid recommendation limit'},400)
    candidates=[recipe for recipe in visible_browse_catalog()
     if int(recipe.get('id') or 0) not in excluded
-    and recipe.get('image') and recipe.get('url')]
+    and recipe.get('image') and recipe.get('url')
+    and isinstance(recipe.get('ingredients'),dict)
+    and len(recipe['ingredients'])>=3]
    # Deterministic daily rotation spreads discovery across the catalog.
    candidates.sort(key=lambda recipe:str(recipe.get('name') or '').casefold())
    offset=(int(time.time()//86400)*37)%len(candidates) if candidates else 0
