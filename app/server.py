@@ -1399,11 +1399,20 @@ def non_recipe_reason(recipe):
  title=str(recipe.get('name','')).lower().strip()
  if not title:return 'Missing recipe title'
  if confirmed_prepared_product(recipe):return 'Ready-made meal assembly'
+ if packaged_snack_listing(recipe):return 'Packaged snack product'
  if any(re.search(pattern,title) for pattern in NON_RECIPE_PATTERNS):
   return 'Product or promotional listing'
  if re.search(r'\b\d+\s*(?:lb|lbs|oz|kg)\b',title) and re.search(r'\b(?:box|pack|case|bundle)\b',title):
   return 'Bulk packaged product'
  return None
+
+def packaged_snack_listing(recipe):
+ """Conservatively exclude branded retail snacks, not homemade snack recipes."""
+ title=str(recipe.get('name') or '').strip()
+ if not title:return False
+ branded=bool(re.search(r"(?i)\\b(?:annie['’]s|bunny grahams)\\b",title))
+ packaged=bool(re.search(r"(?i)\\b(?:snack time|snack packs?|grahams|fruit snacks?|granola bars?)\\b",title))
+ return branded and packaged
 
 def prepared_meal_review(recipe):
  """Review-only classification; never removes or hides recipes."""
