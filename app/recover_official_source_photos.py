@@ -11,6 +11,8 @@ from pathlib import Path
 import urllib.error
 import urllib.parse
 
+from audit_photo_cdn_evidence import asset_key
+
 import server
 
 
@@ -22,6 +24,15 @@ def run(limit=0, start_after=0, apply=False, report="/data/official_source_photo
     counts = collections.Counter()
     samples = collections.defaultdict(list)
     seen_assets = {}
+    # Check the complete imported catalog, not just this limited recovery batch.
+    # A shared stored asset is evidence of a possible import mismatch, not proof.
+    catalog_asset_owners = collections.defaultdict(set)
+    for item in server.browse_catalog():
+        iid = int(item['id'])
+        if 1000000 <= iid < 2000000:
+            key = asset_key(server.clean_official_photo_candidate(item.get('image', '')))
+            if key:
+                catalog_asset_owners[key].add(iid)
     rejected_evidence = []
     # Active images are protected from accidental reuse across different recipes.
     known_digests = {}
@@ -52,10 +63,12 @@ def run(limit=0, start_after=0, apply=False, report="/data/official_source_photo
                 url = server.clean_official_photo_candidate(candidates[0])
                 if not url or not server.complete_recipe_photo_url(url):
                     reason = "invalid_official_url"
-                elif url in seen_assets and seen_assets[url] != rid:
+                elif asset_key(url) and len(catalog_asset_owners.get(asset_key(url), ())) > 1:
+                    reason = "shared_catalog_asset_requires_review"
+                elif asset_key(url) in seen_assets and seen_assets[asset_key(url)] != rid:
                     reason = "shared_official_asset"
                 else:
-                    seen_assets[url] = rid
+                    seen_assets[asset_key(url)] = rid
                     if apply:
                         # download_photo enforces approved HTTPS hosts, redirects,
                         # size, file format, and rejected digest restrictions.
