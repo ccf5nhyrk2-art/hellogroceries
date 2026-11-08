@@ -4627,6 +4627,10 @@ class Handler(SimpleHTTPRequestHandler):
      if found is None:raise ValueError('Unknown item')
      found['purchased']=bool(p['purchased'])
     else:raise ValueError('Unknown action')
+    # Keep an existing generated list synchronized with pantry quantity changes.
+    # Do not create a shopping list until the user has generated one.
+    if action in ('set_pantry_inventory','adjust_pantry_inventory','delete_pantry_item','pantry_scan_apply') and state.get('list'):
+     rebuild_grocery_list(state)
     if action=='preview_grocery':return self.sendjson({'items':state['list']})
     state['revision']+=1;save(state)
     pantry_audit(pantry_before,state)
