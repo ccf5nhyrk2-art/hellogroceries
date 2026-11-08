@@ -132,13 +132,25 @@ async function main() {
     const pageInfo = await page.locator('#fast-browse-pageinfo').innerText();
     assert.match(pageInfo, /Page 1 of \d+/);
     console.log('PASS: initial 24-card page and page count');
+    const servedFrontend = await page.evaluate(() => ({
+      hasStaleResultGuard: document.documentElement.outerHTML.includes('Search returned unrelated recipes even after a fresh retry.'),
+      hasSearchInputInvalidation: document.documentElement.outerHTML.includes('Search changed. Press Search to see matching recipes.')
+    }));
+    console.log('STAGING FRONTEND VERSION: ' + JSON.stringify(servedFrontend));
     const searchRequests = [];
     const isRecipePage = url => url.includes('/api/recipes/page');
     page.on('request', request => {
       if (isRecipePage(request.url())) searchRequests.push({ event: 'started', query: new URL(request.url()).searchParams.get('q') });
     });
     page.on('response', response => {
-      if (isRecipePage(response.url())) searchRequests.push({ event: 'response', status: response.status(), query: new URL(response.url()).searchParams.get('q') });
+      if (isRecipePage(response.url())) {
+        const entry = { event: 'response', status: response.status(), query: new URL(response.url()).searchParams.get('q') };
+        searchRequests.push(entry);
+        if (entry.query === 'chicken') response.json().then(data => {
+          entry.titles = (data.items || []).map(recipe => String(recipe.name || '')).slice(0, 24);
+          entry.unmatched = entry.titles.filter(title => !title.toLowerCase().includes('chicken'));
+        }).catch(error => { entry.parseError = error.message; });
+      }
     });
     page.on('requestfailed', request => {
       if (isRecipePage(request.url())) searchRequests.push({ event: 'failed', error: request.failure()?.errorText, query: new URL(request.url()).searchParams.get('q') });
