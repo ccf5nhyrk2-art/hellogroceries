@@ -292,7 +292,14 @@ def visible_browse_catalog():
   with db() as c:
    c.execute("CREATE TABLE IF NOT EXISTS official_photo_status (recipe_id TEXT PRIMARY KEY, source_url TEXT NOT NULL, status TEXT NOT NULL)")
    missing={(rid,url) for rid,url in c.execute("SELECT recipe_id,source_url FROM official_photo_status WHERE status='confirmed_no_photo'")}
-  catalog=tuple(r for r in browse_catalog() if not non_recipe_reason(r) and visible_cooking_recipe(r,None) and (str(r.get('id')),str(r.get('url') or '')) not in missing)
+  # Imported recipes must have a locally validated, non-rejected photo before
+  # appearing in browse/search/recommendations. Never delete the underlying
+  # recipe: existing plans, favorites, and collections still reference its ID.
+  # Do not perform remote photo downloads while serving a browse request.
+  def has_browse_photo(recipe):
+   rid=int(recipe['id'])
+   return not (1000000<=rid<2000000) or cached_photo(rid) is not None
+  catalog=tuple(r for r in browse_catalog() if not non_recipe_reason(r) and visible_cooking_recipe(r,None) and (str(r.get('id')),str(r.get('url') or '')) not in missing and has_browse_photo(r))
   _recipe_visible_cache=(time.monotonic(),catalog)
   return catalog
 
