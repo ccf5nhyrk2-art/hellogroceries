@@ -152,7 +152,11 @@ def main():
                             continue
                     if reason == "missing":
                         reason = "missing_no_matching_original"
-        except Exception as exc:\n            detail = str(exc).strip()[:120]\n            reason = "verification_error_" + type(exc).__name__\n            if detail:\n                reason += ":" + detail.replace("\\n", " ")
+        except Exception as exc:
+            detail = str(exc).strip()[:120]
+            reason = "verification_error_" + type(exc).__name__
+            if detail:
+                reason += ":" + detail.replace("\n", " ")
         counts[reason] += 1
         if len(examples[reason]) < 8:
             examples[reason].append({"id": rid, "name": recipe.get("name", "")})
