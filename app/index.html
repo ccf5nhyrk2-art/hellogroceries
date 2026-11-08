@@ -3120,7 +3120,20 @@ async function renderPaged(){
   // Refresh controls even when the page contains the same recipe IDs.
   // Favorites and collection saves change state without changing pagination;
   // skipping this render left visible buttons stale after successful saves.
-  grid.innerHTML=page.items.map(recipeCardMarkup).join('')||'<p class="muted">No recipes match these filters.</p>';
+  if(ids.length!==next.length||ids.some((id,index)=>id!==next[index])){
+   grid.innerHTML=page.items.map(recipeCardMarkup).join('')||'<p class="muted">No recipes match these filters.</p>';
+  }else{
+   for(const card of grid.querySelectorAll('.recipe-card')){
+    const checkbox=card.querySelector('input[data-id]');
+    if(!checkbox)continue;
+    const id=String(checkbox.dataset.id),selected=Object.hasOwn(state.selected||{},id);
+    checkbox.checked=selected;
+    const label=card.querySelector('.recipe-plan-label');
+    if(label)label.textContent=selected?'✓ Added to plan':'Add to plan';
+    const favorite=card.querySelector('[data-favorite]');
+    if(favorite)favorite.textContent=(state.favorites||[]).some(x=>String(x)===id)?'♥ Favorited':'♡ Favorite';
+   }
+  }
   renderSelectedPlan();
   renderShoppingList();
   scheduleRecipeRecommendations();
