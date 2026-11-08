@@ -9,6 +9,7 @@ import hashlib
 import json
 from pathlib import Path
 import urllib.error
+import urllib.parse
 
 import server
 
@@ -21,6 +22,7 @@ def run(limit=0, start_after=0, apply=False, report="/data/official_source_photo
     counts = collections.Counter()
     samples = collections.defaultdict(list)
     seen_assets = {}
+    rejected_evidence = []
     # Active images are protected from accidental reuse across different recipes.
     known_digests = {}
     for p in server.PHOTO_DIR.iterdir():
@@ -58,9 +60,27 @@ def run(limit=0, start_after=0, apply=False, report="/data/official_source_photo
                         # download_photo enforces approved HTTPS hosts, redirects,
                         # size, file format, and rejected digest restrictions.
                         diagnostics = []
-                        downloaded = server.download_photo(url, rid, prefer_jpeg=True, diagnostics=diagnostics)
+                        downloaded = None
+                        attempted = []
+                        # Same-asset CDN variants only; never bypass rejected digests.
+                        for candidate in [url] + server.official_photo_url_variants(url):
+                            local = []
+                            try:
+                                downloaded = server.download_photo(
+                                    candidate, rid, prefer_jpeg=True, diagnostics=local)
+                            except urllib.error.HTTPError as exc:
+                                local.append("http_" + str(exc.code))
+                            except (OSError, ValueError, TimeoutError, urllib.error.URLError) as exc:
+                                local.append(type(exc).__name__)
+                            attempted.append({"host": urllib.parse.urlsplit(candidate).hostname,
+                                              "reason": local[-1] if local else ("downloaded" if downloaded else "unknown")})
+                            if downloaded:
+                                break
                         if not downloaded:
-                            reason = "download_rejected_" + (diagnostics[-1] if diagnostics else "unknown")
+                            reason = "all_official_variants_rejected"
+                            if len(rejected_evidence) < 40:
+                                rejected_evidence.append({"id": rid, "name": recipe.get("name", ""),
+                                                          "official_url": url, "attempts": attempted})
                         else:
                             path = downloaded[0]
                             digest = hashlib.sha256(path.read_bytes()).hexdigest()
@@ -85,7 +105,8 @@ def run(limit=0, start_after=0, apply=False, report="/data/official_source_photo
             print("Checked:", checked, "restored:", counts["restored"],
                   "no official image:", counts["no_unique_official_image"], flush=True)
     result = {"mode": "APPLY" if apply else "DRY_RUN", "checked": checked,
-              "counts": dict(counts), "samples": dict(samples)}
+              "counts": dict(counts), "samples": dict(samples),
+              "rejected_evidence": rejected_evidence}
     Path(report).write_text(json.dumps(result, indent=2))
     print(json.dumps(result, indent=2), flush=True)
     return result
