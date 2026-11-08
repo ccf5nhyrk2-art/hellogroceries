@@ -259,7 +259,10 @@ def allrecipes():
     if isinstance(steps,list) and steps:recipe['instructions']=steps
    except (ValueError,TypeError):pass
  with db() as c:photos=dict(c.execute('SELECT recipe_id,image_url FROM photos'))
- return [dict(r,image=photos.get(r['id'],r.get('image',''))) for r in recipes]
+ # Imported US image identity must come from its original JSON-LD payload.
+ # Historical photo overrides were created by recovery jobs and may point to
+ # unrelated recipes. Do not let them replace the original import URL.
+ return [dict(r,image=(r.get('image','') if 1000000<=int(r.get('id',0))<2000000 else photos.get(r['id'],r.get('image','')))) for r in recipes]
 
 # Browse requests should not repeatedly rebuild the imported catalog, enrichment
 # caches and photo lookup for each page/search. Expire automatically so imports
@@ -298,7 +301,11 @@ def visible_browse_catalog():
   # Do not perform remote photo downloads while serving a browse request.
   def has_browse_photo(recipe):
    rid=int(recipe['id'])
-   return not (1000000<=rid<2000000) or cached_photo(rid) is not None
+   if not (1000000<=rid<2000000):return True
+   # Do not display an imported recipe with no original source image.
+   # This is independent of any old cache file or recovery override.
+   if not complete_recipe_photo_url(recipe.get('image','')):return False
+   return cached_photo(rid) is not None
   catalog=tuple(r for r in browse_catalog() if not non_recipe_reason(r) and visible_cooking_recipe(r,None) and (str(r.get('id')),str(r.get('url') or '')) not in missing and has_browse_photo(r))
   _recipe_visible_cache=(time.monotonic(),catalog)
   return catalog
