@@ -3782,6 +3782,7 @@ class Handler(SimpleHTTPRequestHandler):
    meal=params.get('meal',['all'])[0].strip().casefold()[:40]
    ingredient=params.get('ingredient',[''])[0].strip().casefold()[:100]
    exclude_ingredient=params.get('exclude_ingredient',[''])[0].strip().casefold()[:100]
+   excluded_terms=[term.strip() for term in re.split(r'[,;\\n]+',exclude_ingredient) if term.strip()]
    quick=params.get('quick',['false'])[0].lower()=='true'
    if cuisine not in ('all','italian','mexican','asian','mediterranean','american','other') or meal not in ('all','pasta','bowls','sandwich','salad','soup','other'):
     return self.sendjson({'error':'Invalid cuisine or meal filter'},400)
@@ -3806,7 +3807,7 @@ class Handler(SimpleHTTPRequestHandler):
     if cuisine!='all' and recipe_page_cuisine(recipe)!=cuisine:return False
     if meal!='all' and recipe_page_meal(recipe)!=meal:return False
     if ingredient and ingredient not in names:return False
-    if exclude_ingredient and exclude_ingredient in names:return False
+    if any(term in names for term in excluded_terms):return False
     if quick and not re.match(r'^\\s*(?:<\\s*)?(?:10|15)\\s*MM\\b',str(recipe.get('name') or ''),re.I):return False
     return True
    matched=[r for r in catalog if recipe_page_matches(r,query,country,protein) and matches_extra(r)]
