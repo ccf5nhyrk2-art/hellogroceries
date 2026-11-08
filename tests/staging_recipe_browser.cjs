@@ -153,6 +153,15 @@ async function main() {
     assert.ok(apiSearch.data.items.every(recipe => String(recipe.name || '').toLowerCase().includes('chicken')),
       'Search API returned unrelated recipes: ' + JSON.stringify(apiSearch.data.items.filter(recipe => !String(recipe.name || '').toLowerCase().includes('chicken')).slice(0, 5)));
     console.log('PASS: search API filters recipe titles before browser rendering');
+    // Repeat with a unique URL to catch intermittent cached/misrouted responses.
+    const freshSearch = await page.evaluate(async () => {
+      const response = await fetch('/api/recipes/page?page=1&page_size=24&q=chicken&sort=name&_fresh=' + Date.now(), { cache: 'no-store' });
+      return { status: response.status, data: await response.json() };
+    });
+    assert.equal(freshSearch.status, 200, 'Fresh search API request failed');
+    assert.ok((freshSearch.data.items || []).every(recipe => String(recipe.name || '').toLowerCase().includes('chicken')),
+      'Fresh search API returned unrelated recipes');
+    console.log('PASS: cache-busted search API response');
     await page.locator('#fast-browse-search').fill('chicken');
     await page.locator('#fast-browse-search-button').click();
     try {
