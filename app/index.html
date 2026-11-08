@@ -1465,23 +1465,7 @@ async function load(){
    ...Object.values(state.collections||{}).flat().map(String)
   ]);
   const ids=[...savedIds].filter(id=>/^\d+$/.test(id)).slice(0,100);
-  if(ids.length){
-   fetch('/api/recipes/batch?ids='+encodeURIComponent(ids.join(',')))
-    .then(response=>response.ok?response.json():Promise.reject(Error('Saved recipe batch unavailable')))
-    .then(async items=>{
-      if(!Array.isArray(items))throw Error('Invalid saved recipe batch');
-      for(const recipe of items)if(!recipes.some(existing=>String(existing.id)===String(recipe.id)))recipes.push(recipe);
-      // Some saved IDs are missing from the batch index; retry the detail endpoint
-      // individually so selected meals are not mislabeled as permanently unavailable.
-      const missing=ids.filter(id=>!recipes.some(recipe=>String(recipe.id)===id));
-      await Promise.all(missing.map(async id=>{
-       try{const recipe=await fetchRecipeDetail(id);if(recipe&&String(recipe.id)===id&&!recipes.some(r=>String(r.id)===id))recipes.push(recipe)}
-       catch(error){console.warn('Saved recipe detail unavailable',id,error)}
-      }));
-      renderSelectedPlan();renderMyCollectionCards();
-    })
-    .catch(error=>console.warn('Saved recipe hydration deferred:',error));
-  }
+  if(ids.length)void hydrateSavedRecipes(ids);
   const excluded=[...new Set([...savedIds,...(state.recommendation_hidden||[]).map(String)])].filter(id=>/^\d+$/.test(id)).slice(0,250);
   fetch('/api/recipes/recommendations?limit=24&exclude='+encodeURIComponent(excluded.join(',')))
    .then(response=>response.ok?response.json():Promise.reject(Error('Recommendation API unavailable')))
@@ -1590,6 +1574,7 @@ function selectMealAndRefresh(id,checked,servings){
   state=result;
   $('grocery-preview').hidden=true;
   render();
+  if(checked)void hydrateSavedRecipes([id]);
  });
  mealSelectionQueue=operation.catch(()=>{});
  return operation.catch(error=>{
@@ -1726,6 +1711,25 @@ selectedMealsToggle.addEventListener('click',()=>{
  selectedMealsPanel.hidden=expanded;
  if(!expanded)selectedMealsPanel.scrollIntoView({behavior:'smooth',block:'nearest'});
 });
+const pendingSavedRecipeIds=new Set();
+async function hydrateSavedRecipes(ids){
+ const missing=[...new Set(ids.map(String))].filter(id=>/^\d+$/.test(id)&&!recipes.some(r=>String(r.id)===id));
+ if(!missing.length)return;
+ missing.forEach(id=>pendingSavedRecipeIds.add(id));
+ renderSelectedPlan();
+ try{
+  const response=await fetch('/api/recipes/batch?ids='+encodeURIComponent(missing.slice(0,100).join(',')),{cache:'no-store'});
+  if(!response.ok)throw Error('Saved recipes unavailable (HTTP '+response.status+')');
+  const items=await response.json();
+  if(!Array.isArray(items))throw Error('Invalid saved recipe response');
+  for(const recipe of items)if(!recipes.some(r=>String(r.id)===String(recipe.id)))recipes.push(recipe);
+  await Promise.all(missing.filter(id=>!recipes.some(r=>String(r.id)===id)).map(async id=>{
+   try{const recipe=await fetchRecipeDetail(id);if(recipe&&!recipes.some(r=>String(r.id)===id))recipes.push(recipe)}
+   catch(error){console.warn('Recipe hydration failed',id,error)}
+  }));
+ }catch(error){console.warn('Saved recipe hydration failed',error)}
+ finally{missing.forEach(id=>pendingSavedRecipeIds.delete(id));renderSelectedPlan()}
+}
 function renderSelectedPlan(){
   const chosen=state.selected||{};
   const byId=new Map(recipes.map(r=>[String(r.id),r]));
@@ -1733,10 +1737,10 @@ function renderSelectedPlan(){
   $('selected-plan-count').textContent=`(${entries.length})`;
   $('selected-meals-button-count').textContent=entries.length?`(${entries.length})`:'';
   $('selected-plan-list').innerHTML=entries.length?entries.map(x=>{
-    const name=x.recipe?cleanRecipeName(x.recipe.name):'Recipe unavailable (ID '+x.id+')';
+    const name=x.recipe?cleanRecipeName(x.recipe.name):pendingSavedRecipeIds.has(x.id)?'Loading recipe…':'Recipe unavailable (ID '+x.id+')';
     const url=String(x.recipe?.url||'');
     const link=/^https:\/\//i.test(url)?`<a class="selected-recipe-link" href="${esc(url)}" target="_blank" rel="noopener noreferrer">View recipe ↗</a>`:'';
-    const note=x.recipe?'':'<small class="selected-meal-note">Recipe details could not be loaded. Your selection is preserved; try refreshing this page.</small>';
+    const note=x.recipe?'':pendingSavedRecipeIds.has(x.id)?'<small class="selected-meal-note">Retrieving saved recipe details…</small>':'<small class="selected-meal-note">Recipe details are temporarily unavailable. Your selection is saved.</small>';
     return `<div class="selected-meal"><div class="selected-meal-info"><div class="selected-meal-name">${esc(name)}</div>${link}${note}</div><div class="selected-meal-controls"><label>Servings <select aria-label="Servings for ${esc(name)}" data-plan-scale="${esc(x.id)}">${[0.5,1,1.5,2,3,4,5,6].map(v=>`<option value="${v}" ${Number(x.scale)===v?'selected':''}>${v} servings</option>`).join('')}</select></label><button type="button" data-remove-meal="${esc(x.id)}" aria-label="Remove ${esc(name)}">Remove</button></div></div>`;
   }).join(''):'<p class="muted">No meals selected yet. Choose “Add to plan” on a recipe.</p>';
   const plannerList=$('planner-selected-meals-list');
