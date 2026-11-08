@@ -164,18 +164,17 @@ async function main() {
     console.log('PASS: cache-busted search API response');
     await page.locator('#fast-browse-search').fill('chicken');
     await page.locator('#fast-browse-search-button').click();
-    try {
-      await page.waitForFunction(() => {
-        const panel = document.querySelector('#fast-browse-results');
-        const cards = [...panel.querySelectorAll('.recipe-card')];
-        const text = panel.textContent || '';
-        return text.startsWith('Unable to load recipes:') || (cards.length > 0 && cards.every(card => card.querySelector('.recipe-card-title')?.textContent?.toLowerCase().includes('chicken')));
-      }, null, { timeout: 20000 });
-      const panelText = await page.locator('#fast-browse-results').innerText();
-      assert.ok(!panelText.startsWith('Unable to load recipes:'), 'Search frontend rejected response: '+panelText.slice(0,400));
-    } catch (error) {
-      throw new Error('Search did not render matching cards. API requests=' + JSON.stringify(searchRequests) + '; panel=' + (await page.locator('#fast-browse-results').innerText()).slice(0, 500) + '; ' + error.message);
-    }
+    await page.waitForFunction(() => {
+      const panel = document.querySelector('#fast-browse-results');
+      return panel.textContent.startsWith('Unable to load recipes:') ||
+        (panel.querySelectorAll('.recipe-card').length > 0 && !panel.textContent.startsWith('Loading recipes'));
+    }, null, { timeout: 20000 });
+    const searchPanelText = await page.locator('#fast-browse-results').innerText();
+    assert.ok(!searchPanelText.startsWith('Unable to load recipes:'), 'Search frontend rejected response: ' + searchPanelText.slice(0, 400));
+    const renderedTitles = await cards.locator('.recipe-card-title').allInnerTexts();
+    const mismatchedTitles = renderedTitles.filter(title => !title.toLowerCase().includes('chicken'));
+    assert.deepEqual(mismatchedTitles, [], 'Search rendered titles without chicken: ' + JSON.stringify(mismatchedTitles) +
+      '; requests=' + JSON.stringify(searchRequests));
     const searchTitles = await cards.locator('.recipe-card-title').allInnerTexts();
     assert.ok(searchTitles.length > 0 && searchTitles.every(t => t.toLowerCase().includes('chicken')), 'Search results do not match chicken');
     console.log('PASS: server-side chicken search');
