@@ -1410,8 +1410,8 @@ def packaged_snack_listing(recipe):
  """Conservatively exclude branded retail snacks, not homemade snack recipes."""
  title=str(recipe.get('name') or '').strip()
  if not title:return False
- branded=bool(re.search(r"(?i)\\b(?:annie['’]s|bunny grahams)\\b",title))
- packaged=bool(re.search(r"(?i)\\b(?:snack time|snack packs?|grahams|fruit snacks?|granola bars?)\\b",title))
+ branded=bool(re.search(r"(?i)\b(?:annie['’]s|bunny grahams)\b",title))
+ packaged=bool(re.search(r"(?i)\b(?:snack time|snack packs?|grahams|fruit snacks?|granola bars?)\b",title))
  return branded and packaged
 
 def prepared_meal_review(recipe):
