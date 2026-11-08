@@ -3342,10 +3342,29 @@ $('items').addEventListener('change',e=>{if(e.target.dataset.items)action({actio
  button.disabled=true;
  await action({action:'select',id:Number(button.dataset.suggestAdd),checked:true,servings:2});
 });
-$('generate-grocery').onclick=()=>{
+$('generate-grocery').onclick=async()=>{
+ const button=$('generate-grocery'),status=$('generate-status');
+ if(button.disabled)return;
+ button.disabled=true;
+ const original=button.textContent;
+ button.textContent='Generating…';
+ status.textContent='Generating your shopping list…';
  $('grocery-preview').hidden=true;
- $('generate-status').textContent='';
- action({action:'generate'});
+ try{
+  await mealSelectionQueue;
+  const response=await fetch('/api/action',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'generate'})});
+  const result=await response.json();
+  if(!response.ok||result.error)throw Error(result.error||'Could not generate shopping list');
+  state=result;
+  render();
+  status.textContent='Shopping list generated successfully.';
+ }catch(error){
+  status.textContent='Could not generate shopping list: '+error.message;
+  $('error').textContent=status.textContent;
+ }finally{
+  button.disabled=false;
+  button.textContent=original;
+ }
 };
 $('preview-grocery').onclick=async()=>{
  const target=$('grocery-preview');
