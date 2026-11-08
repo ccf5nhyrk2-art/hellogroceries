@@ -143,6 +143,16 @@ async function main() {
     page.on('requestfailed', request => {
       if (isRecipePage(request.url())) searchRequests.push({ event: 'failed', error: request.failure()?.errorText, query: new URL(request.url()).searchParams.get('q') });
     });
+    // Verify the API itself, independently of the browser's rendering.
+    const apiSearch = await page.evaluate(async () => {
+      const response = await fetch('/api/recipes/page?page=1&page_size=24&q=chicken&sort=name', { cache: 'no-store' });
+      return { status: response.status, data: await response.json() };
+    });
+    assert.equal(apiSearch.status, 200, 'Search API did not return HTTP 200');
+    assert.ok(Array.isArray(apiSearch.data.items) && apiSearch.data.items.length > 0, 'Search API returned no chicken recipes');
+    assert.ok(apiSearch.data.items.every(recipe => String(recipe.name || '').toLowerCase().includes('chicken')),
+      'Search API returned unrelated recipes: ' + JSON.stringify(apiSearch.data.items.filter(recipe => !String(recipe.name || '').toLowerCase().includes('chicken')).slice(0, 5)));
+    console.log('PASS: search API filters recipe titles before browser rendering');
     await page.locator('#fast-browse-search').fill('chicken');
     await page.locator('#fast-browse-search-button').click();
     try {
