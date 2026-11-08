@@ -286,7 +286,7 @@ def visible_browse_catalog():
  global _recipe_visible_cache
  now=time.monotonic()
  with _recipe_visible_cache_lock:
-  if _recipe_visible_cache[1] is not None and now-_recipe_visible_cache[0]<3600:
+  if _recipe_visible_cache[1] is not None and now-_recipe_visible_cache[0]<30:
    return _recipe_visible_cache[1]
   # Visibility only uses stored steps and URL validity; the audit map is unused.
   # Avoid a full audit-table read on the request-critical browsing path.
@@ -318,7 +318,7 @@ def default_recipe_page_data():
  global _recipe_default_page_cache
  with _recipe_default_page_lock:
   now=time.monotonic()
-  if _recipe_default_page_cache[1] is not None and now-_recipe_default_page_cache[0]<3600:
+  if _recipe_default_page_cache[1] is not None and now-_recipe_default_page_cache[0]<30:
    return _recipe_default_page_cache[1],_recipe_default_page_cache[2]
   catalog=visible_browse_catalog()
   fields=('id','name','image','country','nutrition','dietary_labels','prep_time','cook_time','total_time','url','ingredients','source_servings')
