@@ -1514,7 +1514,20 @@ async function load(){
  const results=await Promise.allSettled([stateRequest,recipeRequest]);
  // Saved state can arrive after cards: update their favorite/plan controls then.
  if(results[0].status==='fulfilled'&&catalogPage?.items?.length){
-  $('recipes').innerHTML=catalogPage.items.map(recipeCardMarkup).join('');
+  // Update saved controls in place; replacing cards forces image reloads on login.
+  const selected=state.selected||{}, favorites=new Set((state.favorites||[]).map(String));
+  for(const card of $('recipes').querySelectorAll('.recipe-card')){
+   const checkbox=card.querySelector('input[data-id]');
+   if(!checkbox)continue;
+   const id=String(checkbox.dataset.id), checked=Object.hasOwn(selected,id);
+   checkbox.checked=checked;
+   const label=card.querySelector('.recipe-plan-label');
+   if(label)label.textContent=checked?'✓ Added to plan':'Add to plan';
+   const favorite=card.querySelector('[data-favorite]');
+   if(favorite)favorite.textContent=favorites.has(id)?'♥ Favorited':'♡ Favorite';
+   const servings=card.querySelector('select[data-scale]');
+   if(servings&&checked)servings.value=String(selected[id]);
+  }
  }
  const failures=results.filter(result=>result.status==='rejected');
  if(failures.length){
