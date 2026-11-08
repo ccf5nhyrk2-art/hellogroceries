@@ -3782,7 +3782,7 @@ class Handler(SimpleHTTPRequestHandler):
    meal=params.get('meal',['all'])[0].strip().casefold()[:40]
    ingredient=params.get('ingredient',[''])[0].strip().casefold()[:100]
    exclude_ingredient=params.get('exclude_ingredient',[''])[0].strip().casefold()[:100]
-   excluded_terms=[term.strip() for term in re.split(r'[,;\\n]+',exclude_ingredient) if term.strip()]
+   excluded_terms=[term.strip() for term in re.split(r'[,;\n]+',exclude_ingredient) if term.strip()]
    quick=params.get('quick',['false'])[0].lower()=='true'
    if cuisine not in ('all','italian','mexican','asian','mediterranean','american','other') or meal not in ('all','pasta','bowls','sandwich','salad','soup','other'):
     return self.sendjson({'error':'Invalid cuisine or meal filter'},400)
