@@ -2570,7 +2570,9 @@ const dairyIngredientPattern=/\b(milk|cheese|cheddar|mozzarella|parmesan|feta|ri
 function dietMatch(r,kind){
  const ingredients=Object.keys(r.ingredients||{});
  if(!ingredients.length)return false;
- const names=ingredients.join(' | ');
+ // Include the title: some imported recipes have incomplete ingredient names.
+ // These are conservative estimates, never allergen-safety certifications.
+ const names=ingredients.join(' | ')+' | '+String(r.name||'');
  if(kind==='gluten-free')return !glutenIngredientPattern.test(names);
  if(kind==='dairy-free')return !dairyIngredientPattern.test(names);
  if(kind==='both')return !glutenIngredientPattern.test(names)&&!dairyIngredientPattern.test(names);
@@ -2855,9 +2857,9 @@ function renderRecommendations(){
   const r=recommendationSource.find(x=>String(x.id)===id);if(!r)continue;
   for(const [key,importance] of recommendationFeatures(r))preferences.set(key,(preferences.get(key)||0)+3*importance);
  }
- const signature=JSON.stringify([recommendationSource.length,[...picked].sort(),[...fav].sort(),reviews,state.recommendation_hidden||[],[...recommendationFailedPhotos].sort(),recommendationMemory.more,JSON.stringify(state.pantry_inventory||{}),excludedIngredientTerms(),new Date().getMonth()]);
+ const signature=JSON.stringify([recommendationSource.length,[...picked].sort(),[...fav].sort(),reviews,state.recommendation_hidden||[],[...recommendationFailedPhotos].sort(),recommendationMemory.more,JSON.stringify(state.pantry_inventory||{}),excludedIngredientTerms(),$('diet-filter').value,new Date().getMonth()]);
  if(!recommendationRankCache||recommendationRankCache.signature!==signature){
-  const candidates=recommendationSource.filter(r=>!(state.recommendation_hidden||[]).includes(Number(r.id))&&!picked.has(String(r.id))&&!fav.has(String(r.id))&&Boolean(r.image)&&!recommendationFailedPhotos.has(String(r.id))&&!recipeContainsExcludedIngredient(r)&&!isNonRecipeListing(r)&&!isAddon(r)&&!isSideRecipe(r)&&!isWineListing(r)&&!isHolidayRecipe(r));
+  const candidates=recommendationSource.filter(r=>!(state.recommendation_hidden||[]).includes(Number(r.id))&&!picked.has(String(r.id))&&!fav.has(String(r.id))&&Boolean(r.image)&&!recommendationFailedPhotos.has(String(r.id))&&!recipeContainsExcludedIngredient(r)&&dietMatch(r,$('diet-filter').value)&&!isNonRecipeListing(r)&&!isAddon(r)&&!isSideRecipe(r)&&!isWineListing(r)&&!isHolidayRecipe(r));
   const scored=candidates.map(r=>{
    let score=0,reason='',best=0;
    for(const [key,importance,label] of recommendationFeatures(r)){
