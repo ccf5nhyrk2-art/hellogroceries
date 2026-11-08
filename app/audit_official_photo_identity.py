@@ -9,6 +9,8 @@ import hashlib
 import io
 import json
 import os
+import re
+import urllib.parse
 from pathlib import Path
 import urllib.request
 
@@ -85,8 +87,7 @@ def official_url(recipe):
     urls = server.official_images(recipe)
     urls = list(dict.fromkeys(server.clean_official_photo_candidate(u) for u in urls))
     urls = [u for u in urls if server.complete_recipe_photo_url(u)]
-    # Multiple assets on the same recipe page are ambiguous, not authorization.
-    return urls[0] if len(urls) == 1 else None
+    # Distinct CDN transformations of one image are not multiple identities.\n    # Different image assets remain ambiguous and are never auto-restored.\n    identities = {}\n    for url in urls:\n        path = urllib.parse.urlsplit(url).path\n        match = re.search(r"/(?:recipes|hellofresh_s3)/image/([^/?]+)", path, re.I)\n        identity = match.group(1).lower() if match else path.lower()\n        identities.setdefault(identity, url)\n    return next(iter(identities.values())) if len(identities) == 1 else None
 
 
 def main():
@@ -151,8 +152,7 @@ def main():
                             continue
                     if reason == "missing":
                         reason = "missing_no_matching_original"
-        except Exception as exc:
-            reason = "verification_error_" + type(exc).__name__
+        except Exception as exc:\n            detail = str(exc).strip()[:120]\n            reason = "verification_error_" + type(exc).__name__\n            if detail:\n                reason += ":" + detail.replace("\\n", " ")
         counts[reason] += 1
         if len(examples[reason]) < 8:
             examples[reason].append({"id": rid, "name": recipe.get("name", "")})
