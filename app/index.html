@@ -3183,7 +3183,19 @@ const displayedIds=[...grid.querySelectorAll('.recipe-card [data-detail]')].map(
 const desiredIds=pageRecipes.map(recipe=>String(recipe.id));
 if(displayedIds.length!==desiredIds.length||displayedIds.some((id,index)=>id!==desiredIds[index])){
  grid.innerHTML=pageRecipes.map(recipeCardMarkup).join('')||'<p class="muted">No recipes match these filters.</p>';
-}let n=state.list.filter(x=>x.purchased).length;$('summary').textContent=state.list.length?`${n} of ${state.list.length} purchased`:'No generated list yet';renderSelectedPlan();renderShoppingList();renderIngredientSuggestions();renderSmartPrefs();renderSalesComparison()}for(const id of ['recipe-country','protein','cuisine','meal','sort','selectedonly','fullmeals','quickmeals','favorite-filter','collection-filter','ingredient-filter','included-side','diet-filter','rating-filter'])$(id).addEventListener('change',()=>{recipePage=0;render()});$('resetfilters').onclick=()=>{for(const id of ['protein','cuisine','meal','diet-filter','rating-filter'])$(id).value='all';$('recipe-country').value='all';$('included-side').value='all';$('sort').value='name';$('selectedonly').checked=false;$('fullmeals').checked=true;$('quickmeals').checked=false;$('search').value='';recipePage=0;render()};function navigateRecipePage(direction){
+}
+ // Keep existing recipe cards in sync after selection saves without reloading photos.
+ for(const card of grid.querySelectorAll('.recipe-card')){
+  const checkbox=card.querySelector('input[data-id]');
+  if(!checkbox)continue;
+  const id=String(checkbox.dataset.id), selected=Object.hasOwn(state.selected||{},id);
+  checkbox.checked=selected;
+  const label=card.querySelector('.recipe-plan-label');
+  if(label)label.textContent=selected?'✓ Added to plan':'Add to plan';
+  const favorite=card.querySelector('[data-favorite]');
+  if(favorite)favorite.textContent=(state.favorites||[]).some(x=>String(x)===id)?'♥ Favorited':'♡ Favorite';
+ }
+ let n=state.list.filter(x=>x.purchased).length;$('summary').textContent=state.list.length?`${n} of ${state.list.length} purchased`:'No generated list yet';renderSelectedPlan();renderShoppingList();renderIngredientSuggestions();renderSmartPrefs();renderSalesComparison()}for(const id of ['recipe-country','protein','cuisine','meal','sort','selectedonly','fullmeals','quickmeals','favorite-filter','collection-filter','ingredient-filter','included-side','diet-filter','rating-filter'])$(id).addEventListener('change',()=>{recipePage=0;render()});$('resetfilters').onclick=()=>{for(const id of ['protein','cuisine','meal','diet-filter','rating-filter'])$(id).value='all';$('recipe-country').value='all';$('included-side').value='all';$('sort').value='name';$('selectedonly').checked=false;$('fullmeals').checked=true;$('quickmeals').checked=false;$('search').value='';recipePage=0;render()};function navigateRecipePage(direction){
  recipePage=Math.max(0,recipePage+direction);
  render();
  // Scroll to the recipe section heading after the new page is rendered.
