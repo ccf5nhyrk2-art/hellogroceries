@@ -3834,7 +3834,9 @@ class Handler(SimpleHTTPRequestHandler):
    except ValueError:return self.sendjson({'error':'Invalid recommendation limit'},400)
    candidates=[recipe for recipe in visible_browse_catalog()
     if int(recipe.get('id') or 0) not in excluded
-    and recipe.get('image') and recipe.get('url')]
+    and recipe.get('image') and recipe.get('url')
+    and isinstance(recipe.get('ingredients'),dict)
+    and len(recipe['ingredients'])>=3]
    # Deterministic daily rotation spreads discovery across the catalog.
    candidates.sort(key=lambda recipe:str(recipe.get('name') or '').casefold())
    offset=(int(time.time()//86400)*37)%len(candidates) if candidates else 0
