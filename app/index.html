@@ -3023,6 +3023,7 @@ async function loadFastBrowse(){
   // Never present unrelated results as matches. This also exposes a stale
   // deployment or backend filtering regression instead of silently misleading users.
   const searchTerm=params.get('q').trim().toLocaleLowerCase();
+  if($('fast-browse-search').value.trim().toLocaleLowerCase()!==searchTerm)return;
   if(searchTerm && (result.items||[]).some(recipe=>!String(recipe.name||'').toLocaleLowerCase().includes(searchTerm))){
    throw Error('Search results did not match your query. Please retry after the server updates.');
   }
@@ -3044,7 +3045,14 @@ $('fast-browse-toggle').onclick=()=>{
  if(!panel.hidden)loadFastBrowse();
 };
 $('fast-browse-search-button').onclick=()=>{fastBrowsePage=1;loadFastBrowse()};
-$('fast-browse-search').addEventListener('keydown',event=>{if(event.key==='Enter'){fastBrowsePage=1;loadFastBrowse()}});
+$('fast-browse-search').addEventListener('input',()=>{
+ // Invalidate requests for the previous term immediately; never leave old
+ // cards looking like results for a new search.
+ ++fastBrowseRequest;
+ $('fast-browse-results').textContent='Search changed. Press Search to see matching recipes.';
+ $('fast-browse-pageinfo').textContent='';
+});
+$('fast-browse-search').addEventListener('keydown',event=>{if(event.key==='Enter'){event.preventDefault();fastBrowsePage=1;loadFastBrowse()}});
 $('fast-browse-prev').onclick=()=>{if(fastBrowsePage>1){fastBrowsePage--;loadFastBrowse()}};
 $('fast-browse-next').onclick=()=>{if(fastBrowsePage<fastBrowsePages){fastBrowsePage++;loadFastBrowse()}};
 $('fast-browse-results').addEventListener('click',async event=>{
