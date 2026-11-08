@@ -1049,22 +1049,24 @@ def force_verified_photo_jpeg_url(url):
  return url
 
 def official_photo_url_variants(url):
- """Bounded alternate deliveries for the SAME official image asset only."""
+ """Try safe deliveries of the exact same official asset, including working JPEG CDN variants."""
  if not complete_recipe_photo_url(url):return []
  parsed=urllib.parse.urlsplit(url)
  if parsed.hostname not in ('img.hellofresh.com','media.hellofresh.com'):return []
  parts=parsed.path.split('/')
- index=next((i for i,p in enumerate(parts) if p in ('recipes','hellofresh_s3') and i+1<len(parts)),None)
+ index=next((i for i,p in enumerate(parts) if p in ('recipes','hellofresh_s3') and i+1<len(parts) and parts[i+1]=='image'),None)
  if index is None:return []
  asset='/'.join(parts[index:])
- if not re.search(r'\\.(?:jpe?g|png|webp)$',asset,re.I):return []
+ if not re.search(r'\.(?:jpe?g|png|webp)$',asset,re.I):return []
  variants=[]
- for host,prefix in (('img.hellofresh.com',''),('media.hellofresh.com','')):
-  for transform in ('','q_85,w_1200,f_jpg,c_limit/'):
+ # Prefer the JPEG format independently confirmed downloadable in staging.
+ # Preserve the exact asset key: transforms and delivery host are not identity.
+ for host in ('img.hellofresh.com','media.hellofresh.com'):
+  for transform in ('f_jpg,q_85,w_1200/','f_jpg,q_85,w_1200,h_640/','f_webp,q_85,w_1200/',''):
    candidate='https://'+host+'/'+transform+asset
    if candidate!=url and complete_recipe_photo_url(candidate) and candidate not in variants:
     variants.append(candidate)
- return variants[:4]
+ return variants
 
 
 def download_photo(url,rid,prefer_jpeg=False,diagnostics=None):
