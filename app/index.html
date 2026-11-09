@@ -1511,6 +1511,14 @@ async function load(){
    if(favorite)favorite.textContent=favorites.has(id)?'♥ Favorited':'♡ Favorite';
    const servings=card.querySelector('select[data-scale]');
    if(servings&&checked)servings.value=String(selected[id]);
+   // Early recipe cards may have been painted before /api/state returned.
+   // Hydrate their collection choices in place without reloading recipe photos.
+   const collectionSelect=card.querySelector('select[data-collection-add]');
+   if(collectionSelect){
+    const current=collectionSelect.value;
+    collectionSelect.replaceChildren(new Option('Add to collection…',''),...Object.keys(state.collections||{}).map(name=>new Option(name,name)));
+    if([...collectionSelect.options].some(option=>option.value===current))collectionSelect.value=current;
+   }
   }
  }
  const failures=results.filter(result=>result.status==='rejected');
