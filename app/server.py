@@ -1413,12 +1413,18 @@ def non_recipe_reason(recipe):
  return None
 
 def packaged_snack_listing(recipe):
- """Conservatively exclude branded retail snacks, not homemade snack recipes."""
+ """Exclude retail snack listings without hiding genuine homemade snack recipes."""
  title=str(recipe.get('name') or '').strip()
  if not title:return False
- branded=bool(re.search(r"(?i)\b(?:annie['’]s|bunny grahams)\b",title))
- packaged=bool(re.search(r"(?i)\b(?:snack time|snack packs?|grahams|fruit snacks?|granola bars?)\b",title))
- return branded and packaged
+ lower=title.lower()
+ # Retail brands paired with recognizable packaged snack products.
+ brand=re.search(r"(?i)\\b(?:annie['’]s|skinnydipped|stuffed\\s*puffs?|nature['’]s\\s*bakery|kind\\s+bars?|clif\\s+bar|larabar|cheez-?it|goldfish\\s+crackers|oreo|pop-?tarts?)\\b",title)
+ product=re.search(r"(?i)\\b(?:almonds?|cashews?|grahams?|crackers?|fruit\\s+snacks?|snack\\s+packs?|granola\\s+bars?|protein\\s+bars?|candy|chocolate\\s+(?:covered|coated)|variety\\s+packs?|greatest\\s+hits)\\b",title)
+ if brand and product:return True
+ # Multipack / assortment marketing, rather than a recipe for preparing food.
+ if re.search(r"(?i)\\b(?:greatest\\s+hits|snack\\s+bundle|snack\\s+box|snack\\s+assortment)\\b",title):
+  return True
+ return False
 
 def prepared_meal_review(recipe):
  """Review-only classification; never removes or hides recipes."""
