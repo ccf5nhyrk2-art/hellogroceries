@@ -3313,8 +3313,9 @@ function syncIngredientUnit(){
 $('ingredient-unit').addEventListener('change',syncIngredientUnit);
 for(const id of ['ingredient-name','ingredient-amount','ingredient-custom-unit'])$(id).addEventListener('input',updateIngredientPreview);
 $('items').addEventListener('click',e=>{
- const key=e.target.dataset.editItem;
- if(!key)return;
+ const editButton=e.target.closest('[data-edit-item]');
+ if(!editButton)return;
+ const key=editButton.dataset.editItem;
  const item=(state.list||[]).find(x=>x.name===key);
  if(!item)return;
  ingredientEditingKey=key;
@@ -4281,6 +4282,12 @@ body:has(#hg-tour-overlay:not([hidden])) #hg-tour-replay{display:none!important}
 #hg-tap-debug-panel strong{color:#8ff0b7}
 .hg-tap-debug-dot{position:fixed;z-index:2147483647;width:24px;height:24px;border:3px solid #faff60;border-radius:50%;background:#faff6055;box-sizing:border-box;pointer-events:none;transform:translate(-50%,-50%);animation:hgTapFade .9s ease-out forwards}
 @keyframes hgTapFade{0%{opacity:1;scale:.6}40%{opacity:1;scale:1.2}100%{opacity:0;scale:1.5}}
+
+/* Keep grocery action menus visible above adjacent shopping rows. */
+#items .grocery-item-wrap:has(.grocery-actions[open]),
+#items .grocery-row:has(.grocery-actions[open]){position:relative;z-index:30;overflow:visible!important}
+#items .grocery-actions[open]{z-index:40}
+#items .grocery-action-options{z-index:50}
 </style>
 <script>
 (function(){
