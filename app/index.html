@@ -4283,6 +4283,11 @@ body:has(#hg-tour-overlay:not([hidden])) #hg-tour-replay{display:none!important}
 .hg-tap-debug-dot{position:fixed;z-index:2147483647;width:24px;height:24px;border:3px solid #faff60;border-radius:50%;background:#faff6055;box-sizing:border-box;pointer-events:none;transform:translate(-50%,-50%);animation:hgTapFade .9s ease-out forwards}
 @keyframes hgTapFade{0%{opacity:1;scale:.6}40%{opacity:1;scale:1.2}100%{opacity:0;scale:1.5}}
 
+/* Keep the shopping-item menu inside its row: ancestor department cards clip absolute popovers on iOS Safari. */
+#items .grocery-actions[open]{display:flex!important;flex-direction:column;align-items:flex-end;gap:6px;max-width:min(100%,240px);z-index:auto!important}
+#items .grocery-actions[open]>.grocery-action-options{position:static!important;inset:auto!important;display:flex!important;flex-wrap:wrap;justify-content:flex-end;max-width:100%;white-space:normal;box-sizing:border-box;box-shadow:none!important;z-index:auto!important}
+#items .grocery-actions[open]>.grocery-action-options button{min-height:44px;touch-action:manipulation}
+@media(max-width:750px){#items .grocery-row:has(.grocery-actions[open]){align-items:flex-start!important}#items .grocery-actions[open]>.grocery-action-options{flex-direction:column;align-items:stretch}#items .grocery-actions[open]>.grocery-action-options button{width:100%}}
 /* Keep grocery action menus visible above adjacent shopping rows. */
 #items .grocery-item-wrap:has(.grocery-actions[open]),
 #items .grocery-row:has(.grocery-actions[open]){position:relative;z-index:30;overflow:visible!important}
