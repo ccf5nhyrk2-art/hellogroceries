@@ -4613,6 +4613,7 @@ class Handler(SimpleHTTPRequestHandler):
      inventory=state.setdefault('pantry_inventory',{})
      for key in list(inventory):
       if isinstance(key,str) and key.rsplit('|',1)[0].strip().casefold()==normalized:inventory.pop(key,None)
+     if state.get('list'):rebuild_grocery_list(state)
     elif action in ('set_pantry_inventory','adjust_pantry_inventory'):
      name=p.get('name');unit=p.get('unit','');amount=p.get('amount')
      allowed={'','count','teaspoon','tablespoon','cup','ounce','pound','gram','kilogram','milliliter','liter','clove','bunch','head','stalk','slice','piece','pinch','can','package','bag'}
@@ -4646,6 +4647,9 @@ class Handler(SimpleHTTPRequestHandler):
      if not any(isinstance(x,str) and x.casefold()==name.strip().casefold() for x in pantry):
       if len(pantry)>=500:raise ValueError('Pantry capacity reached')
       pantry.append(name.strip())
+     # Pantry edits must refresh an already-generated grocery list immediately.
+     # Do not create a new list before the user first chooses Generate.
+     if state.get('list'):rebuild_grocery_list(state)
     elif action=='clear':state['list']=[]
     elif action=='purchase_many':
      names=p.get('names',[])
