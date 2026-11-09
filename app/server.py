@@ -3283,6 +3283,7 @@ def rebuild_grocery_list(state):
    if needed<=0.000001:break
   return max(0,needed)
  corrected_labels=set()
+ pantry_shortage_labels=set()
  for key in list(totals):
   if not key.startswith('__corrected__|'):continue
   _,unit,ingredient=key.split('|',2)
@@ -3293,6 +3294,7 @@ def rebuild_grocery_list(state):
   label=(str(round(needed,3)).rstrip('0').rstrip('.') if needed%1 else str(int(needed)))+' '+(unit+' ' if unit and unit!='count' else '')+ingredient
   totals[label]=totals.get(label,0)+1
   corrected_labels.add(label)
+  pantry_shortage_labels.add(label)
   sources.setdefault(label,[]).extend(original_sources)
  for label in list(totals):
   if label.startswith('__corrected__|') or label in corrected_labels:continue
@@ -3316,9 +3318,20 @@ def rebuild_grocery_list(state):
   if needed<=0.000001:continue
   new_label=(str(round(needed,3)).rstrip('0').rstrip('.') if needed%1 else str(int(needed)))+' '+(unit+' ' if unit!='count' else '')+ingredient
   totals[new_label]=totals.get(new_label,0)+1
+  pantry_shortage_labels.add(new_label)
   sources.setdefault(new_label,[]).extend(original_sources)
  old={item['name']:item for item in state.get('list',[])}
- generated=[{'name':name,'quantity':round(qty,3),'purchased':False,'sources':sources.get(name,[])} for name,qty in sorted(totals.items()) if qty>0 and (any(src.get('corrected') or src.get('quantity_unverified') for src in sources.get(name,[])) or any(isinstance(k,str) and pantry_match_name(k.rsplit('|',1)[0])==pantry_match_name(name) for k in inventory) or pantry_match_name(name) not in pantry)]
+ # Unmeasured pantry staples (e.g. salt) must not leak back into the
+ # shopping list through unverified/corrected source flags. Measured items
+ # stay when inventory is tracked but insufficient or units cannot be matched.
+ tracked_names={pantry_match_name(k.rsplit('|',1)[0]) for k in inventory if isinstance(k,str)}
+ def needs_purchase(label):
+  normalized=pantry_match_name(label)
+  if normalized not in pantry:return True
+  if label in pantry_shortage_labels:return True
+  if normalized not in tracked_names:return False
+  return bool(parse_grocery_measure(label) or re.match(r'^(?:teaspoon|tablespoon|cup|ounce|pound|gram|kilogram|milliliter|liter)\\s+',label,re.I))
+ generated=[{'name':name,'quantity':round(qty,3),'purchased':False,'sources':sources.get(name,[])} for name,qty in sorted(totals.items()) if qty>0 and needs_purchase(name)]
  for item in generated:
   previous=old.get(item['name'])
   if previous and previous.get('quantity')==item['quantity']:item['purchased']=bool(previous.get('purchased'))
