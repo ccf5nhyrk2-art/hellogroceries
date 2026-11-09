@@ -321,6 +321,13 @@ async function main() {
         await page.evaluate(async ({ name }) => {
           await preferences({ collections: { ...(state.collections || {}), [name]: [] } });
         }, { name: testCollection });
+        // Recipe cards may retain their existing option markup after a preferences render.
+        // Reload to verify the newly saved collection appears in the real customer UI.
+        await page.reload({ waitUntil: 'domcontentloaded' });
+        await page.waitForFunction(([id, name]) => {
+          const select = document.querySelector('#recipes [data-collection-add="' + id + '"]');
+          return select && [...select.options].some(option => option.value === name);
+        }, [visibleId, testCollection], { timeout: 30000 });
         await page.locator('#recipes [data-collection-add="' + visibleId + '"]').selectOption(testCollection);
         await page.waitForFunction(([id, name]) => (state.collections?.[name] || []).map(Number).includes(Number(id)),
           [visibleId, testCollection], { timeout: 30000 });
