@@ -1400,9 +1400,9 @@ def non_recipe_reason(recipe):
  if not title:return 'Missing recipe title'
  # Hide explicit QA fixtures and retail product promotions from all browse surfaces.
  # Keep their records intact for saved references and regression testing.
- if re.search(r'(?i)^(?:\\[modular recipe card test\\]|test(?:[\\s_-]+upload)?(?:[\\s_-]|$)|more\\s+test$|__staging_smoke_test__|placeholder(?:[\\s_-]|$)|dummy(?:[\\s_-]|$))',title):
+ if re.search(r'(?i)^(?:\[modular recipe card test\]|test(?:[\s_-]+upload)?(?:[\s_-]|$)|more\s+test$|__staging_smoke_test__|placeholder(?:[\s_-]|$)|dummy(?:[\s_-]|$))',title):
   return 'Test or placeholder listing'
- if re.search(r'(?i)\\b(?:stuffed\\s+puffs?|high\\s+tea\\s+dessert\\s+set)\\b',title):
+ if re.search(r'(?i)\b(?:stuffed\s+puffs?|high\s+tea\s+dessert\s+set)\b',title):
   return 'Retail snack or assortment listing'
  if confirmed_prepared_product(recipe):return 'Ready-made meal assembly'
  if packaged_snack_listing(recipe):return 'Packaged snack product'
