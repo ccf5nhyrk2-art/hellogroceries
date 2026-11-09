@@ -3833,7 +3833,13 @@ class Handler(SimpleHTTPRequestHandler):
    if len(excluded)>250:return self.sendjson({'error':'Maximum 250 excluded recipe IDs'},400)
    try:limit=max(1,min(24,int(params.get('limit',['12'])[0])))
    except ValueError:return self.sendjson({'error':'Invalid recommendation limit'},400)
+   # Test fixtures are kept in the database for QA, but must never be suggested.
+   # Match explicit fixture naming only; do not suppress legitimate recipes with 'test' in a title.
+   def is_test_recommendation(recipe):
+    title=str(recipe.get('name') or '').strip()
+    return bool(re.search(r'(?i)^(?:test(?:[\s_-]+upload)?(?:[\s_-]|$)|__staging_smoke_test__|placeholder(?:[\s_-]|$)|dummy(?:[\s_-]|$))',title))
    candidates=[recipe for recipe in visible_browse_catalog()
+     if not is_test_recommendation(recipe)
     if int(recipe.get('id') or 0) not in excluded
     and recipe.get('image') and recipe.get('url')
     and isinstance(recipe.get('ingredients'),dict)
