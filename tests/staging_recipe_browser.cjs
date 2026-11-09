@@ -324,18 +324,36 @@ async function main() {
         // Recipe cards may retain their existing option markup after a preferences render.
         // Reload to verify the newly saved collection appears in the real customer UI.
         await page.reload({ waitUntil: 'domcontentloaded' });
-        await page.waitForFunction(([id, name]) => {
-          const select = document.querySelector('#recipes [data-collection-add="' + id + '"]');
-          return select && [...select.options].some(option => option.value === name);
-        }, [visibleId, testCollection], { timeout: 30000 });
-        await page.locator('#recipes [data-collection-add="' + visibleId + '"]').selectOption(testCollection);
+        // The first visible recipe can change after a reload. Verify the
+        // persisted collection is available on any current customer-facing card.
+        try {
+          await page.waitForFunction(name =>
+            [...document.querySelectorAll('#recipes select[data-collection-add]')]
+              .some(select => [...select.options].some(option => option.value === name)),
+            testCollection, { timeout: 15000 });
+        } catch (error) {
+          const diagnostic = await page.evaluate(name => ({
+            collectionSaved: Object.hasOwn(state.collections || {}, name),
+            collectionNames: Object.keys(state.collections || {}),
+            visibleRecipeIds: [...document.querySelectorAll('#recipes [data-collection-add]')].map(el => el.dataset.collectionAdd).slice(0, 8),
+            firstSelectOptions: [...(document.querySelector('#recipes select[data-collection-add]')?.options || [])].map(o => o.value),
+            loadStatus: document.querySelector('#recipe-load-status')?.textContent
+          }), testCollection);
+          throw new Error('Collection missing from visible recipe cards after reload: ' + JSON.stringify(diagnostic) + '; ' + error.message);
+        }
+        const collectionId = await page.evaluate(name => {
+          const select = [...document.querySelectorAll('#recipes select[data-collection-add]')]
+            .find(el => [...el.options].some(option => option.value === name));
+          return select?.dataset.collectionAdd;
+        }, testCollection);
+        await page.locator('#recipes [data-collection-add="' + collectionId + '"]').selectOption(testCollection);
         await page.waitForFunction(([id, name]) => (state.collections?.[name] || []).map(Number).includes(Number(id)),
-          [visibleId, testCollection], { timeout: 30000 });
+          [collectionId, testCollection], { timeout: 30000 });
         await page.reload({ waitUntil: 'domcontentloaded' });
-        await page.waitForFunction(([id, name, was]) =>
+        await page.waitForFunction(([id, name, favoriteId, was]) =>
           (state.collections?.[name] || []).map(Number).includes(Number(id)) &&
-          (state.favorites || []).map(Number).includes(Number(id)) !== was,
-          [visibleId, testCollection, visibleBefore.favorite], { timeout: 30000 });
+          (state.favorites || []).map(Number).includes(Number(favoriteId)) !== was,
+          [collectionId, testCollection, visibleId, visibleBefore.favorite], { timeout: 30000 });
         console.log('PASS: visible recipe card favorite and collection saved and persisted');
       } finally {
         await page.evaluate(async ({ id, before }) => {
