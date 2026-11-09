@@ -1736,7 +1736,7 @@ async function hydrateSavedRecipes(ids){
    catch(error){console.warn('Recipe hydration failed',id,error)}
   }));
  }catch(error){console.warn('Saved recipe hydration failed',error)}
- finally{missing.forEach(id=>pendingSavedRecipeIds.delete(id));renderSelectedPlan()}
+ finally{missing.forEach(id=>pendingSavedRecipeIds.delete(id));renderSelectedPlan();renderMyCollectionCards();renderManagedCollection()}
 }
 function renderSelectedPlan(){
   const chosen=state.selected||{};
