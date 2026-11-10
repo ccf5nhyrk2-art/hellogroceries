@@ -1870,7 +1870,7 @@ function cleanRecipeName(name){
        .replace(/^\s*(?:(?:MA\s*\/\s*CA|CA|MA)\s+only)\b\s*[:–—-]?\s*/i,'');
     if(n===prev)break;
   }
-  n=n.replace(/\\s+(?:includes?|including|comes with)\\s+(?:recyclable\\s+)?(?:aluminum|foil|plastic|paper|oven.ready|pre.cooked|packaging|trays?).*$/i,'').replace(/\\s+(?:recyclable\\s+)?(?:aluminum|foil)\\s+trays?\\s*(?:included)?\\s*$/i,'').trim();
+  n=n.replace(/\s+(?:includes?|including|comes with)\s+(?:recyclable\s+)?(?:aluminum|foil|plastic|paper|oven.ready|pre.cooked|packaging|trays?).*$/i,'').replace(/\s+(?:recyclable\s+)?(?:aluminum|foil)\s+trays?\s*(?:included)?\s*$/i,'').trim();
   return n||String(name||'');
 }
 function isHolidayRecipe(r){
