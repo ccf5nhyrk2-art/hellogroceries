@@ -4466,7 +4466,7 @@ window.hgSaveNamedCollection=saveNamedCollection;
 $('week-grid').addEventListener('change',async e=>{if(!e.target.dataset.week)return;const weekly={...(state.weekly||{})};weekly[e.target.dataset.week]=e.target.value?Number(e.target.value):null;await preferences({weekly})});
 // Phase 1: suggestions are previews; existing meal plans are not overwritten until Save.
 function pantryMatchKey(value){
- return String(value||'').toLowerCase().replace(/[^a-z ]/g,' ').replace(/\\b(fresh|chopped|diced|sliced|ground|boneless|skinless|organic|large|small)\\b/g,'').replace(/\\s+/g,' ').trim();
+ return String(value||'').toLowerCase().replace(/[^a-z ]/g,' ').replace(/\b(fresh|chopped|diced|sliced|ground|boneless|skinless|organic|large|small)\b/g,'').replace(/\s+/g,' ').trim();
 }
 $('pantry-recipe-find').onclick=async()=>{
  const button=$('pantry-recipe-find'),panel=$('pantry-recipe-results');
