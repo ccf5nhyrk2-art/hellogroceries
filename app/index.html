@@ -1062,15 +1062,37 @@ for(const [key,label] of pageSpecs){
  if(key==='backup')button.dataset.adminOnly='';
  toolbar.appendChild(button);pageButtons.set(key,button);
 }
+let pantryLoadSequence=0;
+async function refreshPantryFromServer(){
+ const sequence=++pantryLoadSequence;
+ const inventory=$('inventory-saved');
+ if(!inventory)return;
+ inventory.innerHTML='<p class="muted" role="status">Loading saved pantry…</p>';
+ try{
+  const response=await fetch('/api/state',{cache:'no-store',credentials:'same-origin'});
+  if(!response.ok)throw Error('HTTP '+response.status);
+  const saved=await response.json();
+  if(sequence!==pantryLoadSequence)return;
+  if(!Array.isArray(saved.pantry)||typeof saved.pantry_inventory!=='object'||saved.pantry_inventory===null){
+   throw Error('Saved pantry data was not returned');
+  }
+  // Keep the full app state in sync with the authoritative household response.
+  // A subsequent recipe-load response must not erase a pantry update.
+  state={...state,...saved};
+  renderSmartPrefs();
+ }catch(error){
+  if(sequence!==pantryLoadSequence)return;
+  inventory.innerHTML='<p role="alert">Could not load saved pantry. Please reopen Pantry to retry. ('+esc(error.message)+')</p>';
+  console.error('Pantry reload failed:',error);
+ }
+}
 function showPage(key){
  if(!pageButtons.has(key))key='all';
  // Plan is independent of recipe-page network requests. Refresh it on navigation.
  if(key==='planner'){
   try{renderSelectedPlan();updateEnhancements()}catch(error){console.error('Plan render:',error)}
  }
- if(key==='pantry'){
-  try{renderSmartPrefs()}catch(error){console.error('Pantry inventory render:',error)}
- }
+ if(key==='pantry')void refreshPantryFromServer();
 
  if(key==='recipes'&&window.matchMedia('(min-width:751px)').matches){
   const panel=document.getElementById('selected-plan');
@@ -1185,7 +1207,6 @@ function showPage(key){
    saved.style.removeProperty('display');
    saved.style.setProperty('display','block','important');
   }
-  try{renderSmartPrefs()}catch(error){console.error('Pantry inventory render:',error)}
  }
  document.getElementById('hg-shop-build')?.remove();
  syncShoppingShortcut();
