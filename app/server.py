@@ -3947,8 +3947,20 @@ class Handler(SimpleHTTPRequestHandler):
     score=common*3+min(ingredient_overlap,8)*2+(7 if source_protein!='other' and protein(name)==source_protein else 0)
     if score>0:scored.append((score,recipe))
    scored.sort(key=lambda item:(-item[0],str(item[1].get('name') or '')))
+   def family(name):
+    clean=re.split(r'\\b(?:includes?|recyclable|aluminum trays?|oven.ready|prep\\s*&\\s*bake)\\b',str(name).lower())[0]
+    return tuple(sorted(words(clean)))[:6]
+   picked=[]
+   families=set()
+   for score,recipe in scored:
+    name=str(recipe.get('name') or '')
+    key=family(name)
+    if key in families:continue
+    if any(len(words(name.lower()) & words(str(prev.get('name') or '').lower()))>=5 for prev in picked):continue
+    picked.append(recipe);families.add(key)
+    if len(picked)>=8:break
    fields=('id','name','image','url','nutrition','total_time')
-   return self.sendjson({'items':[{key:r[key] for key in fields if key in r} for _,r in scored[:8]]})
+   return self.sendjson({'items':[{key:r[key] for key in fields if key in r} for r in picked]})
   if urllib.parse.urlsplit(self.path).path=='/api/recipes/recommendations':
    # Bounded recommendation payload, independent of the full recipe summary.
    # Exclusions keep planned, favorite and dismissed recipes out of suggestions.
