@@ -233,6 +233,7 @@ def recipe_display_title(name):
  """Clean importer-only title artifacts without changing stored recipe payloads."""
  title=str(name or '').strip()
  title=re.sub(r'^\*{2,}\s*ADD\s+CORRECT\b[^*]*\*{2,}\s*','',title,flags=re.I)
+ title=re.sub(r'^R\d{1,4}\s+(?=[A-Za-z])','',title,flags=re.I)
  title=re.sub(r'\s+Includes\s+recyclable\s+aluminum\s+tray\s*$','',title,flags=re.I)
  title=re.sub(r'^["“]([^"”]+)["”](?=\s|$)',r'\1',title)
  return title.strip()
@@ -315,9 +316,9 @@ def visible_browse_catalog():
    # Do not display an imported recipe with no original source image.
    # This is independent of any old cache file or recovery override.
    if not complete_recipe_photo_url(recipe.get('image','')):return False
-   # Missing local cache is not proof that the original HelloFresh photo is missing.
-   # Keep the original imported URL eligible while background caching proceeds.
-   return True
+   # Only show a card when its locally validated photo can actually be served.
+   # Keep records intact for plans and collections; caching can restore visibility.
+   return cached_photo(rid) is not None
   catalog=tuple(r for r in browse_catalog() if not non_recipe_reason(r) and visible_cooking_recipe(r,None) and (str(r.get('id')),str(r.get('url') or '')) not in missing and has_browse_photo(r))
   _recipe_visible_cache=(time.monotonic(),catalog)
   return catalog
