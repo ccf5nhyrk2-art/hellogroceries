@@ -813,6 +813,19 @@ body[data-active-page]:not([data-active-page="all"]) main > .mobile-home-dashboa
  #shopping-list .actions{gap:6px;margin-bottom:8px}
  #shopping-list .actions button{padding:9px 10px;font-size:13px}
 }
+
+/* Mobile recipe card controls: readable labels and consistent alignment. */
+@media(max-width:750px){
+ .recipe-browser{align-items:start}
+ .recipe-card-body{gap:7px}
+ .recipe-card .actions{grid-template-columns:minmax(0,1fr) minmax(0,1fr);align-items:stretch}
+ .recipe-card .actions button{min-height:44px;line-height:1.25;white-space:normal}
+ .recipe-card .actions select[data-collection-add]{grid-column:1/-1;width:100%;max-width:100%;min-width:0;min-height:44px;font-size:13px;text-overflow:ellipsis}
+ .recipe-card-bottom{display:flex;flex-direction:column;align-items:stretch;gap:7px}
+ .recipe-card .recipe-serving-row{display:flex;justify-content:space-between;align-items:center;min-height:40px;gap:8px}
+ .recipe-card .recipe-serving-row select{width:112px;max-width:112px;min-width:112px;font-size:13px;padding:7px 22px 7px 8px}
+ .recipe-card .recipe-plan-action{width:100%;min-height:44px}
+}
 </style><script>
 (function(){const originalFetch=window.fetch;window.fetch=function(input,init){const opts=init?{...init}:{};const method=(opts.method||'GET').toUpperCase();const url=typeof input==='string'?input:input.url;if(method!=='GET'&&method!=='HEAD'&&url.startsWith('/api/')){const match=document.cookie.match(/(?:^|; )hg_csrf=([^;]+)/);opts.headers={...opts.headers,'X-HG-CSRF':match?match[1]:''}}return originalFetch.call(this,input,opts)};})();
 </script>
