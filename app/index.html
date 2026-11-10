@@ -1185,7 +1185,7 @@ function showPage(key){
    saved.style.removeProperty('display');
    saved.style.setProperty('display','block','important');
   }
-  try{renderSmartPrefs();window.refreshPantryCategoryList?.()}catch(error){console.error('Pantry inventory render:',error)}
+  try{renderSmartPrefs()}catch(error){console.error('Pantry inventory render:',error)}
  }
  document.getElementById('hg-shop-build')?.remove();
  syncShoppingShortcut();
@@ -2844,39 +2844,13 @@ $('inventory-saved').addEventListener('click',async e=>{
  listHeading.textContent='Ingredients by category';
  panel.insertBefore(listHeading,panel.querySelector('.actions'));
  panel.insertBefore(saved,listHeading.nextSibling);
- // The legacy inventory node can retain visibility rules from the shopping
- // page. Render a pantry-owned view independently of those legacy rules.
- const pantryList=document.createElement('div');
- pantryList.id='pantry-category-list';
- panel.insertBefore(pantryList,saved);
- saved.hidden=true;
- saved.style.setProperty('display','none','important');
- // Mirror the existing inventory renderer rather than maintaining two competing
- // parsers. This updates whenever renderSmartPrefs writes the server-backed list.
- const syncPantryCategoryList=()=>{
-  pantryList.innerHTML=saved.innerHTML||'<p class="muted">No pantry ingredients found.</p>';
- };
- const refreshPantryCategoryList=()=>syncPantryCategoryList();
- const pantryObserver=new MutationObserver(refreshPantryCategoryList);
- pantryObserver.observe(saved,{childList:true});
- document.addEventListener('click',e=>{
-  const button=e.target.closest('#pantry-category-list [data-pantry-edit],#pantry-category-list [data-pantry-delete]');
-  if(!button)return;
-  // Delegate through the existing inventory handler so updates remain centralized.
-  const proxy=document.createElement('button');
-  proxy.type='button';
-  if(button.dataset.pantryEdit){proxy.dataset.pantryEdit=button.dataset.pantryEdit;proxy.dataset.pantryUnit=button.dataset.pantryUnit;}
-  else proxy.dataset.pantryDelete=button.dataset.pantryDelete;
-  saved.appendChild(proxy);
-  proxy.click();
-  proxy.remove();
- });
- window.refreshPantryCategoryList=syncPantryCategoryList;
- syncPantryCategoryList();
- saved.style.setProperty('display','none','important');
- saved.removeAttribute('data-page-concealed');
+ // Render the server-backed pantry inventory directly in its permanent location.
+ // Keep its existing delegated Edit/Remove handlers; no mirrored DOM or proxies.
+ saved.hidden=false;
  saved.classList.remove('page-hidden');
-
+ saved.removeAttribute('data-page-concealed');
+ saved.style.removeProperty('display');
+ saved.style.setProperty('display','block','important');
  const editor=document.createElement('details');
  editor.className='pantry-edit-panel';
  const summary=document.createElement('summary');
@@ -3401,7 +3375,7 @@ async function renderPaged(){
 }
 function render(){
  // Keep the pantry list synchronized with fresh server state, including after edits.
- try{renderSmartPrefs();window.refreshPantryCategoryList?.()}catch(error){console.error('Pantry sync:',error)}
+ try{renderSmartPrefs()}catch(error){console.error('Pantry sync:',error)}
  // Always paint saved meal state even if the catalog request fails or is delayed.
  renderSelectedPlan();
  updateEnhancements();
