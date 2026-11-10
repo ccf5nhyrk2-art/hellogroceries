@@ -3436,9 +3436,9 @@ async function renderPaged(){
 function render(){
  // Keep the pantry list synchronized with fresh server state, including after edits.
  try{renderSmartPrefs()}catch(error){console.error('Pantry sync:',error)}
- // Always paint saved meal state even if the catalog request fails or is delayed.
- renderSelectedPlan();
- updateEnhancements();
+ // Optional widgets must never block recipe pagination.
+ try{renderSelectedPlan()}catch(error){console.warn('Selected meals render:',error)}
+ try{updateEnhancements()}catch(error){console.warn('Enhancements render:',error)}
  if(legacyCatalogLoaded){renderLegacy();return}
  if(requiresLegacyRecipeFilters()){
   void fetchLegacyCatalogOnDemand().then(()=>renderLegacy()).catch(error=>console.error(error));
@@ -3500,8 +3500,11 @@ if(displayedIds.length!==desiredIds.length||displayedIds.some((id,index)=>id!==d
   if(favorite)favorite.textContent=(state.favorites||[]).some(x=>String(x)===id)?'♥ Favorited':'♡ Favorite';
  }
  let n=state.list.filter(x=>x.purchased).length;$('summary').textContent=state.list.length?`${n} of ${state.list.length} purchased`:'No generated list yet';renderSelectedPlan();renderShoppingList();renderIngredientSuggestions();renderSmartPrefs();renderSalesComparison()}for(const id of ['recipe-country','protein','cuisine','meal','sort','selectedonly','fullmeals','quickmeals','favorite-filter','collection-filter','included-side','diet-filter'])$(id).addEventListener('change',()=>{recipePage=0;render()});$('resetfilters').onclick=()=>{for(const id of ['protein','cuisine','meal','diet-filter'])$(id).value='all';$('recipe-country').value='all';$('included-side').value='all';$('sort').value='name';$('selectedonly').checked=false;$('fullmeals').checked=true;$('quickmeals').checked=false;$('search').value='';recipePage=0;render()};function navigateRecipePage(direction){
- recipePage=Math.max(0,recipePage+direction);
- render();
+ const maxPage=Math.max(0,(Number(catalogPage?.pages)||1)-1);
+ recipePage=Math.max(0,Math.min(maxPage,recipePage+direction));
+ // Next/Previous must not depend on unrelated pantry or planner rendering.
+ if(legacyCatalogLoaded||requiresLegacyRecipeFilters())render();
+ else void renderPaged();
  // Scroll to the recipe section heading after the new page is rendered.
  const heading=$('recipes')?.closest('section')?.querySelector('.recipes-topbar')||$('recipes');
  if(heading){
