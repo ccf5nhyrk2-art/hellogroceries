@@ -1644,8 +1644,9 @@ async function loadRecipeStartup(){
  }
  try{
   // First page was already fetched and painted; avoid a duplicate blocking page request.
-  renderSelectedPlan();
-  updateEnhancements();
+  // Keep optional planner/collection widgets from breaking the Recipes page.
+  try{renderSelectedPlan()}catch(error){console.warn('Selected meals widget deferred:',error)}
+  try{updateEnhancements()}catch(error){console.warn('Recipe enhancements deferred:',error)}
   if(status)status.hidden=true;
   scheduleRecipeRecommendations();
  }catch(error){
@@ -3352,7 +3353,11 @@ function scheduleRecipeRecommendations(){
   if(recommendationRenderTimer!==null)clearTimeout(recommendationRenderTimer);
   recommendationRenderTimer=setTimeout(()=>{
     recommendationRenderTimer=null;
-    try{renderRecommendations()}catch(error){console.error('Recommendations failed:',error)}
+    try{renderRecommendations()}catch(error){
+      console.error('Recommendations failed:',error);
+      const panel=document.getElementById('recommend-list');
+      if(panel&&!panel.children.length)panel.textContent='Recommendations are temporarily unavailable. Tap Refresh to try again.';
+    }
   },100);
 }
 // Server-driven recipe browsing: no full-catalog request during startup.
