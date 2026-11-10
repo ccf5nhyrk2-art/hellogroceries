@@ -2818,39 +2818,12 @@ $('inventory-saved').addEventListener('click',async e=>{
  panel.insertBefore(pantryList,saved);
  saved.hidden=true;
  saved.style.setProperty('display','none','important');
+ // Mirror the existing inventory renderer rather than maintaining two competing
+ // parsers. This updates whenever renderSmartPrefs writes the server-backed list.
  const syncPantryCategoryList=()=>{
-  const groups=new Map();
-  for(const raw of state.pantry||[]){
-   if(typeof raw!=='string'||!raw.trim())continue;
-   const name=raw.trim(),key=name.toLocaleLowerCase();
-   if(!groups.has(key))groups.set(key,{name,quantities:[]});
-  }
-  for(const [key,amount] of Object.entries(state.pantry_inventory||{})){
-   const separator=key.lastIndexOf('|');
-   const name=(separator<0?key:key.slice(0,separator)).trim();
-   const unit=separator<0?'':key.slice(separator+1);
-   if(!name||!Number.isFinite(Number(amount))||Number(amount)<0)continue;
-   const normalized=name.toLocaleLowerCase();
-   if(!groups.has(normalized))groups.set(normalized,{name,quantities:[]});
-   groups.get(normalized).quantities.push({amount:Number(amount),unit});
-  }
-  const departments=new Map();
-  for(const item of groups.values()){
-   const category=shoppingDepartment(item.name);
-   if(!departments.has(category))departments.set(category,[]);
-   departments.get(category).push(item);
-  }
-  const order=[...shoppingDepartments.map(row=>row[0]),'Other / Uncategorized'];
-  pantryList.innerHTML=order.filter(name=>departments.has(name)).map(name=>
-   '<details class="pantry-department" open><summary><strong>'+esc(name)+'</strong> ('+departments.get(name).length+')</summary><div class="pantry-department-items">'+
-   departments.get(name).sort((a,b)=>a.name.localeCompare(b.name)).map(item=>{
-    const quantities=item.quantities.filter(q=>q.amount>0);
-    const display=quantities.length?quantities.map(q=>esc(groceryNumber(q.amount))+' '+esc(q.unit)).join(', '):'On hand · amount not set';
-    return '<div class="pantry-department-item"><div class="pantry-item-description"><span class="pantry-item-name">'+esc(item.name)+'</span><span class="pantry-item-amount">'+display+'</span></div><div class="pantry-quantity-controls"><button type="button" class="clear" data-pantry-edit="'+esc(item.name)+'" data-pantry-unit="'+esc(quantities[0]?.unit||'count')+'">Edit</button><button type="button" class="clear" data-pantry-delete="'+esc(item.name)+'">Remove</button></div></div>';
-   }).join('')+'</div></details>'
-  ).join('')||'<p class="muted">No pantry ingredients found. Add an ingredient to get started.</p>';
+  pantryList.innerHTML=saved.innerHTML||'<p class="muted">No pantry ingredients found.</p>';
  };
- const refreshPantryCategoryList=()=>{if(document.body.dataset.activePage==='pantry')syncPantryCategoryList()};
+ const refreshPantryCategoryList=()=>syncPantryCategoryList();
  const pantryObserver=new MutationObserver(refreshPantryCategoryList);
  pantryObserver.observe(saved,{childList:true});
  document.addEventListener('click',e=>{
@@ -2866,6 +2839,7 @@ $('inventory-saved').addEventListener('click',async e=>{
   proxy.remove();
  });
  window.refreshPantryCategoryList=syncPantryCategoryList;
+ syncPantryCategoryList();
  saved.style.setProperty('display','none','important');
  saved.removeAttribute('data-page-concealed');
  saved.classList.remove('page-hidden');
@@ -3393,6 +3367,8 @@ async function renderPaged(){
  }
 }
 function render(){
+ // Keep the pantry list synchronized with fresh server state, including after edits.
+ try{renderSmartPrefs();window.refreshPantryCategoryList?.()}catch(error){console.error('Pantry sync:',error)}
  // Always paint saved meal state even if the catalog request fails or is delayed.
  renderSelectedPlan();
  updateEnhancements();
