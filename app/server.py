@@ -3211,6 +3211,9 @@ def rebuild_grocery_list(state):
  totals={}
  sources={}
  canonical_labels={}
+ # Reuse the cached catalog; rebuilding imported recipes and enrichment tables
+ # for every shopping-list generation can block requests for tens of seconds.
+ catalog=browse_catalog()
  def add_ingredient(label,amount,source):
   label=grocery_display_name(label)
   # Water is a household utility, not a grocery purchase.
@@ -3226,7 +3229,7 @@ def rebuild_grocery_list(state):
   else:
    totals[label]=totals.get(label,0)+amount
   sources.setdefault(label,[]).append(source)
- for recipe in allrecipes():
+ for recipe in catalog:
   servings=state['selected'].get(str(recipe['id']))
   if servings is None:continue
   # Scale against the original recipe's declared yield, when available.
@@ -3279,7 +3282,7 @@ def rebuild_grocery_list(state):
    add_ingredient(label,amount,{'recipe_id':recipe['id'],'recipe':recipe['name'],'original_name':name,'corrected':bool(correction),'source_recovered':bool(recovered),'source_line':recovered['source'] if recovered else None,'source_quantity':qty,'multiplier':scale,'servings':servings,'source_servings':baseline,'contribution':round(amount,3)})
  # Do not silently discard recipe ingredients with missing or malformed amounts.
  # Keep them as unverified single entries until a correction supplies a quantity.
- for recipe in allrecipes():
+ for recipe in catalog:
   if str(recipe['id']) not in state.get('selected',{}):continue
   ingredients=recipe.get('ingredients')
   if not isinstance(ingredients,dict):continue
