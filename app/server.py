@@ -305,7 +305,9 @@ def visible_browse_catalog():
    # Do not display an imported recipe with no original source image.
    # This is independent of any old cache file or recovery override.
    if not complete_recipe_photo_url(recipe.get('image','')):return False
-   return cached_photo(rid) is not None
+   # Missing local cache is not proof that the original HelloFresh photo is missing.
+   # Keep the original imported URL eligible while background caching proceeds.
+   return True
   catalog=tuple(r for r in browse_catalog() if not non_recipe_reason(r) and visible_cooking_recipe(r,None) and (str(r.get('id')),str(r.get('url') or '')) not in missing and has_browse_photo(r))
   _recipe_visible_cache=(time.monotonic(),catalog)
   return catalog
