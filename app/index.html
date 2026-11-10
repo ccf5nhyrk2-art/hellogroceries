@@ -3413,6 +3413,13 @@ document.addEventListener('click',event=>{
   void renderPaged();
   $('recipes')?.scrollIntoView({behavior:'smooth',block:'start'});
  }
+ const detail=event.target.closest('#recipe-category-rails [data-detail]');
+ if(detail){
+  const id=detail.dataset.detail;
+  const trigger=document.createElement('button');
+  trigger.type='button';trigger.dataset.detail=id;trigger.hidden=true;
+  $('recipes').appendChild(trigger);trigger.click();trigger.remove();
+ }
  const add=event.target.closest('[data-rail-add]');
  if(add){const id=Number(add.dataset.railAdd);void selectMealAndRefresh(id,true,Number((state.selected||{})[String(id)])||2).catch(error=>console.error('Add to plan:',error));}
 });
