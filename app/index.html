@@ -4487,6 +4487,11 @@ function pantryIngredientLabel(value){
  const plural=label===''&&Number(amount)!==1&&/^(?:plum|orange|kiwi|carrot|potato|tomato|onion|shallot|egg|pepper|lemon|lime|apple|pear)$/i.test(name)?(name.endsWith('o')?name+'es':name+'s'):name;
  return amount+(label?' '+label:'')+' '+plural;
 }
+function isCookablePantryRecipe(r){
+ const name=String(r.name||'').toLowerCase();
+ return !isAddon(r)&&!isWineListing(r)&&!isSideRecipe(r)
+  &&!/\b(?:sampler|combo pack|seasoning pack|spice pack|meal bundle|breakfast bundle|market item|pre.?made|ready.to.eat|snack box|fruit box|fruit pack)\b/i.test(name);
+}
 async function findPantryMeals(){
  const button=$('pantry-recipe-find'),panel=$('pantry-recipe-results');
  if(button.disabled)return;
@@ -4502,21 +4507,25 @@ async function findPantryMeals(){
   for(const item of details){
    if(item.status!=='fulfilled')continue;
    const r=item.value;
+   if(!isCookablePantryRecipe(r))continue;
    const ingredientNames=new Map();
    for(const raw of Object.keys(r.ingredients||{})){const key=pantryMatchKey(raw);if(key&&!ingredientNames.has(key))ingredientNames.set(key,pantryIngredientLabel(raw));}
    const ingredients=[...ingredientNames.keys()];
-   if(!ingredients.length)continue;
+   if(ingredients.length<4)continue;
    const found=ingredients.filter(name=>pantry.some(have=>have===name||have.split(' ').every(word=>name.split(' ').includes(word))));
+   if(!found.length)continue;
    matches.push({r,found:found.length,total:ingredients.length,missing:ingredients.filter(name=>!found.includes(name)).map(name=>ingredientNames.get(name))});
   }
   matches.sort((a,b)=>b.found/b.total-a.found/a.total||b.found-a.found||a.missing.length-b.missing.length);
   const best=matches.slice(0,8);
-  panel.innerHTML=best.length?best.map(({r,found,total,missing})=>'<div class="pantry-recipe-match"><strong>'+esc(cleanRecipeName(r.name))+'</strong><span>'+Math.round(found/total*100)+'% matched · '+found+' of '+total+' ingredients · '+missing.length+' missing</span><small>'+esc(missing.slice(0,5).join(', '))+(missing.length>5?'…':'')+'</small><button type="button" data-pantry-recipe-detail="'+r.id+'">Details</button> <button type="button" data-pantry-recipe-add="'+r.id+'">Add to plan</button></div>').join(''):'No matching recipes found in this sample. Try adding more pantry ingredients.';
+  panel.innerHTML=best.length?best.map(({r,found,total,missing})=>'<div class="pantry-recipe-match"><strong>'+esc(cleanRecipeName(r.name))+'</strong><span>'+Math.round(found/total*100)+'% matched · '+found+' of '+total+' ingredients · '+missing.length+' missing</span><small>'+esc(missing.slice(0,5).join(', '))+(missing.length>5?'…':'')+'</small><button type="button" data-pantry-recipe-detail="'+r.id+'">Details</button> <button type="button" data-pantry-recipe-add="'+r.id+'">Add to plan</button></div>').join(''):'<p class="muted">No meaningful pantry matches yet. Add more ingredients to your Pantry Inventory, then refresh recommendations.</p><button type="button" data-pantry-open-inventory>Open Pantry</button>';
  }catch(error){panel.textContent='Could not find pantry meals: '+error.message}
  finally{button.disabled=false;button.textContent='Refresh pantry meals'}
 }
 $('pantry-recipe-find').onclick=findPantryMeals;
 $('pantry-recipe-results').addEventListener('click',async event=>{
+ const openPantry=event.target.closest('[data-pantry-open-inventory]');
+ if(openPantry){showPage('pantry');return;}
  const add=event.target.closest('[data-pantry-recipe-add]');
  if(add){
   if(add.disabled)return;
