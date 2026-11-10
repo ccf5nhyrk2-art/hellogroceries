@@ -1398,6 +1398,12 @@ def confirmed_prepared_product(recipe):
 def non_recipe_reason(recipe):
  title=str(recipe.get('name','')).lower().strip()
  if not title:return 'Missing recipe title'
+ # Hide explicit QA fixtures and retail product promotions from all browse surfaces.
+ # Keep their records intact for saved references and regression testing.
+ if re.search(r'(?i)^(?:\[modular recipe card test(?:\b|\])|test(?:[\s_-]+upload)?(?:[\s_-]|$)|more\s+test$|__staging_smoke_test__|placeholder(?:[\s_-]|$)|dummy(?:[\s_-]|$))',title):
+  return 'Test or placeholder listing'
+ if re.search(r'(?i)\b(?:stuffed\s+puffs?|high\s+tea\s+dessert\s+set)\b',title):
+  return 'Retail snack or assortment listing'
  if confirmed_prepared_product(recipe):return 'Ready-made meal assembly'
  if packaged_snack_listing(recipe):return 'Packaged snack product'
  if any(re.search(pattern,title) for pattern in NON_RECIPE_PATTERNS):
@@ -1407,12 +1413,18 @@ def non_recipe_reason(recipe):
  return None
 
 def packaged_snack_listing(recipe):
- """Conservatively exclude branded retail snacks, not homemade snack recipes."""
+ """Exclude retail snack listings without hiding genuine homemade snack recipes."""
  title=str(recipe.get('name') or '').strip()
  if not title:return False
- branded=bool(re.search(r"(?i)\b(?:annie['’]s|bunny grahams)\b",title))
- packaged=bool(re.search(r"(?i)\b(?:snack time|snack packs?|grahams|fruit snacks?|granola bars?)\b",title))
- return branded and packaged
+ lower=title.lower()
+ # Retail brands paired with recognizable packaged snack products.
+ brand=re.search(r"(?i)\\b(?:annie['’]s|skinnydipped|stuffed\\s*puffs?|nature['’]s\\s*bakery|kind\\s+bars?|clif\\s+bar|larabar|cheez-?it|goldfish\\s+crackers|oreo|pop-?tarts?)\\b",title)
+ product=re.search(r"(?i)\\b(?:almonds?|cashews?|grahams?|crackers?|fruit\\s+snacks?|snack\\s+packs?|granola\\s+bars?|protein\\s+bars?|candy|chocolate\\s+(?:covered|coated)|variety\\s+packs?|greatest\\s+hits)\\b",title)
+ if brand and product:return True
+ # Multipack / assortment marketing, rather than a recipe for preparing food.
+ if re.search(r"(?i)\\b(?:greatest\\s+hits|snack\\s+bundle|snack\\s+box|snack\\s+assortment)\\b",title):
+  return True
+ return False
 
 def prepared_meal_review(recipe):
  """Review-only classification; never removes or hides recipes."""
@@ -3271,6 +3283,7 @@ def rebuild_grocery_list(state):
    if needed<=0.000001:break
   return max(0,needed)
  corrected_labels=set()
+ pantry_shortage_labels=set()
  for key in list(totals):
   if not key.startswith('__corrected__|'):continue
   _,unit,ingredient=key.split('|',2)
@@ -3281,6 +3294,7 @@ def rebuild_grocery_list(state):
   label=(str(round(needed,3)).rstrip('0').rstrip('.') if needed%1 else str(int(needed)))+' '+(unit+' ' if unit and unit!='count' else '')+ingredient
   totals[label]=totals.get(label,0)+1
   corrected_labels.add(label)
+  pantry_shortage_labels.add(label)
   sources.setdefault(label,[]).extend(original_sources)
  for label in list(totals):
   if label.startswith('__corrected__|') or label in corrected_labels:continue
@@ -3304,9 +3318,20 @@ def rebuild_grocery_list(state):
   if needed<=0.000001:continue
   new_label=(str(round(needed,3)).rstrip('0').rstrip('.') if needed%1 else str(int(needed)))+' '+(unit+' ' if unit!='count' else '')+ingredient
   totals[new_label]=totals.get(new_label,0)+1
+  pantry_shortage_labels.add(new_label)
   sources.setdefault(new_label,[]).extend(original_sources)
  old={item['name']:item for item in state.get('list',[])}
- generated=[{'name':name,'quantity':round(qty,3),'purchased':False,'sources':sources.get(name,[])} for name,qty in sorted(totals.items()) if qty>0 and (any(src.get('corrected') or src.get('quantity_unverified') for src in sources.get(name,[])) or any(isinstance(k,str) and pantry_match_name(k.rsplit('|',1)[0])==pantry_match_name(name) for k in inventory) or pantry_match_name(name) not in pantry)]
+ # Unmeasured pantry staples (e.g. salt) must not leak back into the
+ # shopping list through unverified/corrected source flags. Measured items
+ # stay when inventory is tracked but insufficient or units cannot be matched.
+ tracked_names={pantry_match_name(k.rsplit('|',1)[0]) for k in inventory if isinstance(k,str)}
+ def needs_purchase(label):
+  normalized=pantry_match_name(label)
+  if normalized not in pantry:return True
+  if label in pantry_shortage_labels:return True
+  if normalized not in tracked_names:return False
+  return bool(parse_grocery_measure(label) or re.match(r'^(?:teaspoon|tablespoon|cup|ounce|pound|gram|kilogram|milliliter|liter)\\s+',label,re.I))
+ generated=[{'name':name,'quantity':round(qty,3),'purchased':False,'sources':sources.get(name,[])} for name,qty in sorted(totals.items()) if qty>0 and needs_purchase(name)]
  for item in generated:
   previous=old.get(item['name'])
   if previous and previous.get('quantity')==item['quantity']:item['purchased']=bool(previous.get('purchased'))
@@ -3782,6 +3807,7 @@ class Handler(SimpleHTTPRequestHandler):
    meal=params.get('meal',['all'])[0].strip().casefold()[:40]
    ingredient=params.get('ingredient',[''])[0].strip().casefold()[:100]
    exclude_ingredient=params.get('exclude_ingredient',[''])[0].strip().casefold()[:100]
+   excluded_terms=[term.strip() for term in re.split(r'[,;\n]+',exclude_ingredient) if term.strip()]
    quick=params.get('quick',['false'])[0].lower()=='true'
    if cuisine not in ('all','italian','mexican','asian','mediterranean','american','other') or meal not in ('all','pasta','bowls','sandwich','salad','soup','other'):
     return self.sendjson({'error':'Invalid cuisine or meal filter'},400)
@@ -3806,7 +3832,7 @@ class Handler(SimpleHTTPRequestHandler):
     if cuisine!='all' and recipe_page_cuisine(recipe)!=cuisine:return False
     if meal!='all' and recipe_page_meal(recipe)!=meal:return False
     if ingredient and ingredient not in names:return False
-    if exclude_ingredient and exclude_ingredient in names:return False
+    if any(term in names for term in excluded_terms):return False
     if quick and not re.match(r'^\\s*(?:<\\s*)?(?:10|15)\\s*MM\\b',str(recipe.get('name') or ''),re.I):return False
     return True
    matched=[r for r in catalog if recipe_page_matches(r,query,country,protein) and matches_extra(r)]
@@ -3832,7 +3858,13 @@ class Handler(SimpleHTTPRequestHandler):
    if len(excluded)>250:return self.sendjson({'error':'Maximum 250 excluded recipe IDs'},400)
    try:limit=max(1,min(24,int(params.get('limit',['12'])[0])))
    except ValueError:return self.sendjson({'error':'Invalid recommendation limit'},400)
+   # Test fixtures are kept in the database for QA, but must never be suggested.
+   # Match explicit fixture naming only; do not suppress legitimate recipes with 'test' in a title.
+   def is_test_recommendation(recipe):
+    title=str(recipe.get('name') or '').strip()
+    return bool(re.search(r'(?i)^(?:test(?:[\s_-]+upload)?(?:[\s_-]|$)|__staging_smoke_test__|placeholder(?:[\s_-]|$)|dummy(?:[\s_-]|$))',title))
    candidates=[recipe for recipe in visible_browse_catalog()
+     if not is_test_recommendation(recipe)
     if int(recipe.get('id') or 0) not in excluded
     and recipe.get('image') and recipe.get('url')
     and isinstance(recipe.get('ingredients'),dict)
@@ -3856,7 +3888,7 @@ class Handler(SimpleHTTPRequestHandler):
    if len(ids)>100:return self.sendjson({'error':'Maximum 100 recipe IDs'},400)
    fields=('id','name','image','country','nutrition','dietary_labels','prep_time','cook_time','total_time','url','ingredients','source_servings')
    return self.sendjson([{key:recipe[key] for key in fields if key in recipe}
-    for recipe in visible_browse_catalog() if int(recipe.get('id') or 0) in ids])
+    for recipe in browse_catalog() if int(recipe.get('id') or 0) in ids])
   if urllib.parse.urlsplit(self.path).path=='/api/recipes/detail':
    params=urllib.parse.parse_qs(urllib.parse.urlsplit(self.path).query)
    try:
@@ -4581,6 +4613,7 @@ class Handler(SimpleHTTPRequestHandler):
      inventory=state.setdefault('pantry_inventory',{})
      for key in list(inventory):
       if isinstance(key,str) and key.rsplit('|',1)[0].strip().casefold()==normalized:inventory.pop(key,None)
+     if state.get('list'):rebuild_grocery_list(state)
     elif action in ('set_pantry_inventory','adjust_pantry_inventory'):
      name=p.get('name');unit=p.get('unit','');amount=p.get('amount')
      allowed={'','count','teaspoon','tablespoon','cup','ounce','pound','gram','kilogram','milliliter','liter','clove','bunch','head','stalk','slice','piece','pinch','can','package','bag'}
@@ -4614,6 +4647,9 @@ class Handler(SimpleHTTPRequestHandler):
      if not any(isinstance(x,str) and x.casefold()==name.strip().casefold() for x in pantry):
       if len(pantry)>=500:raise ValueError('Pantry capacity reached')
       pantry.append(name.strip())
+     # Pantry edits must refresh an already-generated grocery list immediately.
+     # Do not create a new list before the user first chooses Generate.
+     if state.get('list'):rebuild_grocery_list(state)
     elif action=='clear':state['list']=[]
     elif action=='purchase_many':
      names=p.get('names',[])
@@ -4626,6 +4662,10 @@ class Handler(SimpleHTTPRequestHandler):
      if found is None:raise ValueError('Unknown item')
      found['purchased']=bool(p['purchased'])
     else:raise ValueError('Unknown action')
+    # Keep an existing generated list synchronized with pantry quantity changes.
+    # Do not create a shopping list until the user has generated one.
+    if action in ('set_pantry_inventory','adjust_pantry_inventory','delete_pantry_item','pantry_scan_apply') and state.get('list'):
+     rebuild_grocery_list(state)
     if action=='preview_grocery':return self.sendjson({'items':state['list']})
     state['revision']+=1;save(state)
     pantry_audit(pantry_before,state)

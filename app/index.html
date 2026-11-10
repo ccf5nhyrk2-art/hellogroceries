@@ -858,7 +858,7 @@ html[data-theme="light"] .my-collection-tile,html[data-theme="light"] .my-saved-
 .my-saved-recipe-actions button{white-space:nowrap}
 @media(max-width:750px){#my-collection-cards{grid-template-columns:repeat(2,minmax(0,1fr))!important}.my-saved-recipe-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.my-saved-recipe-media{height:115px}.my-saved-recipe-actions{grid-template-columns:1fr}.my-saved-recipe-actions button{width:100%}}
 @media(max-width:390px){.my-saved-recipe-grid{grid-template-columns:1fr}}
-</style><style>.recipe-card>.recipe-photo:not(.photo-verified){visibility:hidden;opacity:0}.recipe-card:has(>.recipe-photo:not(.photo-verified)):not(.recipe-photo-missing){background-image:linear-gradient(110deg,transparent 0%,rgba(128,128,128,.08) 45%,transparent 85%);background-size:200% 100%}.recipe-card>.recipe-photo.photo-verified{visibility:visible;opacity:1}</style><style id="recipe-count-hidden-style">#count,#filtercount{display:none!important}</style><style id="catalog-missing-photo-style">.recipe-card.recipe-photo-missing .photo-placeholder{display:flex!important;align-items:center;justify-content:center;min-height:105px;height:105px;background:var(--surface,#202a24);color:var(--muted,#aab5ac);font-size:13px;border-radius:10px;margin:8px}.recipe-card.recipe-photo-missing .recipe-photo{display:none!important}#planner-selected-meals{margin-bottom:18px}#planner-selected-meals .selected-meal{margin-bottom:8px}</style></head><body><header><h1>🥬 HelloGroceries</h1><div>Choose recipes · Generate · Shop</div><button id="hg-header-store" type="button" title="View or change preferred store" aria-label="View or change preferred grocery store"><span id="hg-header-store-label">📍 Choose your store</span> ▾</button> <a href="/admin.html" data-admin-only style="color:white;margin-left:15px">Household admin</a> <button type="button" id="desktop-logout" class="secondary" style="margin-left:12px">Sign Out</button></header><main><div class="shopping-view-toolbar"><button type="button" id="shop-generate-tour" title="Generate a shopping list from your selected meals">Generate Shopping List</button><button type="button" id="shopping-focus-toggle" aria-pressed="false">🛒 Shopping list only</button></div><section class="mobile-home-dashboard" aria-label="HelloGroceries home"><div class="mobile-home-welcome"><h2>What would you like to do?</h2><p>Recipes, meal planning, and groceries in one place.</p></div><div class="mobile-home-actions"><button type="button" data-home-go="recipes"><span>🍽️</span><strong>Browse recipes</strong><small>Find your next meal</small></button><button type="button" data-home-go="planner"><span>🗓️</span><strong>Plan meals</strong><small>Organize your week</small></button><button type="button" data-home-go="shopping"><span>🛒</span><strong>Shopping list</strong><small>See what you need</small></button><button type="button" data-home-go="pantry"><span>🥫</span><strong>My pantry</strong><small>Track what you have</small></button></div></section><div class="layout"><section><div class="recipes-topbar"><h2>Recipes <span id="count" class="muted"></span></h2><button type="button" id="show-selected-meals" class="recipes-selected-button" aria-expanded="false" aria-controls="selected-plan">Selected Meals <span id="selected-meals-button-count"></span> ▾</button></div><input id="search" type="search" placeholder="Search recipes worldwide"><button type="button" id="mobile-recipe-filter-toggle" aria-expanded="false" aria-controls="mobile-recipe-filters">☷ Filters</button><div id="mobile-recipe-filters"><div class="filter-actions"><label><input type="checkbox" id="fullmeals" checked> Full meals only</label><label><input type="checkbox" id="selectedonly"> Selected recipes only</label><label class="quick-toggle"><input type="checkbox" id="quickmeals"> Quick meals (15 min or less)</label><button type="button" class="clear" id="resetfilters">Reset filters</button></div><div class="filters"><select id="recipe-country" aria-label="Filter recipes by country"><option value="all" selected>All countries</option><option value="US">United States</option><option value="UK">United Kingdom</option><option value="AU">Australia</option><option value="CA">Canada</option><option value="DE">Germany</option><option value="NL">Netherlands</option><option value="other">Other / Unknown</option></select><select id="protein" aria-label="Filter by protein"><option value="all">All proteins</option><option value="chicken">Chicken</option><option value="beef">Beef</option><option value="pork">Pork</option><option value="seafood">Seafood</option><option value="vegetarian">Vegetarian / plant-based</option><option value="other">Other</option></select><select id="rating-filter" aria-label="Filter by personal rating"><option value="all">All ratings</option><option value="5">5-star recipes</option><option value="4">4 stars and up</option><option value="3">3 stars and up</option><option value="unrated">Not rated yet</option></select><select id="diet-filter" aria-label="Filter by dietary ingredients"><option value="all">All dietary options</option><option value="gluten-free">Gluten-free ingredients (estimated)</option><option value="dairy-free">Dairy-free ingredients (estimated)</option><option value="both">Gluten-free + dairy-free (estimated)</option></select><select id="cuisine" aria-label="Filter by cuisine"><option value="all">All cuisines</option><option value="italian">Italian</option><option value="mexican">Mexican / Tex-Mex</option><option value="asian">Asian-inspired</option><option value="mediterranean">Mediterranean</option><option value="american">American / comfort</option><option value="other">Other / unclassified</option></select><select id="meal" aria-label="Filter by meal type"><option value="all">All meal types</option><option value="sides">Sides & appetizers</option><option value="pasta">Pasta / noodles</option><option value="bowls">Bowls</option><option value="sandwich">Burgers / sandwiches</option><option value="salad">Salads</option><option value="soup">Soups / stews</option><option value="other">Other meals</option><option value="holiday">Holiday</option><option value="wine">Wine pairings</option></select><select id="sort" aria-label="Sort recipes"><option value="name">Name A–Z</option><option value="newest">Newest imported</option><option value="reverse">Name Z–A</option></select><select id="ingredient-filter"><option value="all">All ingredients</option><option value="chicken">Contains chicken</option><option value="beef">Contains beef</option><option value="rice">Contains rice</option><option value="pasta">Contains pasta</option></select></div><div class="filters"><select id="included-side" aria-label="Filter main meals by included side">
+</style><style>.recipe-card>.recipe-photo:not(.photo-verified){visibility:hidden;opacity:0}.recipe-card:has(>.recipe-photo:not(.photo-verified)):not(.recipe-photo-missing){background-image:linear-gradient(110deg,transparent 0%,rgba(128,128,128,.08) 45%,transparent 85%);background-size:200% 100%}.recipe-card>.recipe-photo.photo-verified{visibility:visible;opacity:1}</style><style id="recipe-count-hidden-style">#count,#filtercount{display:none!important}</style><style id="catalog-missing-photo-style">.recipe-card.recipe-photo-missing .photo-placeholder{display:flex!important;align-items:center;justify-content:center;min-height:105px;height:105px;background:var(--surface,#202a24);color:var(--muted,#aab5ac);font-size:13px;border-radius:10px;margin:8px}.recipe-card.recipe-photo-missing .recipe-photo{display:none!important}#planner-selected-meals{margin-bottom:18px}#planner-selected-meals .selected-meal{margin-bottom:8px}</style></head><body><header><h1>🥬 HelloGroceries</h1><div>Choose recipes · Generate · Shop</div><button id="hg-header-store" type="button" title="View or change preferred store" aria-label="View or change preferred grocery store"><span id="hg-header-store-label">📍 Choose your store</span> ▾</button> <a href="/admin.html" data-admin-only style="color:white;margin-left:15px">Household admin</a> <button type="button" id="desktop-logout" class="secondary" style="margin-left:12px">Sign Out</button></header><main><div class="shopping-view-toolbar"><button type="button" id="shop-generate-tour" title="Generate a shopping list from your selected meals">Generate Shopping List</button><button type="button" id="shopping-focus-toggle" aria-pressed="false">🛒 Shopping list only</button></div><section class="mobile-home-dashboard" aria-label="HelloGroceries home"><div class="mobile-home-welcome"><h2>What would you like to do?</h2><p>Recipes, meal planning, and groceries in one place.</p></div><div class="mobile-home-actions"><button type="button" data-home-go="recipes"><span>🍽️</span><strong>Browse recipes</strong><small>Find your next meal</small></button><button type="button" data-home-go="planner"><span>🗓️</span><strong>Plan meals</strong><small>Organize your week</small></button><button type="button" data-home-go="shopping"><span>🛒</span><strong>Shopping list</strong><small>See what you need</small></button><button type="button" data-home-go="pantry"><span>🥫</span><strong>My pantry</strong><small>Track what you have</small></button></div></section><div class="layout"><section><div class="recipes-topbar"><h2>Recipes <span id="count" class="muted"></span></h2><button type="button" id="show-selected-meals" class="recipes-selected-button" aria-expanded="false" aria-controls="selected-plan">Selected Meals <span id="selected-meals-button-count"></span> ▾</button></div><input id="search" type="search" placeholder="Search recipes worldwide"><button type="button" id="mobile-recipe-filter-toggle" aria-expanded="false" aria-controls="mobile-recipe-filters">☷ Filters</button><div id="mobile-recipe-filters"><div class="filter-actions"><label><input type="checkbox" id="fullmeals" checked> Full meals only</label><label><input type="checkbox" id="selectedonly"> Selected recipes only</label><label class="quick-toggle"><input type="checkbox" id="quickmeals"> Quick meals (15 min or less)</label><button type="button" class="clear" id="resetfilters">Reset filters</button></div><div class="filters"><select id="recipe-country" aria-label="Filter recipes by country"><option value="all" selected>All countries</option><option value="US">United States</option><option value="UK">United Kingdom</option><option value="AU">Australia</option><option value="CA">Canada</option><option value="DE">Germany</option><option value="NL">Netherlands</option><option value="other">Other / Unknown</option></select><select id="protein" aria-label="Filter by protein"><option value="all">All proteins</option><option value="chicken">Chicken</option><option value="beef">Beef</option><option value="pork">Pork</option><option value="seafood">Seafood</option><option value="vegetarian">Vegetarian / plant-based</option><option value="other">Other</option></select><select id="diet-filter" aria-label="Filter by dietary ingredients"><option value="all">All dietary options</option><option value="gluten-free">Gluten-free ingredients (estimated)</option><option value="dairy-free">Dairy-free ingredients (estimated)</option><option value="both">Gluten-free + dairy-free (estimated)</option></select><select id="cuisine" aria-label="Filter by cuisine"><option value="all">All cuisines</option><option value="italian">Italian</option><option value="mexican">Mexican / Tex-Mex</option><option value="asian">Asian-inspired</option><option value="mediterranean">Mediterranean</option><option value="american">American / comfort</option><option value="other">Other / unclassified</option></select><select id="meal" aria-label="Filter by meal type"><option value="all">All meal types</option><option value="sides">Sides & appetizers</option><option value="pasta">Pasta / noodles</option><option value="bowls">Bowls</option><option value="sandwich">Burgers / sandwiches</option><option value="salad">Salads</option><option value="soup">Soups / stews</option><option value="other">Other meals</option><option value="holiday">Holiday</option></select><select id="sort" aria-label="Sort recipes"><option value="name">Name A–Z</option><option value="newest">Newest imported</option><option value="reverse">Name Z–A</option></select></div><div class="filters"><select id="included-side" aria-label="Filter main meals by included side">
 <option value="all">Any included side</option>
 <optgroup label="Potatoes"><option value="potatoes">All potato sides</option><option value="mashed-potatoes">Mashed potatoes</option><option value="potato-wedges">Potato wedges</option><option value="fries">Potato fries</option><option value="sweet-potato-fries">Sweet potato fries</option><option value="vegetable-fries">Other vegetable fries</option><option value="roasted-potatoes">Roasted potatoes</option><option value="sweet-potatoes">Sweet potatoes</option></optgroup>
 <optgroup label="Rice"><option value="rice">All rice sides</option><option value="white-rice">White / jasmine / basmati rice</option><option value="brown-rice">Brown rice</option><option value="seasoned-rice">Seasoned rice / pilaf</option></optgroup>
@@ -1465,23 +1465,7 @@ async function load(){
    ...Object.values(state.collections||{}).flat().map(String)
   ]);
   const ids=[...savedIds].filter(id=>/^\d+$/.test(id)).slice(0,100);
-  if(ids.length){
-   fetch('/api/recipes/batch?ids='+encodeURIComponent(ids.join(',')))
-    .then(response=>response.ok?response.json():Promise.reject(Error('Saved recipe batch unavailable')))
-    .then(async items=>{
-      if(!Array.isArray(items))throw Error('Invalid saved recipe batch');
-      for(const recipe of items)if(!recipes.some(existing=>String(existing.id)===String(recipe.id)))recipes.push(recipe);
-      // Some saved IDs are missing from the batch index; retry the detail endpoint
-      // individually so selected meals are not mislabeled as permanently unavailable.
-      const missing=ids.filter(id=>!recipes.some(recipe=>String(recipe.id)===id));
-      await Promise.all(missing.map(async id=>{
-       try{const recipe=await fetchRecipeDetail(id);if(recipe&&String(recipe.id)===id&&!recipes.some(r=>String(r.id)===id))recipes.push(recipe)}
-       catch(error){console.warn('Saved recipe detail unavailable',id,error)}
-      }));
-      renderSelectedPlan();renderMyCollectionCards();
-    })
-    .catch(error=>console.warn('Saved recipe hydration deferred:',error));
-  }
+  if(ids.length)void hydrateSavedRecipes(ids);
   const excluded=[...new Set([...savedIds,...(state.recommendation_hidden||[]).map(String)])].filter(id=>/^\d+$/.test(id)).slice(0,250);
   fetch('/api/recipes/recommendations?limit=24&exclude='+encodeURIComponent(excluded.join(',')))
    .then(response=>response.ok?response.json():Promise.reject(Error('Recommendation API unavailable')))
@@ -1527,6 +1511,14 @@ async function load(){
    if(favorite)favorite.textContent=favorites.has(id)?'♥ Favorited':'♡ Favorite';
    const servings=card.querySelector('select[data-scale]');
    if(servings&&checked)servings.value=String(selected[id]);
+   // Early recipe cards may have been painted before /api/state returned.
+   // Hydrate their collection choices in place without reloading recipe photos.
+   const collectionSelect=card.querySelector('select[data-collection-add]');
+   if(collectionSelect){
+    const current=collectionSelect.value;
+    collectionSelect.replaceChildren(new Option('Add to collection…',''),...Object.keys(state.collections||{}).map(name=>new Option(name,name)));
+    if([...collectionSelect.options].some(option=>option.value===current))collectionSelect.value=current;
+   }
   }
  }
  const failures=results.filter(result=>result.status==='rejected');
@@ -1590,6 +1582,7 @@ function selectMealAndRefresh(id,checked,servings){
   state=result;
   $('grocery-preview').hidden=true;
   render();
+  if(checked)void hydrateSavedRecipes([id]);
  });
  mealSelectionQueue=operation.catch(()=>{});
  return operation.catch(error=>{
@@ -1726,6 +1719,25 @@ selectedMealsToggle.addEventListener('click',()=>{
  selectedMealsPanel.hidden=expanded;
  if(!expanded)selectedMealsPanel.scrollIntoView({behavior:'smooth',block:'nearest'});
 });
+const pendingSavedRecipeIds=new Set();
+async function hydrateSavedRecipes(ids){
+ const missing=[...new Set(ids.map(String))].filter(id=>/^\d+$/.test(id)&&!recipes.some(r=>String(r.id)===id));
+ if(!missing.length)return;
+ missing.forEach(id=>pendingSavedRecipeIds.add(id));
+ renderSelectedPlan();
+ try{
+  const response=await fetch('/api/recipes/batch?ids='+encodeURIComponent(missing.slice(0,100).join(',')),{cache:'no-store'});
+  if(!response.ok)throw Error('Saved recipes unavailable (HTTP '+response.status+')');
+  const items=await response.json();
+  if(!Array.isArray(items))throw Error('Invalid saved recipe response');
+  for(const recipe of items)if(!recipes.some(r=>String(r.id)===String(recipe.id)))recipes.push(recipe);
+  await Promise.all(missing.filter(id=>!recipes.some(r=>String(r.id)===id)).map(async id=>{
+   try{const recipe=await fetchRecipeDetail(id);if(recipe&&!recipes.some(r=>String(r.id)===id))recipes.push(recipe)}
+   catch(error){console.warn('Recipe hydration failed',id,error)}
+  }));
+ }catch(error){console.warn('Saved recipe hydration failed',error)}
+ finally{missing.forEach(id=>pendingSavedRecipeIds.delete(id));renderSelectedPlan();renderMyCollectionCards();renderManagedCollection()}
+}
 function renderSelectedPlan(){
   const chosen=state.selected||{};
   const byId=new Map(recipes.map(r=>[String(r.id),r]));
@@ -1733,10 +1745,10 @@ function renderSelectedPlan(){
   $('selected-plan-count').textContent=`(${entries.length})`;
   $('selected-meals-button-count').textContent=entries.length?`(${entries.length})`:'';
   $('selected-plan-list').innerHTML=entries.length?entries.map(x=>{
-    const name=x.recipe?cleanRecipeName(x.recipe.name):'Recipe unavailable (ID '+x.id+')';
+    const name=x.recipe?cleanRecipeName(x.recipe.name):pendingSavedRecipeIds.has(x.id)?'Loading recipe…':'Recipe unavailable (ID '+x.id+')';
     const url=String(x.recipe?.url||'');
     const link=/^https:\/\//i.test(url)?`<a class="selected-recipe-link" href="${esc(url)}" target="_blank" rel="noopener noreferrer">View recipe ↗</a>`:'';
-    const note=x.recipe?'':'<small class="selected-meal-note">Recipe details could not be loaded. Your selection is preserved; try refreshing this page.</small>';
+    const note=x.recipe?'':pendingSavedRecipeIds.has(x.id)?'<small class="selected-meal-note">Retrieving saved recipe details…</small>':'<small class="selected-meal-note">Recipe details are temporarily unavailable. Your selection is saved.</small>';
     return `<div class="selected-meal"><div class="selected-meal-info"><div class="selected-meal-name">${esc(name)}</div>${link}${note}</div><div class="selected-meal-controls"><label>Servings <select aria-label="Servings for ${esc(name)}" data-plan-scale="${esc(x.id)}">${[0.5,1,1.5,2,3,4,5,6].map(v=>`<option value="${v}" ${Number(x.scale)===v?'selected':''}>${v} servings</option>`).join('')}</select></label><button type="button" data-remove-meal="${esc(x.id)}" aria-label="Remove ${esc(name)}">Remove</button></div></div>`;
   }).join(''):'<p class="muted">No meals selected yet. Choose “Add to plan” on a recipe.</p>';
   const plannerList=$('planner-selected-meals-list');
@@ -1766,7 +1778,7 @@ const shoppingDepartments=[
  ['Dairy & Refrigerated','🧀',/\b(cheese|feta|mozzarella|parmesan|cheddar|sour cream|yogurt|milk|butter|egg|heavy cream|creme fraiche)\b/i],
  ['Bakery & Bread','🍞',/\b(bread|bun|brioche|baguette|pita|tortilla|naan|rolls|flatbread|croissant)\b/i],
  ['Frozen','🧊',/\b(frozen|ice cream)\b/i],
- ['Pantry & Seasonings','🥫',/\b(rice|pasta|orzo|noodle|couscous|quinoa|flour|sugar|salt|peppercorn|spice|seasoning|paprika|cumin|chili flakes|oregano|thyme|rosemary|cinnamon|turmeric|oil|vinegar|soy sauce|sauce|dressing|stock|broth|bouillon|honey|mustard|mayonnaise|mayo|ketchup|sriracha|beans|lentils|chickpeas|tomato paste|breadcrumbs|panko|nuts|sesame|canned|jam|syrup)\b/i]
+ ['Pantry & Seasonings','🥫',/\b(rice|pasta|orzo|noodle|couscous|quinoa|flour|sugar|salt|peppercorn|spice|seasoning|paprika|cumin|nutmeg|allspice|cloves|cardamom|ginger powder|chili flakes|oregano|thyme|rosemary|cinnamon|turmeric|oil|vinegar|soy sauce|sauce|dressing|stock|broth|bouillon|honey|mustard|mayonnaise|mayo|ketchup|sriracha|beans|lentils|chickpeas|tomato paste|breadcrumbs|panko|nuts|sesame|canned|jam|syrup)\b/i]
 ];
 const shoppingOpenDepartments=new Set(shoppingDepartments.map(x=>x[0]).concat(['Other / Uncategorized','Needs Review']));
 function setAllShoppingDepartments(open){
@@ -2566,7 +2578,9 @@ const dairyIngredientPattern=/\b(milk|cheese|cheddar|mozzarella|parmesan|feta|ri
 function dietMatch(r,kind){
  const ingredients=Object.keys(r.ingredients||{});
  if(!ingredients.length)return false;
- const names=ingredients.join(' | ');
+ // Include the title: some imported recipes have incomplete ingredient names.
+ // These are conservative estimates, never allergen-safety certifications.
+ const names=ingredients.join(' | ')+' | '+String(r.name||'');
  if(kind==='gluten-free')return !glutenIngredientPattern.test(names);
  if(kind==='dairy-free')return !dairyIngredientPattern.test(names);
  if(kind==='both')return !glutenIngredientPattern.test(names)&&!dairyIngredientPattern.test(names);
@@ -2827,6 +2841,15 @@ try{
   localStorage.setItem(recommendationRotationKey,JSON.stringify({day:recommendationDayKey,offset:recommendationDailyOffset}));
  }
 }catch(e){recommendationDailyOffset=new Date().getDate()*137}
+function excludedIngredientTerms(){
+ return $('exclude-ingredient').value.split(/[,;\n]+/).map(term=>term.trim().toLowerCase()).filter(Boolean);
+}
+function recipeContainsExcludedIngredient(recipe){
+ const terms=excludedIngredientTerms();
+ if(!terms.length)return false;
+ const ingredients=Object.keys(recipe.ingredients||{}).join(' ').toLowerCase();
+ return terms.some(term=>ingredients.includes(term));
+}
 function renderRecommendations(){
  const recommendationSource=recommendationCatalog.length?recommendationCatalog:recipes;
  const panel=$('recommend-list');if(!panel)return;
@@ -2842,9 +2865,9 @@ function renderRecommendations(){
   const r=recommendationSource.find(x=>String(x.id)===id);if(!r)continue;
   for(const [key,importance] of recommendationFeatures(r))preferences.set(key,(preferences.get(key)||0)+3*importance);
  }
- const signature=JSON.stringify([recommendationSource.length,[...picked].sort(),[...fav].sort(),reviews,state.recommendation_hidden||[],[...recommendationFailedPhotos].sort(),recommendationMemory.more,JSON.stringify(state.pantry_inventory||{}),new Date().getMonth()]);
+ const signature=JSON.stringify([recommendationSource.length,[...picked].sort(),[...fav].sort(),reviews,state.recommendation_hidden||[],[...recommendationFailedPhotos].sort(),recommendationMemory.more,JSON.stringify(state.pantry_inventory||{}),excludedIngredientTerms(),$('diet-filter').value,new Date().getMonth()]);
  if(!recommendationRankCache||recommendationRankCache.signature!==signature){
-  const candidates=recommendationSource.filter(r=>!(state.recommendation_hidden||[]).includes(Number(r.id))&&!picked.has(String(r.id))&&!fav.has(String(r.id))&&Boolean(r.image)&&!recommendationFailedPhotos.has(String(r.id))&&!isNonRecipeListing(r)&&!isAddon(r)&&!isSideRecipe(r)&&!isWineListing(r)&&!isHolidayRecipe(r));
+  const candidates=recommendationSource.filter(r=>!(state.recommendation_hidden||[]).includes(Number(r.id))&&!picked.has(String(r.id))&&!fav.has(String(r.id))&&Boolean(r.image)&&!recommendationFailedPhotos.has(String(r.id))&&!recipeContainsExcludedIngredient(r)&&dietMatch(r,$('diet-filter').value)&&!isNonRecipeListing(r)&&!isAddon(r)&&!isSideRecipe(r)&&!isWineListing(r)&&!isHolidayRecipe(r));
   const scored=candidates.map(r=>{
    let score=0,reason='',best=0;
    for(const [key,importance,label] of recommendationFeatures(r)){
@@ -3005,7 +3028,24 @@ async function loadFastBrowse(){
    }finally{clearTimeout(timer)}
   }
   if(request!==fastBrowseRequest)return;
-  if(request!==fastBrowseRequest)return;
+  // Never present unrelated results as matches. This also exposes a stale
+  // deployment or backend filtering regression instead of silently misleading users.
+  const searchTerm=params.get('q').trim().toLocaleLowerCase();
+  if($('fast-browse-search').value.trim().toLocaleLowerCase()!==searchTerm)return;
+  if(searchTerm && (result.items||[]).some(recipe=>!String(recipe.name||'').toLocaleLowerCase().includes(searchTerm))){
+   // A stale intermediary response must never populate the search panel.
+   // Retry with a unique query URL, then validate the replacement response.
+   const freshParams=new URLSearchParams(params);
+   freshParams.set('_fresh',String(Date.now()));
+   const freshResponse=await fetch('/api/recipes/page?'+freshParams,{cache:'no-store'});
+   if(!freshResponse.ok)throw Error('Search retry failed: HTTP '+freshResponse.status);
+   const freshResult=await freshResponse.json();
+   if(request!==fastBrowseRequest || $('fast-browse-search').value.trim().toLocaleLowerCase()!==searchTerm)return;
+   if((freshResult.items||[]).some(recipe=>!String(recipe.name||'').toLocaleLowerCase().includes(searchTerm))){
+    throw Error('Search returned unrelated recipes even after a fresh retry.');
+   }
+   result=freshResult;
+  }
   fastBrowsePages=Math.max(1,Number(result.pages)||1);
   fastBrowsePage=Number(result.page)||1;
   $('fast-browse-pageinfo').textContent='Page '+fastBrowsePage+' of '+fastBrowsePages+' · '+Number(result.total||0).toLocaleString()+' matches';
@@ -3024,7 +3064,14 @@ $('fast-browse-toggle').onclick=()=>{
  if(!panel.hidden)loadFastBrowse();
 };
 $('fast-browse-search-button').onclick=()=>{fastBrowsePage=1;loadFastBrowse()};
-$('fast-browse-search').addEventListener('keydown',event=>{if(event.key==='Enter'){fastBrowsePage=1;loadFastBrowse()}});
+$('fast-browse-search').addEventListener('input',()=>{
+ // Invalidate requests for the previous term immediately; never leave old
+ // cards looking like results for a new search.
+ ++fastBrowseRequest;
+ $('fast-browse-results').textContent='Search changed. Press Search to see matching recipes.';
+ $('fast-browse-pageinfo').textContent='';
+});
+$('fast-browse-search').addEventListener('keydown',event=>{if(event.key==='Enter'){event.preventDefault();fastBrowsePage=1;loadFastBrowse()}});
 $('fast-browse-prev').onclick=()=>{if(fastBrowsePage>1){fastBrowsePage--;loadFastBrowse()}};
 $('fast-browse-next').onclick=()=>{if(fastBrowsePage<fastBrowsePages){fastBrowsePage++;loadFastBrowse()}};
 $('fast-browse-results').addEventListener('click',async event=>{
@@ -3078,8 +3125,7 @@ function serverRecipeParams(){
   const value=$(id).value;if(value!=='all')params.set(key,value);
  }
  if($('quickmeals').checked)params.set('quick','true');
- if($('ingredient-filter').value!=='all')params.set('ingredient',$('ingredient-filter').value);
- if($('exclude-ingredient').value.trim())params.set('exclude_ingredient',$('exclude-ingredient').value.trim());
+ if(excludedIngredientTerms().length)params.set('exclude_ingredient',excludedIngredientTerms().join(','));
  const selections=[];
  if($('selectedonly').checked)selections.push(new Set(Object.keys(state.selected||{}).map(String)));
  if($('favorite-filter').value==='favorites')selections.push(new Set((state.favorites||[]).map(String)));
@@ -3088,8 +3134,8 @@ function serverRecipeParams(){
  return params;
 }
 function requiresLegacyRecipeFilters(){
- return $('diet-filter').value!=='all'||$('rating-filter').value!=='all'||
-  $('included-side').value!=='all'||['sides','wine','holiday'].includes($('meal').value);
+ return $('diet-filter').value!=='all'||
+  $('included-side').value!=='all'||['sides','holiday'].includes($('meal').value);
 }
 async function fetchLegacyCatalogOnDemand(){
  if(legacyCatalogLoaded)return;
@@ -3120,7 +3166,20 @@ async function renderPaged(){
   // Refresh controls even when the page contains the same recipe IDs.
   // Favorites and collection saves change state without changing pagination;
   // skipping this render left visible buttons stale after successful saves.
-  grid.innerHTML=page.items.map(recipeCardMarkup).join('')||'<p class="muted">No recipes match these filters.</p>';
+  if(ids.length!==next.length||ids.some((id,index)=>id!==next[index])){
+   grid.innerHTML=page.items.map(recipeCardMarkup).join('')||'<p class="muted">No recipes match these filters.</p>';
+  }else{
+   for(const card of grid.querySelectorAll('.recipe-card')){
+    const checkbox=card.querySelector('input[data-id]');
+    if(!checkbox)continue;
+    const id=String(checkbox.dataset.id),selected=Object.hasOwn(state.selected||{},id);
+    checkbox.checked=selected;
+    const label=card.querySelector('.recipe-plan-label');
+    if(label)label.textContent=selected?'✓ Added to plan':'Add to plan';
+    const favorite=card.querySelector('[data-favorite]');
+    if(favorite)favorite.textContent=(state.favorites||[]).some(x=>String(x)===id)?'♥ Favorited':'♡ Favorite';
+   }
+  }
   renderSelectedPlan();
   renderShoppingList();
   scheduleRecipeRecommendations();
@@ -3142,7 +3201,7 @@ function render(){
  }
  void renderPaged();
 }
-function renderLegacy(){updateEnhancements();$('diet-warning').style.display=$('diet-filter').value==='all'?'none':'block';const q=$('search').value.toLowerCase().trim(),selected=state.selected||{};$('count').textContent=`(${Object.keys(selected).length} selected · ${recipes.length.toLocaleString()} total)`;let filtered=recipes.filter(r=>{const name=cleanRecipeName(r.name).toLowerCase();const internalTest=/\b(?:do\s+not\s+use|uat|test(?:ing)?(?:\s+recipe)?|recipe\s+(?:card\s+)?test|modular\s+recipe\s+card\s+test)\b/i.test(String(r.name||''));return !isNonRecipeListing(r)&&hasIncludedSide(r,$('included-side').value)&&($('meal').value!=='sides'||isSideRecipe(r))&&(!internalTest||$('selectedonly').checked)&&($('meal').value==='wine'?isWineListing(r):$('meal').value==='holiday'?isHolidayRecipe(r)&&!isWineListing(r):!isWineListing(r)&&!isHolidayRecipe(r))&&(!$('quickmeals').checked||quickMinutes(r)!==null)&&($('meal').value==='sides'||!$('fullmeals').checked||!isAddon(r))&&(name+' '+(r.country||'').toLowerCase()).includes(q)&&($('protein').value==='all'||recipeGroup(r)===$('protein').value)&&($('cuisine').value==='all'||cuisineGroup(r)===$('cuisine').value)&&(['holiday','wine','sides'].includes($('meal').value)||$('meal').value==='all'||mealGroup(r)===$('meal').value)&&($('recipe-country').value==='all'||($('recipe-country').value==='other'?!['US','UK','AU','CA','DE','NL'].includes(String(r.country||'').toUpperCase()):String(r.country||'').toUpperCase()===$('recipe-country').value))&&dietMatch(r,$('diet-filter').value)&&($('rating-filter').value==='all'||($('rating-filter').value==='unrated'?!(state.recipe_reviews||{})[String(r.id)]?.rating:Number((state.recipe_reviews||{})[String(r.id)]?.rating||0)>=Number($('rating-filter').value)))&&($('favorite-filter').value!=='favorites'||(state.favorites||[]).includes(r.id))&&($('collection-filter').value==='all'||(state.collections||{})[$('collection-filter').value]?.includes(r.id))&&($('ingredient-filter').value==='all'||Object.keys(r.ingredients||{}).some(x=>x.toLowerCase().includes($('ingredient-filter').value)))&&(!$('exclude-ingredient').value.trim()||!Object.keys(r.ingredients||{}).some(x=>x.toLowerCase().includes($('exclude-ingredient').value.trim().toLowerCase())))&&(!$('selectedonly').checked||Object.hasOwn(selected,String(r.id)))});// Only collapse identical titles with identical ingredient data; keep named variations.
+function renderLegacy(){updateEnhancements();$('diet-warning').style.display=$('diet-filter').value==='all'?'none':'block';const q=$('search').value.toLowerCase().trim(),selected=state.selected||{};$('count').textContent=`(${Object.keys(selected).length} selected · ${recipes.length.toLocaleString()} total)`;let filtered=recipes.filter(r=>{const name=cleanRecipeName(r.name).toLowerCase();const internalTest=/\b(?:do\s+not\s+use|uat|test(?:ing)?(?:\s+recipe)?|recipe\s+(?:card\s+)?test|modular\s+recipe\s+card\s+test)\b/i.test(String(r.name||''));return !isNonRecipeListing(r)&&hasIncludedSide(r,$('included-side').value)&&($('meal').value!=='sides'||isSideRecipe(r))&&(!internalTest||$('selectedonly').checked)&&($('meal').value==='holiday'?isHolidayRecipe(r)&&!isWineListing(r):!isWineListing(r)&&!isHolidayRecipe(r))&&(!$('quickmeals').checked||quickMinutes(r)!==null)&&($('meal').value==='sides'||!$('fullmeals').checked||!isAddon(r))&&(name+' '+(r.country||'').toLowerCase()).includes(q)&&($('protein').value==='all'||recipeGroup(r)===$('protein').value)&&($('cuisine').value==='all'||cuisineGroup(r)===$('cuisine').value)&&(['holiday','sides'].includes($('meal').value)||$('meal').value==='all'||mealGroup(r)===$('meal').value)&&($('recipe-country').value==='all'||($('recipe-country').value==='other'?!['US','UK','AU','CA','DE','NL'].includes(String(r.country||'').toUpperCase()):String(r.country||'').toUpperCase()===$('recipe-country').value))&&dietMatch(r,$('diet-filter').value)&&($('favorite-filter').value!=='favorites'||(state.favorites||[]).includes(r.id))&&($('collection-filter').value==='all'||(state.collections||{})[$('collection-filter').value]?.includes(r.id))&&(!$('exclude-ingredient').value.trim()||!recipeContainsExcludedIngredient(r))&&(!$('selectedonly').checked||Object.hasOwn(selected,String(r.id)))});// Only collapse identical titles with identical ingredient data; keep named variations.
 const seenRecipeKeys=new Set();
 filtered=filtered.filter(r=>{
  const title=cleanRecipeName(r.name).toLowerCase().replace(/[^a-z0-9]+/g,' ').trim();
@@ -3158,7 +3217,7 @@ filtered=filtered.filter(r=>{
 const sort=$('sort').value;if(sort==='name')filtered.sort((a,b)=>cleanRecipeName(a.name).localeCompare(cleanRecipeName(b.name)));else if(sort==='reverse')filtered.sort((a,b)=>cleanRecipeName(b.name).localeCompare(cleanRecipeName(a.name)));else filtered.sort((a,b)=>Number(b.id)-Number(a.id));const pages=Math.max(1,Math.ceil(filtered.length/PAGE_SIZE));recipePage=Math.min(recipePage,pages-1);const sideSelect=$('included-side');const sideLabel=sideSelect.value==='all'?'':sideSelect.options[sideSelect.selectedIndex]?.textContent||'';
  $('filtercount').textContent=`Showing ${filtered.length.toLocaleString()} matching recipes${sideLabel?' · Included side: '+sideLabel:''}`;
  const chipBox=$('active-recipe-filter-chips');
- const chipIds=['recipe-country','protein','rating-filter','diet-filter','cuisine','meal','included-side','ingredient-filter'];
+ const chipIds=['recipe-country','protein','diet-filter','cuisine','meal','included-side'];
  chipBox.replaceChildren();
  const toggle=$('mobile-recipe-filter-toggle');
  if(toggle){
@@ -3195,7 +3254,7 @@ if(displayedIds.length!==desiredIds.length||displayedIds.some((id,index)=>id!==d
   const favorite=card.querySelector('[data-favorite]');
   if(favorite)favorite.textContent=(state.favorites||[]).some(x=>String(x)===id)?'♥ Favorited':'♡ Favorite';
  }
- let n=state.list.filter(x=>x.purchased).length;$('summary').textContent=state.list.length?`${n} of ${state.list.length} purchased`:'No generated list yet';renderSelectedPlan();renderShoppingList();renderIngredientSuggestions();renderSmartPrefs();renderSalesComparison()}for(const id of ['recipe-country','protein','cuisine','meal','sort','selectedonly','fullmeals','quickmeals','favorite-filter','collection-filter','ingredient-filter','included-side','diet-filter','rating-filter'])$(id).addEventListener('change',()=>{recipePage=0;render()});$('resetfilters').onclick=()=>{for(const id of ['protein','cuisine','meal','diet-filter','rating-filter'])$(id).value='all';$('recipe-country').value='all';$('included-side').value='all';$('sort').value='name';$('selectedonly').checked=false;$('fullmeals').checked=true;$('quickmeals').checked=false;$('search').value='';recipePage=0;render()};function navigateRecipePage(direction){
+ let n=state.list.filter(x=>x.purchased).length;$('summary').textContent=state.list.length?`${n} of ${state.list.length} purchased`:'No generated list yet';renderSelectedPlan();renderShoppingList();renderIngredientSuggestions();renderSmartPrefs();renderSalesComparison()}for(const id of ['recipe-country','protein','cuisine','meal','sort','selectedonly','fullmeals','quickmeals','favorite-filter','collection-filter','included-side','diet-filter'])$(id).addEventListener('change',()=>{recipePage=0;render()});$('resetfilters').onclick=()=>{for(const id of ['protein','cuisine','meal','diet-filter'])$(id).value='all';$('recipe-country').value='all';$('included-side').value='all';$('sort').value='name';$('selectedonly').checked=false;$('fullmeals').checked=true;$('quickmeals').checked=false;$('search').value='';recipePage=0;render()};function navigateRecipePage(direction){
  recipePage=Math.max(0,recipePage+direction);
  render();
  // Scroll to the recipe section heading after the new page is rendered.
@@ -3254,8 +3313,9 @@ function syncIngredientUnit(){
 $('ingredient-unit').addEventListener('change',syncIngredientUnit);
 for(const id of ['ingredient-name','ingredient-amount','ingredient-custom-unit'])$(id).addEventListener('input',updateIngredientPreview);
 $('items').addEventListener('click',e=>{
- const key=e.target.dataset.editItem;
- if(!key)return;
+ const editButton=e.target.closest('[data-edit-item]');
+ if(!editButton)return;
+ const key=editButton.dataset.editItem;
  const item=(state.list||[]).find(x=>x.name===key);
  if(!item)return;
  ingredientEditingKey=key;
@@ -3323,16 +3383,35 @@ $('source-correction-form').addEventListener('submit',async e=>{
  $('source-correction-dialog').close();
  await action({action:'correct_recipe_ingredient',recipe_id:rid,original,name,amount,unit});
 });
-$('items').addEventListener('change',e=>{if(e.target.dataset.items)action({action:'purchase_many',names:JSON.parse(e.target.dataset.items),purchased:e.target.checked})});$('exclude-ingredient').addEventListener('input',()=>{recipePage=0;render()});$('search').addEventListener('input',()=>{recipePage=0;render()});$('ingredient-suggestions-results')?.addEventListener('click',async e=>{
+$('items').addEventListener('change',e=>{if(e.target.dataset.items)action({action:'purchase_many',names:JSON.parse(e.target.dataset.items),purchased:e.target.checked})});$('exclude-ingredient').addEventListener('input',()=>{recipePage=0;recommendationRankCache=null;scheduleRecipeRecommendations();render()});$('search').addEventListener('input',()=>{recipePage=0;render()});$('ingredient-suggestions-results')?.addEventListener('click',async e=>{
  const button=e.target.closest('button[data-suggest-add]');
  if(!button)return;
  button.disabled=true;
  await action({action:'select',id:Number(button.dataset.suggestAdd),checked:true,servings:2});
 });
-$('generate-grocery').onclick=()=>{
+$('generate-grocery').onclick=async()=>{
+ const button=$('generate-grocery'),status=$('generate-status');
+ if(button.disabled)return;
+ button.disabled=true;
+ const original=button.textContent;
+ button.textContent='Generating…';
+ status.textContent='Generating your shopping list…';
  $('grocery-preview').hidden=true;
- $('generate-status').textContent='';
- action({action:'generate'});
+ try{
+  await mealSelectionQueue;
+  const response=await fetch('/api/action',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'generate'})});
+  const result=await response.json();
+  if(!response.ok||result.error)throw Error(result.error||'Could not generate shopping list');
+  state=result;
+  render();
+  status.textContent='Shopping list generated successfully.';
+ }catch(error){
+  status.textContent='Could not generate shopping list: '+error.message;
+  $('error').textContent=status.textContent;
+ }finally{
+  button.disabled=false;
+  button.textContent=original;
+ }
 };
 $('preview-grocery').onclick=async()=>{
  const target=$('grocery-preview');
@@ -3728,7 +3807,7 @@ function renderMyCollectionCards(){
   const r=lookup.get(Number(id));const numeric=Number(id);
   if(!Number.isSafeInteger(numeric))return '';
   const liked=favorites.includes(numeric);
-  return '<article class="my-saved-recipe-card"><div class="my-saved-recipe-media"><div class="my-saved-recipe-placeholder" aria-hidden="true">🍽</div>'+(r?'<img class="my-saved-recipe-photo" src="'+cover(r.id)+'" alt="" loading="lazy" onerror="this.style.display=\'none\'">':'')+'<button type="button" class="my-saved-favorite" data-my-favorite="'+numeric+'" aria-pressed="'+liked+'" aria-label="'+(liked?'Remove from favorites':'Add to favorites')+'">'+(liked?'♥':'♡')+'</button></div><div class="my-saved-recipe-info"><strong>'+esc(r?cleanRecipeName(r.name):'Recipe #'+id)+'</strong><div class="my-saved-recipe-actions"><button type="button" data-my-recipe="'+numeric+'">View recipe</button><button type="button" class="my-saved-remove" data-my-remove="'+numeric+'" aria-label="'+(isFavorites?'Remove from favorites':'Remove from collection')+'">Remove</button></div></div></article>';
+  return '<article class="my-saved-recipe-card"><div class="my-saved-recipe-media"><div class="my-saved-recipe-placeholder" aria-hidden="true">🍽</div>'+(r?'<img class="my-saved-recipe-photo" src="'+cover(r.id)+'" alt="" loading="lazy" onerror="this.style.display=\'none\'">':'')+'<button type="button" class="my-saved-favorite" data-my-favorite="'+numeric+'" aria-pressed="'+liked+'" aria-label="'+(liked?'Remove from favorites':'Add to favorites')+'">'+(liked?'♥':'♡')+'</button></div><div class="my-saved-recipe-info"><strong>'+esc(r?cleanRecipeName(r.name):pendingSavedRecipeIds.has(String(id))?'Loading recipe…':'Recipe unavailable (ID '+id+')')+'</strong><div class="my-saved-recipe-actions"><button type="button" data-my-recipe="'+numeric+'">View recipe</button><button type="button" class="my-saved-remove" data-my-remove="'+numeric+'" aria-label="'+(isFavorites?'Remove from favorites':'Remove from collection')+'">Remove</button></div></div></article>';
  }).join('')+'</div>':'<p class="muted">'+(isFavorites?'No favorites yet. Tap the heart on a recipe to save it here.':'This collection is empty. Add recipes from the Recipes page.')+'</p>');
 }
 $('my-collection-cards').addEventListener('click',e=>{const b=e.target.closest('[data-my-collection]');if(b){myCollectionSelected=b.dataset.myCollection;renderMyCollectionCards()}});
@@ -4203,6 +4282,17 @@ body:has(#hg-tour-overlay:not([hidden])) #hg-tour-replay{display:none!important}
 #hg-tap-debug-panel strong{color:#8ff0b7}
 .hg-tap-debug-dot{position:fixed;z-index:2147483647;width:24px;height:24px;border:3px solid #faff60;border-radius:50%;background:#faff6055;box-sizing:border-box;pointer-events:none;transform:translate(-50%,-50%);animation:hgTapFade .9s ease-out forwards}
 @keyframes hgTapFade{0%{opacity:1;scale:.6}40%{opacity:1;scale:1.2}100%{opacity:0;scale:1.5}}
+
+/* Keep the shopping-item menu inside its row: ancestor department cards clip absolute popovers on iOS Safari. */
+#items .grocery-actions[open]{display:flex!important;flex-direction:column;align-items:flex-end;gap:6px;max-width:min(100%,240px);z-index:auto!important}
+#items .grocery-actions[open]>.grocery-action-options{position:static!important;inset:auto!important;display:flex!important;flex-wrap:wrap;justify-content:flex-end;max-width:100%;white-space:normal;box-sizing:border-box;box-shadow:none!important;z-index:auto!important}
+#items .grocery-actions[open]>.grocery-action-options button{min-height:44px;touch-action:manipulation}
+@media(max-width:750px){#items .grocery-row:has(.grocery-actions[open]){align-items:flex-start!important}#items .grocery-actions[open]>.grocery-action-options{flex-direction:column;align-items:stretch}#items .grocery-actions[open]>.grocery-action-options button{width:100%}}
+/* Keep grocery action menus visible above adjacent shopping rows. */
+#items .grocery-item-wrap:has(.grocery-actions[open]),
+#items .grocery-row:has(.grocery-actions[open]){position:relative;z-index:30;overflow:visible!important}
+#items .grocery-actions[open]{z-index:40}
+#items .grocery-action-options{z-index:50}
 </style>
 <script>
 (function(){
