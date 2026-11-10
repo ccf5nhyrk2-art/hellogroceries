@@ -2782,7 +2782,26 @@ $('inventory-form').addEventListener('submit',async e=>{
  const response=await fetch('/api/action',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'adjust_pantry_inventory',name,amount,unit,mode})});
  const updated=await response.json();
  if(!response.ok||updated.error){$('inventory-preview').textContent='Could not update quantity: '+(updated.error||'Request failed');return}
- state=updated;
+ // Confirm the saved household state survives an independent database read.
+ // Do not clear the form or claim success when persistence cannot be verified.
+ let verified;
+ try{
+  const check=await fetch('/api/state',{credentials:'same-origin',cache:'no-store'});
+  if(!check.ok)throw new Error('Could not reload pantry state ('+check.status+')');
+  verified=await check.json();
+ }catch(error){
+  $('inventory-preview').textContent='Save could not be verified. Please retry: '+error.message;
+  return;
+ }
+ const savedInventory=verified?.pantry_inventory||{};
+ const savedKey=Object.keys(savedInventory).find(k=>k.toLocaleLowerCase()===name.toLocaleLowerCase()+'|'+unit.toLocaleLowerCase());
+ const savedValue=savedKey===undefined?null:Number(savedInventory[savedKey]);
+ const expected=Number((updated.pantry_inventory||{})[name.toLocaleLowerCase()+'|'+unit]);
+ if(!Number.isFinite(savedValue)||!Number.isFinite(expected)||Math.abs(savedValue-expected)>0.000001){
+  $('inventory-preview').textContent='Quantity was not confirmed after saving. Your entry is preserved; please retry.';
+  return;
+ }
+ state=verified;
  $('inventory-amount').value='';
  render();
  updatePantryQuantityPreview();
