@@ -2794,10 +2794,11 @@ $('inventory-form').addEventListener('submit',async e=>{
   return;
  }
  const savedInventory=verified?.pantry_inventory||{};
- const savedKey=Object.keys(savedInventory).find(k=>k.toLocaleLowerCase()===name.toLocaleLowerCase()+'|'+unit.toLocaleLowerCase());
- const savedValue=savedKey===undefined?null:Number(savedInventory[savedKey]);
- const expected=Number((updated.pantry_inventory||{})[name.toLocaleLowerCase()+'|'+unit]);
- if(!Number.isFinite(savedValue)||!Number.isFinite(expected)||Math.abs(savedValue-expected)>0.000001){
+ const expectedInventory=updated.pantry_inventory||{};
+ const ingredientPrefix=name.toLocaleLowerCase()+'|';
+ const expectedEntries=Object.entries(expectedInventory).filter(([key])=>key.toLocaleLowerCase().startsWith(ingredientPrefix));
+ const matchingEntries=expectedEntries.every(([key,value])=>Object.hasOwn(savedInventory,key)&&Number(savedInventory[key])===Number(value));
+ if(!matchingEntries||!expectedEntries.length){
   $('inventory-preview').textContent='Quantity was not confirmed after saving. Your entry is preserved; please retry.';
   return;
  }
