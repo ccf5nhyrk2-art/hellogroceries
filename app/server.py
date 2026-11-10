@@ -4681,6 +4681,16 @@ class Handler(SimpleHTTPRequestHandler):
      state.setdefault('ingredient_overrides',{})[name]={'display':display,'department':department}
     elif action=='reset_ingredient':
      state.setdefault('ingredient_overrides',{}).pop(str(p.get('name','')),None)
+    elif action=='add_to_collection':
+     name=p.get('collection');rid=p.get('id')
+     if not isinstance(name,str) or not name.strip() or len(name)>120 or type(rid)!=int or rid<0:raise ValueError('Invalid collection request')
+     collections=state.setdefault('collections',{})
+     if name not in collections or not isinstance(collections[name],list):raise ValueError('Collection not found')
+     if rid not in {int(r['id']) for r in allrecipes()}:raise ValueError('Unknown recipe')
+     ids=collections[name]
+     if rid not in ids:
+      if len(ids)>=20000:raise ValueError('Collection is full')
+      ids.append(rid)
     elif action=='set_preferences':
      favorites=p.get('favorites',[]);collections=p.get('collections',{});weekly=p.get('weekly',{});pantry=p.get('pantry',[]);manual=p.get('manual',[]);previous_week=p.get('previous_week',{});recommendation_hidden=p.get('recommendation_hidden',[])
      if not isinstance(favorites,list) or len(favorites)>20000 or not isinstance(collections,dict) or not isinstance(weekly,dict) or not isinstance(pantry,list) or not isinstance(manual,list) or not isinstance(previous_week,dict) or len(previous_week)>7 or not isinstance(recommendation_hidden,list) or len(recommendation_hidden)>2000 or any(type(v)!=int or v<0 for v in recommendation_hidden):raise ValueError('Invalid preferences')
