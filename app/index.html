@@ -4466,34 +4466,45 @@ window.hgSaveNamedCollection=saveNamedCollection;
 $('week-grid').addEventListener('change',async e=>{if(!e.target.dataset.week)return;const weekly={...(state.weekly||{})};weekly[e.target.dataset.week]=e.target.value?Number(e.target.value):null;await preferences({weekly})});
 // Phase 1: suggestions are previews; existing meal plans are not overwritten until Save.
 function pantryMatchKey(value){
- return String(value||'').toLowerCase().replace(/[^a-z ]/g,' ').replace(/\b(fresh|chopped|diced|sliced|ground|boneless|skinless|organic|large|small)\b/g,'').replace(/\s+/g,' ').trim();
+ const units=/^(?:\\d+(?:[./]\\d+)?\\s*)?(?:(?:unit|units|ounce|ounces|oz|cup|cups|tablespoon|tablespoons|tbsp|teaspoon|teaspoons|tsp|pound|pounds|lb|lbs|gram|grams|g|ml|clove|cloves|package|packages|piece|pieces)\\s+)+/i;
+ return ingredientKey(String(value||'').replace(units,'').replace(/^(?:\\d+(?:[./]\\d+)?\\s*)+/,''));
 }
-$('pantry-recipe-find').onclick=async()=>{
+async function findPantryMeals(){
  const button=$('pantry-recipe-find'),panel=$('pantry-recipe-results');
  if(button.disabled)return;
- const pantry=Object.entries(state.pantry_inventory||{}).filter(([,amount])=>Number(amount)>0).map(([key])=>pantryMatchKey(key.split('|')[0])).filter(Boolean);
- if(!pantry.length){panel.textContent='Add ingredients to your Pantry inventory first.';return}
+ const pantry=[...new Set(Object.entries(state.pantry_inventory||{}).filter(([,amount])=>Number(amount)>0).map(([key])=>pantryMatchKey(key.split('|')[0])).filter(Boolean))];
+ if(!pantry.length){panel.textContent='Add ingredients with positive quantities to Pantry Inventory first.';return}
  button.disabled=true;button.textContent='Finding meals…';panel.textContent='Comparing recipes with your pantry…';
  try{
   const response=await fetch('/api/recipes/recommendations?planner=1&limit=100',{cache:'no-store'});
   if(!response.ok)throw Error('Could not load recipes');
-  const data=await response.json(),matches=[];
-  for(const summary of (data.items||[]).slice(0,35)){
-   try{
-    const r=await fetchRecipeDetail(summary.id);
-    const ingredients=Object.keys(r.ingredients||{}).map(pantryMatchKey).filter(Boolean);
-    if(!ingredients.length)continue;
-    const found=ingredients.filter(name=>pantry.some(have=>have===name||have.includes(name)||name.includes(have)));
-    matches.push({r,found:found.length,total:ingredients.length,missing:ingredients.filter(name=>!found.includes(name))});
-   }catch(error){console.warn('Pantry match skipped recipe',summary.id,error)}
+  const data=await response.json();
+  const details=await Promise.allSettled((data.items||[]).slice(0,35).map(summary=>fetchRecipeDetail(summary.id)));
+  const matches=[];
+  for(const item of details){
+   if(item.status!=='fulfilled')continue;
+   const r=item.value;
+   const ingredients=[...new Set(Object.keys(r.ingredients||{}).map(pantryMatchKey).filter(Boolean))];
+   if(!ingredients.length)continue;
+   const found=ingredients.filter(name=>pantry.some(have=>have===name||have.split(' ').every(word=>name.split(' ').includes(word))));
+   matches.push({r,found:found.length,total:ingredients.length,missing:ingredients.filter(name=>!found.includes(name))});
   }
-  matches.sort((a,b)=>b.found/b.total-a.found/a.total||a.missing.length-b.missing.length);
+  matches.sort((a,b)=>b.found/b.total-a.found/a.total||b.found-a.found||a.missing.length-b.missing.length);
   const best=matches.slice(0,8);
-  panel.innerHTML=best.length?best.map(({r,found,total,missing})=>'<div class="pantry-recipe-match"><strong>'+esc(cleanRecipeName(r.name))+'</strong><span>'+found+' of '+total+' ingredients matched · '+missing.length+' missing</span><small>'+esc(missing.slice(0,5).join(', '))+(missing.length>5?'…':'')+'</small><button type="button" data-pantry-recipe-detail="'+r.id+'">Details</button></div>').join(''):'No matching recipes found in this sample. Try adding more pantry ingredients.';
+  panel.innerHTML=best.length?best.map(({r,found,total,missing})=>'<div class="pantry-recipe-match"><strong>'+esc(cleanRecipeName(r.name))+'</strong><span>'+Math.round(found/total*100)+'% matched · '+found+' of '+total+' ingredients · '+missing.length+' missing</span><small>'+esc(missing.slice(0,5).join(', '))+(missing.length>5?'…':'')+'</small><button type="button" data-pantry-recipe-detail="'+r.id+'">Details</button> <button type="button" data-pantry-recipe-add="'+r.id+'">Add to plan</button></div>').join(''):'No matching recipes found in this sample. Try adding more pantry ingredients.';
  }catch(error){panel.textContent='Could not find pantry meals: '+error.message}
  finally{button.disabled=false;button.textContent='Find pantry meals'}
-};
-$('pantry-recipe-results').addEventListener('click',event=>{
+}
+$('pantry-recipe-find').onclick=findPantryMeals;
+$('pantry-recipe-results').addEventListener('click',async event=>{
+ const add=event.target.closest('[data-pantry-recipe-add]');
+ if(add){
+  if(add.disabled)return;
+  add.disabled=true;
+  try{await selectMealAndRefresh(Number(add.dataset.pantryRecipeAdd),true,2);add.textContent='Added to plan';}
+  catch(error){add.disabled=false;add.textContent='Retry add to plan';}
+  return;
+ }
  const button=event.target.closest('[data-pantry-recipe-detail]');if(!button)return;
  const trigger=document.createElement('button');trigger.type='button';trigger.dataset.detail=button.dataset.pantryRecipeDetail;trigger.hidden=true;
  $('recipes').appendChild(trigger);trigger.click();trigger.remove();
