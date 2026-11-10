@@ -919,6 +919,33 @@ let catalogPage=null,legacyCatalogLoaded=false,pageRequestGeneration=0;
 // Declare their shared state before load() starts, avoiding temporal-dead-zone errors.
 var recommendationRenderTimer=null;
 var recommendationRankCache=null;
+// Initialize all recommendation state before asynchronous startup callbacks.
+const recommendationFeatureCache=new WeakMap();
+function recommendationFeatures(r){
+ if(recommendationFeatureCache.has(r))return recommendationFeatureCache.get(r);
+ const name=cleanRecipeName(r.name||'').toLowerCase(),features=[];
+ const protein=recipeGroup(r),cuisine=cuisineGroup(r),meal=mealGroup(r);
+ if(protein!=='other')features.push(['protein:'+protein,5,'More '+protein+' meals']);
+ if(cuisine!=='other')features.push(['cuisine:'+cuisine,4,'More '+cuisine+' flavors']);
+ if(meal!=='other')features.push(['meal:'+meal,3,'More '+meal+' recipes']);
+ const methods=[['air fryer',/air.fry/],['grilled',/grill/],['roasted',/roast/],['one pot',/one.pot|one.pan/],['slow cooker',/slow.cook/]];
+ for(const [label,pattern] of methods)if(pattern.test(name))features.push(['method:'+label,2,'More '+label+' recipes']);
+ const ingredients=['potato','mushroom','broccoli','spinach','tomato','rice','garlic','lemon','lime','avocado','chickpea','sesame','ginger','sweet potato'];
+ const ingredientText=name+' '+Object.keys(r.ingredients||{}).join(' ').toLowerCase();
+ for(const ingredient of ingredients)if(ingredientText.includes(ingredient))features.push(['ingredient:'+ingredient,1,'Recipes with '+ingredient]);
+ recommendationFeatureCache.set(r,features);
+ return features;
+}
+// Initialized at the beginning of the main script.
+const recommendationFailedPhotos=new Set();
+const recommendationStoreKey='hg-recommendations-v2';
+let recommendationMemory={recent:[],more:[]};
+try{
+ const saved=JSON.parse(localStorage.getItem(recommendationStoreKey)||'{}');
+ recommendationMemory={recent:Array.isArray(saved.recent)?saved.recent.map(String).slice(-30):[],more:Array.isArray(saved.more)?saved.more.map(String).slice(-30):[]};
+}catch(e){}
+function saveRecommendationMemory(){try{localStorage.setItem(recommendationStoreKey,JSON.stringify(recommendationMemory))}catch(e){}}
+
 const ingredientUnitAliases={tsp:'teaspoon',teaspoons:'teaspoon',tbsp:'tablespoon',tablespoons:'tablespoon',cups:'cup',oz:'ounce',ounces:'ounce',lbs:'pound',lb:'pound',pounds:'pound',g:'gram',grams:'gram',kg:'kilogram',kilograms:'kilogram',ml:'milliliter',milliliters:'milliliter',liters:'liter',litres:'liter',cloves:'clove',bunches:'bunch',heads:'head',stalks:'stalk',slices:'slice',pieces:'piece',pinches:'pinch',cans:'can',packages:'package',bags:'bag'};
 let recommendationCatalog=[];const $=id=>document.getElementById(id);const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 // Group the legacy smart tools into accessible, compact mobile cards.
@@ -3015,31 +3042,6 @@ function isNonRecipeListing(r){
 let recommendationOffset=0;
 
 
-const recommendationFeatureCache=new WeakMap();
-function recommendationFeatures(r){
- if(recommendationFeatureCache.has(r))return recommendationFeatureCache.get(r);
- const name=cleanRecipeName(r.name||'').toLowerCase(),features=[];
- const protein=recipeGroup(r),cuisine=cuisineGroup(r),meal=mealGroup(r);
- if(protein!=='other')features.push(['protein:'+protein,5,'More '+protein+' meals']);
- if(cuisine!=='other')features.push(['cuisine:'+cuisine,4,'More '+cuisine+' flavors']);
- if(meal!=='other')features.push(['meal:'+meal,3,'More '+meal+' recipes']);
- const methods=[['air fryer',/air.fry/],['grilled',/grill/],['roasted',/roast/],['one pot',/one.pot|one.pan/],['slow cooker',/slow.cook/]];
- for(const [label,pattern] of methods)if(pattern.test(name))features.push(['method:'+label,2,'More '+label+' recipes']);
- const ingredients=['potato','mushroom','broccoli','spinach','tomato','rice','garlic','lemon','lime','avocado','chickpea','sesame','ginger','sweet potato'];
- const ingredientText=name+' '+Object.keys(r.ingredients||{}).join(' ').toLowerCase();
- for(const ingredient of ingredients)if(ingredientText.includes(ingredient))features.push(['ingredient:'+ingredient,1,'Recipes with '+ingredient]);
- recommendationFeatureCache.set(r,features);
- return features;
-}
-// Initialized at the beginning of the main script.
-const recommendationFailedPhotos=new Set();
-const recommendationStoreKey='hg-recommendations-v2';
-let recommendationMemory={recent:[],more:[]};
-try{
- const saved=JSON.parse(localStorage.getItem(recommendationStoreKey)||'{}');
- recommendationMemory={recent:Array.isArray(saved.recent)?saved.recent.map(String).slice(-30):[],more:Array.isArray(saved.more)?saved.more.map(String).slice(-30):[]};
-}catch(e){}
-function saveRecommendationMemory(){try{localStorage.setItem(recommendationStoreKey,JSON.stringify(recommendationMemory))}catch(e){}}
 function recommendationSeason(r){
  const month=new Date().getMonth(),name=cleanRecipeName(r.name||'').toLowerCase();
  const seasonal=month===11||month<=1?/\b(soup|stew|roast|chili|casserole|braised|baked)\b/:month<=4?/\b(salad|asparagus|lemon|pea|spring|herb)\b/:month<=7?/\b(grill|salad|corn|tomato|lime|summer)\b/:/\b(squash|pumpkin|apple|roast|soup|mushroom)\b/;
