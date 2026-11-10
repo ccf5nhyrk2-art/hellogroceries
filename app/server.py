@@ -359,6 +359,35 @@ def recipe_page_meal(recipe):
  groups=(('pasta',r'pasta|spaghetti|linguine|penne|noodle|ramen|gnocchi'),('bowls',r'bowl|rice bowl'),('sandwich',r'burger|sandwich|wrap|panini|slider'),('salad',r'salad'),('soup',r'soup|stew|chili\\b'))
  return next((group for group,pattern in groups if re.search(pattern,name)),'other')
 
+# Curated browse rails. Nutrition thresholds use values per serving only when present.
+RECIPE_RAILS=('high-protein','low-fat','glp1-friendly','lower-sugar','quick-easy','vegetarian','seafood','chicken','soups-stews','comfort-food')
+def recipe_rail_nutrient(recipe,key):
+ nutrition=recipe.get('nutrition') or {}
+ if not isinstance(nutrition,dict):return None
+ raw=nutrition.get(key)
+ if raw is None:return None
+ match=re.search(r'(?<!\\d)(\\d+(?:\\.\\d+)?)\\s*g\\b',str(raw),re.I)
+ return float(match.group(1)) if match else None
+
+def recipe_in_rail(recipe,rail):
+ name=str(recipe.get('name') or '').casefold()
+ protein=recipe_rail_nutrient(recipe,'proteinContent')
+ fat=recipe_rail_nutrient(recipe,'fatContent')
+ sugar=recipe_rail_nutrient(recipe,'sugarContent')
+ if rail=='high-protein':return protein is not None and protein>=30
+ if rail=='low-fat':return fat is not None and fat<=12
+ if rail=='lower-sugar':return sugar is not None and sugar<=8
+ if rail=='glp1-friendly':
+  return protein is not None and protein>=20 and fat is not None and fat<=20 and sugar is not None and sugar<=12
+ if rail=='quick-easy':
+  return bool(re.search(r'\\b(?:10|15|20)\\s*(?:mm|min|minute)',name))
+ if rail=='vegetarian':return recipe_page_matches(recipe,protein='vegetarian')
+ if rail=='seafood':return recipe_page_matches(recipe,protein='seafood')
+ if rail=='chicken':return recipe_page_matches(recipe,protein='chicken')
+ if rail=='soups-stews':return bool(re.search(r'\\b(?:soup|stew|chili|chowder)\\b',name))
+ if rail=='comfort-food':return bool(re.search(r'\\b(?:mac|cheese|pasta|burger|meatloaf|lasagna|pot pie)\\b',name))
+ return False
+
 def recipe_page_matches(recipe,query='',country='ALL',protein='all'):
  """Server-side browse filters for the opt-in paginated catalog."""
  name=str(recipe.get('name') or '').casefold()
@@ -3817,6 +3846,8 @@ class Handler(SimpleHTTPRequestHandler):
    except ValueError:
     return self.sendjson({'error':'Invalid pagination parameters'},400)
    query=params.get('q',[''])[0].strip().casefold()[:200]
+   rail=params.get('category',[''])[0].strip().casefold()[:32]
+   if rail and rail not in RECIPE_RAILS:return self.sendjson({'error':'Invalid category'},400)
    country=params.get('country',['all'])[0].strip().upper()[:8]
    protein=params.get('protein',['all'])[0].strip().lower()[:24]
    sort=params.get('sort',['name'])[0].strip().lower()
@@ -3835,7 +3866,7 @@ class Handler(SimpleHTTPRequestHandler):
    if len(ids_raw)>5000:return self.sendjson({'error':'Too many recipe IDs'},400)
    try:allowed_ids={int(x) for x in ids_raw.split(',') if x.strip()} if ids_raw else None
    except ValueError:return self.sendjson({'error':'Invalid recipe IDs'},400)
-   if not query and country=='ALL' and protein=='all' and sort=='name' and cuisine=='all' and meal=='all' and not ingredient and not exclude_ingredient and not quick and allowed_ids is None:
+   if not query and country=='ALL' and protein=='all' and sort=='name' and cuisine=='all' and meal=='all' and not ingredient and not exclude_ingredient and not quick and allowed_ids is None and not rail:
     started=time.monotonic()
     compact,total=default_recipe_page_data()
     elapsed=time.monotonic()-started
@@ -3850,6 +3881,7 @@ class Handler(SimpleHTTPRequestHandler):
     if not isinstance(ingredients,dict):ingredients={}
     names=' '.join(str(k).casefold() for k in ingredients)
     if allowed_ids is not None and int(recipe.get('id') or 0) not in allowed_ids:return False
+    if rail and not recipe_in_rail(recipe,rail):return False
     if cuisine!='all' and recipe_page_cuisine(recipe)!=cuisine:return False
     if meal!='all' and recipe_page_meal(recipe)!=meal:return False
     if ingredient and ingredient not in names:return False
@@ -3867,6 +3899,16 @@ class Handler(SimpleHTTPRequestHandler):
    items=[{key:recipe[key] for key in fields if key in recipe} for recipe in matched[start:start+page_size]]
    print(f'Recipe page timing: filtered total={time.monotonic()-page_request_started:.3f}s cards={total}',flush=True)
    return self.sendjson({'items':items,'page':page,'page_size':page_size,'total':total,'pages':(total+page_size-1)//page_size})
+  if urllib.parse.urlsplit(self.path).path=='/api/recipes/categories':
+   catalog=visible_browse_catalog()
+   fields=('id','name','image','country','nutrition','dietary_labels','url','source_servings')
+   rows={rail:[] for rail in RECIPE_RAILS}
+   for recipe in catalog:
+    if not recipe.get('image') or not recipe.get('url'):continue
+    for rail in RECIPE_RAILS:
+     if len(rows[rail])<8 and recipe_in_rail(recipe,rail):
+      rows[rail].append({key:recipe[key] for key in fields if key in recipe})
+   return self.sendjson({'categories':rows})
   if urllib.parse.urlsplit(self.path).path=='/api/recipes/recommendations':
    # Bounded recommendation payload, independent of the full recipe summary.
    # Exclusions keep planned, favorite and dismissed recipes out of suggestions.
