@@ -2801,38 +2801,46 @@ $('inventory-unit').addEventListener('change',()=>{$('inventory-unit').dataset.u
  $(id).addEventListener('input',updatePantryQuantityPreview);
  $(id).addEventListener('change',updatePantryQuantityPreview);
 });
+let pantryQuantitySaving=false;
 $('inventory-form').addEventListener('submit',async e=>{
  e.preventDefault();
+ if(pantryQuantitySaving)return;
  updatePantryQuantityPreview();
- if($('inventory-submit').disabled)return;
+ const submit=$('inventory-submit'),preview=$('inventory-preview');
+ if(submit.disabled)return;
  const name=$('inventory-name').value.trim(),amount=Number($('inventory-amount').value),unit=$('inventory-unit').value,mode=$('inventory-mode').value;
- const response=await fetch('/api/action',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'adjust_pantry_inventory',name,amount,unit,mode})});
- const updated=await response.json();
- if(!response.ok||updated.error){$('inventory-preview').textContent='Could not update quantity: '+(updated.error||'Request failed');return}
- // Confirm the saved household state survives an independent database read.
- // Do not clear the form or claim success when persistence cannot be verified.
- let verified;
+ pantryQuantitySaving=true;
+ const previousLabel=submit.textContent;
+ submit.disabled=true;
+ submit.textContent='Saving…';
+ preview.textContent='Saving pantry quantity…';
  try{
+  const response=await fetch('/api/action',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'adjust_pantry_inventory',name,amount,unit,mode})});
+  const updated=await response.json();
+  if(!response.ok||updated.error)throw Error(updated.error||'Request failed');
+  // Confirm the saved quantity via a separate read before reporting success.
   const check=await fetch('/api/state',{credentials:'same-origin',cache:'no-store'});
-  if(!check.ok)throw new Error('Could not reload pantry state ('+check.status+')');
-  verified=await check.json();
+  if(!check.ok)throw Error('Could not verify saved pantry (HTTP '+check.status+')');
+  const verified=await check.json();
+  const savedInventory=verified?.pantry_inventory||{};
+  const expectedInventory=updated.pantry_inventory||{};
+  const prefix=name.toLocaleLowerCase()+'|';
+  const expectedEntries=Object.entries(expectedInventory).filter(([key])=>key.toLocaleLowerCase().startsWith(prefix));
+  if(!expectedEntries.length||!expectedEntries.every(([key,value])=>Object.hasOwn(savedInventory,key)&&Number(savedInventory[key])===Number(value)))throw Error('Saved quantity could not be confirmed. Please reopen Pantry before retrying.');
+  state=verified;
+  $('inventory-amount').value='';
+  render();
+  preview.textContent='Saved! Pantry quantity updated.';
+  submit.textContent='Saved!';
  }catch(error){
-  $('inventory-preview').textContent='Save could not be verified. Please retry: '+error.message;
-  return;
+  preview.textContent='Could not confirm update: '+error.message;
+  submit.textContent=previousLabel;
+ }finally{
+  pantryQuantitySaving=false;
+  // Restore the normal button label and validation state after the request.
+  if(submit.textContent!=='Saved!')submit.textContent=previousLabel;
+  submit.disabled=false;
  }
- const savedInventory=verified?.pantry_inventory||{};
- const expectedInventory=updated.pantry_inventory||{};
- const ingredientPrefix=name.toLocaleLowerCase()+'|';
- const expectedEntries=Object.entries(expectedInventory).filter(([key])=>key.toLocaleLowerCase().startsWith(ingredientPrefix));
- const matchingEntries=expectedEntries.every(([key,value])=>Object.hasOwn(savedInventory,key)&&Number(savedInventory[key])===Number(value));
- if(!matchingEntries||!expectedEntries.length){
-  $('inventory-preview').textContent='Quantity was not confirmed after saving. Your entry is preserved; please retry.';
-  return;
- }
- state=verified;
- $('inventory-amount').value='';
- render();
- updatePantryQuantityPreview();
 });
 $('inventory-saved').addEventListener('click',async e=>{
  const remove=e.target.closest('[data-pantry-delete]');
