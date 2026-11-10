@@ -1791,6 +1791,7 @@ function selectMealAndRefresh(id,checked,servings){
   const result=await response.json();
   if(!response.ok || result.error)throw Error(result.error||'Unable to update selected meal');
   state=result;
+  syncRecipeRailButtons();
   $('grocery-preview').hidden=true;
   render();
   if(checked)void hydrateSavedRecipes([id]);
@@ -3438,11 +3439,22 @@ async function loadRecipeRails(){
   panel.innerHTML=Object.entries(recipeRailLabels).map(([key,label])=>{
    const items=(data.categories||{})[key]||[];
    if(!items.length)return '';
-   return '<div class="recipe-rail"><div class="recipe-rail-title"><h4>'+esc(label)+'</h4><div class="recipe-rail-controls"><button type="button" class="recipe-rail-arrow" data-rail-scroll="prev" aria-label="Scroll '+esc(label)+' left">‹</button><button type="button" class="recipe-rail-arrow" data-rail-scroll="next" aria-label="Scroll '+esc(label)+' right">›</button><button type="button" data-rail-see="'+key+'">See All →</button></div></div><div class="recipe-rail-track">'+items.map(r=>'<article class="recipe-rail-card"><img loading="lazy" decoding="async" src="/api/photo/'+encodeURIComponent(r.id)+'" alt="'+esc(cleanRecipeName(r.name))+'"><strong>'+esc(cleanRecipeName(r.name))+'</strong><div class="actions"><button type="button" data-detail="'+r.id+'">Details</button><button type="button" data-rail-add="'+r.id+'">Add to plan</button></div></article>').join('')+'</div></div>';
+   return '<div class="recipe-rail"><div class="recipe-rail-title"><h4>'+esc(label)+'</h4><div class="recipe-rail-controls"><button type="button" class="recipe-rail-arrow" data-rail-scroll="prev" aria-label="Scroll '+esc(label)+' left">‹</button><button type="button" class="recipe-rail-arrow" data-rail-scroll="next" aria-label="Scroll '+esc(label)+' right">›</button><button type="button" data-rail-see="'+key+'">See All →</button></div></div><div class="recipe-rail-track">'+items.map(r=>'<article class="recipe-rail-card"><img loading="lazy" decoding="async" src="/api/photo/'+encodeURIComponent(r.id)+'" alt="'+esc(cleanRecipeName(r.name))+'"><strong>'+esc(cleanRecipeName(r.name))+'</strong><div class="actions"><button type="button" data-detail="'+r.id+'">Details</button><button type="button" data-rail-add="'+r.id+'" aria-pressed="'+String(Object.hasOwn(state.selected||{},String(r.id)))+'">'+(Object.hasOwn(state.selected||{},String(r.id))?'✓ Added':'Add to plan')+'</button></div></article>').join('')+'</div></div>';
   }).join('');
   for(const group of Object.values(data.categories||{}))for(const r of group)if(!recipes.some(x=>String(x.id)===String(r.id)))recipes.push(r);
   recipeRailsLoaded=true;
+  syncRecipeRailButtons();
  }catch(error){console.warn('Recipe category rails:',error);panel.textContent='Categories are temporarily unavailable.'}
+}
+const recipeRailSaves=new Set();
+function syncRecipeRailButtons(){
+ document.querySelectorAll('#recipe-category-rails [data-rail-add]').forEach(button=>{
+  const id=String(button.dataset.railAdd);
+  if(recipeRailSaves.has(id))return;
+  const selected=Object.hasOwn(state.selected||{},id);
+  button.textContent=selected?'✓ Added':'Add to plan';
+  button.setAttribute('aria-pressed',String(selected));
+ });
 }
 document.addEventListener('click',async event=>{
  const arrow=event.target.closest('[data-rail-scroll]');
@@ -3466,8 +3478,9 @@ document.addEventListener('click',async event=>{
  const add=event.target.closest('[data-rail-add]');
  if(add){
   const id=Number(add.dataset.railAdd),already=Object.hasOwn(state.selected||{},String(id));
-  if(add.disabled)return;
-  add.disabled=true;add.textContent='Saving…';
+  if(add.disabled||recipeRailSaves.has(String(id)))return;
+  recipeRailSaves.add(String(id));
+  document.querySelectorAll('[data-rail-add="'+id+'"]').forEach(button=>{button.disabled=true;button.textContent='Saving…';});
   const feedback=$('recipe-rail-feedback');
   try{
    await selectMealAndRefresh(id,!already,Number((state.selected||{})[String(id)])||2);
@@ -3477,7 +3490,11 @@ document.addEventListener('click',async event=>{
   }catch(error){
    add.textContent=already?'✓ Added':'Add to plan';
    if(feedback){feedback.hidden=false;feedback.textContent='Unable to save recipe: '+error.message;}
-  }finally{add.disabled=false;}
+  }finally{
+   recipeRailSaves.delete(String(id));
+   document.querySelectorAll('[data-rail-add="'+id+'"]').forEach(button=>{button.disabled=false;});
+   syncRecipeRailButtons();
+  }
  }
 });
 function serverRecipeParams(){
