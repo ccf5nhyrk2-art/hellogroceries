@@ -2747,9 +2747,14 @@ function renderSmartPrefs(){
  });
  $('smart-flags').innerHTML=flags.length?flags.map(x=>'<p class="smart-flag">Verify quantity: '+esc(shoppingDisplay(x).name)+' — expand Used in these recipes below.</p>').join(''):'<p class="muted">Check ingredient breakdowns to verify recipe quantities.</p>';
  $('smart-pantry').innerHTML='<p class="muted">Quantities are optional. Use Add, Use, or Set above to update an ingredient. Verified quantities can be deducted when you cook.</p>';
- const current=$('smart-cook-select').value;
- $('smart-cook-select').innerHTML='<option value="">Select a planned meal</option>'+recipes.filter(r=>Object.hasOwn(state.selected||{},String(r.id))).map(r=>'<option value="'+r.id+'">'+esc(cleanRecipeName(r.name))+'</option>').join('');
- $('smart-cook-select').value=current;
+ // Cooking mode was removed from the compact pantry UI. Its legacy select
+ // may no longer exist; never let that optional control break pantry rendering.
+ const cookSelect=$('smart-cook-select');
+ if(cookSelect){
+  const current=cookSelect.value;
+  cookSelect.innerHTML='<option value="">Select a planned meal</option>'+recipes.filter(r=>Object.hasOwn(state.selected||{},String(r.id))).map(r=>'<option value="'+r.id+'">'+esc(cleanRecipeName(r.name))+'</option>').join('');
+  cookSelect.value=current;
+ }
 }
 function updatePantryQuantityPreview(){
  const name=$('inventory-name').value.trim(),unit=$('inventory-unit').value,raw=$('inventory-amount').value;
