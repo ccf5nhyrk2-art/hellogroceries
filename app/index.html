@@ -835,6 +835,23 @@ body[data-active-page]:not([data-active-page="all"]) main > .mobile-home-dashboa
  #inventory-form #inventory-submit{min-height:48px}
  #inventory-form #inventory-preview{overflow-wrap:anywhere}
 }
+
+/* Shopping-list style pantry departments and readable inventory rows. */
+#inventory-saved{margin-top:16px}
+#inventory-saved .pantry-department{background:var(--card,#171d1c);margin:12px 0;border-radius:14px}
+#inventory-saved .pantry-department>summary{min-height:46px;display:list-item;padding:13px 16px}
+#inventory-saved .pantry-department-items{padding:0 12px 10px}
+#inventory-saved .pantry-department-item{min-height:64px;gap:12px;padding:11px 4px}
+#inventory-saved .pantry-item-description{display:flex;flex-direction:column;gap:4px;min-width:0;flex:1}
+#inventory-saved .pantry-item-name{font-weight:650;overflow-wrap:anywhere}
+#inventory-saved .pantry-item-amount{font-size:13px;color:var(--muted,#a9b6b0);overflow-wrap:anywhere}
+#inventory-saved .pantry-quantity-controls{flex-shrink:0;gap:6px}
+#inventory-saved .pantry-quantity-controls button{min-height:40px;min-width:54px}
+@media(max-width:750px){
+ #inventory-saved .pantry-department-item{align-items:center}
+ #inventory-saved .pantry-quantity-controls{flex-wrap:nowrap}
+ #inventory-saved .pantry-quantity-controls button{padding:7px 9px;min-width:48px}
+}
 </style><script>
 (function(){const originalFetch=window.fetch;window.fetch=function(input,init){const opts=init?{...init}:{};const method=(opts.method||'GET').toUpperCase();const url=typeof input==='string'?input:input.url;if(method!=='GET'&&method!=='HEAD'&&url.startsWith('/api/')){const match=document.cookie.match(/(?:^|; )hg_csrf=([^;]+)/);opts.headers={...opts.headers,'X-HG-CSRF':match?match[1]:''}}return originalFetch.call(this,input,opts)};})();
 </script>
@@ -2671,8 +2688,8 @@ function renderSmartPrefs(){
   const items=inventoryGroups.get(category).sort((a,b)=>a.name.localeCompare(b.name));
   return '<details class="pantry-department" open><summary><strong>'+esc(category)+'</strong> <span class="muted">('+items.length+')</span></summary><div class="pantry-department-items">'+items.map(item=>{
    const quantities=item.quantities.filter(q=>q.amount>0);
-   const display=quantities.length?quantities.map(q=>esc(groceryNumber(q.amount))+' '+esc(q.unit)).join(', '):'<span class="muted">Quantity not set</span>';
-   return '<div class="pantry-department-item"><span>'+esc(item.name)+'</span><div class="pantry-quantity-controls"><strong>'+display+'</strong><button type="button" class="clear" data-pantry-edit="'+esc(item.name)+'" data-pantry-unit="'+esc(quantities[0]?.unit||'count')+'">Edit</button><button type="button" class="clear" data-pantry-delete="'+esc(item.name)+'" aria-label="Remove '+esc(item.name)+' from pantry completely">Remove</button></div></div>';
+   const display=quantities.length?quantities.map(q=>esc(groceryNumber(q.amount))+' '+esc(q.unit)).join(', '):'On hand · amount not set';
+   return '<div class="pantry-department-item"><div class="pantry-item-description"><span class="pantry-item-name">'+esc(item.name)+'</span><span class="pantry-item-amount">'+display+'</span></div><div class="pantry-quantity-controls"><button type="button" class="clear" data-pantry-edit="'+esc(item.name)+'" data-pantry-unit="'+esc(quantities[0]?.unit||'count')+'" aria-label="Edit '+esc(item.name)+' quantity">Edit</button><button type="button" class="clear" data-pantry-delete="'+esc(item.name)+'" aria-label="Remove '+esc(item.name)+' from pantry completely">Remove</button></div></div>';
   }).join('')+'</div></details>';
  }).join('')||'<p class="muted">Your pantry is empty. Add an ingredient above to get started.</p>';
  const flags=list.filter(x=>{
