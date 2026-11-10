@@ -3329,7 +3329,13 @@ $('recommend-list').addEventListener('change',async e=>{
  collections[name]=[...new Set([...(Array.isArray(collections[name])?collections[name]:[]).map(Number).filter(Number.isSafeInteger),id])];
  el.disabled=true;
  try{
-  await preferences({collections});
+  // Save without running unrelated page rendering inside the save operation.
+  // Safari can throw DOMException SyntaxError while rebuilding recipe cards;
+  // that must not be reported as a failed collection save.
+  const response=await fetch('/api/action',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'set_preferences',favorites:state.favorites||[],collections,weekly:state.weekly||{},pantry:state.pantry||[],manual:state.manual||[],previous_week:state.previous_week||{},recommendation_hidden:state.recommendation_hidden||[]})});
+  const result=await response.json();
+  if(!response.ok||result.error)throw new Error(result.error||'Unable to save collection');
+  state=result;
   const notice=document.createElement('div');notice.className='muted recommend-save-status';notice.setAttribute('role','status');notice.textContent='Added to '+name;
   const card=el.closest('.recommend-card');
   if(card){card.querySelector('.recommend-save-status')?.remove();card.appendChild(notice);}
