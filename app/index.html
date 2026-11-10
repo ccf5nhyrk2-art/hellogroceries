@@ -3323,13 +3323,20 @@ $('recommend-list').addEventListener('error',event=>{
 },true);
 $('recommend-list').addEventListener('change',async e=>{
  const el=e.target.closest('[data-recommend-collection]');if(!el||!el.value)return;
- const name=el.value,id=Number(el.dataset.recommendCollection),collections=structuredClone(state.collections||{});
- if(!Number.isSafeInteger(id)||!Object.hasOwn(collections,name))return;
- collections[name]=[...new Set([...(collections[name]||[]).map(Number).filter(Number.isSafeInteger),id])];
+ const name=el.value,id=Number(el.dataset.recommendCollection);
+ const collections={...(state.collections||{})};
+ if(!Number.isSafeInteger(id)||!Object.prototype.hasOwnProperty.call(collections,name))return;
+ collections[name]=[...new Set([...(Array.isArray(collections[name])?collections[name]:[]).map(Number).filter(Number.isSafeInteger),id])];
  el.disabled=true;
- try{await preferences({collections});const notice=document.createElement('div');notice.className='muted';notice.setAttribute('role','status');notice.textContent='Added to '+name;const card=document.querySelector('#recommend-list [data-recommend-collection="'+id+'"]')?.closest('.recommend-card');if(card){card.querySelector('.recommend-save-status')?.remove();notice.classList.add('recommend-save-status');card.appendChild(notice);}}
- catch(err){alert('Could not add to collection: '+err.message)}
- finally{el.disabled=false}
+ try{
+  await preferences({collections});
+  const notice=document.createElement('div');notice.className='muted recommend-save-status';notice.setAttribute('role','status');notice.textContent='Added to '+name;
+  const card=el.closest('.recommend-card');
+  if(card){card.querySelector('.recommend-save-status')?.remove();card.appendChild(notice);}
+ }catch(err){
+  console.error('Recommended recipe collection save failed',err);
+  alert('Could not add to collection: '+(err?.message||'Unknown error'));
+ }finally{if(el.isConnected){el.disabled=false;el.value='';}}
 });
 $('recommend-list').addEventListener('scroll',updateRecommendationCarousel,{passive:true});window.addEventListener('resize',updateRecommendationCarousel);
 $('recommend-refresh').onclick=()=>{recommendationCachedPhotoIds=null;recommendationMemory.recent=[...new Set([...recommendationMemory.recent,...[...document.querySelectorAll('#recommend-list [data-recommend-detail]')].map(el=>String(el.dataset.recommendDetail))])].slice(-30);saveRecommendationMemory();recommendationOffset+=5;renderRecommendations()};
