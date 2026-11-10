@@ -3444,7 +3444,7 @@ async function loadRecipeRails(){
   recipeRailsLoaded=true;
  }catch(error){console.warn('Recipe category rails:',error);panel.textContent='Categories are temporarily unavailable.'}
 }
-document.addEventListener('click',event=>{
+document.addEventListener('click',async event=>{
  const arrow=event.target.closest('[data-rail-scroll]');
  if(arrow){const track=arrow.closest('.recipe-rail')?.querySelector('.recipe-rail-track');if(track)track.scrollBy({left:(arrow.dataset.railScroll==='next'?1:-1)*Math.max(220,track.clientWidth*.75),behavior:'smooth'});}
  const see=event.target.closest('[data-rail-see]');
