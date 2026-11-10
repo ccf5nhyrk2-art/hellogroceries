@@ -3888,14 +3888,19 @@ $('generate-grocery').onclick=async()=>{
  $('grocery-preview').hidden=true;
  try{
   await mealSelectionQueue;
-  const response=await fetch('/api/action',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'generate'})});
-  const result=await response.json();
+  const controller=new AbortController();
+  const timeout=setTimeout(()=>controller.abort(),30000);
+  let response,result;
+  try{
+   response=await fetch('/api/action',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'generate'}),signal:controller.signal});
+   result=await response.json();
+  }finally{clearTimeout(timeout)}
   if(!response.ok||result.error)throw Error(result.error||'Could not generate shopping list');
   state=result;
   render();
   status.textContent='Shopping list generated successfully.';
  }catch(error){
-  status.textContent='Could not generate shopping list: '+error.message;
+  status.textContent=error.name==='AbortError'?'Shopping list generation is taking too long. Refresh to check whether the list was saved before trying again.':'Could not generate shopping list: '+error.message;
   $('error').textContent=status.textContent;
  }finally{
   button.disabled=false;
