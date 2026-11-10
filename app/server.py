@@ -4007,7 +4007,7 @@ class Handler(SimpleHTTPRequestHandler):
    if len(ids)>100:return self.sendjson({'error':'Maximum 100 recipe IDs'},400)
    fields=('id','name','image','country','nutrition','dietary_labels','prep_time','cook_time','total_time','url','ingredients','source_servings')
    return self.sendjson([{key:recipe[key] for key in fields if key in recipe}
-    for recipe in allrecipes() if int(recipe.get('id') or 0) in ids])
+    for recipe in browse_catalog() if int(recipe.get('id') or 0) in ids])
   if urllib.parse.urlsplit(self.path).path=='/api/recipes/detail':
    params=urllib.parse.parse_qs(urllib.parse.urlsplit(self.path).query)
    try:
