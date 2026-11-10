@@ -3442,6 +3442,23 @@ function scheduleRecipeRecommendations(){
 // Server-driven recipe browsing: no full-catalog request during startup.
 const recipeRailLabels={'high-protein':'High Protein','low-fat':'Low Fat','glp1-friendly':'GLP-1 Friendly','lower-sugar':'Lower Sugar','quick-easy':'Quick & Easy','vegetarian':'Vegetarian','seafood':'Seafood','chicken':'Chicken Favorites','soups-stews':'Soups & Stews','comfort-food':'Comfort Food'};
 let selectedRecipeRail='',recipeRailsLoaded=false,recipeRailShuffle=0,recipeRailsPending=false;
+function hfRailImageLoaded(img){
+ if(img.naturalWidth>=180&&img.naturalHeight>=110)return;
+ hfRailImageFailed(img);
+}
+function hfRailImageFailed(img){
+ if(!img.isConnected)return;
+ const source=img.getAttribute('data-original-image')||'';
+ if(!img.dataset.directTried&&/^https:\/\//i.test(source)){
+  img.dataset.directTried='1';
+  img.src=source;
+  return;
+ }
+ // A missing image must not remain as a broken square in category browsing.
+ const card=img.closest('.recipe-rail-card');
+ if(card){card.remove();}
+}
+
 async function loadRecipeRails(){
  if(recipeRailsLoaded||recipeRailsPending)return;
  const panel=$('recipe-category-rails');if(!panel)return;
@@ -3453,7 +3470,7 @@ async function loadRecipeRails(){
   panel.innerHTML=Object.entries(recipeRailLabels).map(([key,label])=>{
    const items=(data.categories||{})[key]||[];
    if(!items.length)return '';
-   return '<div class="recipe-rail"><div class="recipe-rail-title"><h4>'+esc(label)+'</h4><div class="recipe-rail-controls"><button type="button" class="recipe-rail-arrow" data-rail-scroll="prev" aria-label="Scroll '+esc(label)+' left">‹</button><button type="button" class="recipe-rail-arrow" data-rail-scroll="next" aria-label="Scroll '+esc(label)+' right">›</button><button type="button" data-rail-see="'+key+'">See All →</button></div></div><div class="recipe-rail-track">'+items.map(r=>'<article class="recipe-rail-card"><img loading="lazy" decoding="async" src="/api/photo/'+encodeURIComponent(r.id)+'" alt="'+esc(cleanRecipeName(r.name))+'"><strong>'+esc(cleanRecipeName(r.name))+'</strong><div class="actions"><button type="button" data-detail="'+r.id+'">Details</button><button type="button" data-rail-add="'+r.id+'" aria-pressed="'+String(Object.hasOwn(state.selected||{},String(r.id)))+'">'+(Object.hasOwn(state.selected||{},String(r.id))?'✓ Added':'Add to plan')+'</button></div></article>').join('')+'</div></div>';
+   return '<div class="recipe-rail"><div class="recipe-rail-title"><h4>'+esc(label)+'</h4><div class="recipe-rail-controls"><button type="button" class="recipe-rail-arrow" data-rail-scroll="prev" aria-label="Scroll '+esc(label)+' left">‹</button><button type="button" class="recipe-rail-arrow" data-rail-scroll="next" aria-label="Scroll '+esc(label)+' right">›</button><button type="button" data-rail-see="'+key+'">See All →</button></div></div><div class="recipe-rail-track">'+items.map(r=>'<article class="recipe-rail-card"><img loading="lazy" decoding="async" src="/api/photo/'+encodeURIComponent(r.id)+'?photo_revision=20261104b" data-original-image="'+esc(r.image||'')+'" referrerpolicy="no-referrer" onerror="hfRailImageFailed(this)" onload="hfRailImageLoaded(this)" alt="'+esc(cleanRecipeName(r.name))+'"><strong>'+esc(cleanRecipeName(r.name))+'</strong><div class="actions"><button type="button" data-detail="'+r.id+'">Details</button><button type="button" data-rail-add="'+r.id+'" aria-pressed="'+String(Object.hasOwn(state.selected||{},String(r.id)))+'">'+(Object.hasOwn(state.selected||{},String(r.id))?'✓ Added':'Add to plan')+'</button></div></article>').join('')+'</div></div>';
   }).join('');
   for(const group of Object.values(data.categories||{}))for(const r of group)if(!recipes.some(x=>String(x.id)===String(r.id)))recipes.push(r);
   recipeRailsLoaded=true;
