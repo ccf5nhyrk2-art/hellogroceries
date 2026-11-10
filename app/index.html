@@ -852,6 +852,12 @@ body[data-active-page]:not([data-active-page="all"]) main > .mobile-home-dashboa
  #inventory-saved .pantry-quantity-controls{flex-wrap:nowrap}
  #inventory-saved .pantry-quantity-controls button{padding:7px 9px;min-width:48px}
 }
+
+.pantry-edit-panel,.pantry-scan-disclosure{border:1px solid var(--line,#42524b);border-radius:14px;margin:14px 0;padding:12px}
+.pantry-edit-panel>summary,.pantry-scan-disclosure>summary{cursor:pointer;font-weight:650;padding:8px}
+.pantry-edit-panel[open]>summary,.pantry-scan-disclosure[open]>summary{margin-bottom:12px}
+.pantry-scan-disclosure .pantry-scan-box{margin-top:0!important;border:0!important;padding:6px!important}
+#inventory-saved .pantry-department-item{align-items:center}
 </style><script>
 (function(){const originalFetch=window.fetch;window.fetch=function(input,init){const opts=init?{...init}:{};const method=(opts.method||'GET').toUpperCase();const url=typeof input==='string'?input:input.url;if(method!=='GET'&&method!=='HEAD'&&url.startsWith('/api/')){const match=document.cookie.match(/(?:^|; )hg_csrf=([^;]+)/);opts.headers={...opts.headers,'X-HG-CSRF':match?match[1]:''}}return originalFetch.call(this,input,opts)};})();
 </script>
@@ -2771,6 +2777,45 @@ $('inventory-saved').addEventListener('click',async e=>{
  updatePantryQuantityPreview();
  $('inventory-form').scrollIntoView({block:'center',behavior:'smooth'});
 });
+// Keep one pantry inventory view: grouped rows first, editing and scanning on demand.
+(function organizePantryPage(){
+ const tags=document.getElementById('pantry-items');
+ const panel=tags?.closest('.enhance-panel');
+ const saved=document.getElementById('inventory-saved');
+ const form=document.getElementById('inventory-form');
+ const scan=panel?.querySelector('.pantry-scan-box');
+ if(!panel||!saved||!form||!scan)return;
+ const title=panel.querySelector('h3');
+ if(title)title.textContent='My Pantry';
+ const listHeading=document.createElement('h4');
+ listHeading.textContent='Ingredients by category';
+ panel.insertBefore(listHeading,panel.querySelector('.actions'));
+ panel.insertBefore(saved,listHeading.nextSibling);
+ const editor=document.createElement('details');
+ editor.className='pantry-edit-panel';
+ const summary=document.createElement('summary');
+ summary.textContent='Add or update ingredient quantity';
+ editor.appendChild(summary);
+ panel.insertBefore(editor,panel.querySelector('.actions'));
+ editor.appendChild(form);
+ // Existing edit buttons still fill and focus the form; open its disclosure first.
+ saved.addEventListener('click',e=>{
+  if(e.target.closest('[data-pantry-edit]'))editor.open=true;
+ },true);
+ const scanDetails=document.createElement('details');
+ scanDetails.className='pantry-scan-disclosure';
+ const scanSummary=document.createElement('summary');
+ scanSummary.textContent='Scan groceries, receipt or barcode';
+ scanDetails.appendChild(scanSummary);
+ scan.parentNode.insertBefore(scanDetails,scan);
+ scanDetails.appendChild(scan);
+ // Avoid a second, competing list of ingredient tags.
+ if(tags)tags.hidden=true;
+ const addRow=panel.querySelector('.actions');
+ if(addRow){addRow.hidden=true;}
+ const intro=panel.querySelector('h3')?.nextElementSibling;
+ if(intro&&intro.tagName==='P')intro.hidden=true;
+})();
 $('smart-hide').onchange=e=>{smartPrefs.hide=e.target.checked;saveSmartPrefs();renderShoppingList()};
 $('smart-pantry').onchange=e=>{const name=(state.pantry||[])[Number(e.target.dataset.smartPantry)];if(name){smartPrefs.pantry[name]=e.target.value;saveSmartPrefs()}};
 $('smart-auto').onclick=async()=>{
