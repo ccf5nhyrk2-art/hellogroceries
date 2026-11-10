@@ -87,7 +87,7 @@ class ImportInstructionsTests(unittest.TestCase):
 
     def test_rejects_non_recipe_product(self):
         with self.assertRaisesRegex(ValueError, "non-recipe"):
-            self.import_page(page_for(STEPS).replace("Test Vegetable Dinner", "Ready-Made Meal Box"))
+            self.import_page(page_for(STEPS).replace("Sample Vegetable Dinner", "Ready-Made Meal Box"))
 
 
 if __name__ == "__main__":
