@@ -1966,18 +1966,29 @@ async function hydrateSavedRecipes(ids){
  if(!missing.length)return;
  missing.forEach(id=>pendingSavedRecipeIds.add(id));
  renderSelectedPlan();
+ const controller=new AbortController();
+ const timeout=setTimeout(()=>controller.abort(),15000);
  try{
-  const response=await fetch('/api/recipes/batch?ids='+encodeURIComponent(missing.slice(0,100).join(',')),{cache:'no-store'});
+  const response=await fetch('/api/recipes/batch?ids='+encodeURIComponent(missing.slice(0,100).join(',')),{cache:'no-store',signal:controller.signal});
   if(!response.ok)throw Error('Saved recipes unavailable (HTTP '+response.status+')');
   const items=await response.json();
   if(!Array.isArray(items))throw Error('Invalid saved recipe response');
   for(const recipe of items)if(!recipes.some(r=>String(r.id)===String(recipe.id)))recipes.push(recipe);
+  // Keep fallback requests bounded: an unresponsive detail endpoint must not
+  // leave a saved card showing "Loading recipe" indefinitely.
   await Promise.all(missing.filter(id=>!recipes.some(r=>String(r.id)===id)).map(async id=>{
-   try{const recipe=await fetchRecipeDetail(id);if(recipe&&!recipes.some(r=>String(r.id)===id))recipes.push(recipe)}
-   catch(error){console.warn('Recipe hydration failed',id,error)}
+   const detailController=new AbortController();
+   const detailTimeout=setTimeout(()=>detailController.abort(),8000);
+   try{
+    const response=await fetch('/api/recipes/detail?id='+encodeURIComponent(id),{cache:'no-store',signal:detailController.signal});
+    if(!response.ok)throw Error('Recipe detail HTTP '+response.status);
+    const recipe=await response.json();
+    if(recipe&&!recipe.error&&!recipes.some(r=>String(r.id)===id))recipes.push(recipe);
+   }catch(error){console.warn('Recipe hydration failed',id,error)}
+   finally{clearTimeout(detailTimeout)}
   }));
  }catch(error){console.warn('Saved recipe hydration failed',error)}
- finally{missing.forEach(id=>pendingSavedRecipeIds.delete(id));renderSelectedPlan();renderMyCollectionCards();renderManagedCollection();updateEnhancements()}
+ finally{clearTimeout(timeout);missing.forEach(id=>pendingSavedRecipeIds.delete(id));renderSelectedPlan();renderMyCollectionCards();renderManagedCollection();updateEnhancements()}
 }
 function renderSelectedPlan(){
   const chosen=state.selected||{};
