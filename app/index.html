@@ -937,6 +937,7 @@ try{
  }
 }catch(e){recommendationDailyOffset=new Date().getDate()*137}
 
+let recommendationOffset=0;
 let recipeStartupPending=false;
 // Initialize all recommendation state before asynchronous startup callbacks.
 const recommendationFeatureCache=new WeakMap();
@@ -3057,7 +3058,7 @@ function isNonRecipeListing(r){
  return /(?:\b(?:bundle|gift\s*(?:box|card|set)|merchandise|subscription|promo(?:tional)?\s*(?:box|offer)|sampler\s*(?:pack|box)|variety\s*pack)\b.*\b(?:order|ship(?:s|ping)?|deliver(?:y|ed)?|items?|box|pack)\b|\b(?:order\s+ships?|arrives?\s+separately|\d+\s+items?\s*$))/i.test(name)
   && !Object.keys(r.ingredients||{}).some(k=>/\b(?:chicken|beef|pork|fish|salmon|rice|pasta|flour|onion|garlic|tomato|potato)\b/i.test(k));
 }
-let recommendationOffset=0;
+// recommendationOffset initialized before asynchronous startup.
 
 
 function recommendationSeason(r){
