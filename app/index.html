@@ -1185,7 +1185,7 @@ function showPage(key){
    saved.style.removeProperty('display');
    saved.style.setProperty('display','block','important');
   }
-  try{renderSmartPrefs()}catch(error){console.error('Pantry inventory render:',error)}
+  try{renderSmartPrefs();window.refreshPantryCategoryList?.()}catch(error){console.error('Pantry inventory render:',error)}
  }
  document.getElementById('hg-shop-build')?.remove();
  syncShoppingShortcut();
@@ -2811,6 +2811,61 @@ $('inventory-saved').addEventListener('click',async e=>{
  listHeading.textContent='Ingredients by category';
  panel.insertBefore(listHeading,panel.querySelector('.actions'));
  panel.insertBefore(saved,listHeading.nextSibling);
+ // The legacy inventory node can retain visibility rules from the shopping
+ // page. Render a pantry-owned view independently of those legacy rules.
+ const pantryList=document.createElement('div');
+ pantryList.id='pantry-category-list';
+ panel.insertBefore(pantryList,saved);
+ saved.hidden=true;
+ saved.style.setProperty('display','none','important');
+ const syncPantryCategoryList=()=>{
+  const groups=new Map();
+  for(const raw of state.pantry||[]){
+   if(typeof raw!=='string'||!raw.trim())continue;
+   const name=raw.trim(),key=name.toLocaleLowerCase();
+   if(!groups.has(key))groups.set(key,{name,quantities:[]});
+  }
+  for(const [key,amount] of Object.entries(state.pantry_inventory||{})){
+   const separator=key.lastIndexOf('|');
+   const name=(separator<0?key:key.slice(0,separator)).trim();
+   const unit=separator<0?'':key.slice(separator+1);
+   if(!name||!Number.isFinite(Number(amount))||Number(amount)<0)continue;
+   const normalized=name.toLocaleLowerCase();
+   if(!groups.has(normalized))groups.set(normalized,{name,quantities:[]});
+   groups.get(normalized).quantities.push({amount:Number(amount),unit});
+  }
+  const departments=new Map();
+  for(const item of groups.values()){
+   const category=shoppingDepartment(item.name);
+   if(!departments.has(category))departments.set(category,[]);
+   departments.get(category).push(item);
+  }
+  const order=[...shoppingDepartments.map(row=>row[0]),'Other / Uncategorized'];
+  pantryList.innerHTML=order.filter(name=>departments.has(name)).map(name=>
+   '<details class="pantry-department" open><summary><strong>'+esc(name)+'</strong> ('+departments.get(name).length+')</summary><div class="pantry-department-items">'+
+   departments.get(name).sort((a,b)=>a.name.localeCompare(b.name)).map(item=>{
+    const quantities=item.quantities.filter(q=>q.amount>0);
+    const display=quantities.length?quantities.map(q=>esc(groceryNumber(q.amount))+' '+esc(q.unit)).join(', '):'On hand · amount not set';
+    return '<div class="pantry-department-item"><div class="pantry-item-description"><span class="pantry-item-name">'+esc(item.name)+'</span><span class="pantry-item-amount">'+display+'</span></div><div class="pantry-quantity-controls"><button type="button" class="clear" data-pantry-edit="'+esc(item.name)+'" data-pantry-unit="'+esc(quantities[0]?.unit||'count')+'">Edit</button><button type="button" class="clear" data-pantry-delete="'+esc(item.name)+'">Remove</button></div></div>';
+   }).join('')+'</div></details>'
+  ).join('')||'<p class="muted">No pantry ingredients found. Add an ingredient to get started.</p>';
+ };
+ const refreshPantryCategoryList=()=>{if(document.body.dataset.activePage==='pantry')syncPantryCategoryList()};
+ const pantryObserver=new MutationObserver(refreshPantryCategoryList);
+ pantryObserver.observe(saved,{childList:true});
+ document.addEventListener('click',e=>{
+  const button=e.target.closest('#pantry-category-list [data-pantry-edit],#pantry-category-list [data-pantry-delete]');
+  if(!button)return;
+  // Delegate through the existing inventory handler so updates remain centralized.
+  const proxy=document.createElement('button');
+  proxy.type='button';
+  if(button.dataset.pantryEdit){proxy.dataset.pantryEdit=button.dataset.pantryEdit;proxy.dataset.pantryUnit=button.dataset.pantryUnit;}
+  else proxy.dataset.pantryDelete=button.dataset.pantryDelete;
+  saved.appendChild(proxy);
+  proxy.click();
+  proxy.remove();
+ });
+ window.refreshPantryCategoryList=syncPantryCategoryList;
  saved.style.removeProperty('display');
  saved.removeAttribute('data-page-concealed');
  saved.classList.remove('page-hidden');
