@@ -1417,6 +1417,12 @@ def non_recipe_reason(recipe):
   return 'Test or placeholder listing'
  if re.search(r'(?i)\b(?:stuffed\s+puffs?|high\s+tea\s+dessert\s+set)\b',title):
   return 'Retail snack or assortment listing'
+ # Explicit retail meal-box promotions are not cookable individual recipes.
+ # Keep genuine homemade breakfast recipes, including recipes using boxed ingredients.
+ if re.search(r'\\b(?:\\d+\\s*days?\\s+of\\s+)?breakfast\\s+(?:essentials?|variety|assortment)\\s+box\\b',title):
+  return 'Breakfast assortment product'
+ if re.search(r'\\b(?:order\\s+ships?\\s+separately|ships?\\s+separately\\s+from\\s+meals?|something\\s+good\\s+for\\s+everyone)\\b',title):
+  return 'Retail promotional listing'
  if confirmed_prepared_product(recipe):return 'Ready-made meal assembly'
  if packaged_snack_listing(recipe):return 'Packaged snack product'
  if any(re.search(pattern,title) for pattern in NON_RECIPE_PATTERNS):
