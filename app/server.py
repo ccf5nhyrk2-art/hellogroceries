@@ -3920,6 +3920,35 @@ class Handler(SimpleHTTPRequestHandler):
      items=items[offset:]+items[:offset]
     rows[rail]=[{key:recipe[key] for key in fields if key in recipe} for recipe in items[:8]]
    return self.sendjson({'categories':rows})
+  if urllib.parse.urlsplit(self.path).path=='/api/recipes/similar':
+   params=urllib.parse.parse_qs(urllib.parse.urlsplit(self.path).query)
+   try:rid=int(params.get('id',['0'])[0])
+   except (ValueError,TypeError):return self.sendjson({'error':'Invalid recipe ID'},400)
+   if rid<=0:return self.sendjson({'error':'Invalid recipe ID'},400)
+   catalog=visible_browse_catalog()
+   source=next((r for r in catalog if int(r.get('id') or 0)==rid),None)
+   if not source:return self.sendjson({'error':'Recipe not found'},404)
+   title=str(source.get('name') or '').lower()
+   def protein(name):
+    for group,pattern in [('chicken',r'chicken|turkey'),('beef',r'beef|steak|sirloin'),('pork',r'pork|sausage|bacon'),('seafood',r'shrimp|salmon|fish|tilapia|cod|tuna'),('plant',r'tofu|lentil|chickpea|vegetarian|vegan')]:
+     if re.search(pattern,name):return group
+    return 'other'
+   def words(name):
+    return set(re.findall(r'[a-z]{4,}',name))-{'with','over','style','fresh','dinner','recipe','seared','roasted'}
+   source_words=words(title)
+   source_ingredients=set(str(k).lower().strip() for k in (source.get('ingredients') or {}))
+   source_protein=protein(title)
+   scored=[]
+   for recipe in catalog:
+    if int(recipe.get('id') or 0)==rid or not recipe.get('image') or not recipe.get('url'):continue
+    name=str(recipe.get('name') or '').lower()
+    common=len(source_words & words(name))
+    ingredient_overlap=len(source_ingredients & set(str(k).lower().strip() for k in (recipe.get('ingredients') or {})))
+    score=common*3+min(ingredient_overlap,8)*2+(7 if source_protein!='other' and protein(name)==source_protein else 0)
+    if score>0:scored.append((score,recipe))
+   scored.sort(key=lambda item:(-item[0],str(item[1].get('name') or '')))
+   fields=('id','name','image','url','nutrition','total_time')
+   return self.sendjson({'items':[{key:r[key] for key in fields if key in r} for _,r in scored[:8]]})
   if urllib.parse.urlsplit(self.path).path=='/api/recipes/recommendations':
    # Bounded recommendation payload, independent of the full recipe summary.
    # Exclusions keep planned, favorite and dismissed recipes out of suggestions.
