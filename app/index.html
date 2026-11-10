@@ -970,6 +970,7 @@ html[data-theme="light"] .my-collection-tile,html[data-theme="light"] .my-saved-
 /* Legacy automatic planner controls are superseded by the weekly suggestion preview. */
 #smart-days,#smart-auto{display:none!important}
 #smart-week-actions[hidden]{display:none!important}
+.similar-recipes{margin-top:20px;border-top:1px solid #46604c;padding-top:12px}.similar-recipe-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:9px 0;border-bottom:1px solid #425648}.similar-recipe-row strong{flex:1;min-width:180px;font-size:13px}.similar-recipe-row button{padding:8px 10px}
 </style></head><body><header><h1>🥬 HelloGroceries</h1><div>Choose recipes · Generate · Shop</div><button id="hg-header-store" type="button" title="View or change preferred store" aria-label="View or change preferred grocery store"><span id="hg-header-store-label">📍 Choose your store</span> ▾</button> <a href="/admin.html" data-admin-only style="color:white;margin-left:15px">Household admin</a> <button type="button" id="desktop-logout" class="secondary" style="margin-left:12px">Sign Out</button></header><main><div class="shopping-view-toolbar"><button type="button" id="shop-generate-tour" title="Generate a shopping list from your selected meals">Generate Shopping List</button><button type="button" id="shopping-focus-toggle" aria-pressed="false">🛒 Shopping list only</button></div><section class="mobile-home-dashboard" aria-label="HelloGroceries home"><div class="mobile-home-welcome"><h2>What would you like to do?</h2><p>Recipes, meal planning, and groceries in one place.</p></div><div class="mobile-home-actions"><button type="button" data-home-go="recipes"><span>🍽️</span><strong>Browse recipes</strong><small>Find your next meal</small></button><button type="button" data-home-go="planner"><span>🗓️</span><strong>Plan meals</strong><small>Organize your week</small></button><button type="button" data-home-go="shopping"><span>🛒</span><strong>Shopping list</strong><small>See what you need</small></button><button type="button" data-home-go="pantry"><span>🥫</span><strong>My pantry</strong><small>Track what you have</small></button></div></section><div class="layout"><section><div class="recipes-topbar"><h2>Recipes <span id="count" class="muted"></span></h2><button type="button" id="show-selected-meals" class="recipes-selected-button" aria-expanded="false" aria-controls="selected-plan">Selected Meals <span id="selected-meals-button-count"></span> ▾</button></div><input id="search" type="search" placeholder="Search recipes worldwide"><button type="button" id="mobile-recipe-filter-toggle" aria-expanded="false" aria-controls="mobile-recipe-filters">☷ Filters</button><div id="mobile-recipe-filters"><div class="filter-actions"><label><input type="checkbox" id="fullmeals" checked> Full meals only</label><label><input type="checkbox" id="selectedonly"> Selected recipes only</label><label class="quick-toggle"><input type="checkbox" id="quickmeals"> Quick meals (15 min or less)</label><button type="button" class="clear" id="resetfilters">Reset filters</button></div><div class="filters"><select id="recipe-country" aria-label="Filter recipes by country"><option value="all" selected>All countries</option><option value="US">United States</option><option value="UK">United Kingdom</option><option value="AU">Australia</option><option value="CA">Canada</option><option value="DE">Germany</option><option value="NL">Netherlands</option><option value="other">Other / Unknown</option></select><select id="protein" aria-label="Filter by protein"><option value="all">All proteins</option><option value="chicken">Chicken</option><option value="beef">Beef</option><option value="pork">Pork</option><option value="seafood">Seafood</option><option value="vegetarian">Vegetarian / plant-based</option><option value="other">Other</option></select><select id="diet-filter" aria-label="Filter by dietary ingredients"><option value="all">All dietary options</option><option value="gluten-free">Gluten-free ingredients (estimated)</option><option value="dairy-free">Dairy-free ingredients (estimated)</option><option value="both">Gluten-free + dairy-free (estimated)</option></select><select id="cuisine" aria-label="Filter by cuisine"><option value="all">All cuisines</option><option value="italian">Italian</option><option value="mexican">Mexican / Tex-Mex</option><option value="asian">Asian-inspired</option><option value="mediterranean">Mediterranean</option><option value="american">American / comfort</option><option value="other">Other / unclassified</option></select><select id="meal" aria-label="Filter by meal type"><option value="all">All meal types</option><option value="sides">Sides & appetizers</option><option value="pasta">Pasta / noodles</option><option value="bowls">Bowls</option><option value="sandwich">Burgers / sandwiches</option><option value="salad">Salads</option><option value="soup">Soups / stews</option><option value="other">Other meals</option><option value="holiday">Holiday</option></select><select id="sort" aria-label="Sort recipes"><option value="name">Name A–Z</option><option value="newest">Newest imported</option><option value="reverse">Name Z–A</option></select></div><div class="filters"><select id="included-side" aria-label="Filter main meals by included side">
 <option value="all">Any included side</option>
 <optgroup label="Potatoes"><option value="potatoes">All potato sides</option><option value="mashed-potatoes">Mashed potatoes</option><option value="potato-wedges">Potato wedges</option><option value="fries">Potato fries</option><option value="sweet-potato-fries">Sweet potato fries</option><option value="vegetable-fries">Other vegetable fries</option><option value="roasted-potatoes">Roasted potatoes</option><option value="sweet-potatoes">Sweet potatoes</option></optgroup>
@@ -4322,7 +4323,7 @@ $('recipes').addEventListener('click',async e=>{
   $('recipe-photo-admin').dataset.photo=String(r.id);
   $('recipe-photo-admin').textContent=r.image?'Change recipe photo':'Add recipe photo';
   const entries=Object.entries(r.ingredients||{});
-  $('recipe-detail').innerHTML='<h2>'+esc(cleanRecipeName(r.name))+'</h2><p class="muted">'+esc(r.country||'')+'</p>'+nutritionDetails(r)+'<h3>Ingredients</h3><ul>'+entries.map(([k,v])=>'<li>'+esc(k)+' — '+esc(v)+'</li>').join('')+'</ul>'+(Array.isArray(r.instructions)&&r.instructions.length?'<h3>Cooking steps</h3><ol>'+r.instructions.map(step=>'<li>'+esc(typeof step==='string'?step:JSON.stringify(step))+'</li>').join('')+'</ol>':'<p class="muted">Cooking instructions are not stored for this recipe. Use the original recipe page.</p>')+(r.url?'<a href="'+esc(r.url)+'" target="_blank" rel="noopener noreferrer">Open original recipe</a>':'');
+  $('recipe-detail').innerHTML='<h2>'+esc(cleanRecipeName(r.name))+'</h2><p class="muted">'+esc(r.country||'')+'</p>'+nutritionDetails(r)+'<h3>Ingredients</h3><ul>'+entries.map(([k,v])=>'<li>'+esc(k)+' — '+esc(v)+'</li>').join('')+'</ul>'+(Array.isArray(r.instructions)&&r.instructions.length?'<h3>Cooking steps</h3><ol>'+r.instructions.map(step=>'<li>'+esc(typeof step==='string'?step:JSON.stringify(step))+'</li>').join('')+'</ol>':'<p class="muted">Cooking instructions are not stored for this recipe. Use the original recipe page.</p>')+(r.url?'<a href="'+esc(r.url)+'" target="_blank" rel="noopener noreferrer">Open original recipe</a>':'')+'<section class="similar-recipes"><div class="actions"><button type="button" data-more-like="'+r.id+'">More Like This</button></div><div id="similar-recipe-results" role="status" aria-live="polite"></div></section>';
   const review=(state.recipe_reviews||{})[String(r.id)]||{};$('recipe-review-id').value=String(r.id);$('recipe-rating').value=String(review.rating||0);$('recipe-note').value=review.note||'';$('review-status').textContent='';
   // Keep recipe cards aligned by displaying details in the existing dialog.
   const dialog=$('recipe-dialog');
@@ -4337,6 +4338,41 @@ $('recipes').addEventListener('click',async e=>{
 
 
  }
+});
+$('recipe-detail').addEventListener('click',async event=>{
+ const button=event.target.closest('[data-more-like]');
+ if(!button)return;
+ const target=$('similar-recipe-results');
+ button.disabled=true;button.textContent='Finding similar meals…';
+ target.textContent='';
+ try{
+  const response=await fetch('/api/recipes/similar?id='+encodeURIComponent(button.dataset.moreLike),{cache:'no-store'});
+  const data=await response.json();
+  if(!response.ok||data.error)throw Error(data.error||'Unable to find similar recipes');
+  const excluded=new Set(Object.keys(state.selected||{}));
+  const items=(data.items||[]).filter(r=>!excluded.has(String(r.id)));
+  for(const r of items)if(!recipes.some(x=>String(x.id)===String(r.id)))recipes.push(r);
+  target.innerHTML=items.length?items.map(r=>'<div class="similar-recipe-row"><strong>'+esc(cleanRecipeName(r.name))+'</strong><button type="button" data-similar-open="'+r.id+'">Details</button><button type="button" data-similar-add="'+r.id+'">Add to plan</button></div>').join(''):'No unplanned similar recipes found.';
+ }catch(error){target.textContent='Could not load similar meals: '+error.message}
+ finally{button.disabled=false;button.textContent='More Like This'}
+});
+$('recipe-detail').addEventListener('click',async event=>{
+ const open=event.target.closest('[data-similar-open]');
+ if(open){
+  $('close-recipe').click();
+  const trigger=document.createElement('button');trigger.type='button';trigger.dataset.detail=open.dataset.similarOpen;trigger.hidden=true;
+  $('recipes').appendChild(trigger);trigger.click();trigger.remove();
+  return;
+ }
+ const add=event.target.closest('[data-similar-add]');
+ if(!add||add.disabled)return;
+ add.disabled=true;add.textContent='Saving…';
+ try{
+  await selectMealAndRefresh(Number(add.dataset.similarAdd),true,2);
+  add.textContent='✓ Added';
+  add.setAttribute('aria-pressed','true');
+ }catch(error){add.textContent='Try again';$('similar-recipe-results').setAttribute('aria-label','Could not save recipe: '+error.message)}
+ finally{add.disabled=false}
 });
 $('recipes').addEventListener('submit',async e=>{
  const form=e.target.closest('[data-inline-review]');if(!form)return;
