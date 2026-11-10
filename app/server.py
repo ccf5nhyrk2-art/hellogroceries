@@ -290,14 +290,14 @@ def browse_catalog():
   _recipe_browse_cache=(time.monotonic(),recipes)
   return recipes
 
-# Cache visibility filtering for pagination; catalog updates become visible within 60s.
+# Cache visibility filtering for pagination for five minutes to avoid repeated full-catalog scans.
 _recipe_visible_cache_lock=threading.Lock()
 _recipe_visible_cache=(0.0,None)
 def visible_browse_catalog():
  global _recipe_visible_cache
  now=time.monotonic()
  with _recipe_visible_cache_lock:
-  if _recipe_visible_cache[1] is not None and now-_recipe_visible_cache[0]<30:
+  if _recipe_visible_cache[1] is not None and now-_recipe_visible_cache[0]<300:
    return _recipe_visible_cache[1]
   # Visibility only uses stored steps and URL validity; the audit map is unused.
   # Avoid a full audit-table read on the request-critical browsing path.
@@ -323,7 +323,7 @@ def visible_browse_catalog():
   _recipe_visible_cache=(time.monotonic(),catalog)
   return catalog
 
-# Cache the common unfiltered, alphabetically sorted browse view for 60 seconds.
+# Cache the common unfiltered, alphabetically sorted browse view for five minutes.
 # Reuse compact card dictionaries rather than sorting and copying every request.
 _recipe_default_page_lock=threading.Lock()
 _recipe_default_page_cache=(0.0,None,None)
@@ -331,7 +331,7 @@ def default_recipe_page_data():
  global _recipe_default_page_cache
  with _recipe_default_page_lock:
   now=time.monotonic()
-  if _recipe_default_page_cache[1] is not None and now-_recipe_default_page_cache[0]<30:
+  if _recipe_default_page_cache[1] is not None and now-_recipe_default_page_cache[0]<300:
    return _recipe_default_page_cache[1],_recipe_default_page_cache[2]
   catalog=visible_browse_catalog()
   fields=('id','name','image','country','nutrition','dietary_labels','prep_time','cook_time','total_time','url','ingredients','source_servings')
