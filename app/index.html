@@ -4478,15 +4478,14 @@ function pantryMatchKey(value){
 }
 let pantryMealsLoaded=false;
 function pantryIngredientLabel(value){
- const raw=String(value||'').trim().replace(/\\s+/g,' ');
- const match=raw.match(/^(\\d+(?:[./]\\d+)?)\\s+(unit|units|ounce|ounces|oz|cup|cups|tablespoon|tablespoons|tbsp|teaspoon|teaspoons|tsp|pound|pounds|lb|lbs|gram|grams|g|milliliter|milliliters|ml|clove|cloves|bunch|bunches|package|packages|piece|pieces)\\s+(.+)$/i);
- if(!match)return raw.replace(/^./,c=>c.toUpperCase());
- const unit=match[2].toLowerCase();
+ const raw=String(value||'').trim().replace(/\s+/g,' ');
+ const match=raw.match(/^(\d+(?:\.\d+)?(?:\s+\d+\/\d+)?|\d+\/\d+|[¼½¾⅓⅔⅛⅜⅝⅞])\s+(unit|units|ounce|ounces|oz|cup|cups|tablespoon|tablespoons|tbsp|teaspoon|teaspoons|tsp|pound|pounds|lb|lbs|gram|grams|g|milliliter|milliliters|ml|clove|cloves|bunch|bunches|package|packages|piece|pieces)\s+(.+)$/i);
+ if(!match)return raw;
+ const unit=match[2].toLowerCase(),amount=match[1],name=match[3];
  const aliases={unit:'',units:'',ounce:'oz',ounces:'oz',oz:'oz',tablespoon:'tbsp',tablespoons:'tbsp',teaspoon:'tsp',teaspoons:'tsp',pound:'lb',pounds:'lb',gram:'g',grams:'g',milliliter:'ml',milliliters:'ml'};
  const label=Object.hasOwn(aliases,unit)?aliases[unit]:unit;
- const amount=match[1];
- const name=match[3].replace(/^./,c=>c.toUpperCase());
- return amount+(label?' '+label:'')+' '+name;
+ const plural=label===''&&Number(amount)!==1&&/^(?:plum|orange|kiwi|carrot|potato|tomato|onion|shallot|egg|pepper|lemon|lime|apple|pear)$/i.test(name)?(name.endsWith('o')?name+'es':name+'s'):name;
+ return amount+(label?' '+label:'')+' '+plural;
 }
 async function findPantryMeals(){
  const button=$('pantry-recipe-find'),panel=$('pantry-recipe-results');
