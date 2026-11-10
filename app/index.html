@@ -3006,8 +3006,11 @@ $('smart-auto').onclick=async()=>{
  for(const day of days.slice(0,count)){const next=candidates.find(x=>!used.has(x.r.id));if(!next)break;plan[day]=next.r.id;used.add(next.r.id)}
  if(confirm('Replace the first '+count+' days of your weekly planner with suggested dinners? Your shopping list will not change.'))await preferences({weekly:plan});
 };
+// Bind pagination before optional legacy cooking controls can fail.
+$('prevpage').onclick=()=>navigateRecipePage(-1);
+$('nextpage').onclick=()=>navigateRecipePage(1);
 // Cooking deductions require an explicit preview and confirmation.
-$('smart-cook-open').onclick=async()=>{
+if($('smart-cook-open'))$('smart-cook-open').onclick=async()=>{
  const r=recipes.find(x=>String(x.id)===$('smart-cook-select').value);if(!r)return;
  const view=$('smart-cook-view');view.hidden=false;
  view.textContent='Checking verified pantry quantities…';
@@ -3529,8 +3532,7 @@ if(displayedIds.length!==desiredIds.length||displayedIds.some((id,index)=>id!==d
   window.scrollTo({top,behavior:'instant'});
  }
 }
-$('prevpage').onclick=()=>navigateRecipePage(-1);
-$('nextpage').onclick=()=>navigateRecipePage(1);
+// Pagination listeners registered before optional legacy controls.
 async function handleRecipePhotoClick(e){let id=e.target.dataset.photo;if(!id)return;let r=recipes.find(x=>String(x.id)===id);let url=prompt('Paste an HTTPS image URL for '+r.name+' (leave blank to remove the photo):',r.image||'');if(url===null)return;try{let response=await fetch('/api/action',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'photo',id:Number(id),image:url.trim()})});let data=await response.json();if(!response.ok)throw Error(data.error);recipes=await fetch('/api/recipes/summary').then(x=>x.json());render()}catch(err){$('error').textContent=err.message}}$('recipe-photo-admin').addEventListener('click',handleRecipePhotoClick);$('recipes').addEventListener('change',e=>{let id=e.target.dataset.id||e.target.dataset.scale;if(!id)return;let row=e.target.closest('.recipe-card');const multiplier=Number(row.querySelector('select[data-scale]').value);selectMealAndRefresh(Number(id),e.target.dataset.scale?true:e.target.checked,multiplier).catch(()=>{if(e.target.matches('input[type="checkbox"]'))e.target.checked=!e.target.checked})});$('items').addEventListener('toggle',e=>{const d=e.target.closest('details[data-department]');if(d){if(d.open)shoppingOpenDepartments.add(d.dataset.department);else shoppingOpenDepartments.delete(d.dataset.department)}},true);let ingredientEditingKey=null;
 function ingredientParts(label){
  const m=String(label||'').trim().match(/^(\d+(?:\.\d+)?(?:\s+[¼½¾⅓⅔⅛⅜⅝⅞])?|\d+\/\d+|[¼½¾⅓⅔⅛⅜⅝⅞])\s+(.+)$/);
