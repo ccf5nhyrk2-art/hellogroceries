@@ -2704,7 +2704,7 @@ function updatePantryQuantityPreview(){
  preview.textContent='Currently: '+groceryNumber(current)+' '+targetUnit+' → After '+mode+': '+groceryNumber(next)+' '+targetUnit+'.'+(targetUnit!==unit?' Converted from '+unit+'.':'')+(tracked?'':' This unit is not tracked yet.');
 }
 // Offer practical default units for seasonings without overwriting user choices.
-const pantrySeasoningPattern=/\\b(pepper|salt|paprika|cumin|turmeric|cinnamon|nutmeg|oregano|thyme|basil|parsley|garlic powder|onion powder|chili powder|seasoning|spice)\\b/i;
+const pantrySeasoningPattern=/\b(pepper|salt|paprika|cumin|turmeric|cinnamon|nutmeg|oregano|thyme|basil|parsley|garlic powder|onion powder|chili powder|seasoning|spice)\b/i;
 $('inventory-name').addEventListener('input',()=>{
  const unit=$('inventory-unit');
  if(unit.dataset.userSelected==='true')return;
