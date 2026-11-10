@@ -4709,11 +4709,10 @@ if __name__=='__main__':
  if BULK_RECOVER:
   job.update(running=True,paused=False,processed=0,discovered=0,imported=0,skipped=0,errors=0,message='Recovering interrupted import; saved recipes will be skipped')
   threading.Thread(target=bulk_worker,args=(job.get('country','US'),int(job.get('limit',0))),daemon=True).start()
- # Build catalog asynchronously so the HTTP server can accept requests promptly.
- # Build the catalog before starting competing background scans and imports.
- # A ready HTTP listener must not advertise readiness while the first browse
- # request is blocked by the same expensive SQLite work.
- recipe_catalog_warmup_worker()
+ # Do not block the HTTP listener on a full 9,000+ recipe catalog rebuild.
+ # Warm the catalog in a daemon thread; authenticated page requests can share
+ # the existing catalog lock while warmup is in progress.
+ threading.Thread(target=recipe_catalog_warmup_worker,daemon=True,name='recipe-catalog-warmup').start()
  for index in range(2):
   threading.Thread(target=photo_recovery_worker,daemon=True,name=f'photo-recovery-{index}').start()
  quarantine_unverified_imported_photo_cache()
