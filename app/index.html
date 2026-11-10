@@ -2732,11 +2732,18 @@ function renderSmartPrefs(){
 function updatePantryQuantityPreview(){
  const name=$('inventory-name').value.trim(),unit=$('inventory-unit').value,raw=$('inventory-amount').value;
  const mode=$('inventory-mode').value,preview=$('inventory-preview'),submit=$('inventory-submit');
- const existing=state?.pantry_inventory||{},key=name.toLocaleLowerCase()+'|'+unit;
+ const existing=state?.pantry_inventory||{};
+ // Stored keys preserve ingredient capitalization; match them case-insensitively.
+ const normalizedName=name.toLocaleLowerCase();
+ const matchingKey=(wantedUnit)=>Object.keys(existing).find(k=>{
+  const split=k.lastIndexOf('|');
+  return split>=0&&k.slice(0,split).trim().toLocaleLowerCase()===normalizedName&&k.slice(split+1).toLocaleLowerCase()===wantedUnit.toLocaleLowerCase();
+ });
+ const key=matchingKey(unit)||normalizedName+'|'+unit;
  const conversions={teaspoon:['volume',4.92892159375],tablespoon:['volume',14.78676478125],cup:['volume',236.5882365],milliliter:['volume',1],liter:['volume',1000],gram:['mass',1],kilogram:['mass',1000],ounce:['mass',28.349523125],pound:['mass',453.59237]};
  let targetKey=key,ambiguous=false;
  if(mode!=='set'&&!Object.prototype.hasOwnProperty.call(existing,key)&&conversions[unit]){
-  const candidates=Object.keys(existing).filter(k=>k.startsWith(name.toLocaleLowerCase()+'|')&&conversions[k.split('|').pop()]?.[0]===conversions[unit][0]);
+  const candidates=Object.keys(existing).filter(k=>k.slice(0,k.lastIndexOf('|')).trim().toLocaleLowerCase()===normalizedName&&conversions[k.split('|').pop()]?.[0]===conversions[unit][0]);
   ambiguous=candidates.length>1;
   if(candidates.length===1)targetKey=candidates[0];
  }
@@ -2792,7 +2799,13 @@ $('inventory-saved').addEventListener('click',async e=>{
  $('inventory-name').value=button.dataset.pantryEdit;
  $('inventory-unit').value=button.dataset.pantryUnit;
  $('inventory-mode').value='set';
- $('inventory-amount').value='';
+ $('inventory-unit').dataset.userSelected='true';
+ const inventory=state?.pantry_inventory||{};
+ const matching=Object.entries(inventory).find(([key])=>{
+  const split=key.lastIndexOf('|');
+  return split>=0&&key.slice(0,split).trim().toLocaleLowerCase()===button.dataset.pantryEdit.trim().toLocaleLowerCase()&&key.slice(split+1).toLocaleLowerCase()===button.dataset.pantryUnit.toLocaleLowerCase();
+ });
+ $('inventory-amount').value=matching?String(matching[1]):'';
  $('inventory-amount').focus();
  updatePantryQuantityPreview();
  $('inventory-form').scrollIntoView({block:'center',behavior:'smooth'});
