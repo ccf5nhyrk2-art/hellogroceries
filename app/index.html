@@ -1962,7 +1962,7 @@ async function hydrateSavedRecipes(ids){
    catch(error){console.warn('Recipe hydration failed',id,error)}
   }));
  }catch(error){console.warn('Saved recipe hydration failed',error)}
- finally{missing.forEach(id=>pendingSavedRecipeIds.delete(id));renderSelectedPlan();renderMyCollectionCards();renderManagedCollection()}
+ finally{missing.forEach(id=>pendingSavedRecipeIds.delete(id));renderSelectedPlan();renderMyCollectionCards();renderManagedCollection();updateEnhancements()}
 }
 function renderSelectedPlan(){
   const chosen=state.selected||{};
@@ -4459,6 +4459,13 @@ async function loadSmartWeek(){
   const excluded=new Set(Object.keys(state.selected||{}));
   smartWeekPool=(result.items||[]).filter(r=>r.image&&r.url&&!excluded.has(String(r.id)));
   if(!smartWeekPool.length)throw Error('No available recipes to suggest');
+  // Recommendation rows are compact; retain them so weekly selections have
+  // titles in the calendar and Selected Meals without a full catalog reload.
+  for(const recipe of smartWeekPool){
+   const existing=recipes.find(r=>String(r.id)===String(recipe.id));
+   if(existing)Object.assign(existing,recipe);
+   else recipes.push(recipe);
+  }
   smartWeekOffset+=1;pickSmartWeek();
   $('smart-week-status').textContent='Preview only — your current plan has not changed.';
  }catch(error){$('smart-week-status').textContent='Unable to suggest dinners: '+error.message}
@@ -4480,7 +4487,10 @@ $('smart-week-save').onclick=async()=>{
  try{
   const weekly=Object.fromEntries(smartWeekPreview.map((r,i)=>[days[i],Number(r.id)]));
   await preferences({weekly:{...(state.weekly||{}),...weekly}});
-  $('smart-week-status').textContent='✓ Week saved. Review your calendar, then use “Use week for grocery list” when ready.';
+  const unresolved=smartWeekPreview.filter(r=>!recipes.some(item=>String(item.id)===String(r.id)));
+  if(unresolved.length)throw Error('Some recipe details could not be loaded. Please retry.');
+  updateEnhancements();
+  $('smart-week-status').textContent='✓ Week saved with recipe names. Review your calendar, then use “Use week for grocery list” when ready.';
  }catch(error){$('smart-week-status').textContent='Could not save suggested week: '+error.message}
  finally{button.disabled=false}
 };
