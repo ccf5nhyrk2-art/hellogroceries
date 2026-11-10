@@ -3902,12 +3902,23 @@ class Handler(SimpleHTTPRequestHandler):
   if urllib.parse.urlsplit(self.path).path=='/api/recipes/categories':
    catalog=visible_browse_catalog()
    fields=('id','name','image','country','nutrition','dietary_labels','url','source_servings')
-   rows={rail:[] for rail in RECIPE_RAILS}
+   params=urllib.parse.parse_qs(urllib.parse.urlsplit(self.path).query)
+   try:shuffle=max(0,min(1000000,int(params.get('shuffle',['0'])[0])))
+   except ValueError:return self.sendjson({'error':'Invalid shuffle value'},400)
+   day=int(time.time()//86400)
+   candidates={rail:[] for rail in RECIPE_RAILS}
    for recipe in catalog:
     if not recipe.get('image') or not recipe.get('url'):continue
     for rail in RECIPE_RAILS:
-     if len(rows[rail])<8 and recipe_in_rail(recipe,rail):
-      rows[rail].append({key:recipe[key] for key in fields if key in recipe})
+     if recipe_in_rail(recipe,rail):candidates[rail].append(recipe)
+   rows={}
+   for rail,items in candidates.items():
+    # Stable for the day; rotate independently for each category and shuffle request.
+    items.sort(key=lambda r:str(r.get('id') or ''))
+    if items:
+     offset=(day*37+shuffle*17+sum(ord(ch) for ch in rail)*13)%len(items)
+     items=items[offset:]+items[:offset]
+    rows[rail]=[{key:recipe[key] for key in fields if key in recipe} for recipe in items[:8]]
    return self.sendjson({'categories':rows})
   if urllib.parse.urlsplit(self.path).path=='/api/recipes/recommendations':
    # Bounded recommendation payload, independent of the full recipe summary.
