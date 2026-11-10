@@ -1069,10 +1069,7 @@ function showPage(key){
   try{renderSelectedPlan();updateEnhancements()}catch(error){console.error('Plan render:',error)}
  }
  if(key==='pantry'){
-  // Pantry inventory now lives on this page; repaint independently of recipe loading.
   try{renderSmartPrefs()}catch(error){console.error('Pantry inventory render:',error)}
-  const saved=document.getElementById('inventory-saved');
-  if(saved){saved.style.removeProperty('display');saved.removeAttribute('data-page-concealed');saved.classList.remove('page-hidden');}
  }
 
  if(key==='recipes'&&window.matchMedia('(min-width:751px)').matches){
@@ -1510,6 +1507,8 @@ async function load(){
  const stateRequest=fetch('/api/state',{cache:'no-store'}).then(async response=>{
   if(!response.ok)throw Error('Could not load saved data (HTTP '+response.status+')');
   state=await response.json();
+  // Render pantry from the actual saved server state, not just on recipe refresh.
+  try{renderSmartPrefs()}catch(error){console.error('Initial pantry render failed:',error)}
   // Hydrate saved meals and recommendation cards independently of catalog download.
   const savedIds=new Set([
    ...Object.keys(state.selected||{}),
@@ -2820,16 +2819,19 @@ $('inventory-saved').addEventListener('click',async e=>{
  scanDetails.appendChild(scanSummary);
  scan.parentNode.insertBefore(scanDetails,scan);
  scanDetails.appendChild(scan);
- // Remove the now-empty legacy inventory container and description from the pantry page.
- const oldInventoryHeading=[...panel.querySelectorAll('h3,h4')].find(el=>el.textContent.trim()==='Pantry inventory');
- if(oldInventoryHeading){
-  const oldContainer=oldInventoryHeading.closest('details,.enhance-panel');
-  if(oldContainer&&oldContainer!==panel)oldContainer.hidden=true;
+ // The old pantry inventory card was moved here by setupCompactShoppingTools.
+ // Its form and saved list have already been relocated; remove only its stale shell.
+ const oldCard=[...panel.querySelectorAll('.ios-tool-card')].find(card=>card.querySelector('summary')?.textContent.trim()==='Pantry inventory');
+ if(oldCard){
+  // Preserve legacy helper nodes referenced by existing handlers.
+  const helper=document.getElementById('smart-pantry');
+  if(helper){helper.hidden=true;panel.appendChild(helper);}
+  oldCard.remove();
  }
- // Avoid a second, competing list of ingredient tags.
+
+ // Keep the simple add-ingredient control accessible for new pantry items.
+ // Hide only duplicate tags; the categorized inventory is the single source of display.
  if(tags)tags.hidden=true;
- const addRow=panel.querySelector('.actions');
- if(addRow){addRow.hidden=true;}
  const intro=panel.querySelector('h3')?.nextElementSibling;
  if(intro&&intro.tagName==='P')intro.hidden=true;
 })();
