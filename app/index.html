@@ -2967,7 +2967,7 @@ function recommendationPhotoFailed(img){
    if(candidateFamily&&nowOccupied.has(candidateFamily)){tryNext();return}
    img.src=photo.src;
    img.style.visibility='';
-   img.onerror=()=>recommendationPhotoFailed(img);
+   img.setAttribute('onerror','recommendationPhotoFailed(this)');
    card.querySelector('.recommend-title').textContent=cleanRecipeName(candidate.name);
    card.querySelector('.recommend-reason').textContent=item.reason;
    for(const [attribute,selector] of [['data-recommend-detail','[data-recommend-detail]'],['data-recommend-plan','[data-recommend-plan]'],['data-recommend-favorite','[data-recommend-favorite]'],['data-recommend-collection','[data-recommend-collection]'],['data-recommend-more','[data-recommend-more]'],['data-recommend-hide','[data-recommend-hide]']]){
