@@ -1648,6 +1648,8 @@ async function loadRecipeStartup(){
   try{renderSelectedPlan()}catch(error){console.warn('Selected meals widget deferred:',error)}
   try{updateEnhancements()}catch(error){console.warn('Recipe enhancements deferred:',error)}
   if(status)status.hidden=true;
+  // Use the paginated loader to establish the correct navigation state.
+  if(recipePage!==0)void renderPaged();
   scheduleRecipeRecommendations();
  }catch(error){
   console.error('HelloGroceries recipe render failed:',error);
@@ -3423,14 +3425,15 @@ async function renderPaged(){
     if(favorite)favorite.textContent=(state.favorites||[]).some(x=>String(x)===id)?'♥ Favorited':'♡ Favorite';
    }
   }
-  renderSelectedPlan();
-  renderShoppingList();
-  scheduleRecipeRecommendations();
+  // Recipe page is already painted: unrelated widgets cannot invalidate it.
   if(status)status.hidden=true;
+  try{renderSelectedPlan()}catch(error){console.warn('Plan widget:',error)}
+  try{renderShoppingList()}catch(error){console.warn('Shop widget:',error)}
+  scheduleRecipeRecommendations();
  }catch(error){
   if(generation!==pageRequestGeneration)return;
   console.error('Paged recipes failed:',error);
-  if(status){status.hidden=false;status.textContent='Unable to load recipe page. Try changing a filter.'}
+  if(status){status.hidden=false;status.textContent='Unable to load recipe page: '+(error.message||'Unknown error')+'. Tap Next or Previous to retry.'}
  }
 }
 function render(){
