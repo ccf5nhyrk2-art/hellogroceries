@@ -42,7 +42,7 @@ def page_for(steps, extra=None):
     recipe = {
         "@context": "https://schema.org",
         "@type": "Recipe",
-        "name": "Test Vegetable Dinner",
+        "name": "Sample Vegetable Dinner",
         "recipeIngredient": ["2 carrots", "1 onion", "1 cup rice"],
         "recipeInstructions": steps,
     }
