@@ -366,7 +366,7 @@ def recipe_rail_nutrient(recipe,key):
  if not isinstance(nutrition,dict):return None
  raw=nutrition.get(key)
  if raw is None:return None
- match=re.search(r'(?<!\\d)(\\d+(?:\\.\\d+)?)\\s*g\\b',str(raw),re.I)
+ match=re.search(r'(?<!\d)(\d+(?:\.\d+)?)\s*g\b',str(raw),re.I)
  return float(match.group(1)) if match else None
 
 def recipe_in_rail(recipe,rail):
@@ -380,12 +380,12 @@ def recipe_in_rail(recipe,rail):
  if rail=='glp1-friendly':
   return protein is not None and protein>=20 and fat is not None and fat<=20 and sugar is not None and sugar<=12
  if rail=='quick-easy':
-  return bool(re.search(r'\\b(?:10|15|20)\\s*(?:mm|min|minute)',name))
+  return bool(re.search(r'\b(?:10|15|20)\s*(?:mm|min|minute)',name))
  if rail=='vegetarian':return recipe_page_matches(recipe,protein='vegetarian')
  if rail=='seafood':return recipe_page_matches(recipe,protein='seafood')
  if rail=='chicken':return recipe_page_matches(recipe,protein='chicken')
- if rail=='soups-stews':return bool(re.search(r'\\b(?:soup|stew|chili|chowder)\\b',name))
- if rail=='comfort-food':return bool(re.search(r'\\b(?:mac|cheese|pasta|burger|meatloaf|lasagna|pot pie)\\b',name))
+ if rail=='soups-stews':return bool(re.search(r'\b(?:soup|stew|chili|chowder)\b',name))
+ if rail=='comfort-food':return bool(re.search(r'\b(?:mac|cheese|pasta|burger|meatloaf|lasagna|pot pie)\b',name))
  return False
 
 def recipe_page_matches(recipe,query='',country='ALL',protein='all'):
