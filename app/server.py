@@ -3809,6 +3809,7 @@ class Handler(SimpleHTTPRequestHandler):
    return self.sendjson({'ids':cached_ids})
   if urllib.parse.urlsplit(self.path).path=='/api/recipes/page':
    # Opt-in paginated endpoint; the legacy endpoint stays unchanged for existing clients.
+   page_request_started=time.monotonic()
    params=urllib.parse.parse_qs(urllib.parse.urlsplit(self.path).query)
    try:
     page=max(1,int(params.get('page',['1'])[0]))
@@ -3838,6 +3839,7 @@ class Handler(SimpleHTTPRequestHandler):
     started=time.monotonic()
     compact,total=default_recipe_page_data()
     elapsed=time.monotonic()-started
+    print(f'Recipe page timing: default catalog={elapsed:.3f}s total={time.monotonic()-page_request_started:.3f}s cards={total}',flush=True)
     if elapsed>0.25:print(f'Slow default recipe page build: {elapsed:.3f}s, {total} cards',flush=True)
     start=(page-1)*page_size
     return self.sendjson({'items':compact[start:start+page_size],'page':page,'page_size':page_size,'total':total,'pages':(total+page_size-1)//page_size})
@@ -3863,6 +3865,7 @@ class Handler(SimpleHTTPRequestHandler):
    # Only compact card metadata is transmitted for each page.
    fields=('id','name','image','country','nutrition','dietary_labels','prep_time','cook_time','total_time','url','ingredients','source_servings')
    items=[{key:recipe[key] for key in fields if key in recipe} for recipe in matched[start:start+page_size]]
+   print(f'Recipe page timing: filtered total={time.monotonic()-page_request_started:.3f}s cards={total}',flush=True)
    return self.sendjson({'items':items,'page':page,'page_size':page_size,'total':total,'pages':(total+page_size-1)//page_size})
   if urllib.parse.urlsplit(self.path).path=='/api/recipes/recommendations':
    # Bounded recommendation payload, independent of the full recipe summary.
