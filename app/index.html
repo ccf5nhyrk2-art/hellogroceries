@@ -915,6 +915,10 @@ let recipes=[],state={selected:{},list:[]};
 const days=['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'];
 var myCollectionSelected;
 let catalogPage=null,legacyCatalogLoaded=false,pageRequestGeneration=0;
+// Recommendation callbacks can run during the initial asynchronous recipe load.
+// Declare their shared state before load() starts, avoiding temporal-dead-zone errors.
+var recommendationRenderTimer=null;
+var recommendationRankCache=null;
 const ingredientUnitAliases={tsp:'teaspoon',teaspoons:'teaspoon',tbsp:'tablespoon',tablespoons:'tablespoon',cups:'cup',oz:'ounce',ounces:'ounce',lbs:'pound',lb:'pound',pounds:'pound',g:'gram',grams:'gram',kg:'kilogram',kilograms:'kilogram',ml:'milliliter',milliliters:'milliliter',liters:'liter',litres:'liter',cloves:'clove',bunches:'bunch',heads:'head',stalks:'stalk',slices:'slice',pieces:'piece',pinches:'pinch',cans:'can',packages:'package',bags:'bag'};
 let recommendationCatalog=[];const $=id=>document.getElementById(id);const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 // Group the legacy smart tools into accessible, compact mobile cards.
@@ -3027,7 +3031,7 @@ function recommendationFeatures(r){
  recommendationFeatureCache.set(r,features);
  return features;
 }
-let recommendationRankCache=null;
+// Initialized at the beginning of the main script.
 const recommendationFailedPhotos=new Set();
 const recommendationStoreKey='hg-recommendations-v2';
 let recommendationMemory={recent:[],more:[]};
@@ -3348,7 +3352,7 @@ $('fast-browse-results').addEventListener('change',async event=>{
  el.disabled=true;
  try{await preferences({collections});await loadFastBrowse()}catch(error){el.disabled=false;alert('Could not add to collection: '+error.message)}
 });
-let recommendationRenderTimer=null;
+// Initialized at the beginning of the main script.
 function scheduleRecipeRecommendations(){
   // Allow the first visible recipe page to paint before ranking recommendations
   // and fetching their photo metadata. Collapse repeated filter/render events.
