@@ -2921,12 +2921,12 @@ function renderRecommendations(){
  const familyOf=r=>{
   const name=cleanRecipeName(r.name).toLowerCase().replace(/[^a-z0-9]+/g,' ').trim();
   // Treat protein swaps of the same dish as one recommendation family.
-  const normalized=name.replace(/\\b(chicken|beef|bacon|pork|turkey|shrimp|salmon|steak|tofu|sausage)\\b/g,' ').replace(/\\s+/g,' ').trim();
-  return normalized.split(' ').slice(0,4).join(' ');
+  const normalized=name.replace(/\b(chicken|beef|bacon|pork|turkey|shrimp|salmon|steak|tofu|sausage)\b/g,' ').replace(/\s+/g,' ').trim();
+  return normalized.split(' ').slice(0,3).join(' ');
  };
  const proteinOf=r=>{
   const name=cleanRecipeName(r.name).toLowerCase();
-  return (name.match(/\\b(chicken|beef|bacon|pork|turkey|shrimp|salmon|steak|tofu|sausage|fish)\\b/)||[])[0]||'other';
+  return (name.match(/\b(chicken|beef|bacon|pork|turkey|shrimp|salmon|steak|tofu|sausage|fish)\b/)||[])[0]||'other';
  };
  const verified=[];
  for(const item of choices){
