@@ -3931,7 +3931,7 @@ class Handler(SimpleHTTPRequestHandler):
    except ValueError:
     return self.sendjson({'error':'Invalid excluded recipe IDs'},400)
    if len(excluded)>250:return self.sendjson({'error':'Maximum 250 excluded recipe IDs'},400)
-   try:limit=max(1,min(24,int(params.get('limit',['12'])[0])))
+   try:limit=max(1,min(100 if params.get('planner',['0'])[0]=='1' else 24,int(params.get('limit',['12'])[0])))
    except ValueError:return self.sendjson({'error':'Invalid recommendation limit'},400)
    # Test fixtures are kept in the database for QA, but must never be suggested.
    # Match explicit fixture naming only; do not suppress legitimate recipes with 'test' in a title.
