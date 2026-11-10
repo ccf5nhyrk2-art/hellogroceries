@@ -4008,7 +4008,7 @@ async function preferences(update){
  if(!response.ok||result.error)throw new Error(result.error||'Unable to save preferences');
  state=result;render();
 }
-let myCollectionSelected=null;
+var myCollectionSelected;
 function renderMyCollectionCards(){
  const cards=$('my-collection-cards'),contents=$('my-collection-contents');if(!cards||!contents)return;
  const collections=state.collections||{},names=Object.keys(collections),favorites=[...new Set((state.favorites||[]).map(Number).filter(Number.isFinite))];
