@@ -4477,6 +4477,17 @@ function pantryMatchKey(value){
  return ingredientKey(String(value||'').replace(units,'').replace(/^(?:\\d+(?:[./]\\d+)?\\s*)+/,''));
 }
 let pantryMealsLoaded=false;
+function pantryIngredientLabel(value){
+ const raw=String(value||'').trim().replace(/\\s+/g,' ');
+ const match=raw.match(/^(\\d+(?:[./]\\d+)?)\\s+(unit|units|ounce|ounces|oz|cup|cups|tablespoon|tablespoons|tbsp|teaspoon|teaspoons|tsp|pound|pounds|lb|lbs|gram|grams|g|milliliter|milliliters|ml|clove|cloves|bunch|bunches|package|packages|piece|pieces)\\s+(.+)$/i);
+ if(!match)return raw.replace(/^./,c=>c.toUpperCase());
+ const unit=match[2].toLowerCase();
+ const aliases={unit:'',units:'',ounce:'oz',ounces:'oz',oz:'oz',tablespoon:'tbsp',tablespoons:'tbsp',teaspoon:'tsp',teaspoons:'tsp',pound:'lb',pounds:'lb',gram:'g',grams:'g',milliliter:'ml',milliliters:'ml'};
+ const label=Object.hasOwn(aliases,unit)?aliases[unit]:unit;
+ const amount=match[1];
+ const name=match[3].replace(/^./,c=>c.toUpperCase());
+ return amount+(label?' '+label:'')+' '+name;
+}
 async function findPantryMeals(){
  const button=$('pantry-recipe-find'),panel=$('pantry-recipe-results');
  if(button.disabled)return;
@@ -4492,10 +4503,12 @@ async function findPantryMeals(){
   for(const item of details){
    if(item.status!=='fulfilled')continue;
    const r=item.value;
-   const ingredients=[...new Set(Object.keys(r.ingredients||{}).map(pantryMatchKey).filter(Boolean))];
+   const ingredientNames=new Map();
+   for(const raw of Object.keys(r.ingredients||{})){const key=pantryMatchKey(raw);if(key&&!ingredientNames.has(key))ingredientNames.set(key,pantryIngredientLabel(raw));}
+   const ingredients=[...ingredientNames.keys()];
    if(!ingredients.length)continue;
    const found=ingredients.filter(name=>pantry.some(have=>have===name||have.split(' ').every(word=>name.split(' ').includes(word))));
-   matches.push({r,found:found.length,total:ingredients.length,missing:ingredients.filter(name=>!found.includes(name))});
+   matches.push({r,found:found.length,total:ingredients.length,missing:ingredients.filter(name=>!found.includes(name)).map(name=>ingredientNames.get(name))});
   }
   matches.sort((a,b)=>b.found/b.total-a.found/a.total||b.found-a.found||a.missing.length-b.missing.length);
   const best=matches.slice(0,8);
