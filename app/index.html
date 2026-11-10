@@ -3324,24 +3324,28 @@ $('recommend-list').addEventListener('error',event=>{
 $('recommend-list').addEventListener('change',async e=>{
  const el=e.target.closest('[data-recommend-collection]');if(!el||!el.value)return;
  const name=el.value,id=Number(el.dataset.recommendCollection);
- const collections={...(state.collections||{})};
- if(!Number.isSafeInteger(id)||!Object.prototype.hasOwnProperty.call(collections,name))return;
- collections[name]=[...new Set([...(Array.isArray(collections[name])?collections[name]:[]).map(Number).filter(Number.isSafeInteger),id])];
+ if(!Number.isSafeInteger(id)||!Object.prototype.hasOwnProperty.call(state.collections||{},name))return;
  el.disabled=true;
+ let stage='sending';
  try{
-  // Save without running unrelated page rendering inside the save operation.
-  // Safari can throw DOMException SyntaxError while rebuilding recipe cards;
-  // that must not be reported as a failed collection save.
-  const response=await fetch('/api/action',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'set_preferences',favorites:state.favorites||[],collections,weekly:state.weekly||{},pantry:state.pantry||[],manual:state.manual||[],previous_week:state.previous_week||{},recommendation_hidden:state.recommendation_hidden||[]})});
+  const response=await fetch('/api/action',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'add_to_collection',collection:name,id})});
+  stage='reading response';
   const result=await response.json();
   if(!response.ok||result.error)throw new Error(result.error||'Unable to save collection');
+  stage='updating display';
   state=result;
-  const notice=document.createElement('div');notice.className='muted recommend-save-status';notice.setAttribute('role','status');notice.textContent='Added to '+name;
   const card=el.closest('.recommend-card');
-  if(card){card.querySelector('.recommend-save-status')?.remove();card.appendChild(notice);}
+  if(card){
+   const notice=document.createElement('div');
+   notice.className='muted recommend-save-status';
+   notice.setAttribute('role','status');
+   notice.textContent='Added to '+name;
+   card.querySelector('.recommend-save-status')?.remove();
+   card.appendChild(notice);
+  }
  }catch(err){
-  console.error('Recommended recipe collection save failed',err);
-  alert('Could not add to collection: '+(err?.message||'Unknown error'));
+  console.error('Recommended collection save failed during '+stage,err);
+  alert('Could not add to collection ('+stage+'): '+(err?.message||'Unknown error'));
  }finally{if(el.isConnected){el.disabled=false;el.value='';}}
 });
 $('recommend-list').addEventListener('scroll',updateRecommendationCarousel,{passive:true});window.addEventListener('resize',updateRecommendationCarousel);
