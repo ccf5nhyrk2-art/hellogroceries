@@ -1173,6 +1173,20 @@ function showPage(key){
    else if(section===shopSection)section.style.removeProperty('display');
   }
  }
+ // Navigation hides sibling elements with inline !important styles. The pantry
+ // inventory was relocated from the legacy shopping tools, so restore it AFTER
+ // page-boundary concealment, not before.
+ if(key==='pantry'){
+  const saved=document.getElementById('inventory-saved');
+  if(saved){
+   saved.hidden=false;
+   saved.classList.remove('page-hidden');
+   saved.removeAttribute('data-page-concealed');
+   saved.style.removeProperty('display');
+   saved.style.setProperty('display','block','important');
+  }
+  try{renderSmartPrefs()}catch(error){console.error('Pantry inventory render:',error)}
+ }
  document.getElementById('hg-shop-build')?.remove();
  syncShoppingShortcut();
  for(const tab of mobileNav.querySelectorAll('.mobile-tab[data-page]')){
