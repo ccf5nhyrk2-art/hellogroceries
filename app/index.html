@@ -3512,10 +3512,15 @@ if(displayedIds.length!==desiredIds.length||displayedIds.some((id,index)=>id!==d
   if(favorite)favorite.textContent=(state.favorites||[]).some(x=>String(x)===id)?'♥ Favorited':'♡ Favorite';
  }
  let n=state.list.filter(x=>x.purchased).length;$('summary').textContent=state.list.length?`${n} of ${state.list.length} purchased`:'No generated list yet';renderSelectedPlan();renderShoppingList();renderIngredientSuggestions();renderSmartPrefs();renderSalesComparison()}for(const id of ['recipe-country','protein','cuisine','meal','sort','selectedonly','fullmeals','quickmeals','favorite-filter','collection-filter','included-side','diet-filter'])$(id).addEventListener('change',()=>{recipePage=0;render()});$('resetfilters').onclick=()=>{for(const id of ['protein','cuisine','meal','diet-filter'])$(id).value='all';$('recipe-country').value='all';$('included-side').value='all';$('sort').value='name';$('selectedonly').checked=false;$('fullmeals').checked=true;$('quickmeals').checked=false;$('search').value='';recipePage=0;render()};function navigateRecipePage(direction){
- const maxPage=Math.max(0,(Number(catalogPage?.pages)||1)-1);
- recipePage=Math.max(0,Math.min(maxPage,recipePage+direction));
- // Next/Previous must not depend on unrelated pantry or planner rendering.
- if(legacyCatalogLoaded||requiresLegacyRecipeFilters())render();
+ // Use the page currently shown, not stale state from a prior render.
+ const displayedPage=Number(catalogPage?.page)||recipePage+1;
+ const maxPage=Math.max(1,Number(catalogPage?.pages)||1);
+ const targetPage=Math.max(1,Math.min(maxPage,displayedPage+direction));
+ if(targetPage===displayedPage)return;
+ recipePage=targetPage-1;
+ // Normal browsing must always fetch the requested server page directly.
+ // Legacy filters have their own client-side paginator.
+ if(requiresLegacyRecipeFilters()&&legacyCatalogLoaded)renderLegacy();
  else void renderPaged();
  // Scroll to the recipe section heading after the new page is rendered.
  const heading=$('recipes')?.closest('section')?.querySelector('.recipes-topbar')||$('recipes');
