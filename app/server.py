@@ -2263,7 +2263,7 @@ def save(state):
  hid=getattr(request_scope,'household_id',None)
  with db() as c:
   if hid is not None:
-   c.execute('UPDATE hg_household_state SET payload=? WHERE household_id=?',(json.dumps(state),hid))
+   c.execute('INSERT INTO hg_household_state(household_id,payload) VALUES(?,?) ON CONFLICT(household_id) DO UPDATE SET payload=excluded.payload',(hid,json.dumps(state)))
   else:
    c.execute('INSERT INTO state(id,payload) VALUES(1,?) ON CONFLICT(id) DO UPDATE SET payload=excluded.payload',(json.dumps(state),))
 STORE_CACHE={};STORE_CACHE_LOCK=threading.Lock()
