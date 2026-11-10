@@ -1068,6 +1068,13 @@ function showPage(key){
  if(key==='planner'){
   try{renderSelectedPlan();updateEnhancements()}catch(error){console.error('Plan render:',error)}
  }
+ if(key==='pantry'){
+  // Pantry inventory now lives on this page; repaint independently of recipe loading.
+  try{renderSmartPrefs()}catch(error){console.error('Pantry inventory render:',error)}
+  const saved=document.getElementById('inventory-saved');
+  if(saved){saved.style.removeProperty('display');saved.removeAttribute('data-page-concealed');saved.classList.remove('page-hidden');}
+ }
+
  if(key==='recipes'&&window.matchMedia('(min-width:751px)').matches){
   const panel=document.getElementById('selected-plan');
   const toggle=document.getElementById('show-selected-meals');
@@ -2791,6 +2798,10 @@ $('inventory-saved').addEventListener('click',async e=>{
  listHeading.textContent='Ingredients by category';
  panel.insertBefore(listHeading,panel.querySelector('.actions'));
  panel.insertBefore(saved,listHeading.nextSibling);
+ saved.style.removeProperty('display');
+ saved.removeAttribute('data-page-concealed');
+ saved.classList.remove('page-hidden');
+
  const editor=document.createElement('details');
  editor.className='pantry-edit-panel';
  const summary=document.createElement('summary');
@@ -2809,6 +2820,12 @@ $('inventory-saved').addEventListener('click',async e=>{
  scanDetails.appendChild(scanSummary);
  scan.parentNode.insertBefore(scanDetails,scan);
  scanDetails.appendChild(scan);
+ // Remove the now-empty legacy inventory container and description from the pantry page.
+ const oldInventoryHeading=[...panel.querySelectorAll('h3,h4')].find(el=>el.textContent.trim()==='Pantry inventory');
+ if(oldInventoryHeading){
+  const oldContainer=oldInventoryHeading.closest('details,.enhance-panel');
+  if(oldContainer&&oldContainer!==panel)oldContainer.hidden=true;
+ }
  // Avoid a second, competing list of ingredient tags.
  if(tags)tags.hidden=true;
  const addRow=panel.querySelector('.actions');
