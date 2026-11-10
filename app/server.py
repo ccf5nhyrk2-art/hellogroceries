@@ -3979,8 +3979,11 @@ class Handler(SimpleHTTPRequestHandler):
    def is_test_recommendation(recipe):
     title=str(recipe.get('name') or '').strip()
     return bool(re.search(r'(?i)^(?:test(?:[\s_-]+upload)?(?:[\s_-]|$)|__staging_smoke_test__|placeholder(?:[\s_-]|$)|dummy(?:[\s_-]|$))',title))
+   checks=instruction_audit_rows()
    candidates=[recipe for recipe in visible_browse_catalog()
      if not is_test_recommendation(recipe)
+    and not non_recipe_reason(recipe)
+    and visible_cooking_recipe(recipe,checks)
     if int(recipe.get('id') or 0) not in excluded
     and recipe.get('image') and recipe.get('url')
     and isinstance(recipe.get('ingredients'),dict)
@@ -4004,7 +4007,7 @@ class Handler(SimpleHTTPRequestHandler):
    if len(ids)>100:return self.sendjson({'error':'Maximum 100 recipe IDs'},400)
    fields=('id','name','image','country','nutrition','dietary_labels','prep_time','cook_time','total_time','url','ingredients','source_servings')
    return self.sendjson([{key:recipe[key] for key in fields if key in recipe}
-    for recipe in browse_catalog() if int(recipe.get('id') or 0) in ids])
+    for recipe in allrecipes() if int(recipe.get('id') or 0) in ids])
   if urllib.parse.urlsplit(self.path).path=='/api/recipes/detail':
    params=urllib.parse.parse_qs(urllib.parse.urlsplit(self.path).query)
    try:
