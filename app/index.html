@@ -1870,7 +1870,8 @@ function cleanRecipeName(name){
        .replace(/^\s*(?:(?:MA\s*\/\s*CA|CA|MA)\s+only)\b\s*[:–—-]?\s*/i,'');
     if(n===prev)break;
   }
-  return n.trim()||String(name||'');
+  n=n.replace(/\s+includes?\s+(?:recyclable\s+)?(?:aluminum\s+trays?|pre-?cooked\s+chicken|recyclable\s+packaging).*$/i,'').trim();
+  return n||String(name||'');
 }
 function isHolidayRecipe(r){
  const n=cleanRecipeName(r.name).toLowerCase();
