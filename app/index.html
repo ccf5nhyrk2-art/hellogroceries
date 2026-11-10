@@ -2917,18 +2917,40 @@ function renderRecommendations(){
  // Deduplicate recommendation identities and equivalent recipe titles before
  // limiting the carousel; distinct imported IDs often represent the same meal.
  const seenRecommendationIds=new Set(),seenRecommendationNames=new Set();
- const verified=choices.filter(item=>{
+ const seenFamilies=new Set(),seenProteins=new Map(),seenMeals=new Map();
+ const familyOf=r=>{
+  const name=cleanRecipeName(r.name).toLowerCase().replace(/[^a-z0-9]+/g,' ').trim();
+  // Treat protein swaps of the same dish as one recommendation family.
+  const normalized=name.replace(/\\b(chicken|beef|bacon|pork|turkey|shrimp|salmon|steak|tofu|sausage)\\b/g,' ').replace(/\\s+/g,' ').trim();
+  return normalized.split(' ').slice(0,4).join(' ');
+ };
+ const proteinOf=r=>{
+  const name=cleanRecipeName(r.name).toLowerCase();
+  return (name.match(/\\b(chicken|beef|bacon|pork|turkey|shrimp|salmon|steak|tofu|sausage|fish)\\b/)||[])[0]||'other';
+ };
+ const verified=[];
+ for(const item of choices){
+  if(verified.length>=5)break;
   const id=String(item.r.id);
   const name=cleanRecipeName(item.r.name).toLowerCase().replace(/[^a-z0-9]+/g,' ').trim();
-  // The same imported meal may have a slightly different subtitle.
-  const family=name.split(' ').slice(0,5).join(' ');
-  if(recommendationFailedPhotos.has(id))return false;
-  if(seenRecommendationIds.has(id)||(name&&seenRecommendationNames.has(name))||(family&&seenRecommendationNames.has('family:'+family)))return false;
-  seenRecommendationIds.add(id);
-  if(name)seenRecommendationNames.add(name);
-  if(family)seenRecommendationNames.add('family:'+family);
-  return true;
- }).slice(0,5);
+  const family=familyOf(item.r),protein=proteinOf(item.r),meal=item.meal||'other';
+  if(recommendationFailedPhotos.has(id)||seenRecommendationIds.has(id)||seenRecommendationNames.has(name))continue;
+  if(family&&seenFamilies.has(family))continue;
+  if((seenProteins.get(protein)||0)>=2||(seenMeals.get(meal)||0)>=2)continue;
+  verified.push(item);seenRecommendationIds.add(id);seenRecommendationNames.add(name);
+  if(family)seenFamilies.add(family);
+  seenProteins.set(protein,(seenProteins.get(protein)||0)+1);
+  seenMeals.set(meal,(seenMeals.get(meal)||0)+1);
+ }
+ // If the catalog has too few distinct groups, relax protein/meal caps,
+ // but never repeat the same normalized recipe family.
+ if(verified.length<5)for(const item of choices){
+  if(verified.length>=5)break;
+  const id=String(item.r.id),family=familyOf(item.r);
+  if(recommendationFailedPhotos.has(id)||seenRecommendationIds.has(id)||(family&&seenFamilies.has(family)))continue;
+  verified.push(item);seenRecommendationIds.add(id);
+  if(family)seenFamilies.add(family);
+ }
   panel.innerHTML=verified.length?verified.map(({r,reason})=>'<article class="recommend-card"><div class="recommend-photo-wrap"><button type="button" class="recommend-favorite" data-recommend-favorite="'+r.id+'" aria-pressed="'+(state.favorites||[]).map(Number).includes(Number(r.id))+'" aria-label="Toggle favorite">'+((state.favorites||[]).map(Number).includes(Number(r.id))?'♥':'♡')+'</button>'+('<img class="recommend-photo" src="/api/photo/'+encodeURIComponent(r.id)+'" alt="" loading="lazy" onerror="recommendationPhotoFailed(this)">')+'</div><strong class="recommend-title">'+esc(cleanRecipeName(r.name))+'</strong><div class="muted recommend-reason" style="font-size:12px;margin:6px 0">'+esc(reason)+'</div><div class="recommend-actions"><button type="button" data-recommend-detail="'+r.id+'">View recipe</button><button type="button" data-recommend-plan="'+r.id+'">Add to plan</button></div><select data-recommend-collection="'+r.id+'" aria-label="Add recommended recipe to collection" style="width:100%;margin-top:8px;min-height:40px"><option value="">Add to collection…</option>'+Object.keys(state.collections||{}).map(n=>'<option value="'+esc(n)+'">'+esc(n)+'</option>').join('')+'</select><button type="button" data-recommend-more="'+r.id+'" class="recommend-dismiss">Show me more like this</button><button type="button" data-recommend-hide="'+r.id+'" class="recommend-dismiss">Not interested</button></article>').join(''):'<p class="muted">'+(terms.length?'No suggestions match this search. Try clearing the search.':'No suggestions available yet.')+'</p>';
  if(verified.length<5&&verified.length>0){
   const note=document.createElement('p');note.className='muted';note.style.gridColumn='1/-1';
