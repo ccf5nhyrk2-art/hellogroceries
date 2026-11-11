@@ -3695,8 +3695,37 @@ document.addEventListener('click',async event=>{
   void renderPaged();
   $('recipes')?.scrollIntoView({behavior:'smooth',block:'start'});
  }
- // Category Details are handled by the shared delegated recipe-detail listener.
- // Avoid creating and removing a synthetic button in the recipe grid.
+ const detail=event.target.closest('#recipe-category-rails [data-detail]');
+ if(detail){
+  // Handle category cards independently of the paginated catalog's click listener.
+  event.stopPropagation();
+  const id=detail.dataset.detail;
+  detail.disabled=true;
+  try{
+   const r=await fetchRecipeDetail(id);
+   if(!r)throw Error('Recipe not found');
+   const entries=Object.entries(r.ingredients||{});
+   const similarSection='<section class="similar-recipes"><div class="actions"><button type="button" data-more-like="'+r.id+'">More Like This</button></div><div id="similar-recipe-results" role="status" aria-live="polite"></div></section>';
+   $('recipe-detail').innerHTML='<h2>'+esc(cleanRecipeName(r.name))+'</h2><p class="muted">'+esc(r.country||'')+'</p>'+nutritionDetails(r)+similarSection+'<h3>Ingredients</h3><ul>'+entries.map(([k,v])=>'<li>'+esc(k)+(String(v).trim()==='1'?'':' — '+esc(v))+'</li>').join('')+'</ul>'+(Array.isArray(r.instructions)&&r.instructions.length?'<h3>Cooking steps</h3><ol>'+r.instructions.map(step=>'<li>'+esc(typeof step==='string'?step:JSON.stringify(step))+'</li>').join('')+'</ol>':'<p class="muted">Cooking instructions are not stored for this recipe. Use the original recipe page.</p>')+(r.url?'<a href="'+esc(r.url)+'" target="_blank" rel="noopener noreferrer">Open original recipe</a>':'');
+   $('recipe-photo-admin').dataset.photo=String(r.id);
+   $('recipe-photo-admin').textContent=r.image?'Change recipe photo':'Add recipe photo';
+   const review=(state.recipe_reviews||{})[String(r.id)]||{};
+   $('recipe-review-id').value=String(r.id);
+   $('recipe-rating').value=String(review.rating||0);
+   $('recipe-note').value=review.note||'';
+   $('review-status').textContent='';
+   const dialog=$('recipe-dialog');
+   dialog.style.setProperty('display','block','important');
+   dialog.style.setProperty('position','fixed','important');
+   dialog.style.setProperty('z-index','2147483000','important');
+   dialog.setAttribute('open','');
+   dialog.classList.add('recipe-dialog-fallback');
+   dialog.scrollTop=0;
+   $('close-recipe').focus();
+  }catch(error){alert('Recipe details are not available: '+(error.message||'Please try again'));}
+  finally{detail.disabled=false;}
+  return;
+ }
  const add=event.target.closest('[data-rail-add]');
  if(add){
   const id=Number(add.dataset.railAdd),already=Object.hasOwn(state.selected||{},String(id));
