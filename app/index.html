@@ -5332,6 +5332,23 @@ body:has(#hg-tour-overlay:not([hidden])) #hg-tour-replay{display:none!important}
   backdrop-filter:blur(34px) saturate(145%)!important;
  }
 }
+
+/* Edge-to-edge mobile recipe category rails: preserve card sizing */
+@media(max-width:750px){
+ #recipe-category-section{
+  margin-left:-14px!important;margin-right:-14px!important;
+  padding-left:6px!important;padding-right:6px!important;
+  max-width:calc(100% + 28px)!important;
+  box-sizing:border-box!important;
+ }
+ #recipe-category-section .recipe-rail-heading,
+ #recipe-category-section .recipe-rail-title{padding-left:2px!important;padding-right:2px!important}
+ #recipe-category-section .recipe-rail-track{
+  gap:5px!important;padding-left:2px!important;padding-right:2px!important;
+  scroll-padding-left:2px!important;
+ }
+ #recipe-category-section .recipe-rail-card{flex-basis:clamp(148px,40vw,180px)!important}
+}
 </style>
 <script>
 (function(){
