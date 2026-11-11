@@ -3695,13 +3695,8 @@ document.addEventListener('click',async event=>{
   void renderPaged();
   $('recipes')?.scrollIntoView({behavior:'smooth',block:'start'});
  }
- const detail=event.target.closest('#recipe-category-rails [data-detail]');
- if(detail){
-  const id=detail.dataset.detail;
-  const trigger=document.createElement('button');
-  trigger.type='button';trigger.dataset.detail=id;trigger.hidden=true;
-  $('recipes').appendChild(trigger);trigger.click();trigger.remove();
- }
+ // Category Details are handled by the shared delegated recipe-detail listener.
+ // Avoid creating and removing a synthetic button in the recipe grid.
  const add=event.target.closest('[data-rail-add]');
  if(add){
   const id=Number(add.dataset.railAdd),already=Object.hasOwn(state.selected||{},String(id));
@@ -4488,7 +4483,7 @@ function updateEnhancements(){
  }
  for(const key of ['pantry','manual'])$(key+'-items').innerHTML=(state[key]||[]).map((x,i)=>'<button class="clear" type="button" data-remove-'+key+'="'+i+'">'+esc(x)+' ×</button>').join(' ');
 }
-$('recipes').addEventListener('click',async e=>{
+document.addEventListener('click',async e=>{
  const close=e.target.closest('[data-close-inline-detail]');if(close){const card=close.closest('.recipe-card');card?.querySelector('.recipe-inline-detail')?.remove();card?.querySelector('[data-detail]')?.setAttribute('aria-expanded','false');return;}
  const fav=e.target.closest('[data-favorite]'),detail=e.target.closest('[data-detail]');
  if(fav){
