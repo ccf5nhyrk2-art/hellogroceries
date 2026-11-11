@@ -3681,12 +3681,15 @@ document.addEventListener('click',async event=>{
   detail.disabled=true;
   const previousLabel=detail.textContent;
   detail.textContent='Loading…';
+  let phase='requesting recipe';
   try{
    const r=await fetchRecipeDetail(id);
+   phase='building recipe details';
    if(!r)throw Error('Recipe not found');
    const entries=Object.entries(r.ingredients||{});
    const similarSection='<section class="similar-recipes"><div class="actions"><button type="button" data-more-like="'+r.id+'">More Like This</button></div><div id="similar-recipe-results" role="status" aria-live="polite"></div></section>';
    $('recipe-detail').innerHTML='<h2>'+esc(cleanRecipeName(r.name))+'</h2><p class="muted">'+esc(r.country||'')+'</p>'+nutritionDetails(r)+similarSection+'<h3>Ingredients</h3><ul>'+entries.map(([k,v])=>'<li>'+esc(k)+(String(v).trim()==='1'?'':' — '+esc(v))+'</li>').join('')+'</ul>'+(Array.isArray(r.instructions)&&r.instructions.length?'<h3>Cooking steps</h3><ol>'+r.instructions.map(step=>'<li>'+esc(typeof step==='string'?step:JSON.stringify(step))+'</li>').join('')+'</ol>':'<p class="muted">Cooking instructions are not stored for this recipe. Use the original recipe page.</p>')+(r.url?'<a href="'+esc(r.url)+'" target="_blank" rel="noopener noreferrer">Open original recipe</a>':'');
+   phase='setting dialog controls';
    $('recipe-photo-admin').dataset.photo=String(r.id);
    $('recipe-photo-admin').textContent=r.image?'Change recipe photo':'Add recipe photo';
    const review=(state.recipe_reviews||{})[String(r.id)]||{};
@@ -3694,6 +3697,7 @@ document.addEventListener('click',async event=>{
    $('recipe-rating').value=String(review.rating||0);
    $('recipe-note').value=review.note||'';
    $('review-status').textContent='';
+   phase='opening dialog';
    const dialog=$('recipe-dialog');
    dialog.style.setProperty('display','block','important');
    dialog.style.setProperty('position','fixed','important');
@@ -3702,7 +3706,7 @@ document.addEventListener('click',async event=>{
    dialog.classList.add('recipe-dialog-fallback');
    dialog.scrollTop=0;
    $('close-recipe').focus();
-  }catch(error){alert('Recipe details are not available: '+(error.message||'Please try again'));}
+  }catch(error){console.error('Category recipe details failed', {phase,id,error});alert('Recipe details failed while '+phase+': '+(error.message||'Please try again'));}
   finally{detail.disabled=false;detail.textContent=previousLabel;}
   return;
  }
