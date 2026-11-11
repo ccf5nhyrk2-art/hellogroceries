@@ -5218,6 +5218,21 @@ body:has(#hg-tour-overlay:not([hidden])) #hg-tour-replay{display:none!important}
  body{padding-bottom:calc(100px + env(safe-area-inset-bottom,0px))!important}
  main{padding-bottom:calc(120px + env(safe-area-inset-bottom,0px))!important}
 }
+
+/* Experimental compact mobile recipe rails — staging only */
+@media(max-width:750px){
+ .recipe-rail-card{flex-basis:min(52vw,198px)!important}
+ .recipe-rail-card img{aspect-ratio:1.85!important;height:auto!important;object-fit:cover!important}
+ .recipe-rail-card strong{
+  font-size:12.5px!important;line-height:1.28!important;
+  min-height:calc(3 * 1.28em)!important;max-height:none!important;
+  padding:7px 8px 3px!important;
+ }
+ .recipe-rail-card .actions{gap:5px!important;padding:5px 7px 7px!important}
+ .recipe-rail-card .actions button{min-height:40px!important;padding:6px 3px!important;font-size:11px!important}
+ .recipe-rail{margin-bottom:12px!important}
+ .recipe-rail-track{gap:8px!important}
+}
 /* Plex-inspired mobile shell — staging visual-only refresh */
 @media(max-width:750px){
  body{padding-bottom:calc(94px + env(safe-area-inset-bottom,0px))!important}
