@@ -5147,6 +5147,41 @@ body:has(#hg-tour-overlay:not([hidden])) #hg-tour-replay{display:none!important}
 #items .grocery-actions-inline{display:flex!important;flex-direction:column;gap:4px;align-items:stretch;position:relative;z-index:1;min-width:54px}
 #items .grocery-actions-inline button{font-size:12px;min-height:32px;padding:5px 8px;white-space:nowrap;touch-action:manipulation}
 
+
+/* Plex-inspired mobile shell — staging visual-only refresh */
+@media(max-width:750px){
+ body{padding-bottom:calc(94px + env(safe-area-inset-bottom,0px))!important}
+ .mobile-bottom-nav{
+  left:12px!important;right:12px!important;bottom:calc(10px + env(safe-area-inset-bottom,0px))!important;
+  width:auto!important;padding:7px!important;border-radius:25px!important;
+  border:1px solid rgba(146,179,158,.3)!important;
+  background:rgba(247,251,248,.91)!important;
+  box-shadow:0 12px 36px rgba(0,0,0,.22)!important;
+  -webkit-backdrop-filter:blur(22px);backdrop-filter:blur(22px);
+  overflow:hidden;
+ }
+ .mobile-bottom-nav .mobile-tab{min-height:52px!important;border-radius:19px!important;transition:background-color .16s ease,color .16s ease}
+ .mobile-bottom-nav .mobile-tab-active{background:rgba(28,124,77,.15)!important;color:#12653f!important}
+ .mobile-bottom-nav .mobile-tab:focus-visible{outline:2px solid #48ae78;outline-offset:-3px}
+ .mobile-bottom-nav .mobile-tab small{font-size:10px!important;letter-spacing:.01em}
+ .mobile-bottom-nav .mobile-tab span{font-size:22px!important}
+ #recommend-list{scroll-snap-type:x mandatory;scroll-padding-inline:8px;-webkit-overflow-scrolling:touch}
+ #recommend-list .recommend-card{scroll-snap-align:start;border-radius:17px!important;overflow:hidden}
+ #recommend-list .recommend-photo{border-radius:12px!important}
+ #recipe-recommendations{border-radius:20px!important}
+}
+@media(max-width:750px) and (prefers-reduced-motion:reduce){
+ .mobile-bottom-nav .mobile-tab{transition:none}
+ #recommend-list{scroll-behavior:auto!important}
+}
+@media(max-width:750px){
+ html[data-theme="dark"] .mobile-bottom-nav{background:rgba(25,35,30,.88)!important;border-color:rgba(148,184,158,.25)!important;box-shadow:0 12px 38px rgba(0,0,0,.5)!important}
+ html[data-theme="dark"] .mobile-bottom-nav .mobile-tab{background:transparent!important;color:#d3dfd6!important}
+ html[data-theme="dark"] .mobile-bottom-nav .mobile-tab-active{background:rgba(88,175,121,.23)!important;color:#a5f0bc!important}
+ html[data-theme="light"] .mobile-bottom-nav .mobile-tab{color:#496357!important}
+ html[data-theme="light"] .mobile-bottom-nav .mobile-tab-active{background:rgba(28,124,77,.15)!important;color:#12653f!important}
+}
+
 </style>
 <script>
 (function(){
