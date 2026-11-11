@@ -5478,6 +5478,31 @@ body:has(#hg-tour-overlay:not([hidden])) #hg-tour-replay{display:none!important}
  .home-meal-card img,.home-meal-placeholder{aspect-ratio:1.25!important}
  .home-meal-card strong{font-size:12px!important;line-height:1.35!important;margin:9px!important}
 }
+
+/* Plex-inspired compact mobile Shop: presentation only; retain all existing controls */
+@media(max-width:750px){
+ #shopping-page-section{padding:10px 6px 120px!important;max-width:100%!important;box-sizing:border-box}
+ #shopping-page-section>h2{font-size:24px!important;line-height:1.2!important;margin:4px 0 12px!important}
+ #shopping-manual-add{padding:12px!important;border-radius:16px!important;margin:0 0 10px!important}
+ #shopping-manual-add h3{font-size:16px!important;margin:0 0 9px!important}
+ #shopping-manual-add .actions{display:flex!important;gap:7px!important;align-items:stretch!important}
+ #shopping-manual-add #manual-input{flex:1 1 0!important;min-width:0!important;font-size:14px!important;min-height:43px!important}
+ #shopping-manual-add #manual-add{flex:0 0 auto!important;min-height:43px!important;padding:8px 12px!important;font-size:13px!important}
+ #shopping-manual-add>p.muted{font-size:11px!important;line-height:1.35!important;margin:7px 0 0!important}
+ #smart-tools{padding:12px!important;border-radius:16px!important;margin:0 0 10px!important}
+ #smart-tools>h3{font-size:16px!important;margin:0 0 8px!important}
+ #smart-tools #smart-progress{padding:9px 11px!important;margin:9px 0!important;border-radius:11px!important;background:rgba(34,108,72,.13)!important;font-size:13px!important;font-weight:650!important}
+ #shopping-page-section>.actions{display:flex!important;flex-wrap:wrap!important;gap:7px!important;margin:10px 0!important}
+ #shopping-page-section>.actions button{min-height:42px!important;padding:9px 11px!important;font-size:12px!important;border-radius:11px!important}
+ #generate-grocery{flex:1 1 100%!important;font-weight:700!important}
+ #generate-status{font-size:12px!important}
+ #summary{font-size:13px!important;margin:8px 0!important}
+ #items{padding-bottom:100px!important}
+ #items .grocery-item-wrap{margin-bottom:5px!important}
+ #items .grocery-item-wrap>.grocery-row{padding:8px 6px!important;min-height:44px!important;gap:7px!important}
+ #items .grocery-breakdown{font-size:12px!important}
+ #items h3,#items h4{margin:15px 0 7px!important;font-size:17px!important}
+}
 </style>
 <script>
 (function(){
