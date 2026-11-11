@@ -3362,7 +3362,7 @@ function renderRecommendations(){
   verified.push(item);seenRecommendationIds.add(id);
   if(family)seenFamilies.add(family);
  }
-  panel.innerHTML=verified.length?verified.map(({r,reason})=>'<article class="recommend-card"><div class="recommend-photo-wrap"><button type="button" class="recommend-favorite" data-recommend-favorite="'+r.id+'" aria-pressed="'+(state.favorites||[]).map(Number).includes(Number(r.id))+'" aria-label="Toggle favorite">'+((state.favorites||[]).map(Number).includes(Number(r.id))?'♥':'♡')+'</button>'+('<img class="recommend-photo" src="/api/photo/'+encodeURIComponent(r.id)+'" alt="" loading="lazy" onerror="recommendationPhotoFailed(this)">')+'</div><strong class="recommend-title">'+esc(cleanRecipeName(r.name))+'</strong><div class="muted recommend-reason" style="font-size:12px;margin:6px 0">'+esc(reason)+'</div><div class="recommend-actions"><button type="button" data-recommend-detail="'+r.id+'">View recipe</button><button type="button" data-recommend-plan="'+r.id+'">Add to plan</button></div><select data-recommend-collection="'+r.id+'" aria-label="Add recommended recipe to collection" style="width:100%;margin-top:8px;min-height:40px"><option value="">Add to collection…</option>'+Object.keys(state.collections||{}).map(n=>'<option value="'+esc(n)+'">'+esc(n)+'</option>').join('')+'</select><button type="button" data-recommend-more="'+r.id+'" class="recommend-dismiss">Show me more like this</button><button type="button" data-recommend-hide="'+r.id+'" class="recommend-dismiss">Not interested</button></article>').join(''):'<p class="muted">'+(terms.length?'No suggestions match this search. Try clearing the search.':'No suggestions available yet.')+'</p>';
+  panel.innerHTML=verified.length?verified.map(({r,reason})=>'<article class="recommend-card"><div class="recommend-photo-wrap"><button type="button" class="recommend-favorite" data-recommend-favorite="'+r.id+'" aria-pressed="'+(state.favorites||[]).map(Number).includes(Number(r.id))+'" aria-label="Toggle favorite">'+((state.favorites||[]).map(Number).includes(Number(r.id))?'♥':'♡')+'</button>'+('<img class="recommend-photo" src="/api/photo/'+encodeURIComponent(r.id)+'" alt="" loading="lazy" onerror="recommendationPhotoFailed(this)">')+'</div><strong class="recommend-title">'+esc(cleanRecipeName(r.name))+'</strong><div class="muted recommend-reason" style="font-size:12px;margin:6px 0">'+esc(reason)+'</div><div class="recommend-actions"><button type="button" data-recommend-detail="'+r.id+'">View recipe</button><button type="button" data-recommend-plan="'+r.id+'">Add to plan</button></div><details class="recommend-extra-menu"><summary aria-label="More recipe options">More options <span aria-hidden="true">⋯</span></summary><div class="recommend-extra-content"><select data-recommend-collection="'+r.id+'" aria-label="Add recommended recipe to collection" style="width:100%;min-height:40px"><option value="">Add to collection…</option>'+Object.keys(state.collections||{}).map(n=>'<option value="'+esc(n)+'">'+esc(n)+'</option>').join('')+'</select><button type="button" data-recommend-more="'+r.id+'" class="recommend-dismiss">Show me more like this</button><button type="button" data-recommend-hide="'+r.id+'" class="recommend-dismiss">Not interested</button></div></details></article>').join(''):'<p class="muted">'+(terms.length?'No suggestions match this search. Try clearing the search.':'No suggestions available yet.')+'</p>';
  if(verified.length<5&&verified.length>0){
   const note=document.createElement('p');note.className='muted';note.style.gridColumn='1/-1';
   note.textContent='More recommendations will appear as recipe photos become available.';
@@ -5148,6 +5148,29 @@ body:has(#hg-tour-overlay:not([hidden])) #hg-tour-replay{display:none!important}
 #items .grocery-actions-inline button{font-size:12px;min-height:32px;padding:5px 8px;white-space:nowrap;touch-action:manipulation}
 
 
+
+/* Mobile recommendation overflow controls and compact recipes header */
+.recommend-extra-menu{margin-top:7px}
+.recommend-extra-menu summary{list-style:none;cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:8px;min-height:36px;padding:5px 10px;border:1px solid rgba(130,164,139,.32);border-radius:10px;font-size:12px;font-weight:650}
+.recommend-extra-menu summary::-webkit-details-marker{display:none}
+.recommend-extra-menu summary span{font-size:22px;line-height:1}
+.recommend-extra-menu summary:focus-visible{outline:2px solid #8ee5ae;outline-offset:2px}
+.recommend-extra-content{display:flex;flex-direction:column;gap:6px;padding-top:8px}
+.recommend-extra-content .recommend-dismiss{width:100%;min-height:36px;margin:0!important}
+@media(max-width:750px){
+ .recipes-topbar{margin-bottom:8px!important;gap:7px!important}
+ .recipes-topbar h2{font-size:23px!important}
+ .recipes-selected-button{min-height:42px!important;padding:8px 11px!important;font-size:13px!important}
+ #search{margin-bottom:8px!important;padding:10px 12px!important;min-height:44px!important}
+ #hg-header-store{padding:8px 12px!important;min-height:40px!important}
+ header{padding-top:10px!important;padding-bottom:10px!important}
+ #recipe-recommendations{margin-bottom:10px!important}
+ #recommend-list .recommend-card{height:auto!important}
+ #recommend-list .recommend-extra-menu{width:100%}
+ #recommend-list .recommend-extra-menu summary{color:inherit}
+ body{padding-bottom:calc(115px + env(safe-area-inset-bottom,0px))!important}
+ main{padding-bottom:42px!important}
+}
 /* Plex-inspired mobile shell — staging visual-only refresh */
 @media(max-width:750px){
  body{padding-bottom:calc(94px + env(safe-area-inset-bottom,0px))!important}
