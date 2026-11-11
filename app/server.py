@@ -3301,6 +3301,9 @@ def rebuild_grocery_list(state):
   value=str(value).strip().casefold()
   value=re.sub(r'^(?:\d+(?:[.,]\d+)?|\d+/\d+|[¼½¾⅓⅔])\s+', '', value)
   value=re.sub(r'^(?:tsp|tbsp|teaspoons?|tablespoons?|cups?|oz|ounces?|lbs?|pounds?|grams?|kg|ml|liters?|pieces?|units?|pick|cloves?)\s+', '', value)
+  # Source labels frequently say "2 tablespoons of butter" while pantry keys
+  # store "butter|tablespoon". "of" is a connector, not part of the item.
+  value=re.sub(r'^of\s+', '', value)
   value=re.sub(r'\s+',' ',value).strip()
   value=value.replace('shitake mushroom','shiitake mushroom')
   # Only singularize a simple trailing plural. Preserve ingredient qualifiers
