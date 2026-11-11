@@ -765,6 +765,11 @@ html[data-theme="light"] :is(#inventory-saved,#pantry-category-list) .pantry-dep
 html[data-theme="light"] :is(#inventory-saved,#pantry-category-list) .pantry-department-item{background:#fff!important;color:#183329!important;border-color:#dce8df!important}
 html[data-theme="light"] :is(#inventory-saved,#pantry-category-list) .pantry-item-amount{color:#526b5c!important}
 html[data-theme="light"] .pantry-edit-panel,html[data-theme="light"] .pantry-scan-disclosure{background:#fff!important;color:#183329!important;border-color:#c9d9cf!important}
+/* Keep recipe cards consistently light across browsing and saved collections. */
+html[data-theme="light"] :is(.recipe-card,.my-saved-recipe-card,.similar-recipe-card){background:#fff!important;color:#183329!important;border-color:#cadbd0!important}
+html[data-theme="light"] :is(.recipe-card-body,.my-saved-recipe-card-body,.similar-recipe-card strong){background:#fff!important;color:#183329!important}
+html[data-theme="light"] :is(.recipe-card,.my-saved-recipe-card,.similar-recipe-card) :is(.muted,small){color:#526b5c!important}
+html[data-theme="light"] :is(.my-saved-recipe-media,.my-saved-recipe-placeholder,.recipe-card .photo-placeholder){background:#edf4ef!important;color:#365747!important}
 /* Light theme: bright, high-contrast recipe recommendations. */
 html[data-theme="light"] #recipe-recommendations{background:#f5f9f6!important;border:1px solid #cbdcd1!important;color:#173528!important;box-shadow:0 2px 12px rgba(21,54,36,.06)}
 html[data-theme="light"] #recipe-recommendations #recommend-heading{color:#183d2c!important}
