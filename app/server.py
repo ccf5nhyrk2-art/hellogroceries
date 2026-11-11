@@ -3216,6 +3216,9 @@ def rebuild_grocery_list(state):
  catalog=browse_catalog()
  def add_ingredient(label,amount,source):
   label=grocery_display_name(label)
+  # Imported ingredient labels may spell out units with parenthetical aliases.
+  # Normalize before aggregation so pantry stock matches the measured item.
+  label=re.sub(r'^(teaspoons?|tablespoons?|cups?|ounces?|pounds?|grams?|kilograms?|milliliters?|liters?)\s+\((?:tsp|tbsp|oz|lb|lbs|g|kg|ml|l)\)\s+',r'\1 ',label,flags=re.I)
   # Water is a household utility, not a grocery purchase.
   water_name=re.sub(r'^\\s*(?:(?:\\d+(?:\\.\\d+)?|\\d+/\\d+)\\s+)?(?:teaspoons?|tablespoons?|cups?|ounces?|pounds?|milliliters?|liters?|ml|l)\\s+', '', label, flags=re.I).strip().casefold()
   if water_name in ('water','tap water','drinking water'):return
