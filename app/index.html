@@ -5307,6 +5307,31 @@ body:has(#hg-tour-overlay:not([hidden])) #hg-tour-replay{display:none!important}
   backdrop-filter:blur(28px) saturate(135%)!important;
  }
 }
+
+/* Mobile Plex-style peek: tighter rails, aligned recommendations, frosted nav */
+@media(max-width:750px){
+ .recipe-rail-track{gap:5px!important;padding-left:0!important;padding-right:0!important}
+ .recipe-rail-card{flex:0 0 clamp(148px,40vw,180px)!important}
+ .recipe-rail-card .actions{gap:3px!important;padding:5px 5px 7px!important}
+ .recipe-rail-card .actions button{font-size:10.5px!important;letter-spacing:-.03em!important}
+ #recommend-list{gap:6px!important;scroll-padding-inline:0!important}
+ #recommend-list .recommend-card{flex:0 0 clamp(174px,48vw,210px)!important;padding:7px!important}
+ #recommend-list .recommend-photo{height:auto!important;aspect-ratio:1.65!important;object-fit:cover!important}
+ #recommend-list .recommend-title{font-size:12px!important;line-height:1.28!important;display:-webkit-box!important;-webkit-box-orient:vertical!important;-webkit-line-clamp:3!important;line-clamp:3;min-height:calc(3 * 1.28em)!important}
+ #recommend-list .recommend-reason{font-size:11px!important}
+ #recommend-list .recommend-actions{gap:4px!important}
+ #recommend-list .recommend-actions button{min-height:40px!important;padding:5px 2px!important;font-size:11px!important;white-space:normal!important}
+ .mobile-bottom-nav{
+  background:rgba(247,251,248,.64)!important;
+  -webkit-backdrop-filter:blur(34px) saturate(145%)!important;
+  backdrop-filter:blur(34px) saturate(145%)!important;
+ }
+ html[data-theme="dark"] .mobile-bottom-nav{
+  background:rgba(22,32,27,.64)!important;
+  -webkit-backdrop-filter:blur(34px) saturate(145%)!important;
+  backdrop-filter:blur(34px) saturate(145%)!important;
+ }
+}
 </style>
 <script>
 (function(){
