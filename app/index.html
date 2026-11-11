@@ -3169,6 +3169,9 @@ $('inventory-saved').addEventListener('click',async e=>{
  editor.appendChild(summary);
  panel.insertBefore(editor,panel.querySelector('.actions'));
  editor.appendChild(form);
+ // Place the existing quick-add controls inside the same disclosure, without replacing handlers.
+ const quickAdd=panel.querySelector('#pantry-input')?.closest('.actions');
+ if(quickAdd){editor.appendChild(quickAdd);quickAdd.classList.add('pantry-quick-add');}
  // Existing edit buttons still fill and focus the form; open its disclosure first.
  saved.addEventListener('click',e=>{
   if(e.target.closest('[data-pantry-edit]'))editor.open=true;
@@ -5549,6 +5552,22 @@ body:has(#hg-tour-overlay:not([hidden])) #hg-tour-replay{display:none!important}
   backdrop-filter:blur(34px) saturate(145%)!important;
  }
  html[data-theme="light"] body[data-active-page="pantry"] .mobile-bottom-nav{background:rgba(247,251,248,.7)!important}
+}
+
+/* Pantry final mobile spacing and unified add/update disclosure */
+@media(max-width:750px){
+ body[data-active-page="pantry"] .enhance-panel{padding:10px!important}
+ body[data-active-page="pantry"] .enhance-panel>h3{margin:0 0 8px!important;font-size:20px!important}
+ body[data-active-page="pantry"] .enhance-panel>h4{margin:10px 0 7px!important;font-size:16px!important}
+ body[data-active-page="pantry"] #inventory-saved{margin:0 0 9px!important}
+ body[data-active-page="pantry"] .pantry-edit-panel,
+ body[data-active-page="pantry"] .pantry-scan-disclosure{margin:7px 0!important;border-radius:13px!important}
+ body[data-active-page="pantry"] .pantry-edit-panel>summary,
+ body[data-active-page="pantry"] .pantry-scan-disclosure>summary{padding:12px!important;min-height:45px!important;font-size:14px!important}
+ body[data-active-page="pantry"] .pantry-quick-add{display:flex!important;gap:7px!important;align-items:center!important;padding:8px 10px 12px!important;margin:0!important}
+ body[data-active-page="pantry"] .pantry-quick-add input{min-width:0!important;flex:1 1 0!important}
+ body[data-active-page="pantry"] .pantry-quick-add button{flex:0 0 auto!important}
+ body[data-active-page="pantry"] #inventory-saved .pantry-department-item{padding:6px 2px!important}
 }
 </style>
 <script>
