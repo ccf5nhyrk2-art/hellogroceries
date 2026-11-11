@@ -759,6 +759,12 @@ html[data-theme="dark"] #items .grocery-actions>summary{background:#29352f!impor
 #inventory-saved .pantry-department-item strong{text-align:right;white-space:nowrap}
 #inventory-saved .pantry-quantity-controls{display:flex;align-items:center;justify-content:flex-end;flex-wrap:wrap;gap:8px}#inventory-saved [data-pantry-edit]{min-height:36px;padding:5px 12px;border-radius:9px}#inventory-mode{min-width:0}@media(max-width:750px){#inventory-saved .pantry-department-item{align-items:center}#inventory-saved .pantry-department-item>span{min-width:0;overflow-wrap:anywhere}}
 
+/* Light-theme pantry surfaces must not use dark fallback colors. */
+html[data-theme="light"] :is(#inventory-saved,#pantry-category-list) .pantry-department{background:#fff!important;color:#183329!important;border:1px solid #c9d9cf!important}
+html[data-theme="light"] :is(#inventory-saved,#pantry-category-list) .pantry-department>summary{background:#f3f8f4!important;color:#183329!important}
+html[data-theme="light"] :is(#inventory-saved,#pantry-category-list) .pantry-department-item{background:#fff!important;color:#183329!important;border-color:#dce8df!important}
+html[data-theme="light"] :is(#inventory-saved,#pantry-category-list) .pantry-item-amount{color:#526b5c!important}
+html[data-theme="light"] .pantry-edit-panel,html[data-theme="light"] .pantry-scan-disclosure{background:#fff!important;color:#183329!important;border-color:#c9d9cf!important}
 /* Light theme: bright, high-contrast recipe recommendations. */
 html[data-theme="light"] #recipe-recommendations{background:#f5f9f6!important;border:1px solid #cbdcd1!important;color:#173528!important;box-shadow:0 2px 12px rgba(21,54,36,.06)}
 html[data-theme="light"] #recipe-recommendations #recommend-heading{color:#183d2c!important}
