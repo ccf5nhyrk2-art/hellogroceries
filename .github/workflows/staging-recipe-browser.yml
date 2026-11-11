@@ -46,6 +46,8 @@ jobs:
           node tests/test_share_links.cjs
       - name: Verify standalone Home dashboard layout
         run: node tests/test_home_layout.cjs
+      - name: Verify pantry and planner layout source contracts
+        run: node tests/test_pantry_planner_layout.cjs
       - name: Authenticate staging account once
         run: node tests/staging_auth_once.cjs
       - name: Run read-only staging smoke tests

@@ -341,12 +341,13 @@ async function main() {
           }), testCollection);
           throw new Error('Collection missing from visible recipe cards after reload: ' + JSON.stringify(diagnostic) + '; ' + error.message);
         }
-        const collectionId = await page.evaluate(name => {
-          const select = [...document.querySelectorAll('#recipes select[data-collection-add]')]
-            .find(el => [...el.options].some(option => option.value === name));
-          return select?.dataset.collectionAdd;
-        }, testCollection);
-        await page.locator('#recipes [data-collection-add="' + collectionId + '"]').selectOption(testCollection);
+        // The hidden legacy browser may contain matching select elements.
+        // Test the visible customer-facing Recipes card instead.
+        await page.locator('.page-nav-button[data-page="recipes"]').evaluate(button => button.click());
+        const collectionSelect = page.locator('#recipes select[data-collection-add]').filter({ visible: true }).first();
+        await collectionSelect.waitFor({ state: 'visible', timeout: 30000 });
+        const collectionId = await collectionSelect.getAttribute('data-collection-add');
+        await collectionSelect.selectOption(testCollection);
         await page.waitForFunction(([id, name]) => (state.collections?.[name] || []).map(Number).includes(Number(id)),
           [collectionId, testCollection], { timeout: 30000 });
         await page.reload({ waitUntil: 'domcontentloaded' });

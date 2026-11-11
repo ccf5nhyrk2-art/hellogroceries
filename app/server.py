@@ -3211,8 +3211,14 @@ def rebuild_grocery_list(state):
  totals={}
  sources={}
  canonical_labels={}
+ # Reuse the cached catalog; rebuilding imported recipes and enrichment tables
+ # for every shopping-list generation can block requests for tens of seconds.
+ catalog=browse_catalog()
  def add_ingredient(label,amount,source):
   label=grocery_display_name(label)
+  # Imported ingredient labels may spell out units with parenthetical aliases.
+  # Normalize before aggregation so pantry stock matches the measured item.
+  label=re.sub(r'^(teaspoons?|tablespoons?|cups?|ounces?|pounds?|grams?|kilograms?|milliliters?|liters?)\s+\((?:tsp|tbsp|oz|lb|lbs|g|kg|ml|l)\)\s+',r'\1 ',label,flags=re.I)
   # Water is a household utility, not a grocery purchase.
   water_name=re.sub(r'^\\s*(?:(?:\\d+(?:\\.\\d+)?|\\d+/\\d+)\\s+)?(?:teaspoons?|tablespoons?|cups?|ounces?|pounds?|milliliters?|liters?|ml|l)\\s+', '', label, flags=re.I).strip().casefold()
   if water_name in ('water','tap water','drinking water'):return
@@ -3226,7 +3232,7 @@ def rebuild_grocery_list(state):
   else:
    totals[label]=totals.get(label,0)+amount
   sources.setdefault(label,[]).append(source)
- for recipe in allrecipes():
+ for recipe in catalog:
   servings=state['selected'].get(str(recipe['id']))
   if servings is None:continue
   # Scale against the original recipe's declared yield, when available.
@@ -3279,7 +3285,7 @@ def rebuild_grocery_list(state):
    add_ingredient(label,amount,{'recipe_id':recipe['id'],'recipe':recipe['name'],'original_name':name,'corrected':bool(correction),'source_recovered':bool(recovered),'source_line':recovered['source'] if recovered else None,'source_quantity':qty,'multiplier':scale,'servings':servings,'source_servings':baseline,'contribution':round(amount,3)})
  # Do not silently discard recipe ingredients with missing or malformed amounts.
  # Keep them as unverified single entries until a correction supplies a quantity.
- for recipe in allrecipes():
+ for recipe in catalog:
   if str(recipe['id']) not in state.get('selected',{}):continue
   ingredients=recipe.get('ingredients')
   if not isinstance(ingredients,dict):continue
@@ -3298,6 +3304,9 @@ def rebuild_grocery_list(state):
   value=str(value).strip().casefold()
   value=re.sub(r'^(?:\d+(?:[.,]\d+)?|\d+/\d+|[¼½¾⅓⅔])\s+', '', value)
   value=re.sub(r'^(?:tsp|tbsp|teaspoons?|tablespoons?|cups?|oz|ounces?|lbs?|pounds?|grams?|kg|ml|liters?|pieces?|units?|pick|cloves?)\s+', '', value)
+  # Source labels frequently say "2 tablespoons of butter" while pantry keys
+  # store "butter|tablespoon". "of" is a connector, not part of the item.
+  value=re.sub(r'^of\s+', '', value)
   value=re.sub(r'\s+',' ',value).strip()
   value=value.replace('shitake mushroom','shiitake mushroom')
   # Only singularize a simple trailing plural. Preserve ingredient qualifiers
@@ -3354,10 +3363,10 @@ def rebuild_grocery_list(state):
    ingredient=parsed['ingredient']
   else:
    # Aggregated measured labels store the number in totals.
-   measured=re.match(r'^(teaspoon|tablespoon|cup|ounce|pound|gram|kilogram|milliliter|liter)\s+(.+)$',label,re.I)
+   measured=re.match(r'^(teaspoons?|tablespoons?|cups?|ounces?|pounds?|grams?|kilograms?|milliliters?|liters?)\s+(.+)$',label,re.I)
    if not measured:continue
    per_item=1
-   unit=measured.group(1).lower()
+   unit=measured.group(1).lower().removesuffix('s')
    ingredient=measured.group(2)
   needed=consume(ingredient,unit,per_item*totals[label])
   if needed>=per_item*totals[label]-0.000001:continue
@@ -3920,6 +3929,47 @@ class Handler(SimpleHTTPRequestHandler):
      items=items[offset:]+items[:offset]
     rows[rail]=[{key:recipe[key] for key in fields if key in recipe} for recipe in items[:8]]
    return self.sendjson({'categories':rows})
+  if urllib.parse.urlsplit(self.path).path=='/api/recipes/similar':
+   params=urllib.parse.parse_qs(urllib.parse.urlsplit(self.path).query)
+   try:rid=int(params.get('id',['0'])[0])
+   except (ValueError,TypeError):return self.sendjson({'error':'Invalid recipe ID'},400)
+   if rid<=0:return self.sendjson({'error':'Invalid recipe ID'},400)
+   catalog=visible_browse_catalog()
+   source=next((r for r in catalog if int(r.get('id') or 0)==rid),None)
+   if not source:return self.sendjson({'error':'Recipe not found'},404)
+   title=str(source.get('name') or '').lower()
+   def protein(name):
+    for group,pattern in [('chicken',r'chicken|turkey'),('beef',r'beef|steak|sirloin'),('pork',r'pork|sausage|bacon'),('seafood',r'shrimp|salmon|fish|tilapia|cod|tuna'),('plant',r'tofu|lentil|chickpea|vegetarian|vegan')]:
+     if re.search(pattern,name):return group
+    return 'other'
+   def words(name):
+    return set(re.findall(r'[a-z]{4,}',name))-{'with','over','style','fresh','dinner','recipe','seared','roasted'}
+   source_words=words(title)
+   source_ingredients=set(str(k).lower().strip() for k in (source.get('ingredients') or {}))
+   source_protein=protein(title)
+   scored=[]
+   for recipe in catalog:
+    if int(recipe.get('id') or 0)==rid or not recipe.get('image') or not recipe.get('url'):continue
+    name=str(recipe.get('name') or '').lower()
+    common=len(source_words & words(name))
+    ingredient_overlap=len(source_ingredients & set(str(k).lower().strip() for k in (recipe.get('ingredients') or {})))
+    score=common*3+min(ingredient_overlap,8)*2+(7 if source_protein!='other' and protein(name)==source_protein else 0)
+    if score>0:scored.append((score,recipe))
+   scored.sort(key=lambda item:(-item[0],str(item[1].get('name') or '')))
+   def family(name):
+    clean=re.split(r'\\b(?:includes?|recyclable|aluminum trays?|oven.ready|prep\\s*&\\s*bake)\\b',str(name).lower())[0]
+    return tuple(sorted(words(clean)))[:6]
+   picked=[]
+   families=set()
+   for score,recipe in scored:
+    name=str(recipe.get('name') or '')
+    key=family(name)
+    if key in families:continue
+    if any(len(words(name.lower()) & words(str(prev.get('name') or '').lower()))>=5 for prev in picked):continue
+    picked.append(recipe);families.add(key)
+    if len(picked)>=8:break
+   fields=('id','name','image','url','nutrition','total_time')
+   return self.sendjson({'items':[{key:r[key] for key in fields if key in r} for r in picked]})
   if urllib.parse.urlsplit(self.path).path=='/api/recipes/recommendations':
    # Bounded recommendation payload, independent of the full recipe summary.
    # Exclusions keep planned, favorite and dismissed recipes out of suggestions.
@@ -3931,15 +3981,18 @@ class Handler(SimpleHTTPRequestHandler):
    except ValueError:
     return self.sendjson({'error':'Invalid excluded recipe IDs'},400)
    if len(excluded)>250:return self.sendjson({'error':'Maximum 250 excluded recipe IDs'},400)
-   try:limit=max(1,min(24,int(params.get('limit',['12'])[0])))
+   try:limit=max(1,min(100 if params.get('planner',['0'])[0]=='1' else 24,int(params.get('limit',['12'])[0])))
    except ValueError:return self.sendjson({'error':'Invalid recommendation limit'},400)
    # Test fixtures are kept in the database for QA, but must never be suggested.
    # Match explicit fixture naming only; do not suppress legitimate recipes with 'test' in a title.
    def is_test_recommendation(recipe):
     title=str(recipe.get('name') or '').strip()
     return bool(re.search(r'(?i)^(?:test(?:[\s_-]+upload)?(?:[\s_-]|$)|__staging_smoke_test__|placeholder(?:[\s_-]|$)|dummy(?:[\s_-]|$))',title))
+   checks=instruction_audit_rows()
    candidates=[recipe for recipe in visible_browse_catalog()
      if not is_test_recommendation(recipe)
+    and not non_recipe_reason(recipe)
+    and visible_cooking_recipe(recipe,checks)
     if int(recipe.get('id') or 0) not in excluded
     and recipe.get('image') and recipe.get('url')
     and isinstance(recipe.get('ingredients'),dict)
@@ -4640,6 +4693,16 @@ class Handler(SimpleHTTPRequestHandler):
      state.setdefault('ingredient_overrides',{})[name]={'display':display,'department':department}
     elif action=='reset_ingredient':
      state.setdefault('ingredient_overrides',{}).pop(str(p.get('name','')),None)
+    elif action=='add_to_collection':
+     name=p.get('collection');rid=p.get('id')
+     if not isinstance(name,str) or not name.strip() or len(name)>120 or type(rid)!=int or rid<0:raise ValueError('Invalid collection request')
+     collections=state.setdefault('collections',{})
+     if name not in collections or not isinstance(collections[name],list):raise ValueError('Collection not found')
+     if rid not in {int(r['id']) for r in allrecipes()}:raise ValueError('Unknown recipe')
+     ids=collections[name]
+     if rid not in ids:
+      if len(ids)>=20000:raise ValueError('Collection is full')
+      ids.append(rid)
     elif action=='set_preferences':
      favorites=p.get('favorites',[]);collections=p.get('collections',{});weekly=p.get('weekly',{});pantry=p.get('pantry',[]);manual=p.get('manual',[]);previous_week=p.get('previous_week',{});recommendation_hidden=p.get('recommendation_hidden',[])
      if not isinstance(favorites,list) or len(favorites)>20000 or not isinstance(collections,dict) or not isinstance(weekly,dict) or not isinstance(pantry,list) or not isinstance(manual,list) or not isinstance(previous_week,dict) or len(previous_week)>7 or not isinstance(recommendation_hidden,list) or len(recommendation_hidden)>2000 or any(type(v)!=int or v<0 for v in recommendation_hidden):raise ValueError('Invalid preferences')
