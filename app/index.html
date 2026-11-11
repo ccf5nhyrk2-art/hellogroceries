@@ -5287,6 +5287,26 @@ body:has(#hg-tour-overlay:not([hidden])) #hg-tour-replay{display:none!important}
  .mobile-bottom-nav .mobile-tab small{font-size:10px!important}
  body{padding-bottom:calc(82px + env(safe-area-inset-bottom,0px))!important}
 }
+
+/* Plex-like denser horizontal mobile rails — staging experiment */
+@media(max-width:750px){
+ .recipe-rail-track{gap:8px!important;scroll-snap-type:x mandatory;scroll-padding-inline:2px}
+ .recipe-rail-card{flex:0 0 clamp(158px,43vw,190px)!important;min-width:0!important;scroll-snap-align:start}
+ .recipe-rail-card img{aspect-ratio:1.65!important;object-fit:cover!important}
+ .recipe-rail-card strong{font-size:12px!important;line-height:1.28!important;padding:7px 7px 3px!important;min-height:calc(3 * 1.28em)!important}
+ .recipe-rail-card .actions{gap:4px!important;padding:5px 6px 7px!important}
+ .recipe-rail-card .actions button{font-size:11px!important;font-weight:650!important;letter-spacing:-.025em!important;padding:5px 1px!important;min-width:0!important;min-height:40px!important;white-space:nowrap!important}
+ .mobile-bottom-nav{
+  background:rgba(247,251,248,.77)!important;
+  -webkit-backdrop-filter:blur(28px) saturate(135%)!important;
+  backdrop-filter:blur(28px) saturate(135%)!important;
+ }
+ html[data-theme="dark"] .mobile-bottom-nav{
+  background:rgba(22,32,27,.76)!important;
+  -webkit-backdrop-filter:blur(28px) saturate(135%)!important;
+  backdrop-filter:blur(28px) saturate(135%)!important;
+ }
+}
 </style>
 <script>
 (function(){
