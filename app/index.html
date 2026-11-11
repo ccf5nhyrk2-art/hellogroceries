@@ -2058,6 +2058,12 @@ function setAllShoppingDepartments(open){
 // Prefer precise pantry matches before broad produce words; tolerate plural ingredient names.
 function shoppingDepartment(name){
  const value=String(name||'').toLowerCase();
+ // Recognize common proteins, nuts, prepared dips and packaged sauces before
+ // falling through to Other. These are display-only grocery groupings.
+ if(/\b(?:tofu|tempeh|seitan|plant[- ]based (?:protein|meat|chicken|beef)|meat substitutes?)\b/i.test(value))return 'Meat & Seafood';
+ if(/\b(?:peanuts?|pecans?|walnuts?|almonds?|pistachios?|hazelnuts?|macadamias?|pumpkin seeds?|sunflower seeds?|mixed nuts?|nut mix)\b/i.test(value)&&!/\b(?:butter|oil|sauce|dressing)\b/i.test(value))return 'Pantry & Seasonings';
+ if(/\b(?:chimichurri|sweet soy glaze|soy glaze|teriyaki glaze|hummus|tzatziki|romesco|pesto|aioli|tapenade|salsa verde|marinara|barbecue sauce|bbq sauce|dipping sauce|glaze)\b/i.test(value))return 'Pantry & Seasonings';
+ if(/\b(?:pitas?|pita pockets?|wraps?|english muffins?|bagels?)\b/i.test(value))return 'Bakery & Bread';
  // Classify plain pepper and black pepper before generic produce rules.
  const spiceName=value.trim().replace(/^(?:\d+(?:\.\d+)?\s+)?(?:(?:teaspoons?|tablespoons?|cups?|ounces?|grams?|box|pick|unit)\s+)?/,'');
  if(['pepper','black pepper','ground pepper','ground black pepper','white pepper','salt','black peppercorns','peppercorns','crushed red pepper flakes'].includes(spiceName))return 'Pantry & Seasonings';
