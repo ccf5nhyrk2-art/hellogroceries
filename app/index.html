@@ -1476,18 +1476,6 @@ document.querySelector('.mobile-home-dashboard')?.addEventListener('click',event
   console.error('Missing navigation destination',page);
  }
 });
-/* Original static home listener replaced by delegated navigation. */
-/*
-  event.preventDefault();
-  const page=button.dataset.homeGo;
-  const navButton=mobileNav.querySelector('[data-page="'+page+'"]');
-  const desktopButton=pageButtons.get(page);
-  if(navButton){navButton.click();return;}
-  if(desktopButton){desktopButton.click();return;}
-  console.error('Missing navigation destination',page);
- });
-}); */
-
 const PREFERRED_STORE_KEY='hellogroceries-preferred-store-v1';
 function getPreferredStore(){try{return JSON.parse(localStorage.getItem(PREFERRED_STORE_KEY)||'null')}catch(e){return null}}
 function storeKey(x){return [x.chain||'',x.name||'',x.address||''].join('|').toLowerCase()}
