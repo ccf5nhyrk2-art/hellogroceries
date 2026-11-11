@@ -5503,6 +5503,24 @@ body:has(#hg-tour-overlay:not([hidden])) #hg-tour-replay{display:none!important}
  #items .grocery-breakdown{font-size:12px!important}
  #items h3,#items h4{margin:15px 0 7px!important;font-size:17px!important}
 }
+
+/* Shop follow-up: remove redundant vertical gaps and clear the floating navigation */
+@media(max-width:750px){
+ body[data-active-page="shopping"] #shopping-page-section{padding-bottom:calc(145px + env(safe-area-inset-bottom,0px))!important}
+ #shopping-page-section #smart-tools{margin-bottom:6px!important}
+ #shopping-page-section>.actions{margin:5px 0 4px!important}
+ #shopping-page-section #generate-status:empty{display:none!important}
+ #shopping-page-section #grocery-preview[hidden]{display:none!important}
+ #shopping-page-section #summary{margin:3px 0 5px!important;min-height:0!important}
+ #shopping-page-section #items{padding-top:0!important;padding-bottom:24px!important}
+ #shopping-page-section #items> :first-child{margin-top:0!important}
+ body[data-active-page="shopping"] .mobile-bottom-nav{
+  background:rgba(22,32,27,.68)!important;
+  -webkit-backdrop-filter:blur(34px) saturate(145%)!important;
+  backdrop-filter:blur(34px) saturate(145%)!important;
+ }
+ html[data-theme="light"] body[data-active-page="shopping"] .mobile-bottom-nav{background:rgba(247,251,248,.7)!important}
+}
 </style>
 <script>
 (function(){
