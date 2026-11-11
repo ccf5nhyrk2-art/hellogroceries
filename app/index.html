@@ -3362,7 +3362,7 @@ function renderRecommendations(){
   verified.push(item);seenRecommendationIds.add(id);
   if(family)seenFamilies.add(family);
  }
-  panel.innerHTML=verified.length?verified.map(({r,reason})=>'<article class="recommend-card"><div class="recommend-photo-wrap"><button type="button" class="recommend-favorite" data-recommend-favorite="'+r.id+'" aria-pressed="'+(state.favorites||[]).map(Number).includes(Number(r.id))+'" aria-label="Toggle favorite">'+((state.favorites||[]).map(Number).includes(Number(r.id))?'♥':'♡')+'</button>'+('<img class="recommend-photo" src="/api/photo/'+encodeURIComponent(r.id)+'" alt="" loading="lazy" onerror="recommendationPhotoFailed(this)">')+'</div><strong class="recommend-title">'+esc(cleanRecipeName(r.name))+'</strong><div class="muted recommend-reason" style="font-size:12px;margin:6px 0">'+esc(reason)+'</div><div class="recommend-actions"><button type="button" data-recommend-detail="'+r.id+'">View recipe</button><button type="button" data-recommend-plan="'+r.id+'">Add to plan</button></div><details class="recommend-extra-menu"><summary aria-label="More recipe options">More options <span aria-hidden="true">⋯</span></summary><div class="recommend-extra-content"><select data-recommend-collection="'+r.id+'" aria-label="Add recommended recipe to collection" style="width:100%;min-height:40px"><option value="">Add to collection…</option>'+Object.keys(state.collections||{}).map(n=>'<option value="'+esc(n)+'">'+esc(n)+'</option>').join('')+'</select><button type="button" data-recommend-more="'+r.id+'" class="recommend-dismiss">Show me more like this</button><button type="button" data-recommend-hide="'+r.id+'" class="recommend-dismiss">Not interested</button></div></details></article>').join(''):'<p class="muted">'+(terms.length?'No suggestions match this search. Try clearing the search.':'No suggestions available yet.')+'</p>';
+  panel.innerHTML=verified.length?verified.map(({r,reason})=>'<article class="recommend-card"><div class="recommend-photo-wrap"><button type="button" class="recommend-favorite" data-recommend-favorite="'+r.id+'" aria-pressed="'+(state.favorites||[]).map(Number).includes(Number(r.id))+'" aria-label="Toggle favorite">'+((state.favorites||[]).map(Number).includes(Number(r.id))?'♥':'♡')+'</button>'+('<img class="recommend-photo" src="/api/photo/'+encodeURIComponent(r.id)+'" alt="" loading="lazy" onerror="recommendationPhotoFailed(this)">')+'</div><strong class="recommend-title">'+esc(cleanRecipeName(r.name))+'</strong><div class="muted recommend-reason" style="font-size:12px;margin:6px 0">'+esc(reason)+'</div><div class="recommend-actions"><button type="button" data-recommend-detail="'+r.id+'">View recipe</button><button type="button" data-recommend-plan="'+r.id+'">Add to plan</button></div><details class="recommend-extra-menu"><summary aria-label="More recipe options" title="More recipe options"><span aria-hidden="true">⋯</span></summary><div class="recommend-extra-content"><select data-recommend-collection="'+r.id+'" aria-label="Add recommended recipe to collection" style="width:100%;min-height:40px"><option value="">Add to collection…</option>'+Object.keys(state.collections||{}).map(n=>'<option value="'+esc(n)+'">'+esc(n)+'</option>').join('')+'</select><button type="button" data-recommend-more="'+r.id+'" class="recommend-dismiss">Show me more like this</button><button type="button" data-recommend-hide="'+r.id+'" class="recommend-dismiss">Not interested</button></div></details></article>').join(''):'<p class="muted">'+(terms.length?'No suggestions match this search. Try clearing the search.':'No suggestions available yet.')+'</p>';
  if(verified.length<5&&verified.length>0){
   const note=document.createElement('p');note.className='muted';note.style.gridColumn='1/-1';
   note.textContent='More recommendations will appear as recipe photos become available.';
@@ -5170,6 +5170,39 @@ body:has(#hg-tour-overlay:not([hidden])) #hg-tour-replay{display:none!important}
  #recommend-list .recommend-extra-menu summary{color:inherit}
  body{padding-bottom:calc(115px + env(safe-area-inset-bottom,0px))!important}
  main{padding-bottom:42px!important}
+}
+
+/* Mobile rail title clearance and compact recommendation menu */
+@media(max-width:750px){
+ .recipe-rail-card strong{
+  box-sizing:content-box!important;
+  display:-webkit-box!important;
+  -webkit-box-orient:vertical!important;
+  -webkit-line-clamp:3!important;
+  line-clamp:3;
+  height:auto!important;
+  min-height:calc(3 * 1.3em)!important;
+  max-height:none!important;
+  padding:9px 9px 5px!important;
+  line-height:1.3!important;
+  overflow:hidden!important;
+  flex:0 0 auto!important;
+ }
+ .recipe-rail-card .actions{position:relative!important;flex-shrink:0!important;margin-top:auto!important}
+ #recommend-list .recommend-extra-menu{display:flex!important;justify-content:flex-end!important;position:relative!important;margin-top:5px!important;min-height:35px!important}
+ #recommend-list .recommend-extra-menu summary{
+  width:39px!important;min-width:39px!important;height:35px!important;min-height:35px!important;
+  display:flex!important;align-items:center!important;justify-content:center!important;
+  padding:0!important;border-radius:10px!important;font-size:0!important;
+ }
+ #recommend-list .recommend-extra-menu summary span{font-size:23px!important;line-height:1!important}
+ #recommend-list .recommend-extra-menu[open]{display:block!important}
+ #recommend-list .recommend-extra-content{width:100%!important;box-sizing:border-box!important}
+ /* Fixed nav is intentionally overlaid; reserve a full nav-height below all content. */
+ body{padding-bottom:calc(155px + env(safe-area-inset-bottom,0px))!important}
+ main{padding-bottom:95px!important}
+ #recipe-category-section{padding-bottom:35px!important}
+ .recipe-rail-track{scroll-padding-bottom:12px}
 }
 /* Plex-inspired mobile shell — staging visual-only refresh */
 @media(max-width:750px){
