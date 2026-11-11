@@ -5521,6 +5521,35 @@ body:has(#hg-tour-overlay:not([hidden])) #hg-tour-replay{display:none!important}
  }
  html[data-theme="light"] body[data-active-page="shopping"] .mobile-bottom-nav{background:rgba(247,251,248,.7)!important}
 }
+
+/* Plex-inspired compact mobile Pantry: styling only, all existing controls preserved */
+@media(max-width:750px){
+ body[data-active-page="pantry"] main{padding-left:8px!important;padding-right:8px!important;padding-bottom:calc(135px + env(safe-area-inset-bottom,0px))!important}
+ body[data-active-page="pantry"] .enhance-panel{padding:12px!important;border-radius:16px!important}
+ body[data-active-page="pantry"] .enhance-panel>h3{font-size:19px!important;margin:0 0 10px!important}
+ body[data-active-page="pantry"] #pantry-input{flex:1 1 0!important;min-width:0!important;min-height:43px!important;font-size:14px!important}
+ body[data-active-page="pantry"] #pantry-add{flex:0 0 auto!important;min-height:43px!important;padding:8px 11px!important;font-size:12px!important}
+ body[data-active-page="pantry"] #pantry-input:focus{outline-offset:1px}
+ body[data-active-page="pantry"] .pantry-scan-box{padding:11px!important;margin-top:10px!important;border-radius:14px!important}
+ body[data-active-page="pantry"] .pantry-scan-box>h3{font-size:16px!important;margin:0 0 5px!important}
+ body[data-active-page="pantry"] .pantry-scan-box>p.muted{font-size:12px!important;line-height:1.35!important;margin:5px 0 9px!important}
+ body[data-active-page="pantry"] .pantry-scan-box>.actions{gap:6px!important;margin:5px 0!important}
+ body[data-active-page="pantry"] .pantry-scan-box>.actions button{min-height:42px!important;padding:8px 10px!important;font-size:12px!important;border-radius:10px!important}
+ :is(#inventory-saved,#pantry-category-list) .pantry-department{margin:7px 0!important;border-radius:13px!important;overflow:hidden}
+ :is(#inventory-saved,#pantry-category-list) .pantry-department>summary{padding:10px 12px!important;min-height:44px!important;font-size:14px!important}
+ :is(#inventory-saved,#pantry-category-list) .pantry-department-items{padding:0 9px 7px!important}
+ :is(#inventory-saved,#pantry-category-list) .pantry-department-item{padding:8px 2px!important;min-height:48px!important;gap:7px!important;flex-wrap:wrap}
+ :is(#inventory-saved,#pantry-category-list) .pantry-item-description{gap:2px!important;min-width:0!important;flex:1 1 120px}
+ :is(#inventory-saved,#pantry-category-list) .pantry-item-amount{font-size:12px!important}
+ :is(#inventory-saved,#pantry-category-list) .pantry-quantity-controls{gap:5px!important;flex-wrap:wrap!important}
+ :is(#inventory-saved,#pantry-category-list) .pantry-quantity-controls button{min-height:40px!important;padding:7px 10px!important;font-size:12px!important;border-radius:9px!important}
+ body[data-active-page="pantry"] .mobile-bottom-nav{
+  background:rgba(22,32,27,.68)!important;
+  -webkit-backdrop-filter:blur(34px) saturate(145%)!important;
+  backdrop-filter:blur(34px) saturate(145%)!important;
+ }
+ html[data-theme="light"] body[data-active-page="pantry"] .mobile-bottom-nav{background:rgba(247,251,248,.7)!important}
+}
 </style>
 <script>
 (function(){
