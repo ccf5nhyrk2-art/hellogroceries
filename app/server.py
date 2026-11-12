@@ -3900,6 +3900,22 @@ class Handler(SimpleHTTPRequestHandler):
    matched=[r for r in catalog if recipe_page_matches(r,query,country,protein) and matches_extra(r)]
    if sort=='newest':matched.sort(key=lambda r:int(r.get('id') or 0),reverse=True)
    else:matched.sort(key=lambda r:str(r.get('name') or '').casefold(),reverse=sort=='reverse')
+   # Collapse exact duplicates before counting and slicing pages.
+   # Preserve distinct ingredient variations with the same title.
+   unique=[]
+   seen=set()
+   for recipe in matched:
+    title=re.sub(r'[^a-z0-9]+',' ',str(recipe.get('name') or '').casefold()).strip()
+    ingredients=recipe.get('ingredients') or {}
+    if isinstance(ingredients,dict) and ingredients:
+     detail=json.dumps(sorted((str(k).casefold().strip(),str(v).casefold().strip()) for k,v in ingredients.items()),ensure_ascii=False)
+    else:
+     detail=str(recipe.get('url') or '').strip().casefold()
+    key=(title,detail) if title and detail else None
+    if key is not None and key in seen:continue
+    if key is not None:seen.add(key)
+    unique.append(recipe)
+   matched=unique
    total=len(matched)
    start=(page-1)*page_size
    # Full recipe details remain available through the existing endpoint.
