@@ -2126,8 +2126,27 @@ function renderSelectedPlan(){
     const note=x.recipe?'':pendingSavedRecipeIds.has(x.id)?'<small class="selected-meal-note">Retrieving saved recipe details…</small>':'<small class="selected-meal-note">Recipe details are temporarily unavailable. Your selection is saved.</small>';
     return `<div class="selected-meal">${thumb}<div class="selected-meal-info"><div class="selected-meal-name">${esc(name)}</div>${link}${note}</div><div class="selected-meal-controls"><label>Servings <select aria-label="Servings for ${esc(name)}" data-plan-scale="${esc(x.id)}">${[0.5,1,1.5,2,3,4,5,6].map(v=>`<option value="${v}" ${Number(x.scale)===v?'selected':''}>${v} servings</option>`).join('')}</select></label><button type="button" data-remove-meal="${esc(x.id)}" aria-label="Remove ${esc(name)}">Remove</button></div></div>`;
   }).join(''):'<p class="muted">No meals selected yet. Choose “Add to plan” on a recipe.</p>';
+  // The Plan tab shows only selected meals not already assigned to a weekday.
+  // Do not mutate state.selected: assignments, servings and shopping quantities remain intact.
   const plannerList=$('planner-selected-meals-list');
-  if(plannerList)plannerList.innerHTML=$('selected-plan-list').innerHTML;
+  if(plannerList){
+    const assignedIds=new Set(Object.values(state.weekly||{}).filter(v=>v!==null&&v!==undefined&&String(v)!=='').map(String));
+    const unassigned=entries.filter(x=>!assignedIds.has(String(x.id)));
+    const selectedMarkup=$('selected-plan-list').innerHTML;
+    if(unassigned.length===entries.length){
+      plannerList.innerHTML=selectedMarkup;
+    }else{
+      const scratch=document.createElement('div');
+      scratch.innerHTML=selectedMarkup;
+      for(const card of scratch.querySelectorAll('.selected-meal')){
+        const id=card.querySelector('[data-plan-scale]')?.dataset.planScale;
+        if(id&&assignedIds.has(String(id)))card.remove();
+      }
+      plannerList.innerHTML=unassigned.length?scratch.innerHTML:'<p class="muted">All selected meals are assigned to days this week.</p>';
+    }
+    const heading=plannerList.parentElement?.querySelector('h3');
+    if(heading)heading.textContent='Unassigned selected meals ('+unassigned.length+')';
+  }
 }
 $('planner-selected-meals-list').addEventListener('click',e=>{
  const id=e.target.closest('[data-remove-meal]')?.dataset.removeMeal;
