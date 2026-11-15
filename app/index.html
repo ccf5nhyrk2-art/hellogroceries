@@ -6015,7 +6015,7 @@ body.hg-cooking-active{overflow:hidden}
   byId('hg-cook-title').textContent=recipe.name||'Cooking';
   byId('hg-cook-title').title=recipe.name||'Cooking';
   byId('hg-cook-count').textContent=prep?'Prep · gather your ingredients':steps.length?'Step '+(step+1)+' of '+steps.length:'Cooking instructions unavailable';
-  byId('hg-cook-step').textContent=prep?'Gather your ingredients and check them off as you prepare. Tap Next when you are ready to cook.':steps.length?readableInstruction(steps[step]):'This recipe has no stored cooking steps. Open the original recipe from Details.';
+  byId('hg-cook-step').textContent=prep?'Gather your ingredients and check them off as you prepare. Tap Begin cooking when you are ready to cook.':steps.length?readableInstruction(steps[step]):'This recipe has no stored cooking steps. Open the original recipe from Details.';
   byId('hg-cook-progress').max=Math.max(1,steps.length+1);
   byId('hg-cook-progress').value=step+1;
   byId('hg-cook-prev').disabled=step===-1;
