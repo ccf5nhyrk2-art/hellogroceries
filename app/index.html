@@ -527,8 +527,8 @@ html[data-theme="dark"] .mobile-more-logout{color:#ff8989!important;border-color
 
 /* Desktop navigation: individual pages only; preserve mobile shortcuts and views. */
 @media(min-width:751px){
- .shopping-view-toolbar #shopping-focus-toggle,
- .shopping-view-toolbar .page-nav-button[data-page="all"]{display:none!important}
+ .shopping-view-toolbar #shopping-focus-toggle{display:none!important}
+ .shopping-view-toolbar .page-nav-button[data-page="all"]{display:inline-flex!important;align-items:center!important;justify-content:center!important;order:-1!important}
 }
 
 /* Desktop-only recipe cleanup; mobile controls retain their existing behavior. */
