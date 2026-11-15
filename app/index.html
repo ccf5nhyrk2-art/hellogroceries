@@ -1158,11 +1158,18 @@ html[data-theme="light"] #my-recipes select:focus-visible{outline:3px solid #8ee
 </style>
 
 <style>
-/* Mobile Home: compact featured photo so the dinner action sits above the floating navigation sooner. */
+/* Mobile Home: compact, readable Tonight card with a clear cooking action. */
 @media(max-width:750px){
- .mobile-home-dashboard .home-feature-photo{aspect-ratio:3.2!important;max-height:240px!important;object-fit:cover!important}
- .mobile-home-dashboard .home-feature-content{position:relative;z-index:1;padding:14px 16px!important}
- .mobile-home-dashboard .home-personalized{padding-bottom:calc(145px + env(safe-area-inset-bottom,0px))!important}
+ #home-personalized .home-feature{display:flex!important;flex-direction:column!important;align-items:stretch!important;overflow:hidden!important}
+ #home-personalized .home-feature-photo{display:block!important;width:100%!important;height:clamp(116px,32vw,165px)!important;min-height:0!important;max-height:165px!important;aspect-ratio:auto!important;object-fit:cover!important}
+ #home-personalized .home-feature-content{display:flex!important;flex-direction:column!important;align-items:stretch!important;gap:12px!important;padding:14px 16px 16px!important}
+ #home-personalized .home-feature-content>div:first-child{width:100%;min-width:0}
+ #home-personalized .home-feature-content h3{font-size:18px!important;line-height:1.3!important;margin:5px 0 0!important;overflow-wrap:break-word!important}
+ #home-personalized .home-feature-actions{display:flex!important;flex-direction:row!important;justify-content:flex-start!important;align-items:center!important;gap:9px!important;flex-wrap:wrap!important;width:100%}
+ #home-personalized .home-feature-actions button{max-width:none!important;min-height:42px!important;padding:10px 14px!important;font-size:13px!important;white-space:nowrap!important}
+ #home-personalized .home-feature-actions .home-open-planner{background:transparent!important}
+ .mobile-home-dashboard .home-personalized{padding-bottom:calc(160px + env(safe-area-inset-bottom,0px))!important}
+ .mobile-home-dashboard .home-meals-head{margin-top:14px!important}
 }
 </style>
 
