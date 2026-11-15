@@ -5929,6 +5929,19 @@ body.hg-cooking-active{overflow:hidden}
  #hg-cooking-mode #hg-cook-all-ingredients{position:sticky!important;top:12px!important;align-self:start!important;max-height:min(64dvh,650px)!important;overflow-y:auto!important;overscroll-behavior:contain!important;scrollbar-gutter:stable}
  #hg-cooking-mode #hg-cook-timer-dashboard{flex:0 0 auto!important;position:relative!important;bottom:auto!important;z-index:5!important;margin-top:8px!important;margin-bottom:0!important;box-sizing:border-box!important}
 }
+/* Final desktop layout: slim one-row timer, independent ingredient pane. */
+@media(min-width:760px){
+ #hg-cooking-mode #hg-cook-all-ingredients{max-height:calc(100dvh - 360px)!important;min-height:160px;overflow-y:auto!important;overscroll-behavior:contain!important}
+ #hg-cooking-mode #hg-cook-timer-dashboard{padding:6px 12px!important;min-height:56px!important;max-height:30dvh!important;overflow-y:auto!important;margin-top:4px!important;border-radius:10px!important}
+ #hg-cooking-mode #hg-cook-timer-dashboard:not(.has-active-timers)::before{display:none!important;content:none!important}
+ #hg-cooking-mode #hg-cook-timer-dashboard .cook-timer{display:flex!important;align-items:center!important;gap:8px!important;flex-wrap:nowrap!important;margin:0!important}
+ #hg-cooking-mode #hg-cook-timer-dashboard .cook-timer label{font-size:13px!important;white-space:nowrap}
+ #hg-cooking-mode #hg-cook-timer-dashboard .cook-timer input{width:72px!important;max-width:72px!important}
+ #hg-cooking-mode #hg-cook-timer-dashboard .cook-timer button{padding:7px 11px!important;min-height:38px!important;white-space:nowrap}
+ #hg-cooking-mode #hg-cook-timer-dashboard .cook-timer strong{white-space:nowrap;font-size:13px}
+ #hg-cooking-mode #hg-cook-timer-dashboard.has-active-timers:not(.timers-expanded) .cook-timer{display:none!important}
+ #hg-cooking-mode #hg-cook-timer-dashboard.has-active-timers.timers-expanded .cook-timer{display:flex!important}
+}
 /* Compact cooking header on phones: preserve readable steps and tap targets. */
 @media(max-width:759px){
  #hg-cooking-mode .cook-shell{gap:8px!important;padding-bottom:12px!important}
