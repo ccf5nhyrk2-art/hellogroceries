@@ -6254,7 +6254,7 @@ body.hg-cooking-active{overflow:hidden}
   const dx=event.changedTouches[0].clientX-swipeStart.x;
   const dy=event.changedTouches[0].clientY-swipeStart.y;
   swipeStart=null;
-  if(Math.abs(dx)<65||Math.abs(dx)<Math.abs(dy)*1.5||!recipe||ingredientsTab)return;
+  if(Math.abs(dx)<110||Math.abs(dx)<Math.abs(dy)*1.5||!recipe||ingredientsTab)return;
   const last=(recipe.instructions||[]).length-1;
   const next=dx<0?Math.min(last,step+1):Math.max(-1,step-1);
   if(next!==step){step=next;paint({preserveScroll:true});}
