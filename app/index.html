@@ -5887,6 +5887,15 @@ body.hg-cooking-active{overflow:hidden}
 #hg-cooking-mode #hg-cook-timer-dashboard.has-active-timers .cook-timer{display:none}
 #hg-cooking-mode #hg-cook-timer-dashboard.has-active-timers.timers-expanded .cook-active-timer{display:flex}
 #hg-cooking-mode .cook-shell:has(#hg-cook-timer-dashboard.has-active-timers){padding-bottom:90px}
+</style><style>
+/* Mobile cooking timer occupies its own footer, never covers instructions or buttons. */
+#hg-cooking-mode[aria-hidden="false"]{display:flex!important;flex-direction:column;overflow:hidden!important;padding-bottom:max(8px,env(safe-area-inset-bottom,0px))}
+#hg-cooking-mode .cook-shell{flex:1 1 auto;min-height:0;width:100%;overflow-y:auto;overscroll-behavior:contain;padding-bottom:24px;box-sizing:border-box}
+#hg-cooking-mode #hg-cook-timer-dashboard{flex:0 0 auto;width:100%;max-width:900px;margin:0 auto;box-sizing:border-box}
+#hg-cooking-mode #hg-cook-timer-dashboard.has-active-timers{position:relative!important;left:auto!important;right:auto!important;bottom:auto!important;max-height:35vh!important;margin-top:8px!important}
+#hg-cooking-mode #hg-cook-timer-dashboard.has-active-timers:not(.timers-expanded){overflow:hidden!important}
+#hg-cooking-mode .cook-shell:has(#hg-cook-timer-dashboard.has-active-timers){padding-bottom:24px}
+@media(max-width:759px){#hg-cooking-mode #hg-cook-timer-dashboard.has-active-timers{border-radius:12px}}
 </style><section id="hg-cooking-mode" role="dialog" aria-modal="true" aria-label="HelloGroceries Cooking Mode" aria-hidden="true">
  <div class="cook-shell">
   <div class="cook-header"><strong>🍳 HelloGroceries Cooking Mode</strong><button id="hg-cook-close" type="button">Exit Cooking</button></div>
@@ -5904,6 +5913,9 @@ body.hg-cooking-active{overflow:hidden}
 (function(){
  const byId=id=>document.getElementById(id);
  const root=byId('hg-cooking-mode');
+ // Keep timer controls in their own reserved footer rather than overlaying recipe controls.
+ const timerDashboard=byId('hg-cook-timer-dashboard');
+ root.insertBefore(timerDashboard,byId('hg-cook-alarm'));
  let recipe=null,step=-1,checked=new Set(),timerId=null,wakeLock=null,returnFocus=null,ingredientsTab=false,activeTimers=[],audioContext=null,alarmSoundId=null,alarmQueue=[];
  const key=id=>'hg-cooking-progress-'+id;
  const save=()=>{if(!recipe)return;try{localStorage.setItem(key(recipe.id),JSON.stringify({step,checked:[...checked]}))}catch(e){}};
