@@ -6101,9 +6101,17 @@ body.hg-cooking-active{overflow:hidden}
   unlockAudio();
   activeTimers.push({id:Date.now()+'-'+Math.random(),label:label||'Manual timer',end:Date.now()+mins*60000,notified:false});
   // Request permission only from the actual user click, never automatically.
-  if('Notification' in window&&Notification.permission==='default')Notification.requestPermission().catch(()=>{});
+  // Render the countdown before attempting optional iOS notification permissions.
   if(!timerId)timerId=setInterval(updateTimer,1000);
   updateTimer();
+  // Some WebKit versions return undefined rather than a Promise here.
+  // Permission failures must never interrupt an active cooking timer.
+  try{
+   if('Notification' in window&&Notification.permission==='default'&&typeof Notification.requestPermission==='function'){
+    const request=Notification.requestPermission();
+    if(request&&typeof request.catch==='function')request.catch(()=>{});
+   }
+  }catch(e){/* Notifications are optional; countdown continues. */}
  }
  function renderTimers(){
   const container=byId('hg-cook-active-timers');container.replaceChildren();
