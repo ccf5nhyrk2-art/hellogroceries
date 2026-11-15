@@ -5910,6 +5910,12 @@ body.hg-cooking-active{overflow:hidden}
  #hg-cooking-mode #hg-cook-timer-dashboard.has-active-timers:not(.timers-expanded){max-height:64px!important;overflow:hidden!important}
  #hg-cooking-mode #hg-cook-timer-dashboard.has-active-timers .hg-timer-summary{min-height:48px!important;padding:8px 10px!important;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 }
+/* Keep ingredients and navigation reachable above the timer footer. */
+#hg-cooking-mode .cook-shell{min-height:0!important;overflow-y:auto!important;overflow-x:hidden!important;scroll-padding-bottom:28px!important}
+#hg-cooking-mode .cook-content{padding-bottom:28px}
+#hg-cooking-mode #hg-cook-step{touch-action:pan-y}
+#hg-cooking-mode #hg-cook-timer-dashboard{flex-shrink:0!important}
+#hg-cooking-mode #hg-cook-alarm:not([hidden]){position:fixed!important;inset:0!important;z-index:2147483600!important;display:flex!important;align-items:center;justify-content:center;background:#000b;padding:20px}
 /* iOS standalone PWA safe areas: prevent Dynamic Island and Home indicator overlap. */
 @supports (padding-top: env(safe-area-inset-top)) {
  #hg-cooking-mode[aria-hidden="false"]{
@@ -6101,6 +6107,7 @@ body.hg-cooking-active{overflow:hidden}
   }
   byId('hg-cook-alarm-message').textContent=alarmQueue.map(t=>t.label).join(' · ');
   panel.hidden=false;
+  try{if(navigator.vibrate)navigator.vibrate([250,150,250]);}catch(e){}
   if(alarmSoundId===null){beep();alarmSoundId=setInterval(beep,1100)}
   byId('hg-cook-alarm-stop').focus();
  }
@@ -6224,6 +6231,24 @@ body.hg-cooking-active{overflow:hidden}
  byId('hg-cook-show-ingredients').addEventListener('click',()=>{ingredientsTab=true;paint()});
  byId('hg-cook-prev').addEventListener('click',()=>{step=Math.max(-1,step-1);paint()});
  byId('hg-cook-next').addEventListener('click',()=>{step=Math.min((recipe.instructions||[]).length-1,step+1);paint()});
+ // Horizontal swipes on the instruction card navigate steps without blocking vertical scrolling.
+ let swipeStart=null;
+ const swipeArea=byId('hg-cook-step');
+ swipeArea.addEventListener('touchstart',event=>{
+  if(event.touches.length!==1||event.target.closest('button,input,a,textarea,select')){swipeStart=null;return;}
+  swipeStart={x:event.touches[0].clientX,y:event.touches[0].clientY};
+ },{passive:true});
+ swipeArea.addEventListener('touchcancel',()=>{swipeStart=null},{passive:true});
+ swipeArea.addEventListener('touchend',event=>{
+  if(!swipeStart||event.changedTouches.length!==1)return;
+  const dx=event.changedTouches[0].clientX-swipeStart.x;
+  const dy=event.changedTouches[0].clientY-swipeStart.y;
+  swipeStart=null;
+  if(Math.abs(dx)<65||Math.abs(dx)<Math.abs(dy)*1.5||!recipe||ingredientsTab)return;
+  const last=(recipe.instructions||[]).length-1;
+  const next=dx<0?Math.min(last,step+1):Math.max(-1,step-1);
+  if(next!==step){step=next;paint();}
+ },{passive:true});
  // Capture timer taps before recipe card/dialog handlers can intercept them.
  // Keep the status visible even if audio or browser notifications are unavailable.
  document.addEventListener('click',event=>{
