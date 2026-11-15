@@ -1158,6 +1158,11 @@ html[data-theme="light"] #my-recipes select:focus-visible{outline:3px solid #8ee
 </style>
 
 <style>
+/* Mobile Home: dinner is the heading; no redundant welcome prompt. */
+@media(max-width:750px){
+ body[data-active-page="all"] .mobile-home-welcome{display:none!important}
+ body[data-active-page="all"] .mobile-home-dashboard{padding-top:4px!important}
+}
 /* Simplified mobile Home: navigation already provides the four quick actions. */
 @media(max-width:750px){
  body[data-active-page="all"] .mobile-home-actions{display:none!important}
@@ -2258,7 +2263,7 @@ function renderHomePersonalized(){
  const tonightPicture=/^https:\/\//i.test(tonightPhoto)?'<img class="home-feature-photo" src="'+esc(tonightPhoto)+'" alt="" loading="lazy" decoding="async">':'<div class="home-feature-photo home-feature-placeholder" aria-hidden="true">🍽️</div>';
  host.innerHTML='<div class="home-overview"><button type="button" data-home-go="planner" aria-label="View '+chosen.length+' selected meals"><strong>'+chosen.length+'</strong><small>Selected meals</small></button><button type="button" data-home-go="shopping" aria-label="View '+listCount+' shopping entries"><strong>'+listCount+'</strong><small>Shopping entries</small></button><button type="button" data-home-go="pantry" aria-label="View '+pantryCount+' pantry ingredients"><strong>'+pantryCount+'</strong><small>Pantry ingredients</small></button></div>'+
  '<div class="home-feature">'+tonightPicture+'<div class="home-feature-content"><div><small>TONIGHT · '+esc(weekday)+'</small><h3>'+esc(tonightName)+'</h3></div><div class="home-feature-actions">'+(tonightId?'<button type="button" data-start-cooking="'+esc(tonightId)+'" class="home-cook-now">Cook Now →</button>':'')+'<button type="button" data-home-go="planner" class="home-open-planner">Open Planner</button></div></div></div>'+
- (chosen.length?'<div class="home-meals-head"><h3>Continue planning</h3><button type="button" data-home-go="planner">See all →</button></div><div class="home-meal-track">'+cards+'</div>':'<div class="home-empty"><strong>Ready to plan your week?</strong><p>Browse recipes to start choosing meals.</p><button type="button" data-home-go="recipes">Browse recipes →</button></div>');
+ (chosen.length?'<div class="home-meals-head"><h3>Your Upcoming Meals</h3><button type="button" data-home-go="planner">See all →</button></div><div class="home-meal-track">'+cards+'</div>':'<div class="home-empty"><strong>Ready to plan your week?</strong><p>Browse recipes to start choosing meals.</p><button type="button" data-home-go="recipes">Browse recipes →</button></div>');
 }
 function renderSelectedPlan(){
   try{renderHomePersonalized()}catch(error){console.warn("Home dashboard render:",error)}
