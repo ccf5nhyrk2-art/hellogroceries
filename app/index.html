@@ -5956,9 +5956,9 @@ body.hg-cooking-active{overflow:hidden}
    if(bare){title=bare[1];qty='';}
   }
   title=title.replace(/\bunits?\b/gi,'').replace(/\s+/g,' ').trim();
-  qty=qty.replace(/\\bunits?\\b/gi,'').replace(/\\s+/g,' ').trim();
+  qty=qty.replace(/\bunits?\b/gi,'').replace(/\s+/g,' ').trim();
   // Display-only grammatical agreement for measured ingredients.
-  qty=qty.replace(/^(\\d+(?:\\.\\d+)?|[¼½¾⅓⅔⅛⅜⅝⅞]|\\d+\\s+\\d+\\/\\d+)\\s+(clove|tablespoon|teaspoon|ounce|cup|pound)\\b/i,(whole,n,unit)=>{
+  qty=qty.replace(/^(\d+(?:\.\d+)?|[¼½¾⅓⅔⅛⅜⅝⅞]|\d+\s+\d+\/\d+)\s+(clove|tablespoon|teaspoon|ounce|cup|pound)\b/i,(whole,n,unit)=>{
    const singular=n==='1';return n+' '+unit+(singular?'':'s');
   });
   return {title,qty};
