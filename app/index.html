@@ -5921,6 +5921,14 @@ body.hg-cooking-active{overflow:hidden}
  #hg-cooking-mode #hg-cook-timer-dashboard:not(.has-active-timers){padding:12px 16px!important}
  #hg-cooking-mode #hg-cook-timer-dashboard:not(.has-active-timers) .cook-timer{flex-wrap:wrap;row-gap:8px}
 }
+/* Desktop: independent ingredient scrolling with an unobstructed timer footer. */
+@media(min-width:760px){
+ #hg-cooking-mode{min-height:0!important}
+ #hg-cooking-mode .cook-shell{min-height:0!important;flex:1 1 auto!important;overflow-y:auto!important;scroll-padding-bottom:28px!important;padding-bottom:36px!important}
+ #hg-cooking-mode .cook-content{padding-bottom:24px!important}
+ #hg-cooking-mode #hg-cook-all-ingredients{position:sticky!important;top:12px!important;align-self:start!important;max-height:min(64dvh,650px)!important;overflow-y:auto!important;overscroll-behavior:contain!important;scrollbar-gutter:stable}
+ #hg-cooking-mode #hg-cook-timer-dashboard{flex:0 0 auto!important;position:relative!important;bottom:auto!important;z-index:5!important;margin-top:8px!important;margin-bottom:0!important;box-sizing:border-box!important}
+}
 /* Compact cooking header on phones: preserve readable steps and tap targets. */
 @media(max-width:759px){
  #hg-cooking-mode .cook-shell{gap:8px!important;padding-bottom:12px!important}
