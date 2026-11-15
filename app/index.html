@@ -5902,6 +5902,7 @@ body.hg-cooking-active{overflow:hidden}
    const bare=title.match(/^1\s+(salt|pepper)$/i);
    if(bare){title=bare[1];qty='';}
   }
+  title=title.replace(/\bunits?\b/gi,'').replace(/\s+/g,' ').trim();
   qty=qty.replace(/\bunits?\b/gi,'').replace(/\s+/g,' ').trim();
   return {title,qty};
  }
@@ -5964,7 +5965,7 @@ body.hg-cooking-active{overflow:hidden}
    }
   }
   // Changing steps returns the instruction to the top of the cooking viewport.
-  if(!ingredientsTab)byId('hg-cook-count').scrollIntoView({block:'start',behavior:'instant'});
+  if(!ingredientsTab&&root.getAttribute('aria-hidden')==='false')byId('hg-cook-count').scrollIntoView({block:'start',behavior:'auto'});
   save();
  }
  function startTimer(mins){
