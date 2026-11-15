@@ -4637,9 +4637,14 @@ $('recipes').addEventListener('click',async e=>{
   return;
  }
  if(detail){
+  if(detail.disabled)return;
+  const originalLabel=detail.textContent;
+  detail.disabled=true;
+  detail.textContent='Loading details…';
   let r;
   try{r=await fetchRecipeDetail(detail.dataset.detail)}
   catch(error){alert('Recipe details are not available: '+error.message);return;}
+  finally{detail.disabled=false;detail.textContent=originalLabel;}
   if(!r){alert('Recipe details are not available for this recipe.');return;}
   $('recipe-photo-admin').dataset.photo=String(r.id);
   $('recipe-photo-admin').textContent=r.image?'Change recipe photo':'Add recipe photo';
