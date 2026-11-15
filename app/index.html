@@ -1,4 +1,4 @@
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>HelloGroceries</title><style>
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#176b4a"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="HelloGroceries"><link rel="manifest" href="/manifest.webmanifest"><link rel="icon" type="image/svg+xml" href="/assets/hg-icon.svg"><link rel="apple-touch-icon" href="/assets/hg-icon.svg"><title>HelloGroceries</title><style>
 :root{font-family:system-ui,-apple-system,sans-serif;color:#183329;background:#f4f7f4}body{margin:0}header{background:#176b4a;color:white;padding:20px max(16px,calc((100vw - 980px)/2))}h1{margin:0;font-size:25px}main{max-width:980px;margin:auto;padding:16px}.layout{display:grid;grid-template-columns:1fr 1fr;gap:18px}@media(max-width:750px){.layout{grid-template-columns:1fr}}section{background:white;border-radius:14px;padding:18px;box-shadow:0 2px 9px #0001}h2{margin:0 0 12px;font-size:20px}.row{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid #e5ece6}.row label{flex:1;cursor:pointer}.row input[type=checkbox]{width:21px;height:21px;accent-color:#176b4a}.row select{padding:7px;border-radius:7px;border:1px solid #ddd}.actions{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}button{border:0;background:#176b4a;color:white;padding:12px 16px;border-radius:9px;font-weight:700;cursor:pointer}button.clear{background:#6e7771}input[type=search]{width:100%;padding:12px;border:1px solid #cad7cf;border-radius:9px;margin-bottom:10px}.done{text-decoration:line-through;color:#8a9690}.muted{color:#607369;font-size:14px}.qty{font-variant-numeric:tabular-nums;font-weight:600}.error{color:#a51e24}.recipe-photo{width:94px;height:78px;object-fit:cover;border-radius:9px;background:#e8efe9;flex-shrink:0}.photo-placeholder{display:grid;place-items:center;font-size:30px}.photo-edit{font-size:12px;padding:5px 8px;background:#edf4ef;color:#176b4a;margin-top:4px}.recipe-details{min-width:0;flex:1}.recipe-details strong{display:block}
 .filters{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin:10px 0}.filters select{min-width:0;width:100%;padding:11px;border:1px solid #cad7cf;border-radius:9px;background:white}.filter-actions{display:flex;gap:9px;align-items:center;flex-wrap:wrap;margin-bottom:10px}.filter-actions button{padding:9px 12px}.recipe-browser{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.recipe-card{border:1px solid #e1e9e2;border-radius:12px;overflow:hidden;display:flex;flex-direction:column;min-width:0}.recipe-card>img,.recipe-card>.photo-placeholder{width:100%;height:132px;object-fit:cover;border-radius:0}.recipe-card-body{padding:11px;display:flex;flex-direction:column;gap:8px;flex:1}.recipe-card-title{font-size:14px;line-height:1.35;min-height:38px}.recipe-card-bottom{display:flex;justify-content:space-between;align-items:center;gap:5px}.recipe-card-bottom select{max-width:74px}.recipe-card-bottom input{width:20px;height:20px;accent-color:#176b4a}.recipe-card a{font-size:12px}.recipe-card .photo-edit{align-self:flex-start}.pagination{display:flex;align-items:center;justify-content:center;gap:12px;margin:15px 0}.pagination button:disabled{opacity:.4;cursor:default}.recipe-card .photo-placeholder{display:grid;place-items:center;font-size:38px}@media(max-width:480px){.recipe-browser{grid-template-columns:1fr}.filters{grid-template-columns:1fr}}
 
@@ -1156,6 +1156,21 @@ html[data-theme="light"] #my-recipes select:focus-visible{outline:3px solid #8ee
 }
 @media(max-width:390px){.recipe-browser{grid-template-columns:repeat(2,minmax(0,1fr))}}
 </style>
+
+<style>
+/* Mobile Home: compact featured photo so the dinner action sits above the floating navigation sooner. */
+@media(max-width:750px){
+ .mobile-home-dashboard .home-feature-photo{aspect-ratio:3.2!important;max-height:240px!important;object-fit:cover!important}
+ .mobile-home-dashboard .home-feature-content{position:relative;z-index:1;padding:14px 16px!important}
+ .mobile-home-dashboard .home-personalized{padding-bottom:calc(145px + env(safe-area-inset-bottom,0px))!important}
+}
+</style>
+
+<style>
+/* Selected Meals: keep cooking in HelloGroceries and retain optional source link. */
+.selected-meal-info .selected-cook-button{display:inline-flex;align-items:center;justify-content:center;min-height:42px;padding:9px 14px;margin:8px 10px 8px 0;border:1px solid #75bf91;border-radius:10px;background:#216442;color:#fff;font:inherit;font-weight:700;cursor:pointer;text-decoration:none}
+.selected-meal-info .selected-recipe-link:not(button){display:inline-flex;min-height:42px;align-items:center;margin-right:6px}
+</style>
 </head><body><header><h1>🥬 HelloGroceries</h1><div>Choose recipes · Generate · Shop</div><button id="hg-header-store" type="button" title="View or change preferred store" aria-label="View or change preferred grocery store"><span id="hg-header-store-label">📍 Choose your store</span> ▾</button> <a href="/admin.html" data-admin-only style="color:white;margin-left:15px">Household admin</a> <button type="button" id="desktop-logout" class="secondary" style="margin-left:12px">Sign Out</button></header><main><div class="shopping-view-toolbar"><button type="button" id="shop-generate-tour" title="Generate a shopping list from your selected meals">Generate Shopping List</button><button type="button" id="shopping-focus-toggle" aria-pressed="false">🛒 Shopping list only</button></div><section class="mobile-home-dashboard" aria-label="HelloGroceries home"><div class="mobile-home-welcome"><h2>What would you like to do?</h2><p>Recipes, meal planning, and groceries in one place.</p></div><div class="mobile-home-actions"><button type="button" data-home-go="recipes"><span>🍽️</span><strong>Browse recipes</strong><small>Find your next meal</small></button><button type="button" data-home-go="planner"><span>🗓️</span><strong>Plan meals</strong><small>Organize your week</small></button><button type="button" data-home-go="shopping"><span>🛒</span><strong>Shopping list</strong><small>See what you need</small></button><button type="button" data-home-go="pantry"><span>🥫</span><strong>My pantry</strong><small>Track what you have</small></button></div><div id="home-personalized" class="home-personalized" aria-live="polite"></div></section><div class="layout"><section><div class="recipes-topbar"><h2>Recipes <span id="count" class="muted"></span></h2><button type="button" id="show-selected-meals" class="recipes-selected-button" aria-expanded="false" aria-controls="selected-plan">Selected Meals <span id="selected-meals-button-count"></span> ▾</button></div><input id="search" type="search" placeholder="Search recipes worldwide"><div id="active-recipe-filter-chips" aria-label="Active recipe filters"></div><p class="muted" id="filtercount" aria-live="polite"></p><p class="muted" id="hf-photo-audit" style="font-size:12px;margin:5px 0 10px"></p><div class="enhance-panel" id="shop-sales"><h3>Find nearby grocery stores</h3><p class="muted">Find grocery stores near your ZIP code and choose your favorite.</p><form id="store-lookup-form" class="actions" style="flex-wrap:wrap"><input id="store-zip" inputmode="numeric" pattern="[0-9]{5}" maxlength="5" placeholder="ZIP code" aria-label="Five-digit ZIP code" required><label for="store-radius">Within</label><select id="store-radius" aria-label="Search radius"><option value="5" selected>5 miles</option><option value="10">10 miles</option><option value="15">15 miles</option><option value="20">20 miles</option><option value="25">25 miles</option></select><button type="submit">Find stores</button></form><p id="store-status" class="muted" aria-live="polite"></p><div id="store-results"></div><div class="enhance-panel" id="store-sales-comparison" style="margin-top:14px"><h3>Compare sales with your shopping list</h3><p class="muted">Add verified offers from retailer weekly ads to compare nearby stores. Automatic regional weekly ads are checked for free when available. You can also enter verified offers manually. Confirm offers and dates with the retailer before shopping.</p><details id="sale-feed-import"><summary style="cursor:pointer;font-weight:600;margin:10px 0">Import weekly-ad offers (JSON)</summary><p class="muted">Import a retailer-provided or independently verified JSON export. Each record needs store, item, price, unit, expires (YYYY-MM-DD), and an HTTPS source link. Imported offers remain in this browser and expire automatically.</p><input id="sale-feed-file" type="file" accept=".json,application/json" aria-label="Choose weekly-ad JSON export"><button type="button" id="sale-feed-import-button">Import verified offers</button><p class="muted" id="sale-feed-status" aria-live="polite"></p></details><details id="manual-sale-entry"><summary style="cursor:pointer;font-weight:600;margin:10px 0">＋ Add an offer from a weekly ad (optional)</summary><form id="store-sale-form" class="actions" style="flex-wrap:wrap"><select id="sale-store" aria-label="Store for sale" required><option value="">Find nearby stores first</option></select><input id="sale-item" list="sale-shopping-items" placeholder="Sale item (e.g. chicken breast)" maxlength="100" required><input id="sale-price" type="number" min="0.01" max="10000" step="0.01" placeholder="Sale price ($)" required><input id="sale-unit" placeholder="Unit (e.g. lb, pack)" maxlength="30" required><input id="sale-expires" type="date" aria-label="Offer expiration date" required><input id="sale-source" type="url" placeholder="Retailer weekly-ad URL" aria-label="Retailer offer source URL" required><button type="submit">Add verified offer</button></form><datalist id="sale-shopping-items"></datalist></details><p class="muted" id="sale-status" aria-live="polite"></p><div class="actions" style="flex-wrap:wrap;margin:12px 0"><button type="button" id="check-retailer-ad">Check official weekly ad</button><span class="muted" id="retailer-ad-status" aria-live="polite">Check retailer ad availability before entering verified offers.</span></div><p class="muted" id="automatic-sale-status" aria-live="polite">Free regional weekly-ad lookup runs when nearby stores load; no API key required.</p><div class="enhance-panel" id="store-price-panel" style="margin-top:14px"><h3>Preferred store pricing</h3><p class="muted">Prices are tied to your selected store. Matching verified weekly-ad offers are included automatically; other prices can be entered manually. Unavailable prices are not estimated.</p><form id="store-price-form" class="actions" style="flex-wrap:wrap"><input id="store-price-item" list="sale-shopping-items" placeholder="Ingredient" maxlength="120" required><input id="store-price-amount" type="number" min="0.01" max="10000" step="0.01" placeholder="Price ($)" required><input id="store-price-unit" maxlength="40" placeholder="Pack / lb / each" required><input id="store-price-source" type="url" placeholder="HTTPS source (optional)"><button type="submit">Save price</button></form><p class="muted" id="store-price-status" aria-live="polite"></p><div id="store-price-results"></div></div><div id="sale-comparison-results"></div></div><small class="muted">Store locations from third-party directories; coverage varies. Weekly sale prices require verification.</small></div><div class="enhance-panel" id="my-recipes"><h3>My Recipes</h3><p class="muted">Your collections and saved meals, all in one place.</p><div id="my-collection-cards" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(175px,1fr));gap:10px;margin:14px 0"></div><div id="my-collection-contents" style="margin:12px 0"></div><div class="actions" style="display:none" aria-hidden="true"><select id="favorite-filter" aria-label="Show favorites"><option value="all">All recipes</option><option value="favorites">♥ Favorites only</option></select><select id="collection-filter" aria-label="Filter by collection"><option value="all">All collections</option></select></div><details id="manage-collections-panel" style="margin-top:12px"><summary style="cursor:pointer;font-weight:600">Manage collections</summary><div class="actions" style="margin-top:12px;flex-wrap:wrap"><input id="new-collection" placeholder="New collection name" maxlength="60"><button id="create-collection" type="button">Create collection</button></div><div class="actions" style="margin-top:12px;flex-wrap:wrap"><select id="manage-collection" aria-label="Collection to manage"><option value="">Choose a collection…</option></select><button id="rename-collection" type="button" class="clear">Rename</button><button id="delete-collection" type="button" class="clear">Delete collection</button></div><div id="manage-collection-recipes" class="muted"></div></details></div><div id="selected-plan" class="selected-plan" hidden><h3>My Selected Meals <span id="selected-plan-count" class="muted"></span></h3><div id="selected-plan-list" class="muted">No meals selected yet.</div></div><p id="diet-warning" class="muted" style="display:none">Dietary results are estimated from ingredient names, not verified allergen labels. Check the full recipe, sauces, substitutions and packaging for gluten, dairy and cross-contact before cooking, especially for allergies or celiac disease.</p><section id="recipe-recommendations" aria-labelledby="recommend-heading" style="margin:16px 0 24px;padding:16px;border:1px solid #345443;border-radius:14px;background:rgba(28,57,42,.18)"><div style="display:flex;align-items:center;justify-content:space-between;gap:12px"><div><h3 id="recommend-heading" style="margin:0">Recommended for you</h3><p class="muted" style="margin:5px 0 0">Suggestions based on saved meals, favorites and ratings</p></div><button type="button" id="recommend-refresh" class="clear">Refresh</button></div><div id="recommend-list" style="display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px;margin-top:14px"></div><div id="recommend-carousel-controls" class="recommend-carousel-controls" hidden><span class="recommend-swipe-hint">Swipe for more →</span><div id="recommend-dots" class="recommend-dots"></div></div></section><section id="recipe-category-section" aria-label="Browse recipes by category"><div class="recipe-rail-heading"><div class="recipe-category-header"><div><h3>Browse by category</h3></div><button type="button" id="recipe-rail-shuffle" class="clear">↻ Shuffle</button></div></div><div id="recipe-category-rails" aria-live="polite"></div><div id="recipe-rail-feedback" role="status" aria-live="polite" class="muted" hidden></div></section><div class="actions" style="display:none"><button type="button" id="fast-browse-toggle" class="clear" aria-expanded="false">Preview fast recipe browsing</button></div><div id="fast-browse-panel" hidden style="display:none"><p class="muted">Server-side recipe browsing preview. Your regular filters and meal planning remain available below.</p><div class="actions"><input id="fast-browse-search" placeholder="Search recipe names" aria-label="Search server-side recipes"><button id="fast-browse-search-button" type="button">Search</button></div><div id="fast-browse-results" class="recipe-browser" aria-live="polite"></div><div class="pagination"><button type="button" id="fast-browse-prev">Previous</button><span id="fast-browse-pageinfo" class="muted"></span><button type="button" id="fast-browse-next">Next</button></div></div><div class="enhance-panel"><h3>Cook With What I Have</h3><p class="muted">Find recipes using ingredients in your pantry. Matches are estimates; check amounts before cooking.</p><button type="button" id="pantry-recipe-find">Find pantry meals</button><div id="pantry-recipe-results" role="status" aria-live="polite"></div></div><div id="mobile-recipe-filters"><div class="filter-actions"><label><input type="checkbox" id="fullmeals" checked> Full meals only</label><label><input type="checkbox" id="selectedonly"> Selected recipes only</label><label class="quick-toggle"><input type="checkbox" id="quickmeals"> Quick meals (15 min or less)</label><button type="button" class="clear" id="resetfilters">Reset filters</button></div><div class="filters"><select id="recipe-country" aria-label="Filter recipes by country"><option value="all" selected>All countries</option><option value="US">United States</option><option value="UK">United Kingdom</option><option value="AU">Australia</option><option value="CA">Canada</option><option value="DE">Germany</option><option value="NL">Netherlands</option><option value="other">Other / Unknown</option></select><select id="protein" aria-label="Filter by protein"><option value="all">All proteins</option><option value="chicken">Chicken</option><option value="beef">Beef</option><option value="pork">Pork</option><option value="seafood">Seafood</option><option value="vegetarian">Vegetarian / plant-based</option><option value="other">Other</option></select><select id="diet-filter" aria-label="Filter by dietary ingredients"><option value="all">All dietary options</option><option value="gluten-free">Gluten-free ingredients (estimated)</option><option value="dairy-free">Dairy-free ingredients (estimated)</option><option value="both">Gluten-free + dairy-free (estimated)</option></select><select id="cuisine" aria-label="Filter by cuisine"><option value="all">All cuisines</option><option value="italian">Italian</option><option value="mexican">Mexican / Tex-Mex</option><option value="asian">Asian-inspired</option><option value="mediterranean">Mediterranean</option><option value="american">American / comfort</option><option value="other">Other / unclassified</option></select><select id="meal" aria-label="Filter by meal type"><option value="all">All meal types</option><option value="sides">Sides & appetizers</option><option value="pasta">Pasta / noodles</option><option value="bowls">Bowls</option><option value="sandwich">Burgers / sandwiches</option><option value="salad">Salads</option><option value="soup">Soups / stews</option><option value="other">Other meals</option><option value="holiday">Holiday</option></select><select id="sort" aria-label="Sort recipes"><option value="name">Name A–Z</option><option value="newest">Newest imported</option><option value="reverse">Name Z–A</option></select></div><div class="filters"><select id="included-side" aria-label="Filter main meals by included side">
 <option value="all">Any included side</option>
 <optgroup label="Potatoes"><option value="potatoes">All potato sides</option><option value="mashed-potatoes">Mashed potatoes</option><option value="potato-wedges">Potato wedges</option><option value="fries">Potato fries</option><option value="sweet-potato-fries">Sweet potato fries</option><option value="vegetable-fries">Other vegetable fries</option><option value="roasted-potatoes">Roasted potatoes</option><option value="sweet-potatoes">Sweet potatoes</option></optgroup>
@@ -1575,6 +1590,9 @@ document.querySelector('.mobile-home-dashboard')?.addEventListener('click',event
   const desktopButton=pageButtons.get(page);
   if(navButton){navButton.click();return;}
   if(desktopButton){desktopButton.click();return;}
+  // Selected Meals lives in More on mobile; its navigation button is not
+  // in the bottom tab bar. Route directly instead of leaving Home unchanged.
+  if(pageSpecs.some(spec=>spec[0]===page)){showPage(page);return;}
   console.error('Missing navigation destination',page);
  }
 });
@@ -2187,7 +2205,7 @@ function renderHomePersonalized(){
  const tonightName=tonight?cleanRecipeName(tonight.name):(tonightId?'Meal selected':'Nothing planned yet');
  const tonightPhoto=String(tonight?.image||'');
  const tonightPicture=/^https:\/\//i.test(tonightPhoto)?'<img class="home-feature-photo" src="'+esc(tonightPhoto)+'" alt="" loading="lazy" decoding="async">':'<div class="home-feature-photo home-feature-placeholder" aria-hidden="true">🍽️</div>';
- host.innerHTML='<div class="home-overview"><div><strong>'+chosen.length+'</strong><small>Selected meals</small></div><div><strong>'+listCount+'</strong><small>Shopping entries</small></div><div><strong>'+pantryCount+'</strong><small>Pantry ingredients</small></div></div>'+
+ host.innerHTML='<div class="home-overview"><button type="button" data-home-go="selected-meals" aria-label="View '+chosen.length+' selected meals"><strong>'+chosen.length+'</strong><small>Selected meals</small></button><button type="button" data-home-go="shopping" aria-label="View '+listCount+' shopping entries"><strong>'+listCount+'</strong><small>Shopping entries</small></button><button type="button" data-home-go="pantry" aria-label="View '+pantryCount+' pantry ingredients"><strong>'+pantryCount+'</strong><small>Pantry ingredients</small></button></div>'+
  '<div class="home-feature">'+tonightPicture+'<div class="home-feature-content"><div><small>TONIGHT · '+esc(weekday)+'</small><h3>'+esc(tonightName)+'</h3></div><button type="button" data-home-go="planner">Open planner →</button></div></div>'+
  (chosen.length?'<div class="home-meals-head"><h3>Continue planning</h3><button type="button" data-home-go="planner">See all →</button></div><div class="home-meal-track">'+cards+'</div>':'<div class="home-empty"><strong>Ready to plan your week?</strong><p>Browse recipes to start choosing meals.</p><button type="button" data-home-go="recipes">Browse recipes →</button></div>');
 }
@@ -2203,7 +2221,7 @@ function renderSelectedPlan(){
     const photoUrl=String(x.recipe?.image||'');
     const thumb=/^https:\/\//i.test(photoUrl)?'<img class="selected-meal-photo" src="'+esc(photoUrl)+'" alt="" loading="lazy" decoding="async">':'<span class="selected-meal-photo selected-meal-placeholder" aria-hidden="true">🍽️</span>';
     const url=String(x.recipe?.url||'');
-    const link=/^https:\/\//i.test(url)?`<a class="selected-recipe-link" href="${esc(url)}" target="_blank" rel="noopener noreferrer">View recipe ↗</a>`:'';
+    const link=`<button type="button" class="selected-recipe-link selected-cook-button" data-start-cooking="${esc(x.id)}">Start Cooking</button>`+(/^https:\/\//i.test(url)?`<a class="selected-recipe-link" href="${esc(url)}" target="_blank" rel="noopener noreferrer">View Original ↗</a>`:'');
     const note=x.recipe?'':pendingSavedRecipeIds.has(x.id)?'<small class="selected-meal-note">Retrieving saved recipe details…</small>':'<small class="selected-meal-note">Recipe details are temporarily unavailable. Your selection is saved.</small>';
     return `<div class="selected-meal">${thumb}<div class="selected-meal-info"><div class="selected-meal-name">${esc(name)}</div>${link}${note}</div><div class="selected-meal-controls"><label>Servings <select aria-label="Servings for ${esc(name)}" data-plan-scale="${esc(x.id)}">${[0.5,1,1.5,2,3,4,5,6].map(v=>`<option value="${v}" ${Number(x.scale)===v?'selected':''}>${v} servings</option>`).join('')}</select></label><button type="button" data-remove-meal="${esc(x.id)}" aria-label="Remove ${esc(name)}">Remove</button></div></div>`;
   }).join(''):'<p class="muted">No meals selected yet. Choose “Add to plan” on a recipe.</p>';
@@ -4651,8 +4669,9 @@ $('recipes').addEventListener('click',async e=>{
   $('recipe-photo-admin').dataset.photo=String(r.id);
   $('recipe-photo-admin').textContent=r.image?'Change recipe photo':'Add recipe photo';
   const entries=Object.entries(r.ingredients||{});
+  const cookAction='<div class="actions"><button type="button" data-start-cooking="'+r.id+'">Start Cooking</button></div>';
   const similarSection='<section class="similar-recipes"><div class="actions"><button type="button" data-more-like="'+r.id+'">More Like This</button></div><div id="similar-recipe-results" role="status" aria-live="polite"></div></section>';
-  $('recipe-detail').innerHTML='<h2>'+esc(cleanRecipeName(r.name))+'</h2><p class="muted">'+esc(r.country||'')+'</p>'+nutritionDetails(r)+similarSection+'<h3>Ingredients</h3><ul>'+entries.map(([k,v])=>'<li>'+esc(k)+(String(v).trim()==='1'?'':' — '+esc(v))+'</li>').join('')+'</ul>'+(Array.isArray(r.instructions)&&r.instructions.length?'<h3>Cooking steps</h3><ol>'+r.instructions.map(step=>'<li>'+esc(typeof step==='string'?step:JSON.stringify(step))+'</li>').join('')+'</ol>':'<p class="muted">Cooking instructions are not stored for this recipe. Use the original recipe page.</p>')+(r.url?'<a href="'+esc(r.url)+'" target="_blank" rel="noopener noreferrer">Open original recipe</a>':'');
+  $('recipe-detail').innerHTML='<h2>'+esc(cleanRecipeName(r.name))+'</h2><p class="muted">'+esc(r.country||'')+'</p>'+nutritionDetails(r)+cookAction+similarSection+'<h3>Ingredients</h3><ul>'+entries.map(([k,v])=>'<li>'+esc(k)+(String(v).trim()==='1'?'':' — '+esc(v))+'</li>').join('')+'</ul>'+(Array.isArray(r.instructions)&&r.instructions.length?'<h3>Cooking steps</h3><ol>'+r.instructions.map(step=>'<li>'+esc(typeof step==='string'?step:JSON.stringify(step))+'</li>').join('')+'</ol>':'<p class="muted">Cooking instructions are not stored for this recipe. Use the original recipe page.</p>')+(r.url?'<a href="'+esc(r.url)+'" target="_blank" rel="noopener noreferrer">Open original recipe</a>':'');
 
   const review=(state.recipe_reviews||{})[String(r.id)]||{};$('recipe-review-id').value=String(r.id);$('recipe-rating').value=String(review.rating||0);$('recipe-note').value=review.note||'';$('review-status').textContent='';
   // Keep recipe cards aligned by displaying details in the existing dialog.
@@ -5007,7 +5026,7 @@ fetch('/api/auth/status',{cache:'no-store'}).then(r=>r.json()).then(status=>{
   if(localStorage.getItem('hellogroceries-active-page-v1')==='backup')showPage('all');
  }
 }).catch(()=>{});
-</script><script>if('serviceWorker' in navigator)navigator.serviceWorker.getRegistrations().then(rs=>rs.forEach(r=>{if(r.active&&r.active.scriptURL.endsWith('/sw.js'))r.unregister()})).catch(()=>{});</script><script>(function(){const b=document.createElement('button');b.id='hg-theme-toggle';b.type='button';b.setAttribute('aria-label','Toggle light and dark mode');function sync(){const dark=document.documentElement.dataset.theme==='dark';b.textContent=dark?'☀ Light mode':'☾ Dark mode';b.setAttribute('aria-pressed',String(dark))}b.addEventListener('click',()=>{const theme=document.documentElement.dataset.theme==='dark'?'light':'dark';document.documentElement.dataset.theme=theme;try{localStorage.setItem('hg-theme',theme)}catch(e){}sync()});(document.querySelector('header')||document.body).appendChild(b);sync()})()</script><script>(function(){
+</script><script>if('serviceWorker' in navigator&&window.isSecureContext){window.addEventListener('load',()=>navigator.serviceWorker.register('/hg-sw.js',{scope:'/'}).catch(()=>{}))}</script><script>(function(){const b=document.createElement('button');b.id='hg-theme-toggle';b.type='button';b.setAttribute('aria-label','Toggle light and dark mode');function sync(){const dark=document.documentElement.dataset.theme==='dark';b.textContent=dark?'☀ Light mode':'☾ Dark mode';b.setAttribute('aria-pressed',String(dark))}b.addEventListener('click',()=>{const theme=document.documentElement.dataset.theme==='dark'?'light':'dark';document.documentElement.dataset.theme=theme;try{localStorage.setItem('hg-theme',theme)}catch(e){}sync()});(document.querySelector('header')||document.body).appendChild(b);sync()})()</script><script>(function(){
  const header=document.querySelector('header'),footer=document.querySelector('.mobile-more-footer');
  const theme=document.getElementById('hg-theme-toggle'),admin=header&&header.querySelector('a[data-admin-only]');
  if(!header||!footer||!theme)return;
@@ -5584,7 +5603,7 @@ body:has(#hg-tour-overlay:not([hidden])) #hg-tour-replay{display:none!important}
 @media(min-width:751px){
  #home-personalized.home-personalized{display:grid;gap:20px;margin:22px 0 32px;min-width:0}
  #home-personalized .home-overview{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
- #home-personalized .home-overview>div{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;padding:18px 12px;border:1px solid rgba(126,158,136,.4);border-radius:14px;background:rgba(37,91,57,.13);min-width:0}
+ #home-personalized .home-overview>button{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;padding:18px 12px;border:1px solid rgba(126,158,136,.4);border-radius:14px;background:rgba(37,91,57,.13);min-width:0}
  #home-personalized .home-overview strong{display:block;font-size:27px;line-height:1.1}
  #home-personalized .home-overview small{display:block;font-size:13px;line-height:1.4;text-align:center}
  #home-personalized .home-feature{display:grid;grid-template-columns:minmax(0,240px) minmax(0,1fr);gap:0;overflow:hidden;border:1px solid rgba(116,175,136,.5);border-radius:16px;background:rgba(33,103,64,.14);min-width:0}
@@ -5619,7 +5638,7 @@ body:has(#hg-tour-overlay:not([hidden])) #hg-tour-replay{display:none!important}
  .mobile-home-actions button small{font-size:12px!important}
  .home-personalized{display:grid;gap:17px;margin-top:19px;padding-bottom:120px}
  .home-overview{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px}
- .home-overview>div{border:1px solid rgba(126,158,136,.35);border-radius:13px;padding:10px 5px;text-align:center;background:rgba(37,91,57,.12)}
+ .home-overview>button{border:1px solid rgba(126,158,136,.35);border-radius:13px;padding:10px 5px;text-align:center;background:rgba(37,91,57,.12)}
  .home-overview strong{display:block;font-size:23px}
  .home-overview small{display:block;font-size:10px;line-height:1.3}
  .home-feature{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:14px;border:1px solid rgba(116,175,136,.5);border-radius:15px;background:rgba(33,103,64,.15)}
@@ -5788,6 +5807,482 @@ body:has(#hg-tour-overlay:not([hidden])) #hg-tour-replay{display:none!important}
  document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')void verifySession()});
  window.addEventListener('focus',()=>{void verifySession()});
  window.setInterval(()=>{void verifySession()},60000);
+})();
+</script>
+
+<style>
+#hg-cooking-mode{position:fixed;inset:0;z-index:2147483100;background:#10231d;color:#f5fff9;display:none;overflow-y:auto;padding:clamp(12px,3vw,32px);box-sizing:border-box}
+#hg-cooking-mode[aria-hidden="false"]{display:block}
+#hg-cooking-mode .cook-shell{max-width:900px;margin:auto;display:grid;gap:18px}
+#hg-cooking-mode .cook-header,#hg-cooking-mode .cook-controls{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+#hg-cooking-mode button{min-height:46px;border-radius:12px;padding:10px 16px;border:1px solid #83bd9a;background:#245a40;color:#fff;font-weight:700}
+#hg-cooking-mode button:disabled{opacity:.4}
+#hg-cooking-mode .cook-step{font-size:clamp(23px,4vw,40px);line-height:1.4;padding:clamp(18px,4vw,36px);border-radius:20px;background:#1d3b2d;min-height:170px;overflow-wrap:anywhere}
+#hg-cooking-mode .cook-ingredients{border:1px solid #527765;border-radius:14px;padding:14px}
+#hg-cooking-mode .cook-ingredients label{display:block;padding:8px 0;line-height:1.5}
+#hg-cooking-mode input[type=checkbox]{width:20px;height:20px;vertical-align:middle;margin-right:10px}
+#hg-cooking-mode .cook-timer{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+#hg-cooking-mode .cook-timer input{width:90px;min-height:42px;border-radius:8px;padding:6px;color:#172b20;background:white}
+#hg-cooking-mode progress{width:100%;height:12px;accent-color:#9ce2af}
+body.hg-cooking-active{overflow:hidden}
+@media(min-width:760px){#hg-cooking-mode .cook-content{display:grid;grid-template-columns:minmax(0,2fr) minmax(220px,1fr);gap:18px;align-items:start}}
+</style>
+<style>
+#home-personalized .home-overview>button{width:100%;min-width:0;cursor:pointer;color:inherit;font-family:inherit;display:flex;flex-direction:column;align-items:center;justify-content:center}
+#home-personalized .home-overview>button:focus-visible{outline:3px solid #9ce2af;outline-offset:3px}
+</style>
+<style>
+#hg-cooking-mode .cook-tabs{display:flex;gap:8px;position:sticky;top:0;z-index:3;padding:10px 0;background:#10231d}
+#hg-cooking-mode .cook-tabs button[aria-pressed="true"]{background:#a4e6b5;color:#132a1c}
+#hg-cooking-mode .cook-step{font-size:clamp(20px,3vw,30px);line-height:1.5;min-height:0}
+#hg-cooking-mode .cook-controls{position:sticky;bottom:0;z-index:4;background:#10231d;padding:12px 0 calc(12px + env(safe-area-inset-bottom,0px))}
+#hg-cooking-mode .cook-ingredients[hidden],#hg-cooking-mode [hidden]{display:none!important}
+#hg-cooking-mode .cook-ingredients{margin-top:12px}
+#hg-cooking-mode #hg-cook-suggested-timer{margin-top:12px}
+@media(max-width:759px){#hg-cooking-mode .cook-content{display:block}#hg-cooking-mode #hg-cook-all-ingredients{display:none}#hg-cooking-mode #hg-cook-all-ingredients.cook-full-visible{display:block}#hg-cooking-mode .cook-header strong{font-size:15px}#hg-cooking-mode #hg-cook-title{font-size:23px;line-height:1.3}}
+</style><style>
+/* Cooking Mode mobile polish: controls stay visible without covering checklist. */
+#hg-cooking-mode .cook-shell{padding-bottom:calc(20px + env(safe-area-inset-bottom,0px))}
+#hg-cooking-mode .cook-content>div:first-child{display:flex;flex-direction:column;min-width:0}
+#hg-cooking-mode .cook-controls{position:static!important;bottom:auto!important;order:3;margin-top:16px!important;padding:12px 0!important;background:transparent!important}
+#hg-cooking-mode #hg-cook-step-ingredients{order:2}
+#hg-cooking-mode #hg-cook-suggested-timer{order:2}
+#hg-cooking-mode #hg-cook-title{font-size:clamp(18px,2.8vw,25px)!important;line-height:1.3!important;max-width:100%;overflow-wrap:anywhere;margin:4px 0 10px!important}
+#hg-cooking-mode .cook-header{gap:8px}
+#hg-cooking-mode .cook-header strong{font-size:14px!important}
+#hg-cooking-mode #hg-cook-close{padding:8px 12px!important;min-height:40px!important}
+#hg-cooking-mode #hg-cook-count{scroll-margin-top:95px}
+@media(max-width:759px){#hg-cooking-mode .cook-shell{gap:12px!important}#hg-cooking-mode .cook-step{padding:16px!important;font-size:20px!important;line-height:1.45!important}#hg-cooking-mode .cook-controls button{flex:1}}
+</style><style>
+/* Keep the cooking tab switcher in document flow so it never masks instructions. */
+#hg-cooking-mode .cook-tabs{position:static!important;top:auto!important;z-index:auto!important}
+#hg-cooking-mode #hg-cook-count{scroll-margin-top:16px!important}
+</style><style>
+#hg-cooking-mode .cook-timer-suggestion{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:12px 0}
+#hg-cooking-mode .cook-timer-suggestion span{font-weight:700}
+#hg-cooking-mode .cook-timer-suggestion button{padding:10px 14px;min-height:44px}
+#hg-cooking-mode .cook-active-timer{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:10px 0;padding:12px;border:1px solid #577365;border-radius:12px}
+#hg-cooking-mode .cook-active-timer button{min-height:40px}
+</style><style>
+#hg-cook-alarm[hidden]{display:none!important}
+#hg-cook-alarm{position:fixed;inset:0;z-index:2147483200;display:flex;align-items:center;justify-content:center;padding:20px;background:rgba(0,0,0,.85)}
+#hg-cook-alarm .hg-alarm-card{width:min(100%,460px);background:#254b36;color:#fff;border:2px solid #a9edbd;border-radius:24px;padding:28px 20px;text-align:center;box-shadow:0 15px 70px #0009}
+#hg-cook-alarm .hg-alarm-bell{font-size:64px}
+#hg-cook-alarm h2{font-size:clamp(28px,6vw,42px);margin:10px 0}
+#hg-cook-alarm p{font-size:19px;line-height:1.4;overflow-wrap:anywhere}
+#hg-cook-alarm button{background:#b7f0c5!important;color:#142e1d!important;font-size:20px!important;min-height:60px!important;width:100%;margin-top:16px}
+</style><style>
+#hg-cooking-mode #hg-cook-suggested-timer{margin:12px 0 18px}
+#hg-cooking-mode .cook-timer-suggestion{display:flex;align-items:center;flex-wrap:wrap;gap:8px;padding:12px;margin:8px 0;border:1px solid #557b65;border-radius:12px;background:rgba(34,102,66,.16)}
+#hg-cooking-mode .cook-timer-suggestion span{font-weight:700;flex:1 1 125px}
+#hg-cooking-mode .cook-timer-suggestion small{flex-basis:100%;color:#f3d58b}
+#hg-cooking-mode .cook-timer-suggestion button{min-height:44px;padding:8px 14px}
+#hg-cooking-mode #hg-cook-timer-dashboard:has(.cook-active-timer){position:sticky;bottom:0;z-index:10;background:#181b1f;border-top:1px solid #53635b;padding:8px 12px;max-height:34vh;overflow:auto}
+#hg-cooking-mode #hg-cook-timer-dashboard:has(.cook-active-timer) .cook-timer{display:flex}
+#hg-cooking-mode .cook-active-timer{margin:5px 0;padding:8px}
+</style><style>
+#hg-cooking-mode #hg-cook-timer-dashboard.has-active-timers{position:fixed!important;left:12px;right:12px;bottom:calc(env(safe-area-inset-bottom, 0px) + 12px);z-index:100;background:#18231e;border:1px solid #72947d;border-radius:16px;padding:6px 10px;max-height:45vh;overflow:auto;box-shadow:0 5px 30px #0009}
+#hg-cooking-mode #hg-cook-timer-dashboard.has-active-timers .hg-timer-summary{width:100%;min-height:46px;text-align:left;font-weight:700;border:0;background:transparent;color:inherit;font-size:15px}
+#hg-cooking-mode #hg-cook-timer-dashboard.has-active-timers:not(.timers-expanded) .cook-active-timer{display:none}
+#hg-cooking-mode #hg-cook-timer-dashboard.has-active-timers:not(.timers-expanded) .cook-timer{display:none!important}
+#hg-cooking-mode #hg-cook-timer-dashboard.has-active-timers.timers-expanded .cook-timer{display:flex!important}
+#hg-cooking-mode #hg-cook-timer-dashboard.has-active-timers.timers-expanded .cook-active-timer{display:flex}
+#hg-cooking-mode .cook-shell:has(#hg-cook-timer-dashboard.has-active-timers){padding-bottom:90px}
+</style><style>
+/* Mobile cooking timer occupies its own footer, never covers instructions or buttons. */
+#hg-cooking-mode[aria-hidden="false"]{display:flex!important;flex-direction:column;overflow:hidden!important;padding-bottom:max(8px,env(safe-area-inset-bottom,0px))}
+#hg-cooking-mode .cook-shell{flex:1 1 auto;min-height:0;width:100%;overflow-y:auto;overscroll-behavior:contain;padding-bottom:24px;box-sizing:border-box}
+#hg-cooking-mode #hg-cook-timer-dashboard{flex:0 0 auto;width:100%;max-width:900px;margin:0 auto;box-sizing:border-box}
+#hg-cooking-mode #hg-cook-timer-dashboard.has-active-timers{position:relative!important;left:auto!important;right:auto!important;bottom:auto!important;max-height:35vh!important;margin-top:8px!important;padding:4px 10px!important}
+#hg-cooking-mode #hg-cook-timer-dashboard.has-active-timers:not(.timers-expanded){overflow:hidden!important}
+#hg-cooking-mode .cook-shell:has(#hg-cook-timer-dashboard.has-active-timers){padding-bottom:24px}
+@media(max-width:759px){#hg-cooking-mode #hg-cook-timer-dashboard.has-active-timers{border-radius:12px}}
+</style><style>
+/* Compact cooking header on phones: preserve readable steps and tap targets. */
+@media(max-width:759px){
+ #hg-cooking-mode .cook-shell{gap:8px!important;padding-bottom:12px!important}
+ #hg-cooking-mode .cook-header{gap:6px!important;min-height:44px!important}
+ #hg-cooking-mode .cook-header strong{font-size:12px!important;line-height:1.2!important}
+ #hg-cooking-mode #hg-cook-close{min-height:44px!important;padding:6px 10px!important;font-size:13px!important}
+ #hg-cooking-mode #hg-cook-title{font-size:18px!important;line-height:1.2!important;margin:0 0 2px!important;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden}
+ #hg-cooking-mode .cook-tabs{gap:8px!important;padding:3px 0!important}
+ #hg-cooking-mode .cook-tabs button{padding:8px 12px!important;min-height:44px!important}
+ #hg-cooking-mode progress{height:8px!important}
+ #hg-cooking-mode #hg-cook-count{margin:6px 0!important;scroll-margin-top:18px!important}
+ #hg-cooking-mode #hg-cook-timer-dashboard.has-active-timers:not(.timers-expanded){max-height:64px!important;overflow:hidden!important}
+ #hg-cooking-mode #hg-cook-timer-dashboard.has-active-timers .hg-timer-summary{min-height:48px!important;padding:8px 10px!important;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+}
+/* Keep ingredients and navigation reachable above the timer footer. */
+#hg-cooking-mode .cook-shell{min-height:0!important;overflow-y:auto!important;overflow-x:hidden!important;scroll-padding-bottom:28px!important}
+#hg-cooking-mode .cook-content{padding-bottom:28px}
+#hg-cooking-mode #hg-cook-step{touch-action:pan-y}
+#hg-cooking-mode #hg-cook-timer-dashboard{flex-shrink:0!important}
+#hg-cooking-mode #hg-cook-alarm:not([hidden]){position:fixed!important;inset:0!important;z-index:2147483600!important;display:flex!important;align-items:center;justify-content:center;background:#000b;padding:20px}
+/* iOS standalone PWA safe areas: prevent Dynamic Island and Home indicator overlap. */
+@supports (padding-top: env(safe-area-inset-top)) {
+ #hg-cooking-mode[aria-hidden="false"]{
+  padding-top:max(28px,calc(env(safe-area-inset-top) + 12px))!important;
+  padding-bottom:max(16px,env(safe-area-inset-bottom))!important;
+ }
+ #hg-cooking-mode .cook-shell{scroll-padding-top:12px}
+ #hg-cooking-mode #hg-cook-timer-dashboard.has-active-timers{margin-bottom:0!important}
+}
+</style><section id="hg-cooking-mode" role="dialog" aria-modal="true" aria-label="HelloGroceries Cooking Mode" aria-hidden="true">
+ <div class="cook-shell">
+  <div class="cook-header"><strong>🍳 HelloGroceries Cooking Mode</strong><button id="hg-cook-close" type="button">Exit Cooking</button></div>
+  <h2 id="hg-cook-title"></h2><div class="cook-tabs"><button type="button" id="hg-cook-show-steps" aria-pressed="true">Cooking steps</button><button type="button" id="hg-cook-show-ingredients" aria-pressed="false">All ingredients</button></div>
+  <progress id="hg-cook-progress" max="1" value="0"></progress>
+  <div class="cook-content">
+   <div><p id="hg-cook-count" aria-live="polite"></p><div id="hg-cook-step" class="cook-step" aria-live="polite"></div><div id="hg-cook-suggested-timer"></div><section id="hg-cook-step-ingredients" class="cook-ingredients"><h3>Ingredients for this step</h3><div id="hg-cook-step-ingredient-list"></div></section><div class="cook-controls" style="margin-top:16px"><button id="hg-cook-prev" type="button">← Previous</button><button id="hg-cook-next" type="button">Next →</button></div></div>
+   <aside id="hg-cook-all-ingredients" class="cook-ingredients"><h3>All ingredients</h3><div id="hg-cook-ingredients"></div></aside>
+  </div>
+  <div id="hg-cook-timer-dashboard"><div id="hg-cook-active-timers" aria-live="polite"></div><div class="cook-timer"><label for="hg-cook-minutes">Timer (minutes)</label><input id="hg-cook-minutes" type="number" min="1" max="240" value="5"><button id="hg-cook-timer-start" type="button">Start Timer</button><button id="hg-cook-timer-stop" type="button">Cancel Timer</button><strong id="hg-cook-timer-display" role="status" aria-live="polite"></strong></div></div><div id="hg-cook-alarm" role="alertdialog" aria-modal="true" aria-labelledby="hg-cook-alarm-title" aria-describedby="hg-cook-alarm-message" hidden><div class="hg-alarm-card"><div class="hg-alarm-bell" aria-hidden="true">🔔</div><h2 id="hg-cook-alarm-title">Timer finished!</h2><p id="hg-cook-alarm-message"></p><button id="hg-cook-alarm-stop" type="button">Stop Alarm</button></div></div>
+  <p style="opacity:.8">Your cooking step and ingredient checklist are saved on this device. Screen wake lock is requested where supported.</p>
+ </div>
+</section>
+<script>
+(function(){
+ const byId=id=>document.getElementById(id);
+ const root=byId('hg-cooking-mode');
+ // Keep timer controls in their own reserved footer rather than overlaying recipe controls.
+ const timerDashboard=byId('hg-cook-timer-dashboard');
+ // The dashboard must be a direct child of the cooking overlay, outside the scrolling recipe shell.
+ // Otherwise iOS can scroll the countdown out of view immediately after tapping Start.
+ root.appendChild(timerDashboard);
+ let recipe=null,step=-1,checked=new Set(),timerId=null,wakeLock=null,returnFocus=null,ingredientsTab=false,activeTimers=[],audioContext=null,alarmSoundId=null,alarmQueue=[];
+ const key=id=>'hg-cooking-progress-'+id;
+ const save=()=>{if(!recipe)return;try{localStorage.setItem(key(recipe.id),JSON.stringify({step,checked:[...checked]}))}catch(e){}};
+ const safeText=value=>typeof value==='string'?value:JSON.stringify(value);
+ const ingredients=()=>Object.entries(recipe?.ingredients||{});
+ // Imported recipe text sometimes loses punctuation in a time range.
+ // Display a clearly marked possible range; do not silently modify stored data.
+ function readableInstruction(value){
+  return safeText(value).replace(/\b(\d{2})(\d{2})\s+(minutes?|mins?)\b/gi,(all,low,high,unit)=>{
+   const a=Number(low),b=Number(high);
+   return a>=10&&a<=120&&b>a&&b<=180&&b-a<=30
+    ?low+'–'+high+' '+unit+' (possible range; verify original recipe)'
+    :all;
+  });
+ }
+ function cleanIngredient(name,amount){
+  let title=String(name||'').trim(),qty=String(amount??'').trim();
+  // Some imported names embed a default "1" plus the actual quantity/unit.
+  const embedded=title.match(/^1\s+(\d+(?:[./]\d+)?(?:\s+\d+\/\d+)?)\s+(unit|units|ounce|ounces|oz|lb|lbs|pound|pounds|tbsp|tsp|cup|cups|clove|cloves)\s+(.+)$/i);
+  if(embedded){
+   title=embedded[3];
+   const unit=embedded[2].toLowerCase();
+   qty=embedded[1]+(unit==='unit'||unit==='units'?'':' '+unit);
+  }else{
+   // A leading "1" in an imported ingredient name may be a placeholder.
+   const bare=title.match(/^1\s+(salt|pepper)$/i);
+   if(bare){title=bare[1];qty='';}
+  }
+  title=title.replace(/\bunits?\b/gi,'').replace(/\s+/g,' ').trim();
+  qty=qty.replace(/\bunits?\b/gi,'').replace(/\s+/g,' ').trim();
+  // Display-only grammatical agreement for measured ingredients.
+  qty=qty.replace(/^(\d+(?:\.\d+)?|[¼½¾⅓⅔⅛⅜⅝⅞]|\d+\s+\d+\/\d+)\s+(clove|tablespoon|teaspoon|ounce|cup|pound)\b/i,(whole,n,unit)=>{
+   const singular=n==='1';return n+' '+unit+(singular?'':'s');
+  });
+  return {title,qty};
+ }
+ function ingredientLabel(name,amount,index){
+  const {title,qty}=cleanIngredient(name,amount);
+  const label=document.createElement('label'),box=document.createElement('input');
+  box.type='checkbox';box.checked=checked.has(index);box.setAttribute('aria-label','Prepared '+title);
+  box.addEventListener('change',()=>{box.checked?checked.add(index):checked.delete(index);save();paint()});
+  const labelText=qty&&qty!=='1'?qty+' '+title:title;
+  label.append(box,document.createTextNode(labelText));
+  return label;
+ }
+ function relevantIngredients(instruction){
+  // Parenthetical notes about future steps should not pull ingredients into this step.
+  const words=String(instruction||'').replace(/\([^)]*\)/g,'').toLowerCase();
+  return ingredients().map(([name,amount],index)=>({name,amount,index})).filter(item=>{
+   const {title}=cleanIngredient(item.name,item.amount);
+   const normalized=title.toLowerCase().replace(/[^a-z ]/g,' ').trim();
+   const candidates=[normalized,normalized.replace(/s$/,'')];
+   // For multiword names, use the specific food noun, not generic descriptors.
+   const tokens=normalized.split(/\s+/).filter(w=>w.length>=4&&!['fresh','ground','large','small','medium','whole','chopped','sliced','steak','unit','ounce'].includes(w));
+   if(tokens.length===1)candidates.push(tokens[0],tokens[0].replace(/s$/,''));
+   if(tokens.length>1&&/^(sirloin|carrot|potato|shallot|lemon|thyme|pepper|salt)$/.test(tokens[0]))candidates.push(tokens[0]);
+   return candidates.some(word=>word.length>=4&&words.split(/\b/).some(segment=>segment===word));
+  });
+ }
+ function paint(options={}){
+  if(!recipe)return;
+  const steps=Array.isArray(recipe.instructions)?recipe.instructions:[];
+  const prep=step===-1;
+  byId('hg-cook-title').textContent=recipe.name||'Cooking';
+  byId('hg-cook-title').title=recipe.name||'Cooking';
+  byId('hg-cook-count').textContent=prep?'Prep · gather your ingredients':steps.length?'Step '+(step+1)+' of '+steps.length:'Cooking instructions unavailable';
+  byId('hg-cook-step').textContent=prep?'Gather your ingredients and check them off as you prepare. Tap Next when you are ready to cook.':steps.length?readableInstruction(steps[step]):'This recipe has no stored cooking steps. Open the original recipe from Details.';
+  byId('hg-cook-progress').max=Math.max(1,steps.length+1);
+  byId('hg-cook-progress').value=step+1;
+  byId('hg-cook-prev').disabled=step===-1;
+  byId('hg-cook-next').disabled=!steps.length||step>=steps.length-1;
+  byId('hg-cook-next').textContent=prep?'Begin cooking →':'Next →';
+  byId('hg-cook-show-steps').setAttribute('aria-pressed',String(!ingredientsTab));
+  byId('hg-cook-show-ingredients').setAttribute('aria-pressed',String(ingredientsTab));
+  byId('hg-cook-all-ingredients').classList.toggle('cook-full-visible',ingredientsTab);
+  byId('hg-cook-step-ingredients').hidden=ingredientsTab;
+  byId('hg-cook-step').hidden=ingredientsTab;
+  byId('hg-cook-count').hidden=ingredientsTab;
+  byId('hg-cook-suggested-timer').hidden=ingredientsTab;
+  byId('hg-cook-prev').parentElement.hidden=ingredientsTab;
+  const list=byId('hg-cook-ingredients');list.replaceChildren();
+  ingredients().forEach(([name,amount],index)=>list.append(ingredientLabel(name,amount,index)));
+  const relevant=prep?ingredients().map(([name,amount],index)=>({name,amount,index})):relevantIngredients(steps[step]);
+  const stepList=byId('hg-cook-step-ingredient-list');stepList.replaceChildren();
+  relevant.forEach(({name,amount,index})=>stepList.append(ingredientLabel(name,amount,index)));
+  if(!relevant.length)stepList.textContent='No ingredients confidently matched to this step. Check All ingredients for the complete list.';
+  const timer=byId('hg-cook-suggested-timer');timer.replaceChildren();
+  if(!prep&&steps.length){
+   const raw=String(steps[step]);
+   // An importer may merge a short range, e.g. "2530 minutes".
+   // Offer the plausible range only with an explicit verification warning.
+   let uncertain=false;
+   const instruction=raw.replace(/\b(\d{2})(\d{2})\s+(minutes?|mins?)\b/gi,(full,first,last,unit)=>{
+    const low=Number(first),high=Number(last);
+    if(low>=10&&low<=120&&high>low&&high<=180&&high-low<=30){
+     uncertain=true;return first+'–'+last+' '+unit;
+    }
+    return full;
+   });
+   const matches=[...instruction.matchAll(/\b(\d{1,3})(?:\s*(?:-|–|to)\s*(\d{1,3}))?\s*(minutes?|mins?|hours?|hrs?)\b/gi)];
+   const seen=new Set();
+   matches.forEach(match=>{
+    const factor=/^h/i.test(match[3])?60:1;
+    const low=Number(match[1])*factor,high=(match[2]?Number(match[2]):Number(match[1]))*factor;
+    if(low<1||high>240||high<low||high-low>60)return;
+    const key=low+'-'+high;if(seen.has(key))return;seen.add(key);
+    const context=instruction.slice(Math.max(0,match.index-75),match.index).toLowerCase();
+    const isReminder=/\b(after|in)\s*$/.test(context);
+    const nextTask=instruction.match(/after\s+\d+\s+minutes?[^)]*?\b(?:start|begin|add|check)\s+(?:the\s+)?([a-z]+(?:\s+[a-z]+)?)/i);
+    const roasting=/\b(roast|bake)\b/i.test(instruction);
+    const label=isReminder?(nextTask?'Start '+nextTask[1].replace(/\b\w/g,c=>c.toUpperCase()):'Start next task'):(roasting?'Roast '+( /\bcarrots?\b/i.test(instruction)?'Carrots':'Food'):'Cooking timer');
+    const group=document.createElement('div');group.className='cook-timer-suggestion';
+    const caption=document.createElement('span');caption.textContent=(isReminder?'Reminder · ':'Timer · ')+(low===high?low+' min':low+'–'+high+' min');
+    group.append(caption);
+    if(uncertain&&match[0].includes('–')){
+     const warning=document.createElement('small');warning.textContent='Possible imported range — verify original recipe';group.append(warning);
+    }
+    const addButton=(duration)=>{
+     const btn=document.createElement('button');btn.type='button';btn.textContent='▶ '+duration+' min';
+     btn.addEventListener('click',()=>startTimer(duration,label+' · '+duration+' min'));group.append(btn);
+    };
+    addButton(low);if(high!==low)addButton(high);
+    timer.append(group);
+   });
+   if(!seen.size&&/\b\d{4}\s*(?:minutes?|mins?|hours?|hrs?)\b/i.test(raw)){
+    const note=document.createElement('p');note.textContent='Cooking time could not be verified. Check the original recipe.';timer.append(note);
+   }
+  }
+  // Changing steps returns the instruction to the top of the cooking viewport.
+  if(!options.preserveScroll&&!ingredientsTab&&root.getAttribute('aria-hidden')==='false')byId('hg-cook-count').scrollIntoView({block:'start',behavior:'auto'});
+  save();
+ }
+ function unlockAudio(){
+  try{
+   const Context=window.AudioContext||window.webkitAudioContext;
+   if(!Context)return;
+   if(!audioContext)audioContext=new Context();
+   if(audioContext.state==='suspended')audioContext.resume().catch(()=>{});
+  }catch(e){}
+ }
+ function beep(){
+  try{
+   if(!audioContext||audioContext.state!=='running')return;
+   const oscillator=audioContext.createOscillator(),gain=audioContext.createGain();
+   oscillator.type='sine';oscillator.frequency.setValueAtTime(880,audioContext.currentTime);
+   gain.gain.setValueAtTime(0.0001,audioContext.currentTime);
+   gain.gain.exponentialRampToValueAtTime(0.16,audioContext.currentTime+0.02);
+   gain.gain.exponentialRampToValueAtTime(0.0001,audioContext.currentTime+0.35);
+   oscillator.connect(gain);gain.connect(audioContext.destination);
+   oscillator.start();oscillator.stop(audioContext.currentTime+0.36);
+  }catch(e){}
+ }
+ function showAlarm(){
+  const panel=byId('hg-cook-alarm');
+  if(!alarmQueue.length){
+   panel.hidden=true;
+   if(alarmSoundId!==null)clearInterval(alarmSoundId);
+   alarmSoundId=null;return;
+  }
+  byId('hg-cook-alarm-message').textContent=alarmQueue.map(t=>t.label).join(' · ');
+  panel.hidden=false;
+  try{if(navigator.vibrate)navigator.vibrate([250,150,250]);}catch(e){}
+  if(alarmSoundId===null){beep();alarmSoundId=setInterval(beep,1100)}
+  byId('hg-cook-alarm-stop').focus();
+ }
+ function stopAlarm(){
+  const dismissed=alarmQueue.splice(0);
+  const ids=new Set(dismissed.map(t=>t.id));
+  activeTimers=activeTimers.filter(t=>!ids.has(t.id));
+  showAlarm();updateTimer();
+ }
+ function startTimer(mins,label){
+  if(!Number.isFinite(mins)||mins<1||mins>240)return;
+  activeTimers.push({id:Date.now()+'-'+Math.random(),label:label||'Manual timer',end:Date.now()+mins*60000,notified:false});
+  byId('hg-cook-timer-display').textContent='Timer started · '+mins+' min';
+  unlockAudio();
+  byId('hg-cook-timer-dashboard').classList.remove('timers-expanded');
+  // Request permission only from the actual user click, never automatically.
+  // Render the countdown before attempting optional iOS notification permissions.
+  if(!timerId)timerId=setInterval(updateTimer,1000);
+  updateTimer();
+  // Some WebKit versions return undefined rather than a Promise here.
+  // Permission failures must never interrupt an active cooking timer.
+  // Do not prompt for notification permission when starting a timer: iOS may block or interrupt the interaction.
+ }
+ function renderTimers(){
+  const container=byId('hg-cook-active-timers');container.replaceChildren();
+  if(activeTimers.length){const summary=document.createElement('button');summary.type='button';summary.className='hg-timer-summary';const next=activeTimers.reduce((a,b)=>a.end<b.end?a:b);const remaining=Math.max(0,Math.ceil((next.end-Date.now())/1000));summary.textContent='⏱ '+(activeTimers.length>1?activeTimers.length+' timers · ':'')+next.label+' · '+Math.floor(remaining/60)+':'+String(remaining%60).padStart(2,'0')+(byId('hg-cook-timer-dashboard').classList.contains('timers-expanded')?'  ▴':'  ▾');summary.setAttribute('aria-expanded',String(byId('hg-cook-timer-dashboard').classList.contains('timers-expanded')));summary.addEventListener('click',()=>{byId('hg-cook-timer-dashboard').classList.toggle('timers-expanded');renderTimers()});container.append(summary)}
+  activeTimers.forEach(timer=>{
+   const row=document.createElement('div');row.className='cook-active-timer';
+   const remaining=Math.max(0,Math.ceil((timer.end-Date.now())/1000));
+   const label=document.createElement('span');
+   label.textContent=timer.label+' · '+(remaining?Math.floor(remaining/60)+':'+String(remaining%60).padStart(2,'0'):'Finished');
+   const cancel=document.createElement('button');cancel.type='button';cancel.textContent='Dismiss';
+   cancel.addEventListener('click',()=>{activeTimers=activeTimers.filter(t=>t.id!==timer.id);alarmQueue=alarmQueue.filter(t=>t.id!==timer.id);showAlarm();updateTimer()});
+   row.append(label,cancel);container.append(row);
+  });
+  byId('hg-cook-timer-display').textContent=activeTimers.filter(t=>t.end>Date.now()).length+' active';
+  const dash=byId('hg-cook-timer-dashboard');dash.classList.toggle('has-active-timers',activeTimers.length>0);
+  if(!activeTimers.length)dash.classList.remove('timers-expanded');
+ }
+ async function requestWake(){
+  try{if(navigator.wakeLock&&document.visibilityState==='visible'&&!wakeLock)wakeLock=await navigator.wakeLock.request('screen')}catch(e){}
+ }
+ function updateTimer(){
+  for(const timer of activeTimers){
+   if(timer.end<=Date.now()&&!timer.notified){
+    timer.notified=true;
+    alarmQueue.push(timer);showAlarm();
+    if('Notification' in window&&Notification.permission==='granted'){
+     try{new Notification('HelloGroceries timer finished',{body:timer.label})}catch(e){}
+    }
+   }
+  }
+  renderTimers();
+  if(!activeTimers.some(t=>t.end>Date.now())&&timerId){clearInterval(timerId);timerId=null;}
+ }
+ function close(){
+  save();root.setAttribute('aria-hidden','true');document.body.classList.remove('hg-cooking-active');
+  if(wakeLock){wakeLock.release().catch(()=>{});wakeLock=null}
+  // Stop any active sound when leaving Cooking Mode.
+  alarmQueue=[];showAlarm();
+  if(returnFocus?.isConnected)returnFocus.focus();
+ }
+ async function open(id,trigger){
+  if(root.getAttribute('aria-hidden')==='false')return;
+  const button=trigger;
+  if(!id){alert('Unable to start cooking: recipe ID is missing.');return;}
+  // Native dialog top-layer elements can cover even a maximum-z-index cooking overlay on Safari.
+  // Close the recipe details dialog before opening Cooking Mode.
+  const detailsDialog=byId('recipe-dialog');
+  if(detailsDialog){
+   if(detailsDialog.open&&typeof detailsDialog.close==='function'){
+    try{detailsDialog.close()}catch(e){detailsDialog.removeAttribute('open')}
+   }else detailsDialog.removeAttribute('open');
+   detailsDialog.classList.remove('recipe-dialog-fallback');
+   detailsDialog.style.removeProperty('display');
+  }
+  returnFocus=button;
+  recipe={id,name:'Loading recipe…',ingredients:{},instructions:[]};
+  step=-1;checked=new Set();ingredientsTab=false;
+  root.setAttribute('aria-hidden','false');
+  document.body.classList.add('hg-cooking-active');
+  byId('hg-cook-title').textContent='Loading recipe…';
+  byId('hg-cook-count').textContent='Loading cooking steps…';
+  byId('hg-cook-step').textContent='Please wait while we load your recipe.';
+  byId('hg-cook-suggested-timer').replaceChildren();
+  byId('hg-cook-step-ingredient-list').replaceChildren();
+  byId('hg-cook-ingredients').replaceChildren();
+  byId('hg-cook-prev').disabled=true;
+  byId('hg-cook-next').disabled=true;
+  byId('hg-cook-close').focus();
+  button.disabled=true;
+  const label=button.textContent;
+  button.textContent='Loading cooking steps…';
+  try{
+   const full=await fetchRecipeDetail(id);
+   if(!full)throw new Error('No recipe details were returned.');
+   if(root.getAttribute('aria-hidden')==='true')return;
+   recipe=full;step=-1;checked=new Set();ingredientsTab=false;
+   try{
+    const saved=JSON.parse(localStorage.getItem(key(recipe.id))||'{}');
+    const steps=Array.isArray(recipe.instructions)?recipe.instructions:[];
+    step=Math.max(-1,Math.min(steps.length-1,Number.isFinite(Number(saved.step))?Number(saved.step):-1));
+    checked=new Set((saved.checked||[]).filter(Number.isInteger));
+   }catch(e){}
+   paint();updateTimer();void requestWake();
+  }catch(error){
+   if(root.getAttribute('aria-hidden')==='true')return;
+   byId('hg-cook-title').textContent='Unable to load recipe';
+   byId('hg-cook-count').textContent='Cooking steps could not be loaded';
+   byId('hg-cook-step').textContent='Please try again. '+(error?.message||'An unexpected error occurred.');
+   byId('hg-cook-prev').disabled=true;
+   byId('hg-cook-next').disabled=true;
+  }finally{
+   button.disabled=false;
+   button.textContent=label;
+  }
+ }
+ document.addEventListener('click',e=>{const button=e.target.closest('[data-start-cooking]');if(button){e.preventDefault();e.stopPropagation();void open(button.dataset.startCooking,button).catch(error=>{alert('Unable to open Cooking Mode: '+(error?.message||error))})}},true);
+ byId('hg-cook-close').addEventListener('click',close);
+ byId('hg-cook-show-steps').addEventListener('click',()=>{ingredientsTab=false;paint()});
+ byId('hg-cook-show-ingredients').addEventListener('click',()=>{ingredientsTab=true;paint()});
+ byId('hg-cook-prev').addEventListener('click',()=>{step=Math.max(-1,step-1);paint()});
+ byId('hg-cook-next').addEventListener('click',()=>{step=Math.min((recipe.instructions||[]).length-1,step+1);paint()});
+ // Horizontal swipes on the instruction card navigate steps without blocking vertical scrolling.
+ let swipeStart=null;
+ const swipeArea=byId('hg-cook-step');
+ swipeArea.addEventListener('touchstart',event=>{
+  if(event.touches.length!==1||event.target.closest('button,input,a,textarea,select')){swipeStart=null;return;}
+  swipeStart={x:event.touches[0].clientX,y:event.touches[0].clientY,horizontal:false};
+ },{passive:true});
+ swipeArea.addEventListener('touchmove',event=>{
+  if(!swipeStart||event.touches.length!==1)return;
+  const dx=event.touches[0].clientX-swipeStart.x;
+  const dy=event.touches[0].clientY-swipeStart.y;
+  if(Math.abs(dx)>14&&Math.abs(dx)>Math.abs(dy)*1.5)swipeStart.horizontal=true;
+  if(swipeStart.horizontal&&event.cancelable)event.preventDefault();
+ },{passive:false});
+ swipeArea.addEventListener('touchcancel',()=>{swipeStart=null},{passive:true});
+ swipeArea.addEventListener('touchend',event=>{
+  if(!swipeStart||event.changedTouches.length!==1)return;
+  const dx=event.changedTouches[0].clientX-swipeStart.x;
+  const dy=event.changedTouches[0].clientY-swipeStart.y;
+  swipeStart=null;
+  if(Math.abs(dx)<110||Math.abs(dx)<Math.abs(dy)*1.5||!recipe||ingredientsTab)return;
+  const last=(recipe.instructions||[]).length-1;
+  const next=dx<0?Math.min(last,step+1):Math.max(-1,step-1);
+  if(next!==step){step=next;paint({preserveScroll:true});}
+ },{passive:true});
+ // Capture timer taps before recipe card/dialog handlers can intercept them.
+ // Keep the status visible even if audio or browser notifications are unavailable.
+ document.addEventListener('click',event=>{
+  const target=event.target;
+  if(!(target instanceof Element)||!target.closest('#hg-cook-timer-start'))return;
+  event.preventDefault();
+  event.stopImmediatePropagation();
+  const status=byId('hg-cook-timer-display');
+  status.textContent='Starting timer…';
+  const mins=Number(byId('hg-cook-minutes').value);
+  if(!Number.isFinite(mins)||mins<1||mins>240){status.textContent='Enter 1–240 minutes';return;}
+  try{
+   startTimer(mins);
+   byId('hg-cook-timer-dashboard').classList.remove('timers-expanded');
+   renderTimers();
+  }catch(error){
+   status.textContent='Timer error: '+(error?.message||String(error));
+   console.error('HelloGroceries timer failed',error);
+  }
+ },true);
+ byId('hg-cook-timer-stop').addEventListener('click',()=>{activeTimers=[];alarmQueue=[];showAlarm();updateTimer()});
+ byId('hg-cook-alarm-stop').addEventListener('click',stopAlarm);
+ document.addEventListener('keydown',e=>{if(e.key==='Escape'&&root.getAttribute('aria-hidden')==='false')close()});
+ document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&root.getAttribute('aria-hidden')==='false')void requestWake()});
 })();
 </script>
 </body></html>
