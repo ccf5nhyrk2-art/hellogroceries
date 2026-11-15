@@ -5853,6 +5853,10 @@ body.hg-cooking-active{overflow:hidden}
 #hg-cooking-mode #hg-cook-close{padding:8px 12px!important;min-height:40px!important}
 #hg-cooking-mode #hg-cook-count{scroll-margin-top:95px}
 @media(max-width:759px){#hg-cooking-mode .cook-shell{gap:12px!important}#hg-cooking-mode .cook-step{padding:16px!important;font-size:20px!important;line-height:1.45!important}#hg-cooking-mode .cook-controls button{flex:1}}
+</style><style>
+/* Keep the cooking tab switcher in document flow so it never masks instructions. */
+#hg-cooking-mode .cook-tabs{position:static!important;top:auto!important;z-index:auto!important}
+#hg-cooking-mode #hg-cook-count{scroll-margin-top:16px!important}
 </style><section id="hg-cooking-mode" role="dialog" aria-modal="true" aria-label="HelloGroceries Cooking Mode" aria-hidden="true">
  <div class="cook-shell">
   <div class="cook-header"><strong>🍳 HelloGroceries Cooking Mode</strong><button id="hg-cook-close" type="button">Exit Cooking</button></div>
@@ -5885,22 +5889,43 @@ body.hg-cooking-active{overflow:hidden}
     :all;
   });
  }
+ function cleanIngredient(name,amount){
+  let title=String(name||'').trim(),qty=String(amount??'').trim();
+  // Some imported names embed a default "1" plus the actual quantity/unit.
+  const embedded=title.match(/^1\s+(\d+(?:[./]\d+)?(?:\s+\d+\/\d+)?)\s+(unit|units|ounce|ounces|oz|lb|lbs|pound|pounds|tbsp|tsp|cup|cups|clove|cloves)\s+(.+)$/i);
+  if(embedded){
+   title=embedded[3];
+   const unit=embedded[2].toLowerCase();
+   qty=embedded[1]+(unit==='unit'||unit==='units'?'':' '+unit);
+  }else{
+   // A leading "1" in an imported ingredient name may be a placeholder.
+   const bare=title.match(/^1\s+(salt|pepper)$/i);
+   if(bare){title=bare[1];qty='';}
+  }
+  qty=qty.replace(/\bunits?\b/gi,'').replace(/\s+/g,' ').trim();
+  return {title,qty};
+ }
  function ingredientLabel(name,amount,index){
+  const {title,qty}=cleanIngredient(name,amount);
   const label=document.createElement('label'),box=document.createElement('input');
-  box.type='checkbox';box.checked=checked.has(index);box.setAttribute('aria-label','Prepared '+name);
+  box.type='checkbox';box.checked=checked.has(index);box.setAttribute('aria-label','Prepared '+title);
   box.addEventListener('change',()=>{box.checked?checked.add(index):checked.delete(index);save();paint()});
-  const quantity=String(amount??'').trim();
-  const normalized=quantity.replace(/\bunits?\b/gi,'').replace(/\s+/g,' ').trim();
-  const labelText=/^\d+(?:\.\d+)?$/.test(normalized)?normalized+' '+name:name+(normalized&&normalized!=='1'?' — '+normalized:'');
+  const labelText=qty&&qty!=='1'?qty+' '+title:title;
   label.append(box,document.createTextNode(labelText));
   return label;
  }
  function relevantIngredients(instruction){
-  const words=String(instruction||'').toLowerCase();
+  // Parenthetical notes about future steps should not pull ingredients into this step.
+  const words=String(instruction||'').replace(/\([^)]*\)/g,'').toLowerCase();
   return ingredients().map(([name,amount],index)=>({name,amount,index})).filter(item=>{
-   const name=item.name.toLowerCase().replace(/[^a-z ]/g,' ').trim();
-   const variants=[name,name.replace(/s$/,''),...name.split(/\s+/).filter(w=>w.length>=4&&!['fresh','ground','large','small','medium','whole','chopped','sliced'].includes(w))];
-   return variants.some(word=>word.length>=4&&new RegExp('\\b'+word.replace(/[.*+?^\x24{}()|[\]\\]/g,'\\$&')+'\\b','i').test(words));
+   const {title}=cleanIngredient(item.name,item.amount);
+   const normalized=title.toLowerCase().replace(/[^a-z ]/g,' ').trim();
+   const candidates=[normalized,normalized.replace(/s$/,'')];
+   // For multiword names, use the specific food noun, not generic descriptors.
+   const tokens=normalized.split(/\s+/).filter(w=>w.length>=4&&!['fresh','ground','large','small','medium','whole','chopped','sliced','steak','unit','ounce'].includes(w));
+   if(tokens.length===1)candidates.push(tokens[0],tokens[0].replace(/s$/,''));
+   if(tokens.length>1&&/^(sirloin|carrot|potato|shallot|lemon|thyme|pepper|salt)$/.test(tokens[0]))candidates.push(tokens[0]);
+   return candidates.some(word=>word.length>=4&&words.split(/\b/).some(segment=>segment===word));
   });
  }
  function paint(){
