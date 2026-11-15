@@ -6154,17 +6154,50 @@ body.hg-cooking-active{overflow:hidden}
  }
  async function open(id,trigger){
   if(root.getAttribute('aria-hidden')==='false')return;
-  const button=trigger;button.disabled=true;const label=button.textContent;button.textContent='Loading cooking steps…';
-  let full;
-  try{full=await fetchRecipeDetail(id)}
-  catch(error){alert('Unable to load cooking steps: '+error.message);return}
-  finally{button.disabled=false;button.textContent=label}
-  if(!full)return;
-  recipe=full;step=-1;checked=new Set();ingredientsTab=false;returnFocus=button;
-  try{const saved=JSON.parse(localStorage.getItem(key(recipe.id))||'{}');step=Math.max(-1,Math.min((recipe.instructions||[]).length-1,Number.isFinite(Number(saved.step))?Number(saved.step):-1));checked=new Set((saved.checked||[]).filter(Number.isInteger))}catch(e){}
-  root.setAttribute('aria-hidden','false');document.body.classList.add('hg-cooking-active');paint();updateTimer();byId('hg-cook-close').focus();void requestWake();
+  const button=trigger;
+  if(!id){alert('Unable to start cooking: recipe ID is missing.');return;}
+  returnFocus=button;
+  recipe={id,name:'Loading recipe…',ingredients:{},instructions:[]};
+  step=-1;checked=new Set();ingredientsTab=false;
+  root.setAttribute('aria-hidden','false');
+  document.body.classList.add('hg-cooking-active');
+  byId('hg-cook-title').textContent='Loading recipe…';
+  byId('hg-cook-count').textContent='Loading cooking steps…';
+  byId('hg-cook-step').textContent='Please wait while we load your recipe.';
+  byId('hg-cook-suggested-timer').replaceChildren();
+  byId('hg-cook-step-ingredient-list').replaceChildren();
+  byId('hg-cook-ingredients').replaceChildren();
+  byId('hg-cook-prev').disabled=true;
+  byId('hg-cook-next').disabled=true;
+  byId('hg-cook-close').focus();
+  button.disabled=true;
+  const label=button.textContent;
+  button.textContent='Loading cooking steps…';
+  try{
+   const full=await fetchRecipeDetail(id);
+   if(!full)throw new Error('No recipe details were returned.');
+   if(root.getAttribute('aria-hidden')==='true')return;
+   recipe=full;step=-1;checked=new Set();ingredientsTab=false;
+   try{
+    const saved=JSON.parse(localStorage.getItem(key(recipe.id))||'{}');
+    const steps=Array.isArray(recipe.instructions)?recipe.instructions:[];
+    step=Math.max(-1,Math.min(steps.length-1,Number.isFinite(Number(saved.step))?Number(saved.step):-1));
+    checked=new Set((saved.checked||[]).filter(Number.isInteger));
+   }catch(e){}
+   paint();updateTimer();void requestWake();
+  }catch(error){
+   if(root.getAttribute('aria-hidden')==='true')return;
+   byId('hg-cook-title').textContent='Unable to load recipe';
+   byId('hg-cook-count').textContent='Cooking steps could not be loaded';
+   byId('hg-cook-step').textContent='Please try again. '+(error?.message||'An unexpected error occurred.');
+   byId('hg-cook-prev').disabled=true;
+   byId('hg-cook-next').disabled=true;
+  }finally{
+   button.disabled=false;
+   button.textContent=label;
+  }
  }
- document.addEventListener('click',e=>{const button=e.target.closest('[data-start-cooking]');if(button){e.preventDefault();void open(button.dataset.startCooking,button)}});
+ document.addEventListener('click',e=>{const button=e.target.closest('[data-start-cooking]');if(button){e.preventDefault();e.stopPropagation();void open(button.dataset.startCooking,button)}});
  byId('hg-cook-close').addEventListener('click',close);
  byId('hg-cook-show-steps').addEventListener('click',()=>{ingredientsTab=false;paint()});
  byId('hg-cook-show-ingredients').addEventListener('click',()=>{ingredientsTab=true;paint()});
