@@ -5915,7 +5915,8 @@ body.hg-cooking-active{overflow:hidden}
  const root=byId('hg-cooking-mode');
  // Keep timer controls in their own reserved footer rather than overlaying recipe controls.
  const timerDashboard=byId('hg-cook-timer-dashboard');
- root.insertBefore(timerDashboard,byId('hg-cook-alarm'));
+ // The alarm and dashboard are both children of .cook-shell; insert within that parent.
+ timerDashboard.parentElement.insertBefore(timerDashboard,byId('hg-cook-alarm'));
  let recipe=null,step=-1,checked=new Set(),timerId=null,wakeLock=null,returnFocus=null,ingredientsTab=false,activeTimers=[],audioContext=null,alarmSoundId=null,alarmQueue=[];
  const key=id=>'hg-cooking-progress-'+id;
  const save=()=>{if(!recipe)return;try{localStorage.setItem(key(recipe.id),JSON.stringify({step,checked:[...checked]}))}catch(e){}};
