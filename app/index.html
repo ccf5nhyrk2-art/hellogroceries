@@ -5903,7 +5903,7 @@ body.hg-cooking-active{overflow:hidden}
  #hg-cooking-mode .cook-shell{width:min(100%,1120px)!important;max-width:1120px!important;gap:14px!important}
  #hg-cooking-mode .cook-content{display:grid!important;grid-template-columns:minmax(0,1.65fr) minmax(290px,1fr)!important;gap:24px!important;align-items:start!important}
  #hg-cooking-mode .cook-content>div:first-child{min-width:0}
- #hg-cooking-mode #hg-cook-all-ingredients{display:block!important;position:sticky;top:12px;max-height:calc(100dvh - 190px);overflow-y:auto;overscroll-behavior:contain}
+ #hg-cooking-mode #hg-cook-all-ingredients{display:block!important;position:static!important;max-height:none!important;overflow:visible!important;overscroll-behavior:auto}
  #hg-cooking-mode .cook-content.cook-prep #hg-cook-step-ingredients{display:none!important}
  #hg-cooking-mode .cook-content.cook-prep .cook-controls{margin-top:12px!important}
  #hg-cooking-mode .cook-content.cook-prep .cook-step{min-height:0!important}
@@ -6102,7 +6102,10 @@ body.hg-cooking-active{overflow:hidden}
    }
   }
   // Changing steps returns the instruction to the top of the cooking viewport.
-  if(!options.preserveScroll&&!ingredientsTab&&root.getAttribute('aria-hidden')==='false')byId('hg-cook-count').scrollIntoView({block:'start',behavior:'auto'});
+  if(!options.preserveScroll&&!ingredientsTab&&root.getAttribute('aria-hidden')==='false'){
+   if(prep)byId('hg-cook-count').closest('.cook-shell').scrollTop=0;
+   else byId('hg-cook-count').scrollIntoView({block:'start',behavior:'auto'});
+  }
   save();
  }
  function unlockAudio(){
