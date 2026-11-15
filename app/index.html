@@ -1158,6 +1158,25 @@ html[data-theme="light"] #my-recipes select:focus-visible{outline:3px solid #8ee
 </style>
 
 <style>
+/* Put tonight's actionable dinner first on mobile, ahead of the dashboard tiles.
+   This ensures Cook Now is visible on initial load without scrolling. */
+@media(max-width:750px){
+ body[data-active-page="all"] .mobile-home-dashboard{display:flex!important;flex-direction:column!important}
+ body[data-active-page="all"] .mobile-home-welcome{order:0!important;padding:4px 4px 8px!important}
+ body[data-active-page="all"] .mobile-home-welcome h2{font-size:20px!important;margin:0 0 3px!important}
+ body[data-active-page="all"] .mobile-home-welcome p{font-size:12px!important;line-height:1.35!important}
+ body[data-active-page="all"] #home-personalized{order:1!important;display:flex!important;flex-direction:column!important;gap:12px!important}
+ body[data-active-page="all"] .mobile-home-actions{order:2!important;margin-top:12px!important}
+ body[data-active-page="all"] #home-personalized .home-feature{order:0!important}
+ body[data-active-page="all"] #home-personalized .home-overview{order:1!important}
+ body[data-active-page="all"] #home-personalized .home-meals-head{order:2!important}
+ body[data-active-page="all"] #home-personalized .home-meal-track,
+ body[data-active-page="all"] #home-personalized .home-empty{order:3!important}
+ body[data-active-page="all"] #home-personalized .home-feature-photo{height:90px!important;max-height:90px!important}
+ body[data-active-page="all"] #home-personalized .home-feature-content{padding:10px 13px 12px!important;gap:7px!important}
+ body[data-active-page="all"] #home-personalized .home-feature-content h3{font-size:15px!important;line-height:1.22!important}
+ body[data-active-page="all"] #home-personalized .home-feature-actions button{min-height:40px!important}
+}
 /* Mobile Home: fit Tonight's dinner above the bottom navigation where possible,
    and preserve a full scrollable clearance for Safari and the installed PWA. */
 @media(max-width:750px){
