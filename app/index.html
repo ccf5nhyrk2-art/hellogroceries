@@ -5898,6 +5898,20 @@ body.hg-cooking-active{overflow:hidden}
 #hg-cooking-mode .cook-shell:has(#hg-cook-timer-dashboard.has-active-timers){padding-bottom:24px}
 @media(max-width:759px){#hg-cooking-mode #hg-cook-timer-dashboard.has-active-timers{border-radius:12px}}
 </style><style>
+/* Desktop Cooking Mode: clear two-column layout and persistent right-side tools. */
+@media(min-width:760px){
+ #hg-cooking-mode .cook-shell{width:min(100%,1120px)!important;max-width:1120px!important;gap:14px!important}
+ #hg-cooking-mode .cook-content{display:grid!important;grid-template-columns:minmax(0,1.65fr) minmax(290px,1fr)!important;gap:24px!important;align-items:start!important}
+ #hg-cooking-mode .cook-content>div:first-child{min-width:0}
+ #hg-cooking-mode #hg-cook-all-ingredients{display:block!important;position:sticky;top:12px;max-height:calc(100dvh - 190px);overflow-y:auto;overscroll-behavior:contain}
+ #hg-cooking-mode .cook-content.cook-prep #hg-cook-step-ingredients{display:none!important}
+ #hg-cooking-mode .cook-content.cook-prep .cook-controls{margin-top:12px!important}
+ #hg-cooking-mode .cook-content.cook-prep .cook-step{min-height:0!important}
+ #hg-cooking-mode #hg-cook-timer-dashboard{width:min(100%,1120px)!important;max-width:1120px!important;border:1px solid #527765;border-radius:12px;padding:10px 14px;background:#18231e}
+ #hg-cooking-mode #hg-cook-timer-dashboard:not(.has-active-timers) .cook-timer{display:flex;gap:10px;align-items:center}
+ #hg-cooking-mode #hg-cook-timer-dashboard.has-active-timers:not(.timers-expanded){max-height:70px!important}
+ #hg-cooking-mode #hg-cook-timer-dashboard.has-active-timers .hg-timer-summary{min-height:44px}
+}
 /* Compact cooking header on phones: preserve readable steps and tap targets. */
 @media(max-width:759px){
  #hg-cooking-mode .cook-shell{gap:8px!important;padding-bottom:12px!important}
@@ -6012,6 +6026,7 @@ body.hg-cooking-active{overflow:hidden}
   if(!recipe)return;
   const steps=Array.isArray(recipe.instructions)?recipe.instructions:[];
   const prep=step===-1;
+  byId('hg-cook-step').closest('.cook-content').classList.toggle('cook-prep',prep);
   byId('hg-cook-title').textContent=recipe.name||'Cooking';
   byId('hg-cook-title').title=recipe.name||'Cooking';
   byId('hg-cook-count').textContent=prep?'Prep · gather your ingredients':steps.length?'Step '+(step+1)+' of '+steps.length:'Cooking instructions unavailable';
