@@ -1158,18 +1158,25 @@ html[data-theme="light"] #my-recipes select:focus-visible{outline:3px solid #8ee
 </style>
 
 <style>
-/* Mobile Home: compact, readable Tonight card with a clear cooking action. */
+/* Mobile Home: fit Tonight's dinner above the bottom navigation where possible,
+   and preserve a full scrollable clearance for Safari and the installed PWA. */
 @media(max-width:750px){
+ body[data-active-page="all"]{padding-bottom:calc(110px + env(safe-area-inset-bottom,0px))!important}
+ body[data-active-page="all"] main{padding-bottom:calc(120px + env(safe-area-inset-bottom,0px))!important}
+ body[data-active-page="all"] .mobile-home-dashboard{padding-bottom:calc(100px + env(safe-area-inset-bottom,0px))!important}
+ #home-personalized{padding-bottom:calc(105px + env(safe-area-inset-bottom,0px))!important}
  #home-personalized .home-feature{display:flex!important;flex-direction:column!important;align-items:stretch!important;overflow:hidden!important}
- #home-personalized .home-feature-photo{display:block!important;width:100%!important;height:clamp(116px,32vw,165px)!important;min-height:0!important;max-height:165px!important;aspect-ratio:auto!important;object-fit:cover!important}
- #home-personalized .home-feature-content{display:flex!important;flex-direction:column!important;align-items:stretch!important;gap:12px!important;padding:14px 16px 16px!important}
+ #home-personalized .home-feature-photo{display:block!important;width:100%!important;height:clamp(105px,26vw,140px)!important;min-height:0!important;max-height:140px!important;aspect-ratio:auto!important;object-fit:cover!important}
+ #home-personalized .home-feature-content{display:flex!important;flex-direction:column!important;align-items:stretch!important;gap:9px!important;padding:12px 14px 14px!important}
  #home-personalized .home-feature-content>div:first-child{width:100%;min-width:0}
- #home-personalized .home-feature-content h3{font-size:18px!important;line-height:1.3!important;margin:5px 0 0!important;overflow-wrap:break-word!important}
- #home-personalized .home-feature-actions{display:flex!important;flex-direction:row!important;justify-content:flex-start!important;align-items:center!important;gap:9px!important;flex-wrap:wrap!important;width:100%}
- #home-personalized .home-feature-actions button{max-width:none!important;min-height:42px!important;padding:10px 14px!important;font-size:13px!important;white-space:nowrap!important}
+ #home-personalized .home-feature-content h3{font-size:16px!important;line-height:1.3!important;margin:4px 0 0!important;overflow-wrap:break-word!important}
+ #home-personalized .home-feature-actions{display:flex!important;flex-direction:row!important;justify-content:flex-start!important;align-items:center!important;gap:8px!important;flex-wrap:wrap!important;width:100%}
+ #home-personalized .home-feature-actions button{max-width:none!important;min-height:42px!important;padding:10px 12px!important;font-size:13px!important;white-space:nowrap!important}
  #home-personalized .home-feature-actions .home-open-planner{background:transparent!important}
- .mobile-home-dashboard .home-personalized{padding-bottom:calc(160px + env(safe-area-inset-bottom,0px))!important}
- .mobile-home-dashboard .home-meals-head{margin-top:14px!important}
+ body[data-active-page="all"] .mobile-home-welcome{padding-top:4px!important;padding-bottom:12px!important}
+ body[data-active-page="all"] .mobile-home-welcome h2{font-size:23px!important}
+ body[data-active-page="all"] .mobile-home-actions button{min-height:94px!important;padding:12px!important}
+ #home-personalized .home-meals-head{margin-top:12px!important}
 }
 </style>
 
