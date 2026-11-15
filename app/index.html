@@ -5900,7 +5900,7 @@ body.hg-cooking-active{overflow:hidden}
 /* iOS standalone PWA safe areas: prevent Dynamic Island and Home indicator overlap. */
 @supports (padding-top: env(safe-area-inset-top)) {
  #hg-cooking-mode[aria-hidden="false"]{
-  padding-top:max(16px,env(safe-area-inset-top))!important;
+  padding-top:max(28px,calc(env(safe-area-inset-top) + 12px))!important;
   padding-bottom:max(16px,env(safe-area-inset-bottom))!important;
  }
  #hg-cooking-mode .cook-shell{scroll-padding-top:12px}
@@ -5956,7 +5956,11 @@ body.hg-cooking-active{overflow:hidden}
    if(bare){title=bare[1];qty='';}
   }
   title=title.replace(/\bunits?\b/gi,'').replace(/\s+/g,' ').trim();
-  qty=qty.replace(/\bunits?\b/gi,'').replace(/\s+/g,' ').trim();
+  qty=qty.replace(/\\bunits?\\b/gi,'').replace(/\\s+/g,' ').trim();
+  // Display-only grammatical agreement for measured ingredients.
+  qty=qty.replace(/^(\\d+(?:\\.\\d+)?|[¼½¾⅓⅔⅛⅜⅝⅞]|\\d+\\s+\\d+\\/\\d+)\\s+(clove|tablespoon|teaspoon|ounce|cup|pound)\\b/i,(whole,n,unit)=>{
+   const singular=n==='1';return n+' '+unit+(singular?'':'s');
+  });
   return {title,qty};
  }
  function ingredientLabel(name,amount,index){
