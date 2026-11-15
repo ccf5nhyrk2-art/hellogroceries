@@ -6156,6 +6156,16 @@ body.hg-cooking-active{overflow:hidden}
   if(root.getAttribute('aria-hidden')==='false')return;
   const button=trigger;
   if(!id){alert('Unable to start cooking: recipe ID is missing.');return;}
+  // Native dialog top-layer elements can cover even a maximum-z-index cooking overlay on Safari.
+  // Close the recipe details dialog before opening Cooking Mode.
+  const detailsDialog=byId('recipe-dialog');
+  if(detailsDialog){
+   if(detailsDialog.open&&typeof detailsDialog.close==='function'){
+    try{detailsDialog.close()}catch(e){detailsDialog.removeAttribute('open')}
+   }else detailsDialog.removeAttribute('open');
+   detailsDialog.classList.remove('recipe-dialog-fallback');
+   detailsDialog.style.removeProperty('display');
+  }
   returnFocus=button;
   recipe={id,name:'Loading recipe…',ingredients:{},instructions:[]};
   step=-1;checked=new Set();ingredientsTab=false;
@@ -6197,7 +6207,7 @@ body.hg-cooking-active{overflow:hidden}
    button.textContent=label;
   }
  }
- document.addEventListener('click',e=>{const button=e.target.closest('[data-start-cooking]');if(button){e.preventDefault();e.stopPropagation();void open(button.dataset.startCooking,button)}});
+ document.addEventListener('click',e=>{const button=e.target.closest('[data-start-cooking]');if(button){e.preventDefault();e.stopPropagation();void open(button.dataset.startCooking,button).catch(error=>{alert('Unable to open Cooking Mode: '+(error?.message||error))})}},true);
  byId('hg-cook-close').addEventListener('click',close);
  byId('hg-cook-show-steps').addEventListener('click',()=>{ingredientsTab=false;paint()});
  byId('hg-cook-show-ingredients').addEventListener('click',()=>{ingredientsTab=true;paint()});
