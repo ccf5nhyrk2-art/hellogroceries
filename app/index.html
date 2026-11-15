@@ -4651,8 +4651,9 @@ $('recipes').addEventListener('click',async e=>{
   $('recipe-photo-admin').dataset.photo=String(r.id);
   $('recipe-photo-admin').textContent=r.image?'Change recipe photo':'Add recipe photo';
   const entries=Object.entries(r.ingredients||{});
+  const cookAction='<div class="actions"><button type="button" data-start-cooking="'+r.id+'">Start Cooking</button></div>';
   const similarSection='<section class="similar-recipes"><div class="actions"><button type="button" data-more-like="'+r.id+'">More Like This</button></div><div id="similar-recipe-results" role="status" aria-live="polite"></div></section>';
-  $('recipe-detail').innerHTML='<h2>'+esc(cleanRecipeName(r.name))+'</h2><p class="muted">'+esc(r.country||'')+'</p>'+nutritionDetails(r)+similarSection+'<h3>Ingredients</h3><ul>'+entries.map(([k,v])=>'<li>'+esc(k)+(String(v).trim()==='1'?'':' — '+esc(v))+'</li>').join('')+'</ul>'+(Array.isArray(r.instructions)&&r.instructions.length?'<h3>Cooking steps</h3><ol>'+r.instructions.map(step=>'<li>'+esc(typeof step==='string'?step:JSON.stringify(step))+'</li>').join('')+'</ol>':'<p class="muted">Cooking instructions are not stored for this recipe. Use the original recipe page.</p>')+(r.url?'<a href="'+esc(r.url)+'" target="_blank" rel="noopener noreferrer">Open original recipe</a>':'');
+  $('recipe-detail').innerHTML='<h2>'+esc(cleanRecipeName(r.name))+'</h2><p class="muted">'+esc(r.country||'')+'</p>'+nutritionDetails(r)+cookAction+similarSection+'<h3>Ingredients</h3><ul>'+entries.map(([k,v])=>'<li>'+esc(k)+(String(v).trim()==='1'?'':' — '+esc(v))+'</li>').join('')+'</ul>'+(Array.isArray(r.instructions)&&r.instructions.length?'<h3>Cooking steps</h3><ol>'+r.instructions.map(step=>'<li>'+esc(typeof step==='string'?step:JSON.stringify(step))+'</li>').join('')+'</ol>':'<p class="muted">Cooking instructions are not stored for this recipe. Use the original recipe page.</p>')+(r.url?'<a href="'+esc(r.url)+'" target="_blank" rel="noopener noreferrer">Open original recipe</a>':'');
 
   const review=(state.recipe_reviews||{})[String(r.id)]||{};$('recipe-review-id').value=String(r.id);$('recipe-rating').value=String(review.rating||0);$('recipe-note').value=review.note||'';$('review-status').textContent='';
   // Keep recipe cards aligned by displaying details in the existing dialog.
@@ -5788,6 +5789,104 @@ body:has(#hg-tour-overlay:not([hidden])) #hg-tour-replay{display:none!important}
  document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')void verifySession()});
  window.addEventListener('focus',()=>{void verifySession()});
  window.setInterval(()=>{void verifySession()},60000);
+})();
+</script>
+
+<style>
+#hg-cooking-mode{position:fixed;inset:0;z-index:2147483100;background:#10231d;color:#f5fff9;display:none;overflow-y:auto;padding:clamp(12px,3vw,32px);box-sizing:border-box}
+#hg-cooking-mode[aria-hidden="false"]{display:block}
+#hg-cooking-mode .cook-shell{max-width:900px;margin:auto;display:grid;gap:18px}
+#hg-cooking-mode .cook-header,#hg-cooking-mode .cook-controls{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+#hg-cooking-mode button{min-height:46px;border-radius:12px;padding:10px 16px;border:1px solid #83bd9a;background:#245a40;color:#fff;font-weight:700}
+#hg-cooking-mode button:disabled{opacity:.4}
+#hg-cooking-mode .cook-step{font-size:clamp(23px,4vw,40px);line-height:1.4;padding:clamp(18px,4vw,36px);border-radius:20px;background:#1d3b2d;min-height:170px;overflow-wrap:anywhere}
+#hg-cooking-mode .cook-ingredients{border:1px solid #527765;border-radius:14px;padding:14px}
+#hg-cooking-mode .cook-ingredients label{display:block;padding:8px 0;line-height:1.5}
+#hg-cooking-mode input[type=checkbox]{width:20px;height:20px;vertical-align:middle;margin-right:10px}
+#hg-cooking-mode .cook-timer{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+#hg-cooking-mode .cook-timer input{width:90px;min-height:42px;border-radius:8px;padding:6px;color:#172b20;background:white}
+#hg-cooking-mode progress{width:100%;height:12px;accent-color:#9ce2af}
+body.hg-cooking-active{overflow:hidden}
+@media(min-width:760px){#hg-cooking-mode .cook-content{display:grid;grid-template-columns:minmax(0,2fr) minmax(220px,1fr);gap:18px;align-items:start}}
+</style>
+<section id="hg-cooking-mode" role="dialog" aria-modal="true" aria-label="HelloGroceries Cooking Mode" aria-hidden="true">
+ <div class="cook-shell">
+  <div class="cook-header"><strong>🍳 HelloGroceries Cooking Mode</strong><button id="hg-cook-close" type="button">Exit Cooking</button></div>
+  <h2 id="hg-cook-title"></h2>
+  <progress id="hg-cook-progress" max="1" value="0"></progress>
+  <div class="cook-content">
+   <div><p id="hg-cook-count" aria-live="polite"></p><div id="hg-cook-step" class="cook-step" aria-live="polite"></div><div class="cook-controls" style="margin-top:16px"><button id="hg-cook-prev" type="button">← Previous</button><button id="hg-cook-next" type="button">Next →</button></div></div>
+   <aside class="cook-ingredients"><h3>Ingredients</h3><div id="hg-cook-ingredients"></div></aside>
+  </div>
+  <div class="cook-timer"><label for="hg-cook-minutes">Timer (minutes)</label><input id="hg-cook-minutes" type="number" min="1" max="240" value="5"><button id="hg-cook-timer-start" type="button">Start Timer</button><button id="hg-cook-timer-stop" type="button">Cancel Timer</button><strong id="hg-cook-timer-display" role="status" aria-live="polite"></strong></div>
+  <p style="opacity:.8">Your cooking step and ingredient checklist are saved on this device. Screen wake lock is requested where supported.</p>
+ </div>
+</section>
+<script>
+(function(){
+ const byId=id=>document.getElementById(id);
+ const root=byId('hg-cooking-mode');
+ let recipe=null,step=0,checked=new Set(),timerEnd=0,timerId=null,wakeLock=null,returnFocus=null;
+ const key=id=>'hg-cooking-progress-'+id;
+ const save=()=>{if(!recipe)return;try{localStorage.setItem(key(recipe.id),JSON.stringify({step,checked:[...checked]}))}catch(e){}};
+ const safeText=value=>typeof value==='string'?value:JSON.stringify(value);
+ function paint(){
+  if(!recipe)return;
+  const steps=recipe.instructions||[];
+  byId('hg-cook-title').textContent=recipe.name||'Cooking';
+  byId('hg-cook-count').textContent=steps.length?'Step '+(step+1)+' of '+steps.length:'Cooking instructions unavailable';
+  byId('hg-cook-step').textContent=steps.length?safeText(steps[step]):'This recipe has no stored cooking steps. Open the original recipe from Details.';
+  byId('hg-cook-progress').max=Math.max(1,steps.length);
+  byId('hg-cook-progress').value=steps.length?step+1:0;
+  byId('hg-cook-prev').disabled=step===0;
+  byId('hg-cook-next').disabled=!steps.length||step>=steps.length-1;
+  const list=byId('hg-cook-ingredients');list.replaceChildren();
+  Object.entries(recipe.ingredients||{}).forEach(([name,amount],index)=>{
+   const label=document.createElement('label'),box=document.createElement('input');
+   box.type='checkbox';box.checked=checked.has(index);
+   box.addEventListener('change',()=>{box.checked?checked.add(index):checked.delete(index);save()});
+   label.append(box,document.createTextNode(name+(String(amount).trim()==='1'?'':' — '+amount)));list.append(label);
+  });
+  save();
+ }
+ async function requestWake(){
+  try{if(navigator.wakeLock&&document.visibilityState==='visible'&&!wakeLock)wakeLock=await navigator.wakeLock.request('screen')}catch(e){}
+ }
+ function updateTimer(){
+  if(!timerEnd)return;
+  const remaining=Math.max(0,Math.ceil((timerEnd-Date.now())/1000));
+  byId('hg-cook-timer-display').textContent=remaining?Math.floor(remaining/60)+':'+String(remaining%60).padStart(2,'0'):'Timer finished';
+  if(!remaining){clearInterval(timerId);timerId=null;timerEnd=0;}
+ }
+ function close(){
+  save();root.setAttribute('aria-hidden','true');document.body.classList.remove('hg-cooking-active');
+  if(wakeLock){wakeLock.release().catch(()=>{});wakeLock=null}
+  if(timerId)clearInterval(timerId);timerId=null;timerEnd=0;
+  if(returnFocus?.isConnected)returnFocus.focus();
+ }
+ async function open(id,trigger){
+  if(root.getAttribute('aria-hidden')==='false')return;
+  const button=trigger;button.disabled=true;const label=button.textContent;button.textContent='Loading cooking steps…';
+  let full;
+  try{full=await fetchRecipeDetail(id)}
+  catch(error){alert('Unable to load cooking steps: '+error.message);return}
+  finally{button.disabled=false;button.textContent=label}
+  if(!full)return;
+  recipe=full;step=0;checked=new Set();returnFocus=button;
+  try{const saved=JSON.parse(localStorage.getItem(key(recipe.id))||'{}');step=Math.max(0,Math.min((recipe.instructions||[]).length-1,Number(saved.step)||0));checked=new Set((saved.checked||[]).filter(Number.isInteger))}catch(e){}
+  root.setAttribute('aria-hidden','false');document.body.classList.add('hg-cooking-active');paint();byId('hg-cook-close').focus();void requestWake();
+ }
+ document.addEventListener('click',e=>{const button=e.target.closest('[data-start-cooking]');if(button){e.preventDefault();void open(button.dataset.startCooking,button)}});
+ byId('hg-cook-close').addEventListener('click',close);
+ byId('hg-cook-prev').addEventListener('click',()=>{step=Math.max(0,step-1);paint()});
+ byId('hg-cook-next').addEventListener('click',()=>{step=Math.min((recipe.instructions||[]).length-1,step+1);paint()});
+ byId('hg-cook-timer-start').addEventListener('click',()=>{
+  const mins=Number(byId('hg-cook-minutes').value);if(!Number.isFinite(mins)||mins<1||mins>240)return;
+  if(timerId)clearInterval(timerId);timerEnd=Date.now()+mins*60000;updateTimer();timerId=setInterval(updateTimer,1000);
+ });
+ byId('hg-cook-timer-stop').addEventListener('click',()=>{if(timerId)clearInterval(timerId);timerId=null;timerEnd=0;byId('hg-cook-timer-display').textContent='Timer canceled'});
+ document.addEventListener('keydown',e=>{if(e.key==='Escape'&&root.getAttribute('aria-hidden')==='false')close()});
+ document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&root.getAttribute('aria-hidden')==='false')void requestWake()});
 })();
 </script>
 </body></html>
