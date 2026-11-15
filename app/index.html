@@ -5898,6 +5898,18 @@ body.hg-cooking-active{overflow:hidden}
 #hg-cooking-mode .cook-shell:has(#hg-cook-timer-dashboard.has-active-timers){padding-bottom:24px}
 @media(max-width:759px){#hg-cooking-mode #hg-cook-timer-dashboard.has-active-timers{border-radius:12px}}
 </style><style>
+/* Compact cooking header on phones: preserve readable steps and tap targets. */
+@media(max-width:759px){
+ #hg-cooking-mode .cook-shell{gap:8px!important;padding-bottom:12px!important}
+ #hg-cooking-mode .cook-header{gap:6px!important}
+ #hg-cooking-mode #hg-cook-title{font-size:20px!important;line-height:1.25!important;margin:0 0 3px!important}
+ #hg-cooking-mode .cook-tabs{gap:8px!important;padding:3px 0!important}
+ #hg-cooking-mode .cook-tabs button{padding:8px 12px!important;min-height:44px!important}
+ #hg-cooking-mode progress{height:8px!important}
+ #hg-cooking-mode #hg-cook-count{margin:6px 0!important;scroll-margin-top:18px!important}
+ #hg-cooking-mode #hg-cook-timer-dashboard.has-active-timers:not(.timers-expanded){max-height:64px!important;overflow:hidden!important}
+ #hg-cooking-mode #hg-cook-timer-dashboard.has-active-timers .hg-timer-summary{min-height:48px!important;padding:8px 10px!important;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+}
 /* iOS standalone PWA safe areas: prevent Dynamic Island and Home indicator overlap. */
 @supports (padding-top: env(safe-area-inset-top)) {
  #hg-cooking-mode[aria-hidden="false"]{
