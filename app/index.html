@@ -1354,7 +1354,7 @@ const first=layout.children[0],second=layout.children[1];
 
 // Shop is a dedicated section in the HTML itself, not moved by JavaScript.
 const pageSpecs=[
- ['all','Show all pages',null],
+ ['all','Home',null],
  ['recipes','Recipes',first],
  ['stores','Nearby stores',document.getElementById('shop-sales')],
  ['my-recipes','My Recipes',document.getElementById('my-recipes')],
@@ -1620,6 +1620,8 @@ function showPage(key){
 }
 let initialPage='all';
 try{initialPage=localStorage.getItem(PAGE_VIEW_KEY)||(localStorage.getItem('hellogroceries-shopping-only')==='1'?'shopping':'all')}catch(e){}
+// Desktop always opens on Home; navigation still allows switching to Recipes and other pages.
+if(window.matchMedia('(min-width:751px)').matches)initialPage='all';
 // Authentication redirects to /?login=1. Start every new login on Home,
 // rather than restoring a previously visited Recipes tab.
 const freshLogin=new URLSearchParams(window.location.search).has('login');
