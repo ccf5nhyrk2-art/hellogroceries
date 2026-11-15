@@ -5901,8 +5901,10 @@ body.hg-cooking-active{overflow:hidden}
 /* Compact cooking header on phones: preserve readable steps and tap targets. */
 @media(max-width:759px){
  #hg-cooking-mode .cook-shell{gap:8px!important;padding-bottom:12px!important}
- #hg-cooking-mode .cook-header{gap:6px!important}
- #hg-cooking-mode #hg-cook-title{font-size:20px!important;line-height:1.25!important;margin:0 0 3px!important}
+ #hg-cooking-mode .cook-header{gap:6px!important;min-height:44px!important}
+ #hg-cooking-mode .cook-header strong{font-size:12px!important;line-height:1.2!important}
+ #hg-cooking-mode #hg-cook-close{min-height:44px!important;padding:6px 10px!important;font-size:13px!important}
+ #hg-cooking-mode #hg-cook-title{font-size:18px!important;line-height:1.2!important;margin:0 0 2px!important;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden}
  #hg-cooking-mode .cook-tabs{gap:8px!important;padding:3px 0!important}
  #hg-cooking-mode .cook-tabs button{padding:8px 12px!important;min-height:44px!important}
  #hg-cooking-mode progress{height:8px!important}
@@ -6006,11 +6008,12 @@ body.hg-cooking-active{overflow:hidden}
    return candidates.some(word=>word.length>=4&&words.split(/\b/).some(segment=>segment===word));
   });
  }
- function paint(){
+ function paint(options={}){
   if(!recipe)return;
   const steps=Array.isArray(recipe.instructions)?recipe.instructions:[];
   const prep=step===-1;
   byId('hg-cook-title').textContent=recipe.name||'Cooking';
+  byId('hg-cook-title').title=recipe.name||'Cooking';
   byId('hg-cook-count').textContent=prep?'Prep · gather your ingredients':steps.length?'Step '+(step+1)+' of '+steps.length:'Cooking instructions unavailable';
   byId('hg-cook-step').textContent=prep?'Gather your ingredients and check them off as you prepare. Tap Next when you are ready to cook.':steps.length?readableInstruction(steps[step]):'This recipe has no stored cooking steps. Open the original recipe from Details.';
   byId('hg-cook-progress').max=Math.max(1,steps.length+1);
@@ -6075,7 +6078,7 @@ body.hg-cooking-active{overflow:hidden}
    }
   }
   // Changing steps returns the instruction to the top of the cooking viewport.
-  if(!ingredientsTab&&root.getAttribute('aria-hidden')==='false')byId('hg-cook-count').scrollIntoView({block:'start',behavior:'auto'});
+  if(!options.preserveScroll&&!ingredientsTab&&root.getAttribute('aria-hidden')==='false')byId('hg-cook-count').scrollIntoView({block:'start',behavior:'auto'});
   save();
  }
  function unlockAudio(){
@@ -6236,8 +6239,15 @@ body.hg-cooking-active{overflow:hidden}
  const swipeArea=byId('hg-cook-step');
  swipeArea.addEventListener('touchstart',event=>{
   if(event.touches.length!==1||event.target.closest('button,input,a,textarea,select')){swipeStart=null;return;}
-  swipeStart={x:event.touches[0].clientX,y:event.touches[0].clientY};
+  swipeStart={x:event.touches[0].clientX,y:event.touches[0].clientY,horizontal:false};
  },{passive:true});
+ swipeArea.addEventListener('touchmove',event=>{
+  if(!swipeStart||event.touches.length!==1)return;
+  const dx=event.touches[0].clientX-swipeStart.x;
+  const dy=event.touches[0].clientY-swipeStart.y;
+  if(Math.abs(dx)>14&&Math.abs(dx)>Math.abs(dy)*1.5)swipeStart.horizontal=true;
+  if(swipeStart.horizontal&&event.cancelable)event.preventDefault();
+ },{passive:false});
  swipeArea.addEventListener('touchcancel',()=>{swipeStart=null},{passive:true});
  swipeArea.addEventListener('touchend',event=>{
   if(!swipeStart||event.changedTouches.length!==1)return;
@@ -6247,7 +6257,7 @@ body.hg-cooking-active{overflow:hidden}
   if(Math.abs(dx)<65||Math.abs(dx)<Math.abs(dy)*1.5||!recipe||ingredientsTab)return;
   const last=(recipe.instructions||[]).length-1;
   const next=dx<0?Math.min(last,step+1):Math.max(-1,step-1);
-  if(next!==step){step=next;paint();}
+  if(next!==step){step=next;paint({preserveScroll:true});}
  },{passive:true});
  // Capture timer taps before recipe card/dialog handlers can intercept them.
  // Keep the status visible even if audio or browser notifications are unavailable.
