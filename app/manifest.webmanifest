@@ -1,0 +1,19 @@
+{
+  "id": "/",
+  "name": "HelloGroceries",
+  "short_name": "HelloGroceries",
+  "description": "Recipes, meal planning, pantry, shopping lists and cooking mode",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#10231d",
+  "theme_color": "#176b4a",
+  "icons": [
+    {
+      "src": "/assets/hg-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
