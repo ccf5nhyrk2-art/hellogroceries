@@ -6371,10 +6371,7 @@ body.hg-cooking-active{overflow:hidden}
    console.error('HelloGroceries timer failed',error);
   }
  },true);
- byId('hg-cook-test-sound').addEventListener('click',()=>{
-  unlockAudio();
-  beep();
-  byId('hg-co);updateTimer()});
+ byId('hg-cook-timer-stop').addEventListener('click',()=>{activeTimers=[];alarmQueue=[];showAlarm();updateTimer()});
  byId('hg-cook-alarm-stop').addEventListener('click',stopAlarm);
  document.addEventListener('keydown',e=>{if(e.key==='Escape'&&root.getAttribute('aria-hidden')==='false')close()});
  document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&root.getAttribute('aria-hidden')==='false')void requestWake()});
