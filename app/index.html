@@ -6146,29 +6146,14 @@ body.hg-cooking-active{overflow:hidden}
   }catch(error){console.warn('Cooking alarm audio unavailable',error)}
  }
  function beep(){
-  try{
-   if(!audioContext||audioContext.state!=='running'){
-    console.warn('Cooking alarm is silent: audio context not running',audioContext?.state);
-    return;
-   }
-   const now=audioContext.currentTime;
-   // Two audible tones per alarm pulse, rather than a single quiet sine beep.
-   for(const [offset,frequency] of [[0,880],[0.24,1100]]){
-    const oscillator=audioContext.createOscillator(),gain=audioContext.createGain();
-    oscillator.type='square';oscillator.frequency.setValueAtTime(frequency,now+offset);
-    gain.gain.setValueAtTime(0.0001,now+offset);
-    gain.gain.exponentialRampToValueAtTime(0.10,now+offset+0.015);
-    gain.gain.exponentialRampToValueAtTime(0.0001,now+offset+0.19);
-    oscillator.connect(gain);gain.connect(audioContext.destination);
-    oscillator.start(now+offset);oscillator.stop(now+offset+0.20);
-   }
-  }catch(error){console.warn('Cooking alarm playback failed',error)}
+  // The pre-unlocked HTML audio element is the sole alarm output; no harsh square-wave layer.
+  playAlarmAudio();
  }
  // A pre-created HTMLAudioElement provides a fallback if Safari suspends Web Audio.
  let alarmAudio=null;
  function alarmAudioElement(){
   if(alarmAudio)return alarmAudio;
-  const rate=22050,seconds=0.62,samples=Math.floor(rate*seconds),bytes=new Uint8Array(44+samples*2);
+  const rate=22050,seconds=1.65,samples=Math.floor(rate*seconds),bytes=new Uint8Array(44+samples*2);
   const view=new DataView(bytes.buffer);
   const write=(pos,str)=>{for(let i=0;i<str.length;i++)bytes[pos+i]=str.charCodeAt(i)};
   write(0,'RIFF');view.setUint32(4,36+samples*2,true);write(8,'WAVE');write(12,'fmt ');
@@ -6176,9 +6161,20 @@ body.hg-cooking-active{overflow:hidden}
   view.setUint32(24,rate,true);view.setUint32(28,rate*2,true);view.setUint16(32,2,true);view.setUint16(34,16,true);
   write(36,'data');view.setUint32(40,samples*2,true);
   for(let i=0;i<samples;i++){
-   const t=i/rate,env=Math.min(1,t*30)*Math.min(1,(seconds-t)*12);
-   const hz=t<0.3?880:1100;
-   view.setInt16(44+i*2,Math.round(Math.sin(2*Math.PI*hz*t)*env*19000),true);
+   const t=i/rate;
+   // Original soft, three-note bell chime; not an Apple sound recording.
+   const notes=[[0,659.25],[0.28,783.99],[0.58,987.77]];
+   let sample=0;
+   for(const [start,hz] of notes){
+    const age=t-start;
+    if(age<0)continue;
+    const attack=Math.min(1,age/0.022);
+    const decay=Math.exp(-age*3.1);
+    const fundamental=Math.sin(2*Math.PI*hz*age);
+    const shimmer=0.22*Math.sin(2*Math.PI*hz*2.01*age);
+    sample+=attack*decay*(fundamental+shimmer);
+   }
+   view.setInt16(44+i*2,Math.max(-32767,Math.min(32767,Math.round(sample*10500))),true);
   }
   let binary='';for(let i=0;i<bytes.length;i+=8192)binary+=String.fromCharCode(...bytes.subarray(i,i+8192));
   alarmAudio=new Audio('data:audio/wav;base64,'+btoa(binary));
@@ -6205,7 +6201,7 @@ body.hg-cooking-active{overflow:hidden}
   try{if(navigator.vibrate)navigator.vibrate([250,150,250]);}catch(e){}
   if(alarmSoundId===null){
    if(audioContext?.state==='suspended')audioContext.resume().catch(()=>{});
-   beep();playAlarmAudio();alarmSoundId=setInterval(()=>{beep();playAlarmAudio()},1400);
+   beep();alarmSoundId=setInterval(beep,2400);
   }
   byId('hg-cook-alarm-stop').focus();
  }
@@ -6378,7 +6374,6 @@ body.hg-cooking-active{overflow:hidden}
  byId('hg-cook-test-sound').addEventListener('click',()=>{
   unlockAudio();
   beep();
-  playAlarmAudio();
   byId('hg-cook-timer-display').textContent='Test sound requested';
  });
  byId('hg-cook-timer-stop').addEventListener('click',()=>{activeTimers=[];alarmQueue=[];showAlarm();updateTimer()});
