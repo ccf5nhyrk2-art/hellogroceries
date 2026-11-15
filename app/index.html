@@ -5831,14 +5831,23 @@ body.hg-cooking-active{overflow:hidden}
 #home-personalized .home-overview>button{width:100%;min-width:0;cursor:pointer;color:inherit;font-family:inherit;display:flex;flex-direction:column;align-items:center;justify-content:center}
 #home-personalized .home-overview>button:focus-visible{outline:3px solid #9ce2af;outline-offset:3px}
 </style>
-<section id="hg-cooking-mode" role="dialog" aria-modal="true" aria-label="HelloGroceries Cooking Mode" aria-hidden="true">
+<style>
+#hg-cooking-mode .cook-tabs{display:flex;gap:8px;position:sticky;top:0;z-index:3;padding:10px 0;background:#10231d}
+#hg-cooking-mode .cook-tabs button[aria-pressed="true"]{background:#a4e6b5;color:#132a1c}
+#hg-cooking-mode .cook-step{font-size:clamp(20px,3vw,30px);line-height:1.5;min-height:0}
+#hg-cooking-mode .cook-controls{position:sticky;bottom:0;z-index:4;background:#10231d;padding:12px 0 calc(12px + env(safe-area-inset-bottom,0px))}
+#hg-cooking-mode .cook-ingredients[hidden],#hg-cooking-mode [hidden]{display:none!important}
+#hg-cooking-mode .cook-ingredients{margin-top:12px}
+#hg-cooking-mode #hg-cook-suggested-timer{margin-top:12px}
+@media(max-width:759px){#hg-cooking-mode .cook-content{display:block}#hg-cooking-mode #hg-cook-all-ingredients{display:none}#hg-cooking-mode #hg-cook-all-ingredients.cook-full-visible{display:block}#hg-cooking-mode .cook-header strong{font-size:15px}#hg-cooking-mode #hg-cook-title{font-size:23px;line-height:1.3}}
+</style><section id="hg-cooking-mode" role="dialog" aria-modal="true" aria-label="HelloGroceries Cooking Mode" aria-hidden="true">
  <div class="cook-shell">
   <div class="cook-header"><strong>🍳 HelloGroceries Cooking Mode</strong><button id="hg-cook-close" type="button">Exit Cooking</button></div>
-  <h2 id="hg-cook-title"></h2>
+  <h2 id="hg-cook-title"></h2><div class="cook-tabs"><button type="button" id="hg-cook-show-steps" aria-pressed="true">Cooking steps</button><button type="button" id="hg-cook-show-ingredients" aria-pressed="false">All ingredients</button></div>
   <progress id="hg-cook-progress" max="1" value="0"></progress>
   <div class="cook-content">
-   <div><p id="hg-cook-count" aria-live="polite"></p><div id="hg-cook-step" class="cook-step" aria-live="polite"></div><div class="cook-controls" style="margin-top:16px"><button id="hg-cook-prev" type="button">← Previous</button><button id="hg-cook-next" type="button">Next →</button></div></div>
-   <aside class="cook-ingredients"><h3>Ingredients</h3><div id="hg-cook-ingredients"></div></aside>
+   <div><p id="hg-cook-count" aria-live="polite"></p><div id="hg-cook-step" class="cook-step" aria-live="polite"></div><section id="hg-cook-step-ingredients" class="cook-ingredients"><h3>Ingredients for this step</h3><div id="hg-cook-step-ingredient-list"></div></section><div id="hg-cook-suggested-timer"></div><div class="cook-controls" style="margin-top:16px"><button id="hg-cook-prev" type="button">← Previous</button><button id="hg-cook-next" type="button">Next →</button></div></div>
+   <aside id="hg-cook-all-ingredients" class="cook-ingredients"><h3>All ingredients</h3><div id="hg-cook-ingredients"></div></aside>
   </div>
   <div class="cook-timer"><label for="hg-cook-minutes">Timer (minutes)</label><input id="hg-cook-minutes" type="number" min="1" max="240" value="5"><button id="hg-cook-timer-start" type="button">Start Timer</button><button id="hg-cook-timer-stop" type="button">Cancel Timer</button><strong id="hg-cook-timer-display" role="status" aria-live="polite"></strong></div>
   <p style="opacity:.8">Your cooking step and ingredient checklist are saved on this device. Screen wake lock is requested where supported.</p>
@@ -5848,28 +5857,64 @@ body.hg-cooking-active{overflow:hidden}
 (function(){
  const byId=id=>document.getElementById(id);
  const root=byId('hg-cooking-mode');
- let recipe=null,step=0,checked=new Set(),timerEnd=0,timerId=null,wakeLock=null,returnFocus=null;
+ let recipe=null,step=-1,checked=new Set(),timerEnd=0,timerId=null,wakeLock=null,returnFocus=null,ingredientsTab=false;
  const key=id=>'hg-cooking-progress-'+id;
  const save=()=>{if(!recipe)return;try{localStorage.setItem(key(recipe.id),JSON.stringify({step,checked:[...checked]}))}catch(e){}};
  const safeText=value=>typeof value==='string'?value:JSON.stringify(value);
+ const ingredients=()=>Object.entries(recipe?.ingredients||{});
+ function ingredientLabel(name,amount,index){
+  const label=document.createElement('label'),box=document.createElement('input');
+  box.type='checkbox';box.checked=checked.has(index);box.setAttribute('aria-label','Prepared '+name);
+  box.addEventListener('change',()=>{box.checked?checked.add(index):checked.delete(index);save();paint()});
+  label.append(box,document.createTextNode(name+(String(amount).trim()==='1'?'':' — '+amount)));
+  return label;
+ }
+ function relevantIngredients(instruction){
+  const words=String(instruction||'').toLowerCase();
+  return ingredients().map(([name,amount],index)=>({name,amount,index})).filter(item=>{
+   const name=item.name.toLowerCase().replace(/[^a-z ]/g,' ').trim();
+   const variants=[name,name.replace(/s$/,''),...name.split(/\s+/).filter(w=>w.length>=4&&!['fresh','ground','large','small','medium','whole','chopped','sliced'].includes(w))];
+   return variants.some(word=>word.length>=4&&new RegExp('\\b'+word.replace(/[.*+?^\x24{}()|[\]\\]/g,'\\$&')+'\\b','i').test(words));
+  });
+ }
  function paint(){
   if(!recipe)return;
-  const steps=recipe.instructions||[];
+  const steps=Array.isArray(recipe.instructions)?recipe.instructions:[];
+  const prep=step===-1;
   byId('hg-cook-title').textContent=recipe.name||'Cooking';
-  byId('hg-cook-count').textContent=steps.length?'Step '+(step+1)+' of '+steps.length:'Cooking instructions unavailable';
-  byId('hg-cook-step').textContent=steps.length?safeText(steps[step]):'This recipe has no stored cooking steps. Open the original recipe from Details.';
-  byId('hg-cook-progress').max=Math.max(1,steps.length);
-  byId('hg-cook-progress').value=steps.length?step+1:0;
-  byId('hg-cook-prev').disabled=step===0;
+  byId('hg-cook-count').textContent=prep?'Prep · gather your ingredients':steps.length?'Step '+(step+1)+' of '+steps.length:'Cooking instructions unavailable';
+  byId('hg-cook-step').textContent=prep?'Gather your ingredients and check them off as you prepare. Tap Next when you are ready to cook.':steps.length?safeText(steps[step]):'This recipe has no stored cooking steps. Open the original recipe from Details.';
+  byId('hg-cook-progress').max=Math.max(1,steps.length+1);
+  byId('hg-cook-progress').value=step+1;
+  byId('hg-cook-prev').disabled=step===-1;
   byId('hg-cook-next').disabled=!steps.length||step>=steps.length-1;
+  byId('hg-cook-next').textContent=prep?'Begin cooking →':'Next →';
+  byId('hg-cook-show-steps').setAttribute('aria-pressed',String(!ingredientsTab));
+  byId('hg-cook-show-ingredients').setAttribute('aria-pressed',String(ingredientsTab));
+  byId('hg-cook-all-ingredients').classList.toggle('cook-full-visible',ingredientsTab);
+  byId('hg-cook-step-ingredients').hidden=ingredientsTab;
+  byId('hg-cook-step').hidden=ingredientsTab;
+  byId('hg-cook-count').hidden=ingredientsTab;
+  byId('hg-cook-suggested-timer').hidden=ingredientsTab;
+  byId('hg-cook-prev').parentElement.hidden=ingredientsTab;
   const list=byId('hg-cook-ingredients');list.replaceChildren();
-  Object.entries(recipe.ingredients||{}).forEach(([name,amount],index)=>{
-   const label=document.createElement('label'),box=document.createElement('input');
-   box.type='checkbox';box.checked=checked.has(index);
-   box.addEventListener('change',()=>{box.checked?checked.add(index):checked.delete(index);save()});
-   label.append(box,document.createTextNode(name+(String(amount).trim()==='1'?'':' — '+amount)));list.append(label);
-  });
+  ingredients().forEach(([name,amount],index)=>list.append(ingredientLabel(name,amount,index)));
+  const relevant=prep?ingredients().map(([name,amount],index)=>({name,amount,index})):relevantIngredients(steps[step]);
+  const stepList=byId('hg-cook-step-ingredient-list');stepList.replaceChildren();
+  relevant.forEach(({name,amount,index})=>stepList.append(ingredientLabel(name,amount,index)));
+  if(!relevant.length)stepList.textContent='No ingredients confidently matched to this step. Check All ingredients for the complete list.';
+  const timer=byId('hg-cook-suggested-timer');timer.replaceChildren();
+  if(!prep&&steps.length){
+   const match=String(steps[step]).match(/\b(?:for|about|approximately)\s+(\d{1,3})(?:\s*(?:-|to)\s*\d{1,3})?\s*(minutes?|mins?|hours?|hrs?)\b/i);
+   if(match){const mins=Number(match[1])*(match[2].toLowerCase().startsWith('h')?60:1);
+    if(mins>0&&mins<=240){const btn=document.createElement('button');btn.type='button';btn.textContent='⏱ Start '+mins+'-minute timer';btn.addEventListener('click',()=>startTimer(mins));timer.append(btn)}
+   }
+  }
   save();
+ }
+ function startTimer(mins){
+  if(timerId)clearInterval(timerId);
+  timerEnd=Date.now()+mins*60000;updateTimer();timerId=setInterval(updateTimer,1000);
  }
  async function requestWake(){
   try{if(navigator.wakeLock&&document.visibilityState==='visible'&&!wakeLock)wakeLock=await navigator.wakeLock.request('screen')}catch(e){}
@@ -5894,17 +5939,19 @@ body.hg-cooking-active{overflow:hidden}
   catch(error){alert('Unable to load cooking steps: '+error.message);return}
   finally{button.disabled=false;button.textContent=label}
   if(!full)return;
-  recipe=full;step=0;checked=new Set();returnFocus=button;
-  try{const saved=JSON.parse(localStorage.getItem(key(recipe.id))||'{}');step=Math.max(0,Math.min((recipe.instructions||[]).length-1,Number(saved.step)||0));checked=new Set((saved.checked||[]).filter(Number.isInteger))}catch(e){}
+  recipe=full;step=-1;checked=new Set();ingredientsTab=false;returnFocus=button;
+  try{const saved=JSON.parse(localStorage.getItem(key(recipe.id))||'{}');step=Math.max(-1,Math.min((recipe.instructions||[]).length-1,Number.isFinite(Number(saved.step))?Number(saved.step):-1));checked=new Set((saved.checked||[]).filter(Number.isInteger))}catch(e){}
   root.setAttribute('aria-hidden','false');document.body.classList.add('hg-cooking-active');paint();byId('hg-cook-close').focus();void requestWake();
  }
  document.addEventListener('click',e=>{const button=e.target.closest('[data-start-cooking]');if(button){e.preventDefault();void open(button.dataset.startCooking,button)}});
  byId('hg-cook-close').addEventListener('click',close);
- byId('hg-cook-prev').addEventListener('click',()=>{step=Math.max(0,step-1);paint()});
+ byId('hg-cook-show-steps').addEventListener('click',()=>{ingredientsTab=false;paint()});
+ byId('hg-cook-show-ingredients').addEventListener('click',()=>{ingredientsTab=true;paint()});
+ byId('hg-cook-prev').addEventListener('click',()=>{step=Math.max(-1,step-1);paint()});
  byId('hg-cook-next').addEventListener('click',()=>{step=Math.min((recipe.instructions||[]).length-1,step+1);paint()});
  byId('hg-cook-timer-start').addEventListener('click',()=>{
   const mins=Number(byId('hg-cook-minutes').value);if(!Number.isFinite(mins)||mins<1||mins>240)return;
-  if(timerId)clearInterval(timerId);timerEnd=Date.now()+mins*60000;updateTimer();timerId=setInterval(updateTimer,1000);
+  startTimer(mins);
  });
  byId('hg-cook-timer-stop').addEventListener('click',()=>{if(timerId)clearInterval(timerId);timerId=null;timerEnd=0;byId('hg-cook-timer-display').textContent='Timer canceled'});
  document.addEventListener('keydown',e=>{if(e.key==='Escape'&&root.getAttribute('aria-hidden')==='false')close()});
