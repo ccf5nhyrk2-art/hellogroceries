@@ -5884,7 +5884,8 @@ body.hg-cooking-active{overflow:hidden}
 #hg-cooking-mode #hg-cook-timer-dashboard.has-active-timers{position:fixed!important;left:12px;right:12px;bottom:calc(env(safe-area-inset-bottom, 0px) + 12px);z-index:100;background:#18231e;border:1px solid #72947d;border-radius:16px;padding:6px 10px;max-height:45vh;overflow:auto;box-shadow:0 5px 30px #0009}
 #hg-cooking-mode #hg-cook-timer-dashboard.has-active-timers .hg-timer-summary{width:100%;min-height:46px;text-align:left;font-weight:700;border:0;background:transparent;color:inherit;font-size:15px}
 #hg-cooking-mode #hg-cook-timer-dashboard.has-active-timers:not(.timers-expanded) .cook-active-timer{display:none}
-#hg-cooking-mode #hg-cook-timer-dashboard.has-active-timers .cook-timer{display:flex!important}
+#hg-cooking-mode #hg-cook-timer-dashboard.has-active-timers:not(.timers-expanded) .cook-timer{display:none!important}
+#hg-cooking-mode #hg-cook-timer-dashboard.has-active-timers.timers-expanded .cook-timer{display:flex!important}
 #hg-cooking-mode #hg-cook-timer-dashboard.has-active-timers.timers-expanded .cook-active-timer{display:flex}
 #hg-cooking-mode .cook-shell:has(#hg-cook-timer-dashboard.has-active-timers){padding-bottom:90px}
 </style><style>
@@ -5892,7 +5893,7 @@ body.hg-cooking-active{overflow:hidden}
 #hg-cooking-mode[aria-hidden="false"]{display:flex!important;flex-direction:column;overflow:hidden!important;padding-bottom:max(8px,env(safe-area-inset-bottom,0px))}
 #hg-cooking-mode .cook-shell{flex:1 1 auto;min-height:0;width:100%;overflow-y:auto;overscroll-behavior:contain;padding-bottom:24px;box-sizing:border-box}
 #hg-cooking-mode #hg-cook-timer-dashboard{flex:0 0 auto;width:100%;max-width:900px;margin:0 auto;box-sizing:border-box}
-#hg-cooking-mode #hg-cook-timer-dashboard.has-active-timers{position:relative!important;left:auto!important;right:auto!important;bottom:auto!important;max-height:35vh!important;margin-top:8px!important}
+#hg-cooking-mode #hg-cook-timer-dashboard.has-active-timers{position:relative!important;left:auto!important;right:auto!important;bottom:auto!important;max-height:35vh!important;margin-top:8px!important;padding:4px 10px!important}
 #hg-cooking-mode #hg-cook-timer-dashboard.has-active-timers:not(.timers-expanded){overflow:hidden!important}
 #hg-cooking-mode .cook-shell:has(#hg-cook-timer-dashboard.has-active-timers){padding-bottom:24px}
 @media(max-width:759px){#hg-cooking-mode #hg-cook-timer-dashboard.has-active-timers{border-radius:12px}}
@@ -6102,7 +6103,7 @@ body.hg-cooking-active{overflow:hidden}
   activeTimers.push({id:Date.now()+'-'+Math.random(),label:label||'Manual timer',end:Date.now()+mins*60000,notified:false});
   byId('hg-cook-timer-display').textContent='Timer started · '+mins+' min';
   unlockAudio();
-  byId('hg-cook-timer-dashboard').classList.add('timers-expanded');
+  byId('hg-cook-timer-dashboard').classList.remove('timers-expanded');
   // Request permission only from the actual user click, never automatically.
   // Render the countdown before attempting optional iOS notification permissions.
   if(!timerId)timerId=setInterval(updateTimer,1000);
@@ -6113,7 +6114,7 @@ body.hg-cooking-active{overflow:hidden}
  }
  function renderTimers(){
   const container=byId('hg-cook-active-timers');container.replaceChildren();
-  if(activeTimers.length){const summary=document.createElement('button');summary.type='button';summary.className='hg-timer-summary';const next=activeTimers.reduce((a,b)=>a.end<b.end?a:b);const remaining=Math.max(0,Math.ceil((next.end-Date.now())/1000));summary.textContent='⏱ '+activeTimers.length+' timer'+(activeTimers.length===1?'':'s')+' · '+next.label+' · '+Math.floor(remaining/60)+':'+String(remaining%60).padStart(2,'0')+'  ▴';summary.setAttribute('aria-expanded',String(byId('hg-cook-timer-dashboard').classList.contains('timers-expanded')));summary.addEventListener('click',()=>{byId('hg-cook-timer-dashboard').classList.toggle('timers-expanded');renderTimers()});container.append(summary)}
+  if(activeTimers.length){const summary=document.createElement('button');summary.type='button';summary.className='hg-timer-summary';const next=activeTimers.reduce((a,b)=>a.end<b.end?a:b);const remaining=Math.max(0,Math.ceil((next.end-Date.now())/1000));summary.textContent='⏱ '+(activeTimers.length>1?activeTimers.length+' timers · ':'')+next.label+' · '+Math.floor(remaining/60)+':'+String(remaining%60).padStart(2,'0')+(byId('hg-cook-timer-dashboard').classList.contains('timers-expanded')?'  ▴':'  ▾');summary.setAttribute('aria-expanded',String(byId('hg-cook-timer-dashboard').classList.contains('timers-expanded')));summary.addEventListener('click',()=>{byId('hg-cook-timer-dashboard').classList.toggle('timers-expanded');renderTimers()});container.append(summary)}
   activeTimers.forEach(timer=>{
    const row=document.createElement('div');row.className='cook-active-timer';
    const remaining=Math.max(0,Math.ceil((timer.end-Date.now())/1000));
@@ -6224,7 +6225,7 @@ body.hg-cooking-active{overflow:hidden}
   if(!Number.isFinite(mins)||mins<1||mins>240){status.textContent='Enter 1–240 minutes';return;}
   try{
    startTimer(mins);
-   byId('hg-cook-timer-dashboard').classList.add('timers-expanded');
+   byId('hg-cook-timer-dashboard').classList.remove('timers-expanded');
    renderTimers();
   }catch(error){
    status.textContent='Timer error: '+(error?.message||String(error));
