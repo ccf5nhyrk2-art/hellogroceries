@@ -3999,9 +3999,11 @@ if(displayedIds.length!==desiredIds.length||displayedIds.some((id,index)=>id!==d
  if(requiresLegacyRecipeFilters()&&legacyCatalogLoaded)renderLegacy();
  else void renderPaged();
  // Scroll to the recipe section heading after the new page is rendered.
- const heading=$('recipes')?.closest('section')?.querySelector('.recipes-topbar')||$('recipes');
+ // Anchor pagination to the Explore All Recipes heading, not the start of
+ // the enclosing Recipes section (which also contains recommendation rails).
+ const heading=$('recipe-all-title')||$('recipes');
  if(heading){
-  const top=Math.max(0,window.scrollY+heading.getBoundingClientRect().top-16);
+  const top=Math.max(0,window.scrollY+heading.getBoundingClientRect().top-12);
   window.scrollTo({top,behavior:'instant'});
  }
 }
