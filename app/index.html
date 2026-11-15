@@ -5912,6 +5912,15 @@ body.hg-cooking-active{overflow:hidden}
  #hg-cooking-mode #hg-cook-timer-dashboard.has-active-timers:not(.timers-expanded){max-height:70px!important}
  #hg-cooking-mode #hg-cook-timer-dashboard.has-active-timers .hg-timer-summary{min-height:44px}
 }
+/* Desktop finishing polish: keep prep actions in view and label timer controls. */
+@media(min-width:760px){
+ #hg-cooking-mode .cook-content.cook-prep>div:first-child{position:sticky;top:12px;align-self:start}
+ #hg-cooking-mode .cook-content.cook-prep .cook-step{padding:18px 20px!important}
+ #hg-cooking-mode .cook-content.cook-prep .cook-controls{margin-top:14px!important}
+ #hg-cooking-mode #hg-cook-timer-dashboard:not(.has-active-timers)::before{content:"Cooking timer";display:block;font-size:14px;font-weight:700;letter-spacing:.01em;margin:0 0 8px;color:inherit}
+ #hg-cooking-mode #hg-cook-timer-dashboard:not(.has-active-timers){padding:12px 16px!important}
+ #hg-cooking-mode #hg-cook-timer-dashboard:not(.has-active-timers) .cook-timer{flex-wrap:wrap;row-gap:8px}
+}
 /* Compact cooking header on phones: preserve readable steps and tap targets. */
 @media(max-width:759px){
  #hg-cooking-mode .cook-shell{gap:8px!important;padding-bottom:12px!important}
