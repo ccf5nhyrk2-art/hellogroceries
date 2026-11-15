@@ -1158,6 +1158,17 @@ html[data-theme="light"] #my-recipes select:focus-visible{outline:3px solid #8ee
 </style>
 
 <style>
+/* Desktop Home uses the same focused hierarchy as mobile. */
+@media(min-width:751px){
+ body[data-active-page="all"] .mobile-home-welcome,
+ body[data-active-page="all"] .mobile-home-actions{display:none!important}
+ body[data-active-page="all"] #home-personalized{display:grid!important;gap:18px!important;margin-top:0!important;padding-bottom:28px!important}
+ body[data-active-page="all"] #home-personalized .home-feature{order:-1!important}
+ body[data-active-page="all"] #home-personalized .home-overview{order:0!important}
+ body[data-active-page="all"] #home-personalized .home-meals-head{order:1!important}
+ body[data-active-page="all"] #home-personalized .home-meal-track,
+ body[data-active-page="all"] #home-personalized .home-empty{order:2!important}
+}
 /* Mobile Home: dinner is the heading; no redundant welcome prompt. */
 @media(max-width:750px){
  body[data-active-page="all"] .mobile-home-welcome{display:none!important}
