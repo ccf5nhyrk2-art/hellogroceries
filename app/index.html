@@ -5863,6 +5863,14 @@ body.hg-cooking-active{overflow:hidden}
 #hg-cooking-mode .cook-timer-suggestion button{padding:10px 14px;min-height:44px}
 #hg-cooking-mode .cook-active-timer{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:10px 0;padding:12px;border:1px solid #577365;border-radius:12px}
 #hg-cooking-mode .cook-active-timer button{min-height:40px}
+</style><style>
+#hg-cook-alarm[hidden]{display:none!important}
+#hg-cook-alarm{position:fixed;inset:0;z-index:2147483200;display:flex;align-items:center;justify-content:center;padding:20px;background:rgba(0,0,0,.85)}
+#hg-cook-alarm .hg-alarm-card{width:min(100%,460px);background:#254b36;color:#fff;border:2px solid #a9edbd;border-radius:24px;padding:28px 20px;text-align:center;box-shadow:0 15px 70px #0009}
+#hg-cook-alarm .hg-alarm-bell{font-size:64px}
+#hg-cook-alarm h2{font-size:clamp(28px,6vw,42px);margin:10px 0}
+#hg-cook-alarm p{font-size:19px;line-height:1.4;overflow-wrap:anywhere}
+#hg-cook-alarm button{background:#b7f0c5!important;color:#142e1d!important;font-size:20px!important;min-height:60px!important;width:100%;margin-top:16px}
 </style><section id="hg-cooking-mode" role="dialog" aria-modal="true" aria-label="HelloGroceries Cooking Mode" aria-hidden="true">
  <div class="cook-shell">
   <div class="cook-header"><strong>🍳 HelloGroceries Cooking Mode</strong><button id="hg-cook-close" type="button">Exit Cooking</button></div>
@@ -5872,7 +5880,7 @@ body.hg-cooking-active{overflow:hidden}
    <div><p id="hg-cook-count" aria-live="polite"></p><div id="hg-cook-step" class="cook-step" aria-live="polite"></div><section id="hg-cook-step-ingredients" class="cook-ingredients"><h3>Ingredients for this step</h3><div id="hg-cook-step-ingredient-list"></div></section><div id="hg-cook-suggested-timer"></div><div class="cook-controls" style="margin-top:16px"><button id="hg-cook-prev" type="button">← Previous</button><button id="hg-cook-next" type="button">Next →</button></div></div>
    <aside id="hg-cook-all-ingredients" class="cook-ingredients"><h3>All ingredients</h3><div id="hg-cook-ingredients"></div></aside>
   </div>
-  <div class="cook-timer"><label for="hg-cook-minutes">Timer (minutes)</label><input id="hg-cook-minutes" type="number" min="1" max="240" value="5"><button id="hg-cook-timer-start" type="button">Start Timer</button><button id="hg-cook-timer-stop" type="button">Cancel Timer</button><strong id="hg-cook-timer-display" role="status" aria-live="polite"></strong></div><div id="hg-cook-active-timers" aria-live="polite"></div>
+  <div class="cook-timer"><label for="hg-cook-minutes">Timer (minutes)</label><input id="hg-cook-minutes" type="number" min="1" max="240" value="5"><button id="hg-cook-timer-start" type="button">Start Timer</button><button id="hg-cook-timer-stop" type="button">Cancel Timer</button><strong id="hg-cook-timer-display" role="status" aria-live="polite"></strong></div><div id="hg-cook-active-timers" aria-live="polite"></div><div id="hg-cook-alarm" role="alertdialog" aria-modal="true" aria-labelledby="hg-cook-alarm-title" aria-describedby="hg-cook-alarm-message" hidden><div class="hg-alarm-card"><div class="hg-alarm-bell" aria-hidden="true">🔔</div><h2 id="hg-cook-alarm-title">Timer finished!</h2><p id="hg-cook-alarm-message"></p><button id="hg-cook-alarm-stop" type="button">Stop Alarm</button></div></div>
   <p style="opacity:.8">Your cooking step and ingredient checklist are saved on this device. Screen wake lock is requested where supported.</p>
  </div>
 </section>
@@ -5880,7 +5888,7 @@ body.hg-cooking-active{overflow:hidden}
 (function(){
  const byId=id=>document.getElementById(id);
  const root=byId('hg-cooking-mode');
- let recipe=null,step=-1,checked=new Set(),timerId=null,wakeLock=null,returnFocus=null,ingredientsTab=false,activeTimers=[];
+ let recipe=null,step=-1,checked=new Set(),timerId=null,wakeLock=null,returnFocus=null,ingredientsTab=false,activeTimers=[],audioContext=null,alarmSoundId=null,alarmQueue=[];
  const key=id=>'hg-cooking-progress-'+id;
  const save=()=>{if(!recipe)return;try{localStorage.setItem(key(recipe.id),JSON.stringify({step,checked:[...checked]}))}catch(e){}};
  const safeText=value=>typeof value==='string'?value:JSON.stringify(value);
@@ -5994,8 +6002,47 @@ body.hg-cooking-active{overflow:hidden}
   if(!ingredientsTab&&root.getAttribute('aria-hidden')==='false')byId('hg-cook-count').scrollIntoView({block:'start',behavior:'auto'});
   save();
  }
+ function unlockAudio(){
+  try{
+   const Context=window.AudioContext||window.webkitAudioContext;
+   if(!Context)return;
+   if(!audioContext)audioContext=new Context();
+   if(audioContext.state==='suspended')audioContext.resume().catch(()=>{});
+  }catch(e){}
+ }
+ function beep(){
+  try{
+   if(!audioContext||audioContext.state!=='running')return;
+   const oscillator=audioContext.createOscillator(),gain=audioContext.createGain();
+   oscillator.type='sine';oscillator.frequency.setValueAtTime(880,audioContext.currentTime);
+   gain.gain.setValueAtTime(0.0001,audioContext.currentTime);
+   gain.gain.exponentialRampToValueAtTime(0.16,audioContext.currentTime+0.02);
+   gain.gain.exponentialRampToValueAtTime(0.0001,audioContext.currentTime+0.35);
+   oscillator.connect(gain);gain.connect(audioContext.destination);
+   oscillator.start();oscillator.stop(audioContext.currentTime+0.36);
+  }catch(e){}
+ }
+ function showAlarm(){
+  const panel=byId('hg-cook-alarm');
+  if(!alarmQueue.length){
+   panel.hidden=true;
+   if(alarmSoundId!==null)clearInterval(alarmSoundId);
+   alarmSoundId=null;return;
+  }
+  byId('hg-cook-alarm-message').textContent=alarmQueue.map(t=>t.label).join(' · ');
+  panel.hidden=false;
+  if(alarmSoundId===null){beep();alarmSoundId=setInterval(beep,1100)}
+  byId('hg-cook-alarm-stop').focus();
+ }
+ function stopAlarm(){
+  const dismissed=alarmQueue.splice(0);
+  const ids=new Set(dismissed.map(t=>t.id));
+  activeTimers=activeTimers.filter(t=>!ids.has(t.id));
+  showAlarm();updateTimer();
+ }
  function startTimer(mins,label){
   if(!Number.isFinite(mins)||mins<1||mins>240)return;
+  unlockAudio();
   activeTimers.push({id:Date.now()+'-'+Math.random(),label:label||'Manual timer',end:Date.now()+mins*60000,notified:false});
   // Request permission only from the actual user click, never automatically.
   if('Notification' in window&&Notification.permission==='default')Notification.requestPermission().catch(()=>{});
@@ -6010,7 +6057,7 @@ body.hg-cooking-active{overflow:hidden}
    const label=document.createElement('span');
    label.textContent=timer.label+' · '+(remaining?Math.floor(remaining/60)+':'+String(remaining%60).padStart(2,'0'):'Finished');
    const cancel=document.createElement('button');cancel.type='button';cancel.textContent='Dismiss';
-   cancel.addEventListener('click',()=>{activeTimers=activeTimers.filter(t=>t.id!==timer.id);updateTimer()});
+   cancel.addEventListener('click',()=>{activeTimers=activeTimers.filter(t=>t.id!==timer.id);alarmQueue=alarmQueue.filter(t=>t.id!==timer.id);showAlarm();updateTimer()});
    row.append(label,cancel);container.append(row);
   });
   byId('hg-cook-timer-display').textContent=activeTimers.filter(t=>t.end>Date.now()).length+' active';
@@ -6022,6 +6069,7 @@ body.hg-cooking-active{overflow:hidden}
   for(const timer of activeTimers){
    if(timer.end<=Date.now()&&!timer.notified){
     timer.notified=true;
+    alarmQueue.push(timer);showAlarm();
     if('Notification' in window&&Notification.permission==='granted'){
      try{new Notification('HelloGroceries timer finished',{body:timer.label})}catch(e){}
     }
@@ -6033,6 +6081,8 @@ body.hg-cooking-active{overflow:hidden}
  function close(){
   save();root.setAttribute('aria-hidden','true');document.body.classList.remove('hg-cooking-active');
   if(wakeLock){wakeLock.release().catch(()=>{});wakeLock=null}
+  // Stop any active sound when leaving Cooking Mode.
+  alarmQueue=[];showAlarm();
   if(returnFocus?.isConnected)returnFocus.focus();
  }
  async function open(id,trigger){
@@ -6057,7 +6107,8 @@ body.hg-cooking-active{overflow:hidden}
   const mins=Number(byId('hg-cook-minutes').value);if(!Number.isFinite(mins)||mins<1||mins>240)return;
   startTimer(mins);
  });
- byId('hg-cook-timer-stop').addEventListener('click',()=>{activeTimers=[];updateTimer()});
+ byId('hg-cook-timer-stop').addEventListener('click',()=>{activeTimers=[];alarmQueue=[];showAlarm();updateTimer()});
+ byId('hg-cook-alarm-stop').addEventListener('click',stopAlarm);
  document.addEventListener('keydown',e=>{if(e.key==='Escape'&&root.getAttribute('aria-hidden')==='false')close()});
  document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&root.getAttribute('aria-hidden')==='false')void requestWake()});
 })();
