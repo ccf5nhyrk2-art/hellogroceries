@@ -1158,6 +1158,12 @@ html[data-theme="light"] #my-recipes select:focus-visible{outline:3px solid #8ee
 </style>
 
 <style>
+/* Simplified mobile Home: navigation already provides the four quick actions. */
+@media(max-width:750px){
+ body[data-active-page="all"] .mobile-home-actions{display:none!important}
+ body[data-active-page="all"] .mobile-home-dashboard{gap:0!important}
+ body[data-active-page="all"] .mobile-home-welcome{padding-bottom:10px!important}
+}
 /* Put tonight's actionable dinner first on mobile, ahead of the dashboard tiles.
    This ensures Cook Now is visible on initial load without scrolling. */
 @media(max-width:750px){
