@@ -4029,9 +4029,10 @@ class Handler(SimpleHTTPRequestHandler):
     recipe_id=int(params.get('id',[''])[0])
    except (ValueError,TypeError):
     return self.sendjson({'error':'A valid recipe id is required'},400)
-   checks=instruction_audit_rows()
-   for recipe in allrecipes():
-    if int(recipe.get('id') or 0)==recipe_id and not non_recipe_reason(recipe) and visible_cooking_recipe(recipe,checks):
+   # Reuse the warm catalog rather than decoding every imported recipe and
+   # rebuilding instruction caches for each detail request.
+   for recipe in browse_catalog():
+    if str(recipe.get('id'))==str(recipe_id) and not non_recipe_reason(recipe) and visible_cooking_recipe(recipe,None):
      return self.sendjson(recipe)
    return self.sendjson({'error':'Recipe not found'},404)
   if self.path=='/api/recipes/summary':
