@@ -1440,6 +1440,12 @@ def confirmed_prepared_product(recipe):
 def non_recipe_reason(recipe):
  title=str(recipe.get('name','')).lower().strip()
  if not title:return 'Missing recipe title'
+ # Exclude UAT fixtures and retail wellness-shot multipacks from every browse surface.
+ # Preserve stored records so existing saved references are not destroyed.
+ if re.search(r'^(?:\[?do\s+not\s+use\]?|\[?uat\]?\b|user\s+acceptance\s+test\b)',title):
+  return 'UAT or do-not-use fixture'
+ if re.search(r'\b(?:\d+\s*x\s*)?\d+\s*ml\b',title) and re.search(r'\b(?:shots?|bundle|variety\s+pack)\b',title):
+  return 'Packaged wellness shot product'
  # Hide explicit QA fixtures and retail product promotions from all browse surfaces.
  # Keep their records intact for saved references and regression testing.
  if re.search(r'(?i)^(?:\[modular recipe card test(?:\b|\])|test(?:[\s_-]+upload)?(?:[\s_-]|$)|more\s+test$|__staging_smoke_test__|placeholder(?:[\s_-]|$)|dummy(?:[\s_-]|$))',title):
