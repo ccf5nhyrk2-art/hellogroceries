@@ -5767,4 +5767,27 @@ body:has(#hg-tour-overlay:not([hidden])) #hg-tour-replay{display:none!important}
  document.addEventListener('pointerdown',showTap,true);
  window.hgSetTourTapDebug=setEnabled;
 })();
-</script><script src="/assets/share.js" defer></script></body></html>
+</script><script src="/assets/share.js" defer></script><script>
+/* Keep an already-open tab in sync with server-side session expiration.
+   A failed network request must never be mistaken for a signed-out session. */
+(function(){
+ let checking=false;
+ async function verifySession(){
+  if(checking||document.visibilityState==='hidden')return;
+  checking=true;
+  try{
+   const response=await fetch('/api/auth/status',{credentials:'same-origin',cache:'no-store'});
+   if(!response.ok)return;
+   const status=await response.json();
+   if(status&&status.authenticated===false){
+    window.location.replace('/auth.html');
+   }
+  }catch(error){/* Offline or temporary failure: retry at the next interval. */}
+  finally{checking=false}
+ }
+ document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')void verifySession()});
+ window.addEventListener('focus',()=>{void verifySession()});
+ window.setInterval(()=>{void verifySession()},60000);
+})();
+</script>
+</body></html>
