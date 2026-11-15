@@ -6133,21 +6133,36 @@ body.hg-cooking-active{overflow:hidden}
   try{
    const Context=window.AudioContext||window.webkitAudioContext;
    if(!Context)return;
-   if(!audioContext)audioContext=new Context();
-   if(audioContext.state==='suspended')audioContext.resume().catch(()=>{});
-  }catch(e){}
+   if(!audioContext||audioContext.state==='closed')audioContext=new Context();
+   // Prime the audio graph during the actual Start Timer tap (required by Safari).
+   const source=audioContext.createOscillator(),gain=audioContext.createGain();
+   gain.gain.value=0;
+   source.connect(gain);gain.connect(audioContext.destination);
+   source.start();source.stop(audioContext.currentTime+0.015);
+   if(audioContext.state==='suspended'){
+    const resumed=audioContext.resume();
+    if(resumed&&typeof resumed.catch==='function')resumed.catch(error=>console.warn('Cooking alarm audio unlock blocked',error));
+   }
+  }catch(error){console.warn('Cooking alarm audio unavailable',error)}
  }
  function beep(){
   try{
-   if(!audioContext||audioContext.state!=='running')return;
-   const oscillator=audioContext.createOscillator(),gain=audioContext.createGain();
-   oscillator.type='sine';oscillator.frequency.setValueAtTime(880,audioContext.currentTime);
-   gain.gain.setValueAtTime(0.0001,audioContext.currentTime);
-   gain.gain.exponentialRampToValueAtTime(0.16,audioContext.currentTime+0.02);
-   gain.gain.exponentialRampToValueAtTime(0.0001,audioContext.currentTime+0.35);
-   oscillator.connect(gain);gain.connect(audioContext.destination);
-   oscillator.start();oscillator.stop(audioContext.currentTime+0.36);
-  }catch(e){}
+   if(!audioContext||audioContext.state!=='running'){
+    console.warn('Cooking alarm is silent: audio context not running',audioContext?.state);
+    return;
+   }
+   const now=audioContext.currentTime;
+   // Two audible tones per alarm pulse, rather than a single quiet sine beep.
+   for(const [offset,frequency] of [[0,880],[0.24,1100]]){
+    const oscillator=audioContext.createOscillator(),gain=audioContext.createGain();
+    oscillator.type='square';oscillator.frequency.setValueAtTime(frequency,now+offset);
+    gain.gain.setValueAtTime(0.0001,now+offset);
+    gain.gain.exponentialRampToValueAtTime(0.10,now+offset+0.015);
+    gain.gain.exponentialRampToValueAtTime(0.0001,now+offset+0.19);
+    oscillator.connect(gain);gain.connect(audioContext.destination);
+    oscillator.start(now+offset);oscillator.stop(now+offset+0.20);
+   }
+  }catch(error){console.warn('Cooking alarm playback failed',error)}
  }
  function showAlarm(){
   const panel=byId('hg-cook-alarm');
@@ -6159,7 +6174,10 @@ body.hg-cooking-active{overflow:hidden}
   byId('hg-cook-alarm-message').textContent=alarmQueue.map(t=>t.label).join(' · ');
   panel.hidden=false;
   try{if(navigator.vibrate)navigator.vibrate([250,150,250]);}catch(e){}
-  if(alarmSoundId===null){beep();alarmSoundId=setInterval(beep,1100)}
+  if(alarmSoundId===null){
+   if(audioContext?.state==='suspended')audioContext.resume().catch(()=>{});
+   beep();alarmSoundId=setInterval(beep,1100);
+  }
   byId('hg-cook-alarm-stop').focus();
  }
  function stopAlarm(){
