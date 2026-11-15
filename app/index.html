@@ -5925,8 +5925,9 @@ body.hg-cooking-active{overflow:hidden}
  const root=byId('hg-cooking-mode');
  // Keep timer controls in their own reserved footer rather than overlaying recipe controls.
  const timerDashboard=byId('hg-cook-timer-dashboard');
- // The alarm and dashboard are both children of .cook-shell; insert within that parent.
- timerDashboard.parentElement.insertBefore(timerDashboard,byId('hg-cook-alarm'));
+ // The dashboard must be a direct child of the cooking overlay, outside the scrolling recipe shell.
+ // Otherwise iOS can scroll the countdown out of view immediately after tapping Start.
+ root.appendChild(timerDashboard);
  let recipe=null,step=-1,checked=new Set(),timerId=null,wakeLock=null,returnFocus=null,ingredientsTab=false,activeTimers=[],audioContext=null,alarmSoundId=null,alarmQueue=[];
  const key=id=>'hg-cooking-progress-'+id;
  const save=()=>{if(!recipe)return;try{localStorage.setItem(key(recipe.id),JSON.stringify({step,checked:[...checked]}))}catch(e){}};
@@ -6100,6 +6101,7 @@ body.hg-cooking-active{overflow:hidden}
   if(!Number.isFinite(mins)||mins<1||mins>240)return;
   unlockAudio();
   activeTimers.push({id:Date.now()+'-'+Math.random(),label:label||'Manual timer',end:Date.now()+mins*60000,notified:false});
+  byId('hg-cook-timer-display').textContent='Timer started · '+mins+' min';
   byId('hg-cook-timer-dashboard').classList.add('timers-expanded');
   // Request permission only from the actual user click, never automatically.
   // Render the countdown before attempting optional iOS notification permissions.
