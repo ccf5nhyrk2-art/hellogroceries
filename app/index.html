@@ -5980,7 +5980,7 @@ body.hg-cooking-active{overflow:hidden}
    <div><p id="hg-cook-count" aria-live="polite"></p><div id="hg-cook-step" class="cook-step" aria-live="polite"></div><div id="hg-cook-suggested-timer"></div><section id="hg-cook-step-ingredients" class="cook-ingredients"><h3>Ingredients for this step</h3><div id="hg-cook-step-ingredient-list"></div></section><div class="cook-controls" style="margin-top:16px"><button id="hg-cook-prev" type="button">← Previous</button><button id="hg-cook-next" type="button">Next →</button></div></div>
    <aside id="hg-cook-all-ingredients" class="cook-ingredients"><h3>All ingredients</h3><div id="hg-cook-ingredients"></div></aside>
   </div>
-  <div id="hg-cook-timer-dashboard"><div id="hg-cook-active-timers" aria-live="polite"></div><div class="cook-timer"><label for="hg-cook-minutes">Timer (minutes)</label><input id="hg-cook-minutes" type="number" min="1" max="240" value="5"><button id="hg-cook-timer-start" type="button">Start Timer</button><button id="hg-cook-timer-stop" type="button">Cancel Timer</button><strong id="hg-cook-timer-display" role="status" aria-live="polite"></strong></div></div><div id="hg-cook-alarm" role="alertdialog" aria-modal="true" aria-labelledby="hg-cook-alarm-title" aria-describedby="hg-cook-alarm-message" hidden><div class="hg-alarm-card"><div class="hg-alarm-bell" aria-hidden="true">🔔</div><h2 id="hg-cook-alarm-title">Timer finished!</h2><p id="hg-cook-alarm-message"></p><button id="hg-cook-alarm-stop" type="button">Stop Alarm</button></div></div>
+  <div id="hg-cook-timer-dashboard"><div id="hg-cook-active-timers" aria-live="polite"></div><div class="cook-timer"><label for="hg-cook-minutes">Timer (minutes)</label><input id="hg-cook-minutes" type="number" min="1" max="240" value="5"><button id="hg-cook-timer-start" type="button">Start Timer</button><button id="hg-cook-timer-stop" type="button">Cancel Timer</button><button id="hg-cook-test-sound" type="button" title="Play a sample alarm sound">Test Sound</button><strong id="hg-cook-timer-display" role="status" aria-live="polite"></strong></div></div><div id="hg-cook-alarm" role="alertdialog" aria-modal="true" aria-labelledby="hg-cook-alarm-title" aria-describedby="hg-cook-alarm-message" hidden><div class="hg-alarm-card"><div class="hg-alarm-bell" aria-hidden="true">🔔</div><h2 id="hg-cook-alarm-title">Timer finished!</h2><p id="hg-cook-alarm-message"></p><button id="hg-cook-alarm-stop" type="button">Stop Alarm</button></div></div>
   <p style="opacity:.8">Your cooking step and ingredient checklist are saved on this device. Screen wake lock is requested where supported.</p>
  </div>
 </section>
@@ -6164,19 +6164,48 @@ body.hg-cooking-active{overflow:hidden}
    }
   }catch(error){console.warn('Cooking alarm playback failed',error)}
  }
+ // A pre-created HTMLAudioElement provides a fallback if Safari suspends Web Audio.
+ let alarmAudio=null;
+ function alarmAudioElement(){
+  if(alarmAudio)return alarmAudio;
+  const rate=22050,seconds=0.62,samples=Math.floor(rate*seconds),bytes=new Uint8Array(44+samples*2);
+  const view=new DataView(bytes.buffer);
+  const write=(pos,str)=>{for(let i=0;i<str.length;i++)bytes[pos+i]=str.charCodeAt(i)};
+  write(0,'RIFF');view.setUint32(4,36+samples*2,true);write(8,'WAVE');write(12,'fmt ');
+  view.setUint32(16,16,true);view.setUint16(20,1,true);view.setUint16(22,1,true);
+  view.setUint32(24,rate,true);view.setUint32(28,rate*2,true);view.setUint16(32,2,true);view.setUint16(34,16,true);
+  write(36,'data');view.setUint32(40,samples*2,true);
+  for(let i=0;i<samples;i++){
+   const t=i/rate,env=Math.min(1,t*30)*Math.min(1,(seconds-t)*12);
+   const hz=t<0.3?880:1100;
+   view.setInt16(44+i*2,Math.round(Math.sin(2*Math.PI*hz*t)*env*19000),true);
+  }
+  let binary='';for(let i=0;i<bytes.length;i+=8192)binary+=String.fromCharCode(...bytes.subarray(i,i+8192));
+  alarmAudio=new Audio('data:audio/wav;base64,'+btoa(binary));
+  alarmAudio.preload='auto';
+  return alarmAudio;
+ }
+ function playAlarmAudio(){
+  try{
+   const audio=alarmAudioElement();
+   audio.pause();audio.currentTime=0;
+   const p=audio.play();
+   if(p?.catch)p.catch(error=>{console.warn('Cooking alarm HTML audio blocked',error);byId('hg-cook-alarm-message').textContent+=' · Sound blocked by browser';});
+  }catch(error){console.warn('Cooking alarm fallback failed',error)}
+ }
  function showAlarm(){
   const panel=byId('hg-cook-alarm');
   if(!alarmQueue.length){
    panel.hidden=true;
    if(alarmSoundId!==null)clearInterval(alarmSoundId);
-   alarmSoundId=null;return;
+   alarmSoundId=null;if(alarmAudio){alarmAudio.pause();alarmAudio.currentTime=0}return;
   }
   byId('hg-cook-alarm-message').textContent=alarmQueue.map(t=>t.label).join(' · ');
   panel.hidden=false;
   try{if(navigator.vibrate)navigator.vibrate([250,150,250]);}catch(e){}
   if(alarmSoundId===null){
    if(audioContext?.state==='suspended')audioContext.resume().catch(()=>{});
-   beep();alarmSoundId=setInterval(beep,1100);
+   beep();playAlarmAudio();alarmSoundId=setInterval(()=>{beep();playAlarmAudio()},1400);
   }
   byId('hg-cook-alarm-stop').focus();
  }
@@ -6191,6 +6220,7 @@ body.hg-cooking-active{overflow:hidden}
   activeTimers.push({id:Date.now()+'-'+Math.random(),label:label||'Manual timer',end:Date.now()+mins*60000,notified:false});
   byId('hg-cook-timer-display').textContent='Timer started · '+mins+' min';
   unlockAudio();
+  alarmAudioElement();
   byId('hg-cook-timer-dashboard').classList.remove('timers-expanded');
   // Request permission only from the actual user click, never automatically.
   // Render the countdown before attempting optional iOS notification permissions.
@@ -6345,6 +6375,12 @@ body.hg-cooking-active{overflow:hidden}
    console.error('HelloGroceries timer failed',error);
   }
  },true);
+ byId('hg-cook-test-sound').addEventListener('click',()=>{
+  unlockAudio();
+  beep();
+  playAlarmAudio();
+  byId('hg-cook-timer-display').textContent='Test sound requested';
+ });
  byId('hg-cook-timer-stop').addEventListener('click',()=>{activeTimers=[];alarmQueue=[];showAlarm();updateTimer()});
  byId('hg-cook-alarm-stop').addEventListener('click',stopAlarm);
  document.addEventListener('keydown',e=>{if(e.key==='Escape'&&root.getAttribute('aria-hidden')==='false')close()});
