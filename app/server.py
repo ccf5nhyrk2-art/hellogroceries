@@ -4100,7 +4100,7 @@ class Handler(SimpleHTTPRequestHandler):
   # SimpleHTTPRequestHandler otherwise exposes everything inside /app to logged-in users.
   static_path=urllib.parse.unquote(urllib.parse.urlsplit(self.path).path)
   if static_path=='/':static_path='/index.html'
-  allowed_pages={'/index.html','/auth.html','/admin.html','/household.html'}
+  allowed_pages={'/index.html','/auth.html','/admin.html','/household.html','/manifest.webmanifest','/hg-sw.js'}
   allowed_extensions={'.css','.js','.png','.jpg','.jpeg','.webp','.gif','.svg','.ico','.woff','.woff2'}
   if (static_path not in allowed_pages and
       (not static_path.startswith('/assets/') or Path(static_path).suffix.lower() not in allowed_extensions)):
@@ -4111,6 +4111,10 @@ class Handler(SimpleHTTPRequestHandler):
   self.send_header('X-Frame-Options','DENY')
   self.send_header('Referrer-Policy','strict-origin-when-cross-origin')
   self.send_header('Permissions-Policy','geolocation=(), microphone=(), payment=()')
+  if urllib.parse.urlsplit(self.path).path=='/manifest.webmanifest':
+   self.send_header('Content-Type','application/manifest+json')
+  if urllib.parse.urlsplit(self.path).path=='/hg-sw.js':
+   self.send_header('Service-Worker-Allowed','/')
   # Static HTML/JS must be revalidated after a container image update.
   path=urllib.parse.urlsplit(self.path).path
   if path in ('/','/index.html','/auth.html') or path.endswith(('.js','.css')):
