@@ -5898,6 +5898,50 @@ body.hg-cooking-active{overflow:hidden}
 #hg-cooking-mode .cook-shell:has(#hg-cook-timer-dashboard.has-active-timers){padding-bottom:24px}
 @media(max-width:759px){#hg-cooking-mode #hg-cook-timer-dashboard.has-active-timers{border-radius:12px}}
 </style><style>
+/* Desktop Cooking Mode: clear two-column layout and persistent right-side tools. */
+@media(min-width:760px){
+ #hg-cooking-mode .cook-shell{width:min(100%,1120px)!important;max-width:1120px!important;gap:14px!important}
+ #hg-cooking-mode .cook-content{display:grid!important;grid-template-columns:minmax(0,1.65fr) minmax(290px,1fr)!important;gap:24px!important;align-items:start!important}
+ #hg-cooking-mode .cook-content>div:first-child{min-width:0}
+ #hg-cooking-mode #hg-cook-all-ingredients{display:block!important;position:static!important;max-height:none!important;overflow:visible!important;overscroll-behavior:auto}
+ #hg-cooking-mode .cook-content.cook-prep #hg-cook-step-ingredients{display:none!important}
+ #hg-cooking-mode .cook-content.cook-prep .cook-controls{margin-top:12px!important}
+ #hg-cooking-mode .cook-content.cook-prep .cook-step{min-height:0!important}
+ #hg-cooking-mode #hg-cook-timer-dashboard{width:min(100%,1120px)!important;max-width:1120px!important;border:1px solid #527765;border-radius:12px;padding:10px 14px;background:#18231e}
+ #hg-cooking-mode #hg-cook-timer-dashboard:not(.has-active-timers) .cook-timer{display:flex;gap:10px;align-items:center}
+ #hg-cooking-mode #hg-cook-timer-dashboard.has-active-timers:not(.timers-expanded){max-height:70px!important}
+ #hg-cooking-mode #hg-cook-timer-dashboard.has-active-timers .hg-timer-summary{min-height:44px}
+}
+/* Desktop finishing polish: keep prep actions in view and label timer controls. */
+@media(min-width:760px){
+ #hg-cooking-mode .cook-content.cook-prep>div:first-child{position:sticky;top:12px;align-self:start}
+ #hg-cooking-mode .cook-content.cook-prep .cook-step{padding:18px 20px!important}
+ #hg-cooking-mode .cook-content.cook-prep .cook-controls{margin-top:14px!important}
+ #hg-cooking-mode #hg-cook-timer-dashboard:not(.has-active-timers)::before{content:"Cooking timer";display:block;font-size:14px;font-weight:700;letter-spacing:.01em;margin:0 0 8px;color:inherit}
+ #hg-cooking-mode #hg-cook-timer-dashboard:not(.has-active-timers){padding:12px 16px!important}
+ #hg-cooking-mode #hg-cook-timer-dashboard:not(.has-active-timers) .cook-timer{flex-wrap:wrap;row-gap:8px}
+}
+/* Desktop: independent ingredient scrolling with an unobstructed timer footer. */
+@media(min-width:760px){
+ #hg-cooking-mode{min-height:0!important}
+ #hg-cooking-mode .cook-shell{min-height:0!important;flex:1 1 auto!important;overflow-y:auto!important;scroll-padding-bottom:28px!important;padding-bottom:36px!important}
+ #hg-cooking-mode .cook-content{padding-bottom:24px!important}
+ #hg-cooking-mode #hg-cook-all-ingredients{position:sticky!important;top:12px!important;align-self:start!important;max-height:min(64dvh,650px)!important;overflow-y:auto!important;overscroll-behavior:contain!important;scrollbar-gutter:stable}
+ #hg-cooking-mode #hg-cook-timer-dashboard{flex:0 0 auto!important;position:relative!important;bottom:auto!important;z-index:5!important;margin-top:8px!important;margin-bottom:0!important;box-sizing:border-box!important}
+}
+/* Final desktop layout: slim one-row timer, independent ingredient pane. */
+@media(min-width:760px){
+ #hg-cooking-mode #hg-cook-all-ingredients{max-height:calc(100dvh - 380px)!important;min-height:160px;overflow-y:auto!important;overscroll-behavior:contain!important;margin-bottom:16px!important;scroll-padding-bottom:16px!important}
+ #hg-cooking-mode #hg-cook-timer-dashboard{padding:6px 12px!important;min-height:56px!important;max-height:30dvh!important;overflow-y:auto!important;margin-top:4px!important;border-radius:10px!important}
+ #hg-cooking-mode #hg-cook-timer-dashboard:not(.has-active-timers)::before{display:none!important;content:none!important}
+ #hg-cooking-mode #hg-cook-timer-dashboard .cook-timer{display:flex!important;align-items:center!important;gap:8px!important;flex-wrap:nowrap!important;margin:0!important}
+ #hg-cooking-mode #hg-cook-timer-dashboard .cook-timer label{font-size:13px!important;white-space:nowrap}
+ #hg-cooking-mode #hg-cook-timer-dashboard .cook-timer input{width:72px!important;max-width:72px!important}
+ #hg-cooking-mode #hg-cook-timer-dashboard .cook-timer button{padding:7px 11px!important;min-height:38px!important;white-space:nowrap}
+ #hg-cooking-mode #hg-cook-timer-dashboard .cook-timer strong{white-space:nowrap;font-size:13px}
+ #hg-cooking-mode #hg-cook-timer-dashboard.has-active-timers:not(.timers-expanded) .cook-timer{display:none!important}
+ #hg-cooking-mode #hg-cook-timer-dashboard.has-active-timers.timers-expanded .cook-timer{display:flex!important}
+}
 /* Compact cooking header on phones: preserve readable steps and tap targets. */
 @media(max-width:759px){
  #hg-cooking-mode .cook-shell{gap:8px!important;padding-bottom:12px!important}
@@ -5936,7 +5980,7 @@ body.hg-cooking-active{overflow:hidden}
    <div><p id="hg-cook-count" aria-live="polite"></p><div id="hg-cook-step" class="cook-step" aria-live="polite"></div><div id="hg-cook-suggested-timer"></div><section id="hg-cook-step-ingredients" class="cook-ingredients"><h3>Ingredients for this step</h3><div id="hg-cook-step-ingredient-list"></div></section><div class="cook-controls" style="margin-top:16px"><button id="hg-cook-prev" type="button">← Previous</button><button id="hg-cook-next" type="button">Next →</button></div></div>
    <aside id="hg-cook-all-ingredients" class="cook-ingredients"><h3>All ingredients</h3><div id="hg-cook-ingredients"></div></aside>
   </div>
-  <div id="hg-cook-timer-dashboard"><div id="hg-cook-active-timers" aria-live="polite"></div><div class="cook-timer"><label for="hg-cook-minutes">Timer (minutes)</label><input id="hg-cook-minutes" type="number" min="1" max="240" value="5"><button id="hg-cook-timer-start" type="button">Start Timer</button><button id="hg-cook-timer-stop" type="button">Cancel Timer</button><strong id="hg-cook-timer-display" role="status" aria-live="polite"></strong></div></div><div id="hg-cook-alarm" role="alertdialog" aria-modal="true" aria-labelledby="hg-cook-alarm-title" aria-describedby="hg-cook-alarm-message" hidden><div class="hg-alarm-card"><div class="hg-alarm-bell" aria-hidden="true">🔔</div><h2 id="hg-cook-alarm-title">Timer finished!</h2><p id="hg-cook-alarm-message"></p><button id="hg-cook-alarm-stop" type="button">Stop Alarm</button></div></div>
+  <div id="hg-cook-timer-dashboard"><div id="hg-cook-active-timers" aria-live="polite"></div><div class="cook-timer"><label for="hg-cook-minutes">Timer (minutes)</label><input id="hg-cook-minutes" type="number" min="1" max="240" value="5"><button id="hg-cook-timer-start" type="button">Start Timer</button><button id="hg-cook-timer-stop" type="button">Cancel Timer</button><button id="hg-cook-test-sound" type="button" title="Play a sample alarm sound">Test Sound</button><strong id="hg-cook-timer-display" role="status" aria-live="polite"></strong></div></div><div id="hg-cook-alarm" role="alertdialog" aria-modal="true" aria-labelledby="hg-cook-alarm-title" aria-describedby="hg-cook-alarm-message" hidden><div class="hg-alarm-card"><div class="hg-alarm-bell" aria-hidden="true">🔔</div><h2 id="hg-cook-alarm-title">Timer finished!</h2><p id="hg-cook-alarm-message"></p><button id="hg-cook-alarm-stop" type="button">Stop Alarm</button></div></div>
   <p style="opacity:.8">Your cooking step and ingredient checklist are saved on this device. Screen wake lock is requested where supported.</p>
  </div>
 </section>
@@ -6012,6 +6056,7 @@ body.hg-cooking-active{overflow:hidden}
   if(!recipe)return;
   const steps=Array.isArray(recipe.instructions)?recipe.instructions:[];
   const prep=step===-1;
+  byId('hg-cook-step').closest('.cook-content').classList.toggle('cook-prep',prep);
   byId('hg-cook-title').textContent=recipe.name||'Cooking';
   byId('hg-cook-title').title=recipe.name||'Cooking';
   byId('hg-cook-count').textContent=prep?'Prep · gather your ingredients':steps.length?'Step '+(step+1)+' of '+steps.length:'Cooking instructions unavailable';
@@ -6078,40 +6123,86 @@ body.hg-cooking-active{overflow:hidden}
    }
   }
   // Changing steps returns the instruction to the top of the cooking viewport.
-  if(!options.preserveScroll&&!ingredientsTab&&root.getAttribute('aria-hidden')==='false')byId('hg-cook-count').scrollIntoView({block:'start',behavior:'auto'});
+  if(!options.preserveScroll&&!ingredientsTab&&root.getAttribute('aria-hidden')==='false'){
+   if(prep)byId('hg-cook-count').closest('.cook-shell').scrollTop=0;
+   else byId('hg-cook-count').scrollIntoView({block:'start',behavior:'auto'});
+  }
   save();
  }
  function unlockAudio(){
   try{
    const Context=window.AudioContext||window.webkitAudioContext;
    if(!Context)return;
-   if(!audioContext)audioContext=new Context();
-   if(audioContext.state==='suspended')audioContext.resume().catch(()=>{});
-  }catch(e){}
+   if(!audioContext||audioContext.state==='closed')audioContext=new Context();
+   // Prime the audio graph during the actual Start Timer tap (required by Safari).
+   const source=audioContext.createOscillator(),gain=audioContext.createGain();
+   gain.gain.value=0;
+   source.connect(gain);gain.connect(audioContext.destination);
+   source.start();source.stop(audioContext.currentTime+0.015);
+   if(audioContext.state==='suspended'){
+    const resumed=audioContext.resume();
+    if(resumed&&typeof resumed.catch==='function')resumed.catch(error=>console.warn('Cooking alarm audio unlock blocked',error));
+   }
+  }catch(error){console.warn('Cooking alarm audio unavailable',error)}
  }
  function beep(){
+  // The pre-unlocked HTML audio element is the sole alarm output; no harsh square-wave layer.
+  playAlarmAudio();
+ }
+ // A pre-created HTMLAudioElement provides a fallback if Safari suspends Web Audio.
+ let alarmAudio=null;
+ function alarmAudioElement(){
+  if(alarmAudio)return alarmAudio;
+  const rate=22050,seconds=1.65,samples=Math.floor(rate*seconds),bytes=new Uint8Array(44+samples*2);
+  const view=new DataView(bytes.buffer);
+  const write=(pos,str)=>{for(let i=0;i<str.length;i++)bytes[pos+i]=str.charCodeAt(i)};
+  write(0,'RIFF');view.setUint32(4,36+samples*2,true);write(8,'WAVE');write(12,'fmt ');
+  view.setUint32(16,16,true);view.setUint16(20,1,true);view.setUint16(22,1,true);
+  view.setUint32(24,rate,true);view.setUint32(28,rate*2,true);view.setUint16(32,2,true);view.setUint16(34,16,true);
+  write(36,'data');view.setUint32(40,samples*2,true);
+  for(let i=0;i<samples;i++){
+   const t=i/rate;
+   // Original soft, three-note bell chime; not an Apple sound recording.
+   const notes=[[0,659.25],[0.28,783.99],[0.58,987.77]];
+   let sample=0;
+   for(const [start,hz] of notes){
+    const age=t-start;
+    if(age<0)continue;
+    const attack=Math.min(1,age/0.022);
+    const decay=Math.exp(-age*3.1);
+    const fundamental=Math.sin(2*Math.PI*hz*age);
+    const shimmer=0.22*Math.sin(2*Math.PI*hz*2.01*age);
+    sample+=attack*decay*(fundamental+shimmer);
+   }
+   view.setInt16(44+i*2,Math.max(-32767,Math.min(32767,Math.round(sample*10500))),true);
+  }
+  let binary='';for(let i=0;i<bytes.length;i+=8192)binary+=String.fromCharCode(...bytes.subarray(i,i+8192));
+  alarmAudio=new Audio('data:audio/wav;base64,'+btoa(binary));
+  alarmAudio.preload='auto';
+  return alarmAudio;
+ }
+ function playAlarmAudio(){
   try{
-   if(!audioContext||audioContext.state!=='running')return;
-   const oscillator=audioContext.createOscillator(),gain=audioContext.createGain();
-   oscillator.type='sine';oscillator.frequency.setValueAtTime(880,audioContext.currentTime);
-   gain.gain.setValueAtTime(0.0001,audioContext.currentTime);
-   gain.gain.exponentialRampToValueAtTime(0.16,audioContext.currentTime+0.02);
-   gain.gain.exponentialRampToValueAtTime(0.0001,audioContext.currentTime+0.35);
-   oscillator.connect(gain);gain.connect(audioContext.destination);
-   oscillator.start();oscillator.stop(audioContext.currentTime+0.36);
-  }catch(e){}
+   const audio=alarmAudioElement();
+   audio.pause();audio.currentTime=0;
+   const p=audio.play();
+   if(p?.catch)p.catch(error=>{console.warn('Cooking alarm HTML audio blocked',error);byId('hg-cook-alarm-message').textContent+=' · Sound blocked by browser';});
+  }catch(error){console.warn('Cooking alarm fallback failed',error)}
  }
  function showAlarm(){
   const panel=byId('hg-cook-alarm');
   if(!alarmQueue.length){
    panel.hidden=true;
    if(alarmSoundId!==null)clearInterval(alarmSoundId);
-   alarmSoundId=null;return;
+   alarmSoundId=null;if(alarmAudio){alarmAudio.pause();alarmAudio.currentTime=0}return;
   }
   byId('hg-cook-alarm-message').textContent=alarmQueue.map(t=>t.label).join(' · ');
   panel.hidden=false;
   try{if(navigator.vibrate)navigator.vibrate([250,150,250]);}catch(e){}
-  if(alarmSoundId===null){beep();alarmSoundId=setInterval(beep,1100)}
+  if(alarmSoundId===null){
+   if(audioContext?.state==='suspended')audioContext.resume().catch(()=>{});
+   beep();alarmSoundId=setInterval(beep,2400);
+  }
   byId('hg-cook-alarm-stop').focus();
  }
  function stopAlarm(){
@@ -6125,6 +6216,7 @@ body.hg-cooking-active{overflow:hidden}
   activeTimers.push({id:Date.now()+'-'+Math.random(),label:label||'Manual timer',end:Date.now()+mins*60000,notified:false});
   byId('hg-cook-timer-display').textContent='Timer started · '+mins+' min';
   unlockAudio();
+  alarmAudioElement();
   byId('hg-cook-timer-dashboard').classList.remove('timers-expanded');
   // Request permission only from the actual user click, never automatically.
   // Render the countdown before attempting optional iOS notification permissions.
@@ -6279,6 +6371,11 @@ body.hg-cooking-active{overflow:hidden}
    console.error('HelloGroceries timer failed',error);
   }
  },true);
+ byId('hg-cook-test-sound').addEventListener('click',()=>{
+  unlockAudio();
+  beep();
+  byId('hg-cook-timer-display').textContent='Test sound requested';
+ });
  byId('hg-cook-timer-stop').addEventListener('click',()=>{activeTimers=[];alarmQueue=[];showAlarm();updateTimer()});
  byId('hg-cook-alarm-stop').addEventListener('click',stopAlarm);
  document.addEventListener('keydown',e=>{if(e.key==='Escape'&&root.getAttribute('aria-hidden')==='false')close()});
