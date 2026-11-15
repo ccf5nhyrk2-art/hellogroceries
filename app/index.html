@@ -6099,9 +6099,9 @@ body.hg-cooking-active{overflow:hidden}
  }
  function startTimer(mins,label){
   if(!Number.isFinite(mins)||mins<1||mins>240)return;
-  unlockAudio();
   activeTimers.push({id:Date.now()+'-'+Math.random(),label:label||'Manual timer',end:Date.now()+mins*60000,notified:false});
   byId('hg-cook-timer-display').textContent='Timer started · '+mins+' min';
+  unlockAudio();
   byId('hg-cook-timer-dashboard').classList.add('timers-expanded');
   // Request permission only from the actual user click, never automatically.
   // Render the countdown before attempting optional iOS notification permissions.
@@ -6109,12 +6109,7 @@ body.hg-cooking-active{overflow:hidden}
   updateTimer();
   // Some WebKit versions return undefined rather than a Promise here.
   // Permission failures must never interrupt an active cooking timer.
-  try{
-   if('Notification' in window&&Notification.permission==='default'&&typeof Notification.requestPermission==='function'){
-    const request=Notification.requestPermission();
-    if(request&&typeof request.catch==='function')request.catch(()=>{});
-   }
-  }catch(e){/* Notifications are optional; countdown continues. */}
+  // Do not prompt for notification permission when starting a timer: iOS may block or interrupt the interaction.
  }
  function renderTimers(){
   const container=byId('hg-cook-active-timers');container.replaceChildren();
@@ -6216,12 +6211,26 @@ body.hg-cooking-active{overflow:hidden}
  byId('hg-cook-show-ingredients').addEventListener('click',()=>{ingredientsTab=true;paint()});
  byId('hg-cook-prev').addEventListener('click',()=>{step=Math.max(-1,step-1);paint()});
  byId('hg-cook-next').addEventListener('click',()=>{step=Math.min((recipe.instructions||[]).length-1,step+1);paint()});
- byId('hg-cook-timer-start').addEventListener('click',()=>{
+ // Capture timer taps before recipe card/dialog handlers can intercept them.
+ // Keep the status visible even if audio or browser notifications are unavailable.
+ document.addEventListener('click',event=>{
+  const target=event.target;
+  if(!(target instanceof Element)||!target.closest('#hg-cook-timer-start'))return;
+  event.preventDefault();
+  event.stopImmediatePropagation();
+  const status=byId('hg-cook-timer-display');
+  status.textContent='Starting timer…';
   const mins=Number(byId('hg-cook-minutes').value);
-  if(!Number.isFinite(mins)||mins<1||mins>240){byId('hg-cook-timer-display').textContent='Enter 1–240 minutes';return;}
-  try{startTimer(mins);byId('hg-cook-timer-dashboard').classList.add('timers-expanded');renderTimers();}
-  catch(error){byId('hg-cook-timer-display').textContent='Timer error: '+(error?.message||error);}
- });
+  if(!Number.isFinite(mins)||mins<1||mins>240){status.textContent='Enter 1–240 minutes';return;}
+  try{
+   startTimer(mins);
+   byId('hg-cook-timer-dashboard').classList.add('timers-expanded');
+   renderTimers();
+  }catch(error){
+   status.textContent='Timer error: '+(error?.message||String(error));
+   console.error('HelloGroceries timer failed',error);
+  }
+ },true);
  byId('hg-cook-timer-stop').addEventListener('click',()=>{activeTimers=[];alarmQueue=[];showAlarm();updateTimer()});
  byId('hg-cook-alarm-stop').addEventListener('click',stopAlarm);
  document.addEventListener('keydown',e=>{if(e.key==='Escape'&&root.getAttribute('aria-hidden')==='false')close()});
