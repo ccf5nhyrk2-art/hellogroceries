@@ -3543,13 +3543,14 @@ class Handler(SimpleHTTPRequestHandler):
      uid=auth.authenticate(c,data.get('email'),data.get('password'))
     else:return self.sendjson({'error':'Not found'},404)
     token=auth.create_session(c,uid)
+    cookie_max_age=auth.session_duration_days(c)*86400
     c.commit()
    csrf=secrets.token_urlsafe(32)
    payload=json.dumps({'ok':True}).encode()
    self.send_response(200);self.send_header('Content-Type','application/json');self.send_header('Cache-Control','no-store')
    secure='; Secure' if scheme=='https' else ''
-   self.send_header('Set-Cookie','hg_session='+token+'; HttpOnly; SameSite=Lax; Path=/'+secure)
-   self.send_header('Set-Cookie','hg_csrf='+csrf+'; SameSite=Lax; Path=/'+secure)
+   self.send_header('Set-Cookie','hg_session='+token+'; HttpOnly; SameSite=Lax; Path=/; Max-Age='+str(cookie_max_age)+secure)
+   self.send_header('Set-Cookie','hg_csrf='+csrf+'; SameSite=Lax; Path=/; Max-Age='+str(cookie_max_age)+secure)
    self.send_header('Content-Length',str(len(payload)));self.end_headers();self.wfile.write(payload)
   except (ValueError,TypeError,KeyError) as exc:self.sendjson({'error':str(exc)},400)
  def logout_post(self):
@@ -3595,6 +3596,7 @@ class Handler(SimpleHTTPRequestHandler):
     auth.ensure_schema(c)
     uid,hid=auth.redeem_invite(c,data.get('token'),data.get('email'),data.get('password'),data.get('household'))
     session=auth.create_session(c,uid)
+    cookie_max_age=auth.session_duration_days(c)*86400
     c.commit()
    csrf=secrets.token_urlsafe(32)
    payload=b'{"ok":true}'
@@ -3602,8 +3604,8 @@ class Handler(SimpleHTTPRequestHandler):
    self.send_header('Content-Type','application/json')
    self.send_header('Cache-Control','no-store')
    secure='; Secure' if origin.startswith('https://') else ''
-   self.send_header('Set-Cookie','hg_session='+session+'; HttpOnly; SameSite=Lax; Path=/'+secure)
-   self.send_header('Set-Cookie','hg_csrf='+csrf+'; SameSite=Lax; Path=/'+secure)
+   self.send_header('Set-Cookie','hg_session='+session+'; HttpOnly; SameSite=Lax; Path=/; Max-Age='+str(cookie_max_age)+secure)
+   self.send_header('Set-Cookie','hg_csrf='+csrf+'; SameSite=Lax; Path=/; Max-Age='+str(cookie_max_age)+secure)
    self.send_header('Content-Length',str(len(payload)))
    self.end_headers();self.wfile.write(payload)
   except (ValueError,TypeError,KeyError) as exc:return self.sendjson({'error':str(exc)},400)
