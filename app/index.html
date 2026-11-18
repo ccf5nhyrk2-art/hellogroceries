@@ -6091,6 +6091,63 @@ body.hg-cooking-active{overflow:hidden}
  #hg-cooking-mode .cook-shell{scroll-padding-top:12px}
  #hg-cooking-mode #hg-cook-timer-dashboard.has-active-timers{margin-bottom:0!important}
 }
+/* Keep cooking checklists legible in both app themes, including Safari. */
+#hg-cooking-mode .cook-ingredients,
+#hg-cooking-mode #hg-cook-step-ingredients,
+#hg-cooking-mode #hg-cook-all-ingredients {
+  background:#1d3b2d!important;
+  color:#f4faf6!important;
+  border-color:#527765!important;
+  color-scheme:dark;
+}
+#hg-cooking-mode .cook-ingredients h3,
+#hg-cooking-mode .cook-ingredients label,
+#hg-cooking-mode .cook-ingredients span,
+#hg-cooking-mode .cook-ingredients div {
+  color:#f4faf6!important;
+}
+#hg-cooking-mode .cook-ingredients input[type="checkbox"] { accent-color:#80cfa3; }
+/* Light-theme cooking checklist: explicit contrast, independent of global section styles. */
+html[data-theme="light"] #hg-cooking-mode .cook-ingredients,
+html[data-theme="light"] #hg-cooking-mode #hg-cook-step-ingredients,
+html[data-theme="light"] #hg-cooking-mode #hg-cook-all-ingredients {
+  background:#f5f8f5!important;
+  color:#172b20!important;
+  border-color:#b8c9be!important;
+  color-scheme:light;
+}
+html[data-theme="light"] #hg-cooking-mode .cook-ingredients h3,
+html[data-theme="light"] #hg-cooking-mode .cook-ingredients label,
+html[data-theme="light"] #hg-cooking-mode .cook-ingredients span,
+html[data-theme="light"] #hg-cooking-mode .cook-ingredients div {
+  color:#172b20!important;
+}
+html[data-theme="light"] #hg-cooking-mode .cook-ingredients input[type="checkbox"] { accent-color:#286544; }
+/* Complete light theme for the isolated cooking dialog. */
+html[data-theme="light"] #hg-cooking-mode {
+ background:#f6f8f6!important;color:#172b20!important;color-scheme:light;
+}
+html[data-theme="light"] #hg-cooking-mode .cook-step {
+ background:#e7f0e9!important;color:#172b20!important;
+}
+html[data-theme="light"] #hg-cooking-mode .cook-tabs,
+html[data-theme="light"] #hg-cooking-mode .cook-controls {
+ background:#f6f8f6!important;color:#172b20!important;
+}
+html[data-theme="light"] #hg-cooking-mode button {
+ background:#e0efe5!important;color:#173b29!important;border-color:#8ab49a!important;
+}
+html[data-theme="light"] #hg-cooking-mode button[aria-pressed="true"] {
+ background:#a4e6b5!important;color:#132a1c!important;
+}
+html[data-theme="light"] #hg-cooking-mode #hg-cook-timer-dashboard,
+html[data-theme="light"] #hg-cooking-mode .hg-custom-timer {
+ background:#edf3ee!important;color:#172b20!important;border-color:#b8c9be!important;
+}
+html[data-theme="light"] #hg-cooking-mode .cook-timer input {
+ background:#fff!important;color:#172b20!important;border:1px solid #aabfb0!important;
+}
+html[data-theme="light"] #hg-cooking-mode progress {accent-color:#286544!important;}
 </style><section id="hg-cooking-mode" role="dialog" aria-modal="true" aria-label="HelloGroceries Cooking Mode" aria-hidden="true">
  <div class="cook-shell">
   <div class="cook-header"><strong>🍳 HelloGroceries Cooking Mode</strong><button id="hg-cook-close" type="button">Exit Cooking</button></div>
