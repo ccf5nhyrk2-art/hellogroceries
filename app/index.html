@@ -6137,6 +6137,22 @@ body.hg-cooking-active{overflow:hidden}
   color:#f4faf6!important;
 }
 #hg-cooking-mode .cook-ingredients input[type="checkbox"] { accent-color:#80cfa3; }
+/* Light-theme cooking checklist: explicit contrast, independent of global section styles. */
+html[data-theme="light"] #hg-cooking-mode .cook-ingredients,
+html[data-theme="light"] #hg-cooking-mode #hg-cook-step-ingredients,
+html[data-theme="light"] #hg-cooking-mode #hg-cook-all-ingredients {
+  background:#f5f8f5!important;
+  color:#172b20!important;
+  border-color:#b8c9be!important;
+  color-scheme:light;
+}
+html[data-theme="light"] #hg-cooking-mode .cook-ingredients h3,
+html[data-theme="light"] #hg-cooking-mode .cook-ingredients label,
+html[data-theme="light"] #hg-cooking-mode .cook-ingredients span,
+html[data-theme="light"] #hg-cooking-mode .cook-ingredients div {
+  color:#172b20!important;
+}
+html[data-theme="light"] #hg-cooking-mode .cook-ingredients input[type="checkbox"] { accent-color:#286544; }
 </style><section id="hg-cooking-mode" role="dialog" aria-modal="true" aria-label="HelloGroceries Cooking Mode" aria-hidden="true">
  <div class="cook-shell">
   <div class="cook-header"><strong>🍳 HelloGroceries Cooking Mode</strong><button id="hg-cook-close" type="button">Exit Cooking</button></div>
