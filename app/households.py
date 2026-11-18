@@ -122,10 +122,10 @@ SESSION_DAY_OPTIONS = (1, 7, 14, 30)
 def session_duration_days(conn):
     row = conn.execute("SELECT value FROM hg_settings WHERE key='session_days'").fetchone()
     try:
-        value = int(row[0]) if row else 14
+        value = int(row[0]) if row else 30
     except (TypeError, ValueError):
         value = 14
-    return value if value in SESSION_DAY_OPTIONS else 14
+    return value if value in SESSION_DAY_OPTIONS else 30
 
 def set_session_duration_days(conn, days):
     if type(days) is not int or days not in SESSION_DAY_OPTIONS:
