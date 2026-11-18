@@ -6120,6 +6120,23 @@ body.hg-cooking-active{overflow:hidden}
  #hg-cooking-mode .cook-shell{scroll-padding-top:12px}
  #hg-cooking-mode #hg-cook-timer-dashboard.has-active-timers{margin-bottom:0!important}
 }
+</style><style>
+/* Keep cooking checklists legible in both app themes, including Safari. */
+#hg-cooking-mode .cook-ingredients,
+#hg-cooking-mode #hg-cook-step-ingredients,
+#hg-cooking-mode #hg-cook-all-ingredients {
+  background:#1d3b2d!important;
+  color:#f4faf6!important;
+  border-color:#527765!important;
+  color-scheme:dark;
+}
+#hg-cooking-mode .cook-ingredients h3,
+#hg-cooking-mode .cook-ingredients label,
+#hg-cooking-mode .cook-ingredients span,
+#hg-cooking-mode .cook-ingredients div {
+  color:#f4faf6!important;
+}
+#hg-cooking-mode .cook-ingredients input[type="checkbox"] { accent-color:#80cfa3; }
 </style><section id="hg-cooking-mode" role="dialog" aria-modal="true" aria-label="HelloGroceries Cooking Mode" aria-hidden="true">
  <div class="cook-shell">
   <div class="cook-header"><strong>🍳 HelloGroceries Cooking Mode</strong><button id="hg-cook-close" type="button">Exit Cooking</button></div>
